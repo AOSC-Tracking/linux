@@ -1011,6 +1011,14 @@ static void synaptics_report_mt_data(struct psmouse *psmouse,
 		input_report_abs(dev, ABS_MT_PRESSURE, hw[i]->z);
 	}
 
+	/* keep (slot count <= num_fingers) by pinning all slots */
+	if (num_fingers >= 3) {
+		for (i = 0; i < 3; i++) {
+			input_mt_slot(dev, i);
+			input_mt_report_slot_state(dev, MT_TOOL_FINGER, true);
+		}
+	}
+
 	input_mt_drop_unused(dev);
 
 	/* Don't use active slot count to generate BTN_TOOL events. */
