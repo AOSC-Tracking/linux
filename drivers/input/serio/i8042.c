@@ -641,7 +641,7 @@ static int i8042_enable_kbd_port(void)
 	if (i8042_command(&i8042_ctr, I8042_CMD_CTL_WCTR)) {
 		i8042_ctr &= ~I8042_CTR_KBDINT;
 		i8042_ctr |= I8042_CTR_KBDDIS;
-		pr_err("Failed to enable KBD port\n");
+		pr_info("Failed to enable KBD port\n");
 		return -EIO;
 	}
 
@@ -660,7 +660,7 @@ static int i8042_enable_aux_port(void)
 	if (i8042_command(&i8042_ctr, I8042_CMD_CTL_WCTR)) {
 		i8042_ctr &= ~I8042_CTR_AUXINT;
 		i8042_ctr |= I8042_CTR_AUXDIS;
-		pr_err("Failed to enable AUX port\n");
+		pr_info("Failed to enable AUX port\n");
 		return -EIO;
 	}
 
@@ -752,7 +752,7 @@ static int i8042_check_mux(void)
 	i8042_ctr &= ~I8042_CTR_AUXINT;
 
 	if (i8042_command(&i8042_ctr, I8042_CMD_CTL_WCTR)) {
-		pr_err("Failed to disable AUX port, can't use MUX\n");
+		pr_info("Failed to disable AUX port, can't use MUX\n");
 		return -EIO;
 	}
 
@@ -971,7 +971,7 @@ static int i8042_controller_selftest(void)
 
 		ret = i8042_command(&param, I8042_CMD_CTL_TEST);
 		if (ret)
-			pr_err("i8042 controller selftest timeout (%d/5)\n", i);
+			pr_info("i8042 controller selftest timeout (%d/5)\n", i);
 		else if (param == I8042_RET_CTL_TEST)
 			return 0;
 		else
@@ -994,7 +994,7 @@ static int i8042_controller_selftest(void)
 	pr_info("giving up on controller selftest, continuing anyway...\n");
 	return 0;
 #else
-	pr_err("i8042 controller selftest failed\n");
+	pr_info("i8042 controller selftest failed\n");
 	return -EIO;
 #endif
 }
