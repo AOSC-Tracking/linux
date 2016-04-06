@@ -174,7 +174,7 @@ struct tegra_xtal_freq {
 	u8 enable_delay;
 	u8 stable_count;
 	u8 active_delay;
-	u8 xtal_freq_count;
+	u16 xtal_freq_count;
 	u16 debounce;
 };
 
@@ -210,6 +210,14 @@ static const struct tegra_xtal_freq tegra_freq_table[] = {
 		.active_delay = 0x09,
 		.xtal_freq_count = 0xFE,
 		.debounce = 0xFDE8,
+	},
+	{
+		.freq = 38400000,
+		.enable_delay = 0x00,
+		.stable_count = 0x00,
+		.active_delay = 0x18,
+		.xtal_freq_count = 0x177,
+		.debounce = 0xBB80,
 	},
 };
 
