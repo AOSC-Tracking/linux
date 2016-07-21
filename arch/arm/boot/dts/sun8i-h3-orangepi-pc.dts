@@ -102,6 +102,10 @@
 	status = "okay";
 };
 
+&cpu0 {
+	cpu-supply = <&reg_sy8106a>;
+};
+
 &ehci0 {
 	status = "okay";
 };
@@ -169,6 +173,28 @@
 	leds_opc: led_pins@0 {
 		pins = "PA15";
 		function = "gpio_out";
+	};
+};
+
+&r_i2c {
+	status = "okay";
+
+	reg_sy8106a: regulator@65 {
+		compatible = "silergy,sy8106a";
+		reg = <0x65>;
+		regulator-name = "vdd-cpux";
+		/*
+		 * The datasheet uses 1.1V as the minimum value of VDD-CPUX,
+		 * however the Armbian DVFS configuration to the BSP kernel
+		 * has some operating points under 1.1V and it's proven
+		 * to work well on all supported devices by Armbian.
+		 * As we adopted the Armbian DVFS OPP table, set the minimum
+		 * voltage to 1.0V here.
+		 */
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1400000>;
+		regulator-boot-on;
+		regulator-always-on;
 	};
 };
 
