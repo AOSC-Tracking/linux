@@ -312,7 +312,7 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 		return PTR_ERR(panel->supply);
 
 	panel->enable_gpio = devm_gpiod_get_optional(dev, "enable",
-						     GPIOD_OUT_LOW);
+						     GPIOD_ASIS);
 	if (IS_ERR(panel->enable_gpio)) {
 		err = PTR_ERR(panel->enable_gpio);
 		dev_err(dev, "failed to request GPIO: %d\n", err);
