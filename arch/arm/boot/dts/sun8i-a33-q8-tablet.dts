@@ -49,6 +49,18 @@
 	compatible = "allwinner,q8-a33", "allwinner,sun8i-a33";
 };
 
+&codec {
+	status = "okay";
+};
+
+&dai {
+	status = "okay";
+};
+
+&sound {
+	status = "okay";
+};
+
 &tcon0_out {
 	tcon0_out_lcd: endpoint@0 {
 		reg = <0>;
