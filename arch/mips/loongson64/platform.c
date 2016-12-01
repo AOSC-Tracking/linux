@@ -6,6 +6,8 @@
  *         Chen Huacai, chenhc@lemote.com
  */
 
+#include <linux/gpio.h>
+#include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <loongson_hwmon.h>
 
@@ -65,3 +67,18 @@ struct loongson_fan_policy step_speed_policy = {
 struct loongson_fan_policy constant_speed_policy = {
 	.type = CONSTANT_SPEED_POLICY,
 };
+
+#define GPIO_LCD_CNTL		5
+#define GPIO_BACKLIGHIT_CNTL	7
+
+static int __init loongson3_platform_init(void)
+{
+	if (loongson_sysconf.workarounds & WORKAROUND_LVDS_GPIO) {
+		gpio_request(GPIO_LCD_CNTL,  "gpio_lcd_cntl");
+		gpio_request(GPIO_BACKLIGHIT_CNTL, "gpio_bl_cntl");
+	}
+
+	return 0;
+}
+
+arch_initcall(loongson3_platform_init);
