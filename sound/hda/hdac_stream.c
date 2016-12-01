@@ -13,6 +13,7 @@
 #include <sound/hdaudio.h>
 #include <sound/hda_register.h>
 #include "trace.h"
+#include "../pci/hda/hda_controller.h"
 
 /*
  * the hdac_stream library is intended to be used with the following
@@ -130,6 +131,7 @@ EXPORT_SYMBOL_GPL(snd_hdac_stream_init);
 void snd_hdac_stream_start(struct hdac_stream *azx_dev)
 {
 	struct hdac_bus *bus = azx_dev->bus;
+	struct azx *chip = bus_to_azx(bus);
 	int stripe_ctl;
 
 	trace_snd_hdac_stream_start(bus, azx_dev);
@@ -146,11 +148,19 @@ void snd_hdac_stream_start(struct hdac_stream *azx_dev)
 			stripe_ctl = snd_hdac_get_stream_stripe_ctl(bus, azx_dev->substream);
 		else
 			stripe_ctl = 0;
-		snd_hdac_stream_updateb(azx_dev, SD_CTL_3B, SD_CTL_STRIPE_MASK,
+		if (chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND)
+			snd_hdac_stream_updatel(azx_dev, SD_CTL_3B, SD_CTL_STRIPE_MASK,
+					stripe_ctl);
+		else
+			snd_hdac_stream_updateb(azx_dev, SD_CTL_3B, SD_CTL_STRIPE_MASK,
 					stripe_ctl);
 	}
 	/* set DMA start and interrupt mask */
-	snd_hdac_stream_updateb(azx_dev, SD_CTL,
+	if (chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND)
+		snd_hdac_stream_updatel(azx_dev, SD_CTL,
+				0, SD_CTL_DMA_START | SD_INT_MASK);
+	else
+		snd_hdac_stream_updateb(azx_dev, SD_CTL,
 				0, SD_CTL_DMA_START | SD_INT_MASK);
 	azx_dev->running = true;
 }
@@ -162,11 +172,31 @@ EXPORT_SYMBOL_GPL(snd_hdac_stream_start);
  */
 static void snd_hdac_stream_clear(struct hdac_stream *azx_dev)
 {
-	snd_hdac_stream_updateb(azx_dev, SD_CTL,
-				SD_CTL_DMA_START | SD_INT_MASK, 0);
-	snd_hdac_stream_writeb(azx_dev, SD_STS, SD_INT_MASK); /* to be sure */
-	if (azx_dev->stripe)
-		snd_hdac_stream_updateb(azx_dev, SD_CTL_3B, SD_CTL_STRIPE_MASK, 0);
+	int stream;
+	struct azx *chip = bus_to_azx(azx_dev->bus);
+	struct snd_pcm_substream *substream = azx_dev->substream;
+
+	if (chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND) {
+		snd_hdac_stream_updatel(azx_dev, SD_CTL,
+					SD_CTL_DMA_START | SD_INT_MASK, 0);
+		snd_hdac_stream_writeb(azx_dev, SD_STS, SD_INT_MASK); /* to be sure */
+		if (azx_dev->stripe)
+			snd_hdac_stream_updatel(azx_dev, SD_CTL_3B, SD_CTL_STRIPE_MASK, 0);
+
+		if (!substream)
+			stream_to_azx_dev(azx_dev)->fix_prvpos = 0;
+		else {
+			stream = substream->stream;
+			stream_to_azx_dev(azx_dev)->fix_prvpos =
+				chip->get_position[stream](chip, stream_to_azx_dev(azx_dev));
+		}
+	} else {
+		snd_hdac_stream_updateb(azx_dev, SD_CTL,
+					SD_CTL_DMA_START | SD_INT_MASK, 0);
+		snd_hdac_stream_writeb(azx_dev, SD_STS, SD_INT_MASK); /* to be sure */
+		if (azx_dev->stripe)
+			snd_hdac_stream_updateb(azx_dev, SD_CTL_3B, SD_CTL_STRIPE_MASK, 0);
+	}
 	azx_dev->running = false;
 }
 
@@ -221,6 +251,10 @@ void snd_hdac_stream_reset(struct hdac_stream *azx_dev)
 {
 	unsigned char val;
 	int dma_run_state;
+	struct azx *chip = bus_to_azx(azx_dev->bus);
+
+	if (chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND)
+		goto out;
 
 	snd_hdac_stream_clear(azx_dev);
 
@@ -239,6 +273,7 @@ void snd_hdac_stream_reset(struct hdac_stream *azx_dev)
 	/* wait for hardware to report that the stream is out of reset */
 	snd_hdac_stream_readb_poll(azx_dev, SD_CTL, val, !(val & SD_CTL_STREAM_RESET), 3, 300);
 
+out:
 	/* reset first position - may not be synced with hw at this time */
 	if (azx_dev->posbuf)
 		*azx_dev->posbuf = 0;
@@ -254,6 +289,7 @@ int snd_hdac_stream_setup(struct hdac_stream *azx_dev)
 	struct hdac_bus *bus = azx_dev->bus;
 	struct snd_pcm_runtime *runtime;
 	unsigned int val;
+	struct azx *chip = bus_to_azx(bus);
 
 	if (azx_dev->substream)
 		runtime = azx_dev->substream->runtime;
@@ -270,7 +306,14 @@ int snd_hdac_stream_setup(struct hdac_stream *azx_dev)
 	snd_hdac_stream_writel(azx_dev, SD_CTL, val);
 
 	/* program the length of samples in cyclic buffer */
-	snd_hdac_stream_writel(azx_dev, SD_CBL, azx_dev->bufsize);
+	if (chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND) {
+		if(azx_dev->substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			snd_hdac_stream_writel(azx_dev, SD_CBL, azx_dev->bufsize - 64);
+		else
+			snd_hdac_stream_writel(azx_dev, SD_CBL, azx_dev->bufsize - 16);
+	}
+	else
+		snd_hdac_stream_writel(azx_dev, SD_CBL, azx_dev->bufsize);
 
 	/* program the stream format */
 	/* this value needs to be the same as the one programmed */
@@ -491,6 +534,7 @@ int snd_hdac_stream_setup_periods(struct hdac_stream *azx_dev)
 	__le32 *bdl;
 	int i, ofs, periods, period_bytes;
 	int pos_adj, pos_align;
+	struct azx *chip = bus_to_azx(bus);
 
 	if (substream) {
 		runtime = substream->runtime;
@@ -515,6 +559,8 @@ int snd_hdac_stream_setup_periods(struct hdac_stream *azx_dev)
 	azx_dev->frags = 0;
 
 	pos_adj = bus->bdl_pos_adj;
+	if (chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND)
+		pos_adj = 0;
 	if (runtime && !azx_dev->no_period_wakeup && pos_adj > 0) {
 		pos_align = pos_adj;
 		pos_adj = DIV_ROUND_UP(pos_adj * runtime->rate, 48000);
