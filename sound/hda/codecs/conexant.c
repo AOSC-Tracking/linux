@@ -1323,6 +1323,13 @@ static int cx_probe(struct hda_codec *codec, const struct hda_device_id *id)
 		snd_hda_pick_fixup(codec, cxt5051_fixup_models,
 				   cxt5051_fixups, cxt_fixups);
 		break;
+	/* CX20631 node1b's default value is not same as datasheet, cause rear mic not work */
+	case 0x14f15097:
+		snd_hda_codec_set_pincfg(codec, 0x1b, 0x01a190f0);
+		codec->pin_amp_workaround = 1;
+		snd_hda_pick_fixup(codec, cxt5066_fixup_models,
+				   cxt5066_fixups, cxt_fixups);
+		break;
 	case 0x14f15098:
 		codec->pin_amp_workaround = 1;
 		spec->gen.mixer_nid = 0x22;
