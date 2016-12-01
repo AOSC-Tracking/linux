@@ -13,11 +13,17 @@
 #include <loongson.h>
 
 asmlinkage void loongson_lefi_sleep(unsigned long sleep_addr);
+static unsigned int __maybe_unused cached_autoplug_enabled;
 
 static int lefi_pm_enter(suspend_state_t state)
 {
 	switch (state) {
 	case PM_SUSPEND_MEM:
+#ifdef CONFIG_LOONGSON64_CPUAUTOPLUG
+		extern int autoplug_enabled;
+		cached_autoplug_enabled = autoplug_enabled;
+		autoplug_enabled = 0;
+#endif
 		pm_set_suspend_via_firmware();
 		loongson_lefi_sleep(loongson_sysconf.suspend_addr);
 		pm_set_resume_via_firmware();
@@ -25,6 +31,14 @@ static int lefi_pm_enter(suspend_state_t state)
 	default:
 		return -EINVAL;
 	}
+}
+
+static void lefi_pm_wake(void)
+{
+#ifdef CONFIG_LOONGSON64_CPUAUTOPLUG
+	extern int autoplug_enabled;
+	autoplug_enabled = cached_autoplug_enabled;
+#endif
 }
 
 static int lefi_pm_valid_state(suspend_state_t state)
@@ -40,6 +54,7 @@ static int lefi_pm_valid_state(suspend_state_t state)
 static const struct platform_suspend_ops lefi_pm_ops = {
 	.valid	= lefi_pm_valid_state,
 	.enter	= lefi_pm_enter,
+	.end	= lefi_pm_wake,
 };
 
 static int __init loongson_pm_init(void)
