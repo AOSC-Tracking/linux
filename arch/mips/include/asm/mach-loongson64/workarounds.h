@@ -6,6 +6,7 @@
 #define WORKAROUND_CPUHOTPLUG	0x00000002
 #define WORKAROUND_LVDS_EC 	0x00000004
 #define WORKAROUND_LVDS_GPIO	0x00000008
+#define WORKAROUND_USB_TMCS	0x00000010
 
 void gpio_lvds_off(void);
 void turn_off_lvds(void);
