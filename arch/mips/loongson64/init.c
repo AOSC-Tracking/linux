@@ -56,10 +56,16 @@ void virtual_early_config(void)
 	node_id_offset = 44;
 }
 
+extern unsigned int has_systab;
+extern unsigned long systab_addr;
+
 void __init szmem(unsigned int node)
 {
 	u32 i, mem_type;
 	phys_addr_t node_id, mem_start, mem_size;
+
+	/* Always 0x2000 */
+	phys_addr_t smbios_mem_size=0x2000;
 
 	/* Otherwise come from DTB */
 	if (loongson_sysconf.fw_interface != LOONGSON_LEFI)
@@ -95,10 +101,16 @@ void __init szmem(unsigned int node)
 		case VIDEO_ROM:
 		case ADAPTER_ROM:
 		case ACPI_TABLE:
-		case SMBIOS_TABLE:
 			pr_info("Node %d, mem_type:%d\t[%pa], %pa bytes reserved\n",
 				(u32)node_id, mem_type, &mem_start, &mem_size);
 			memblock_reserve(mem_start, mem_size);
+			break;
+		case SMBIOS_TABLE:
+			has_systab = 1;
+			systab_addr = mem_start;
+			pr_info("Node %d, mem_type:%d\t[%pa], %pa bytes reserved\n",
+				(u32)node_id, mem_type, &mem_start, &smbios_mem_size);
+			memblock_reserve(mem_start, smbios_mem_size);
 			break;
 		/* We should not reserve VUMA_VIDEO_RAM as it overlaps with MMIO */
 		case VUMA_VIDEO_RAM:
