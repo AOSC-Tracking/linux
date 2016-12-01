@@ -35,6 +35,9 @@ static int lefi_pm_enter(suspend_state_t state)
 
 static void lefi_pm_wake(void)
 {
+#ifdef CONFIG_CPU_LOONGSON3
+	disable_unused_cpus();
+#endif
 #ifdef CONFIG_LOONGSON64_CPUAUTOPLUG
 	extern int autoplug_enabled;
 	autoplug_enabled = cached_autoplug_enabled;
