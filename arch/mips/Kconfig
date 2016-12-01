@@ -1682,6 +1682,16 @@ config CPU_BMIPS
 
 endchoice
 
+config LOONGSON64_CPUAUTOPLUG
+        tristate "Loongson-3A CPU Autoplug Driver"
+        depends on CPU_LOONGSON64 && HOTPLUG_CPU
+        help
+	  This option adds a CPU autoplug driver for Loongson-3 multi-core
+	  processors, which CPU frequencies of all cores should be
+	  configured together.
+
+	  If in doubt, say N.
+
 config LOONGSON3_ENHANCEMENT
 	bool "New Loongson-3 CPU Enhancements"
 	default n
