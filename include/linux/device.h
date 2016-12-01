@@ -1317,6 +1317,7 @@ struct device {
     defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU_ALL)
 	bool			dma_coherent:1;
 #endif
+	unsigned long dma_attrs;
 };
 
 static inline struct device *kobj_to_dev(struct kobject *kobj)
