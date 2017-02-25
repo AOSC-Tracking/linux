@@ -361,6 +361,14 @@
 			};
 		};
 
+		pwm: pwm@01c21400 {
+			compatible = "allwinner,sun50i-a64-pwm";
+			reg = <0x01c21400 0x8>;
+			clocks = <&osc24M>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
 		uart0: serial@1c28000 {
 			compatible = "snps,dw-apb-uart";
 			reg = <0x01c28000 0x400>;
