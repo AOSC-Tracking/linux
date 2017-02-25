@@ -310,6 +310,11 @@
 				bias-pull-up;
 			};
 
+			pwm0_pins: pwm0 {
+				pins = "PD22";
+				function = "pwm";
+			};
+
 			rmii_pins: rmii_pins {
 				pins = "PD10", "PD11", "PD13", "PD14", "PD17",
 				       "PD18", "PD19", "PD20", "PD22", "PD23";
