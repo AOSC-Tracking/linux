@@ -104,6 +104,7 @@ static const unsigned short ModeIndex_1920x1080[]    = {0x2c, 0x2d, 0x00, 0x73};
 static const unsigned short ModeIndex_1920x1440[]    = {0x68, 0x69, 0x00, 0x6b};
 static const unsigned short ModeIndex_300_2048x1536[]= {0x6c, 0x6d, 0x00, 0x00};
 static const unsigned short ModeIndex_310_2048x1536[]= {0x6c, 0x6d, 0x00, 0x6e};
+static const unsigned short ModeIndex_1368x768[]     = {0x50, 0x56, 0x00, 0x53};
 
 static const unsigned char SiS_MDA_DAC[] =
 {
@@ -224,7 +225,8 @@ static const struct SiS_ModeResInfo_S SiS_ModeResInfo[] =
 	{ 1920,1080, 8,16},   /* 0x1f */
 	{  960, 540, 8,16},   /* 0x20 */
 	{  960, 600, 8,16},   /* 0x21 */
-	{ 1280, 854, 8,16}    /* 0x22 */
+	{ 1280, 854, 8,16},   /* 0x22 */
+	{ 1368, 768, 8,16}    /* 0x23 */
 };
 
 #if defined(CONFIG_FB_SIS_300) || defined(CONFIG_FB_SIS_315)
@@ -1195,7 +1197,8 @@ static const struct SiS_LCDData SiS_NoScaleData[] =
 	{ 1, 1,1408, 816,1408, 816 },  /* 0x1f: 1280x800 (TMDS special) */
 	{ 1, 1,1760,1235,1760,1235 },  /* 0x20: 1600x1200 for LCDA */
 	{ 1, 1,2048,1320,2048,1320 },  /* 0x21: 1600x1200 for non-SiS LVDS */
-	{ 1, 1,1664, 861,1664, 861 }   /* 0x22: 1280x854 */
+	{ 1, 1,1664, 861,1664, 861 },  /* 0x22: 1280x854 */
+	{ 1, 1,1560, 806,1560, 806 }   /* 0x23: 1368x768 */
 };
 
 /**************************************************************/
@@ -1462,4 +1465,3 @@ static const struct SiS_LVDSCRT1Data SiS_LVDSCRT1640x480_1_H[] =
 };
 
 #endif
-
