@@ -488,6 +488,7 @@
 #define SIS_RI_960x540   32
 #define SIS_RI_960x600   33
 #define SIS_RI_1280x854  34
+#define SIS_RI_1368x768  35
 
 /* CR5F */
 #define IsM650                  0x80
@@ -544,6 +545,7 @@
 #define VCLK_1360x768		0x58
 #define VCLK_1280x800_315	0x6c
 #define VCLK_1280x854		0x76
+#define VCLK_1368x768		0x77
 
 #define TVCLKBASE_300		0x21   /* Indices on TV clocks in VCLKData table (300) */
 #define TVCLKBASE_315	        0x3a   /* Indices on TV clocks in (VB)VCLKData table (315) */
