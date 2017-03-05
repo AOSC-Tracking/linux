@@ -3668,6 +3668,11 @@ sisfb_pre_setmode(struct sis_video_info *ivideo)
 	      cr31 |= (SIS_DRIVER_MODE | SIS_VB_OUTPUT_DISABLE);
 	}
 
+	SiS_SetReg(SISPART1,0x16,0xc7); /* 1368x768 */
+	SiS_SetReg(SISPART1,0x1a,0x1d);
+	SiS_SetReg(SISPART1,0x1b,0x25);
+	SiS_SetReg(SISPART1,0x1d,0x13);
+
 	SiS_SetReg(SISCR, 0x30, cr30);
 	SiS_SetReg(SISCR, 0x33, cr33);
 
@@ -6874,6 +6879,3 @@ EXPORT_SYMBOL(sis_malloc);
 EXPORT_SYMBOL(sis_free);
 EXPORT_SYMBOL_GPL(sis_malloc_new);
 EXPORT_SYMBOL_GPL(sis_free_new);
-
-
-
