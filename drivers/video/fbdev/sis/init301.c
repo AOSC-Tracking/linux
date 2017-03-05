@@ -2332,7 +2332,7 @@ SiS_GetLCDResInfo(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned sh
 	     SIS_RI_720x480, SIS_RI_720x576, SIS_RI_768x576, SIS_RI_800x480, SIS_RI_848x480,
 	     SIS_RI_856x480, SIS_RI_960x540, SIS_RI_960x600, SIS_RI_1024x576,SIS_RI_1024x600,
 	     SIS_RI_1152x768,SIS_RI_1152x864,SIS_RI_1280x720,SIS_RI_1280x768,SIS_RI_1280x800,
-	     SIS_RI_1280x854,SIS_RI_1280x960,SIS_RI_1360x768,SIS_RI_1360x1024,0xff
+	     SIS_RI_1280x854,SIS_RI_1280x960,SIS_RI_1360x768,SIS_RI_1360x1024,SIS_RI_1368x768,0xff
 	};
 	SiS_CheckScaling(SiS_Pr, resinfo, nonscalingmodes);
 	break;
@@ -2342,7 +2342,7 @@ SiS_GetLCDResInfo(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned sh
 	     SIS_RI_720x480, SIS_RI_720x576, SIS_RI_768x576, SIS_RI_800x480, SIS_RI_848x480,
 	     SIS_RI_856x480, SIS_RI_960x540, SIS_RI_960x600, SIS_RI_1024x576,SIS_RI_1024x600,
 	     SIS_RI_1152x768,SIS_RI_1152x864,SIS_RI_1280x854,SIS_RI_1280x960,SIS_RI_1360x768,
-	     SIS_RI_1360x1024,0xff
+	     SIS_RI_1360x1024,SIS_RI_1368x768,0xff
 	};
 	SiS_CheckScaling(SiS_Pr, resinfo, nonscalingmodes);
 	break;
@@ -2518,6 +2518,7 @@ SiS_GetVCLK2Ptr(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned shor
 		 case SIS_RI_1152x864: VCLKIndex = VCLK_1152x864; break;
 		 case SIS_RI_1280x720: VCLKIndex = VCLK_1280x720; break;
 		 case SIS_RI_1360x768: VCLKIndex = VCLK_1360x768; break;
+ 		 case SIS_RI_1368x768: VCLKIndex = VCLK_1368x768; break;
 		 default:              VCLKIndex = VCLKIndexGEN;
 		 }
 
@@ -11377,4 +11378,3 @@ SiS_OEM300Setting(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned sh
   }
 }
 #endif
-
