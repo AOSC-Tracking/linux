@@ -440,6 +440,9 @@ SiS_GetModeID(int VGAEngine, unsigned int VBFlags, int HDisplay, int VDisplay,
 			if(VDisplay == 1024) ModeIndex = ModeIndex_300_1360x1024[Depth];
 		}
 		break;
+        case 1368:
+		if(VDisplay == 768) ModeIndex = ModeIndex_1368x768[Depth];
+		break;
 	case 1400:
 		if(VGAEngine == SIS_315_VGA) {
 			if(VDisplay == 1050) {
@@ -569,6 +572,9 @@ SiS_GetModeID_LCD(int VGAEngine, unsigned int VBFlags, int HDisplay, int VDispla
 		if(VDisplay == 768) ModeIndex = ModeIndex_1360x768[Depth];
 	     }
 	     break;
+        case 1368:
+		if(VDisplay == 768) ModeIndex = ModeIndex_1368x768[Depth];
+		break;
 	case 1400:
 	     if(VGAEngine == SIS_315_VGA) {
 		if(VDisplay == 1050) ModeIndex = ModeIndex_1400x1050[Depth];
@@ -682,6 +688,9 @@ SiS_GetModeID_LCD(int VGAEngine, unsigned int VBFlags, int HDisplay, int VDispla
 		if(VDisplay == 768) ModeIndex = ModeIndex_1360x768[Depth];
 	     }
 	     break;
+        case 1368:
+		if(VDisplay == 768) ModeIndex = ModeIndex_1368x768[Depth];
+		break;
 	case 1400:
 	     if(VGAEngine == SIS_315_VGA) {
 		if(VBFlags2 & VB2_LCDOVER1280BRIDGE) {
