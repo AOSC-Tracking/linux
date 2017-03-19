@@ -1,0 +1,21 @@
+Realtek RTL8211E Ethernet PHY
+
+One batch of RTL8211E is slight broken, that needs some special (and
+full of magic numbers) tweaking in order to make GbE to operate properly.
+The only well-known board that used the broken batch is Pine64+.
+Configure it through an Ethernet OF device node.
+
+Optional properties:
+
+- realtek,config-magic-for-pine64:
+  Apply some magic configuration from Realtek that works around broken RTL8211E
+  PHYs on Pine64+ boards.
+
+Examples:
+Pine64+ with broken RTL8211E:
+&mdio {
+	ext_phy: ethernet-phy@0 {
+		reg = <0>;
+		realtek,config-magic-for-pine64;
+	};
+};
