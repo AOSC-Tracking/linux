@@ -25,6 +25,9 @@
 
 #define RTL821x_PAGE_SELECT			0x1f
 
+#define RTL8211E_EXT_PAGE_SELECT		0x1e
+#define RTL8211E_EXT_PAGE			0x7
+
 #define RTL8211F_INSR				0x1d
 
 #define RTL8211F_TX_DELAY			BIT(8)
@@ -206,6 +209,33 @@ static int rtl8366rb_config_init(struct phy_device *phydev)
 	return ret;
 }
 
+static int rtl8211e_config_init(struct phy_device *phydev)
+{
+	struct device *dev = &phydev->mdio.dev;
+	struct device_node *of_node = dev->of_node;
+	int ret;
+
+	ret = genphy_config_init(phydev);
+	if (ret < 0)
+		return ret;
+
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
+		/*
+		 * Disable the RX internal delay here.
+		 *
+		 * All the magic numbers are not documented on RTL8211E
+		 * datasheet. They're said to be from Realtek by Pine64.
+		 */
+		int oldpage = phy_select_page(phydev, RTL8211E_EXT_PAGE);
+		__phy_write(phydev, RTL8211E_EXT_PAGE_SELECT, 0xa4);
+		__phy_write(phydev, 0x1c, 0xb591);
+		__phy_write(phydev, RTL8211E_EXT_PAGE_SELECT, 0);
+		phy_restore_page(phydev, oldpage, 0);
+	}
+
+	return 0;
+}
+
 static struct phy_driver realtek_drvs[] = {
 	{
 		PHY_ID_MATCH_EXACT(0x00008201),
@@ -258,9 +288,12 @@ static struct phy_driver realtek_drvs[] = {
 		.name		= "RTL8211E Gigabit Ethernet",
 		.features	= PHY_GBIT_FEATURES,
 		.ack_interrupt	= &rtl821x_ack_interrupt,
+		.config_init	= &rtl8211e_config_init,
 		.config_intr	= &rtl8211e_config_intr,
 		.suspend	= genphy_suspend,
 		.resume		= genphy_resume,
+		.read_page	= rtl821x_read_page,
+		.write_page	= rtl821x_write_page,
 	}, {
 		PHY_ID_MATCH_EXACT(0x001cc916),
 		.name		= "RTL8211F Gigabit Ethernet",
