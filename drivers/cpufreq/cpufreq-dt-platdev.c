@@ -24,7 +24,11 @@ static const struct of_device_id machines[] __initconst = {
 	{ .compatible = "allwinner,sun8i-a23", },
 	{ .compatible = "allwinner,sun8i-a33", },
 	{ .compatible = "allwinner,sun8i-a83t", },
+	{ .compatible = "allwinner,sun8i-h2-plus", },
 	{ .compatible = "allwinner,sun8i-h3", },
+	{ .compatible = "allwinner,sun8i-v3s", },
+	{ .compatible = "allwinner,sun50i-a64", },
+	{ .compatible = "allwinner,sun50i-h5", },
 
 	{ .compatible = "apm,xgene-shadowcat", },
 
@@ -42,6 +46,8 @@ static const struct of_device_id machines[] __initconst = {
 	{ .compatible = "marvell,berlin", },
 	{ .compatible = "marvell,pxa250", },
 	{ .compatible = "marvell,pxa270", },
+
+	{ .compatible = "nextthing,gr8", },
 
 	{ .compatible = "samsung,exynos3250", },
 	{ .compatible = "samsung,exynos4210", },
