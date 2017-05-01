@@ -105,6 +105,13 @@
 	};
 };
 
+&ahci {
+	target-supply = <&reg_vcc5v0>;
+	vdd1v2-supply = <&reg_eldo3>;
+	vdd2v5-supply = <&reg_dldo4>;
+	status = "okay";
+};
+
 &de {
 	status = "okay";
 };
@@ -249,6 +256,18 @@
 	regulator-min-microvolt = <3300000>;
 	regulator-max-microvolt = <3300000>;
 	regulator-name = "vcc-wifi";
+};
+
+&reg_dldo4 {
+	regulator-min-microvolt = <2500000>;
+	regulator-max-microvolt = <2500000>;
+	regulator-name = "vdd-2v5-sata";
+};
+
+&reg_eldo3 {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	regulator-name = "vdd-1v2-sata";
 };
 
 &tcon_tv0 {
