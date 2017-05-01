@@ -1,0 +1,40 @@
+Allwinner A10/A20/R40 SoC SATA AHCI Controller
+
+Required properties:
+- compatible        : compatible string, one of:
+  - "allwinner,sun4i-a10-ahci"
+  - "allwinner,sun8i-r40-ahci"
+- interrupts        : the SATA IRQ
+- reg               : the register mapping
+- clocks            : the clocks needed by SATA controller, usually contains
+		      an AHB clock and a mod clock
+
+Optional properties:
+- target-supply     : regulator for SATA target power
+
+Required properties for the following compatibles:
+  - "allwinner,sun8i-r40-ahci"
+- resets            : the reset control needed by SATA controller
+- vdd1v2-supply     : regulator for SATA controller's 1.2V VDD
+- vdd2v5-supply     : regulator for SATA controller's 2.5V VDD
+
+
+Examples for A10:
+	ahci: sata@1c18000 {
+		compatible = "allwinner,sun4i-a10-ahci";
+		reg = <0x01c18000 0x1000>;
+		interrupts = <56>;
+		clocks = <&pll6 0>, <&ahb_gates 25>;
+		target-supply = <&reg_ahci_5v>;
+	};
+
+Examples for R40:
+	ahci: sata@1c18000 {
+		compatible = "allwinner,sun8i-r40-ahci";
+		reg = <0x01c18000 0x1000>;
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&ccu CLK_SATA>, <&ccu CLK_BUS_SATA>;
+		resets = <&ccu RST_BUS_SATA>;
+		vdd1v2-supply = <&reg_eldo3>;
+		vdd2v5-supply = <&reg_dldo4>;
+	};
