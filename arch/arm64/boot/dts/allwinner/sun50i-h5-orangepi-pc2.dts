@@ -121,6 +121,10 @@
 	status = "okay";
 };
 
+&de {
+	status = "okay";
+};
+
 &ehci0 {
 	status = "okay";
 };
@@ -146,6 +150,10 @@
 	status = "okay";
 };
 
+&hdmi {
+	status = "okay";
+};
+
 &ir {
 	pinctrl-names = "default";
 	pinctrl-0 = <&ir_pins_a>;
@@ -157,6 +165,10 @@
 		compatible = "ethernet-phy-ieee802.3-c22";
 		reg = <1>;
 	};
+};
+
+&mixer0 {
+	status = "okay";
 };
 
 &mmc0 {
@@ -181,6 +193,10 @@
 };
 
 &ohci3 {
+	status = "okay";
+};
+
+&tcon0 {
 	status = "okay";
 };
 
