@@ -69,6 +69,10 @@
 	};
 };
 
+&de {
+	status = "okay";
+};
+
 &ehci0 {
 	status = "okay";
 };
@@ -83,6 +87,11 @@
 	phy-mode = "rmii";
 	phy-handle = <&ext_rmii_phy1>;
 	phy-supply = <&reg_dc1sw>;
+	status = "okay";
+};
+
+&hdmi {
+	hvcc-supply = <&reg_dldo1>;
 	status = "okay";
 };
 
@@ -101,6 +110,10 @@
 		compatible = "ethernet-phy-ieee802.3-c22";
 		reg = <1>;
 	};
+};
+
+&mixer1 {
+	status = "okay";
 };
 
 &mmc0 {
@@ -247,6 +260,10 @@
 
 &simplefb_hdmi {
 	vcc-hdmi-supply = <&reg_dldo1>;
+};
+
+&tcon1 {
+	status = "okay";
 };
 
 /* On Exp and Euler connectors */
