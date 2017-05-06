@@ -654,11 +654,23 @@ static const struct sun4i_tcon_quirks sun8i_a33_quirks = {
 	.has_channel_0	= true,
 };
 
+static const struct sun4i_tcon_quirks sun8i_a83t_tcon0_quirks = {
+	.has_channel_0	= true,
+};
+
 static const struct sun4i_tcon_quirks sun8i_v3s_quirks = {
 	.has_channel_0	= true,
 };
 
 static const struct sun4i_tcon_quirks sun8i_h3_quirks = {
+	.has_channel_1	= true,
+};
+
+static const struct sun4i_tcon_quirks sun50i_a64_tcon0_quirks = {
+	.has_channel_0	= true,
+};
+
+static const struct sun4i_tcon_quirks sun50i_a64_tcon1_quirks = {
 	.has_channel_1	= true,
 };
 
@@ -669,6 +681,14 @@ static const struct of_device_id sun4i_tcon_of_table[] = {
 	{ .compatible = "allwinner,sun8i-a33-tcon", .data = &sun8i_a33_quirks },
 	{ .compatible = "allwinner,sun8i-h3-tcon", .data = &sun8i_h3_quirks },
 	{ .compatible = "allwinner,sun8i-v3s-tcon", .data = &sun8i_v3s_quirks },
+	{
+		.compatible = "allwinner,sun50i-a64-tcon0",
+		.data = &sun50i_a64_tcon0_quirks
+	},
+	{
+		.compatible = "allwinner,sun50i-a64-tcon1",
+		.data = &sun50i_a64_tcon1_quirks
+	},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, sun4i_tcon_of_table);

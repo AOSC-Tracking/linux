@@ -189,7 +189,9 @@ static bool sun4i_drv_node_is_tcon(struct device_node *node)
 		of_device_is_compatible(node, "allwinner,sun6i-a31s-tcon") ||
 		of_device_is_compatible(node, "allwinner,sun8i-a33-tcon") ||
 		of_device_is_compatible(node, "allwinner,sun8i-h3-tcon") ||
-		of_device_is_compatible(node, "allwinner,sun8i-v3s-tcon");
+		of_device_is_compatible(node, "allwinner,sun8i-v3s-tcon") ||
+		of_device_is_compatible(node, "allwinner,sun50i-a64-tcon0") ||
+		of_device_is_compatible(node, "allwinner,sun50i-a64-tcon1");
 }
 
 static int compare_of(struct device *dev, void *data)
