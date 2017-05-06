@@ -66,6 +66,10 @@
 	};
 };
 
+&de {
+	status = "okay";
+};
+
 &ehci1 {
 	status = "okay";
 };
@@ -76,6 +80,11 @@
 	phy-mode = "rgmii";
 	phy-handle = <&ext_rgmii_phy>;
 	phy-supply = <&reg_dc1sw>;
+	status = "okay";
+};
+
+&hdmi {
+	hvcc-supply = <&reg_dldo1>;
 	status = "okay";
 };
 
@@ -94,6 +103,10 @@
 		compatible = "ethernet-phy-ieee802.3-c22";
 		reg = <1>;
 	};
+};
+
+&mixer1 {
+	status = "okay";
 };
 
 &mmc0 {
@@ -249,6 +262,10 @@
 
 &simplefb_hdmi {
 	vcc-hdmi-supply = <&reg_dldo1>;
+};
+
+&tcon1 {
+	status = "okay";
 };
 
 &uart0 {
