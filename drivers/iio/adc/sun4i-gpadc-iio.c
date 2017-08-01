@@ -262,6 +262,9 @@ static int sun4i_gpadc_temp_read(struct iio_dev *indio_dev, int *val)
 		pm_runtime_mark_last_busy(indio_dev->dev.parent);
 		pm_runtime_put_autosuspend(indio_dev->dev.parent);
 
+		if (!*val)
+			return -EINVAL;
+
 		return 0;
 	}
 
