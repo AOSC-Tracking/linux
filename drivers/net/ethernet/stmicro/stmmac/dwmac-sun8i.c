@@ -41,6 +41,7 @@
  *				This value is used for disabling properly EMAC
  *				and used as a good starting value in case of the
  *				boot process(uboot) leave some stuff.
+ * @syscon_reg:			The offset of the EMAC register in syscon
  * @internal_phy:		Does the MAC embed an internal PHY
  * @support_mii:		Does the MAC handle MII
  * @support_rmii:		Does the MAC handle RMII
@@ -48,6 +49,7 @@
  */
 struct emac_variant {
 	u32 default_syscon_value;
+	u32 syscon_reg;
 	int internal_phy;
 	bool support_mii;
 	bool support_rmii;
@@ -75,6 +77,7 @@ struct sunxi_priv_data {
 
 static const struct emac_variant emac_variant_h3 = {
 	.default_syscon_value = 0x58000,
+	.syscon_reg = 0x30,
 	.internal_phy = PHY_INTERFACE_MODE_MII,
 	.support_mii = true,
 	.support_rmii = true,
@@ -83,12 +86,14 @@ static const struct emac_variant emac_variant_h3 = {
 
 static const struct emac_variant emac_variant_v3s = {
 	.default_syscon_value = 0x38000,
+	.syscon_reg = 0x30,
 	.internal_phy = PHY_INTERFACE_MODE_MII,
 	.support_mii = true
 };
 
 static const struct emac_variant emac_variant_a83t = {
 	.default_syscon_value = 0,
+	.syscon_reg = 0x30,
 	.internal_phy = 0,
 	.support_mii = true,
 	.support_rgmii = true
@@ -96,6 +101,7 @@ static const struct emac_variant emac_variant_a83t = {
 
 static const struct emac_variant emac_variant_a64 = {
 	.default_syscon_value = 0,
+	.syscon_reg = 0x30,
 	.internal_phy = 0,
 	.support_mii = true,
 	.support_rmii = true,
@@ -210,7 +216,6 @@ static const struct emac_variant emac_variant_a64 = {
 #define SYSCON_ETCS_MII		0x0
 #define SYSCON_ETCS_EXT_GMII	0x1
 #define SYSCON_ETCS_INT_GMII	0x2
-#define SYSCON_EMAC_REG		0x30
 
 /* sun8i_dwmac_dma_reset() - reset the EMAC
  * Called from stmmac via stmmac_dma_ops->reset
@@ -641,7 +646,7 @@ static int sun8i_dwmac_set_syscon(struct stmmac_priv *priv)
 	int ret;
 	u32 reg, val;
 
-	regmap_read(gmac->regmap, SYSCON_EMAC_REG, &val);
+	regmap_read(gmac->regmap, gmac->variant->syscon_reg, &val);
 	reg = gmac->variant->default_syscon_value;
 	if (reg != val)
 		dev_warn(priv->device,
@@ -734,7 +739,7 @@ static int sun8i_dwmac_set_syscon(struct stmmac_priv *priv)
 		return -EINVAL;
 	}
 
-	regmap_write(gmac->regmap, SYSCON_EMAC_REG, reg);
+	regmap_write(gmac->regmap, gmac->variant->syscon_reg, reg);
 
 	return 0;
 }
@@ -743,7 +748,7 @@ static void sun8i_dwmac_unset_syscon(struct sunxi_priv_data *gmac)
 {
 	u32 reg = gmac->variant->default_syscon_value;
 
-	regmap_write(gmac->regmap, SYSCON_EMAC_REG, reg);
+	regmap_write(gmac->regmap, gmac->variant->syscon_reg, reg);
 }
 
 static int sun8i_dwmac_power_internal_phy(struct stmmac_priv *priv)
