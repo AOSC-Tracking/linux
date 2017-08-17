@@ -1023,6 +1023,8 @@ dtb-$(CONFIG_MACH_SUN8I) += \
 	sun8i-a33-ippo-q8h-v1.2.dtb \
 	sun8i-a33-olinuxino.dtb \
 	sun8i-a33-q8-tablet.dtb \
+	sun8i-a33-q8-tablet-800x480.dtb \
+	sun8i-a33-q8-tablet-1024x600.dtb \
 	sun8i-a33-sinlinx-sina33.dtb \
 	sun8i-a83t-allwinner-h8homlet-v2.dtb \
 	sun8i-a83t-bananapi-m3.dtb \
