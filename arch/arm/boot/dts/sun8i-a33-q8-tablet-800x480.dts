@@ -47,3 +47,16 @@
 	compatible = "allwinner,q8-a33-800x480", "allwinner,q8-a33",
 		     "allwinner,sun8i-a33";
 };
+
+&de {
+	status = "okay";
+};
+
+&panel {
+	compatible = "foxlink,fl500wvr00-a0t";
+	status = "okay";
+};
+
+&tcon0 {
+	status = "okay";
+};
