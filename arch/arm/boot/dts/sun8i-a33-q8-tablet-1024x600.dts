@@ -47,3 +47,16 @@
 	compatible = "allwinner,q8-a33-1024x600", "allwinner,q8-a33",
 		     "allwinner,sun8i-a33";
 };
+
+&de {
+	status = "okay";
+};
+
+&panel {
+	compatible = "innolux,zj070na-01p";
+	status = "okay";
+};
+
+&tcon0 {
+	status = "okay";
+};
