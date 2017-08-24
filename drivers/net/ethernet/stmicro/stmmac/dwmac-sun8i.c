@@ -22,6 +22,7 @@
 #include <linux/of_device.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
+#include <linux/of_platform.h>
 #include <linux/phy.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
@@ -42,6 +43,7 @@
  *				and used as a good starting value in case of the
  *				boot process(uboot) leave some stuff.
  * @syscon_reg:			The offset of the EMAC register in syscon
+ * @syscon_in_ccu:		Is the syscon register in the CCU
  * @internal_phy:		Does the MAC embed an internal PHY
  * @support_mii:		Does the MAC handle MII
  * @support_rmii:		Does the MAC handle RMII
@@ -50,6 +52,7 @@
 struct emac_variant {
 	u32 default_syscon_value;
 	u32 syscon_reg;
+	bool syscon_in_ccu;
 	int internal_phy;
 	bool support_mii;
 	bool support_rmii;
@@ -78,6 +81,7 @@ struct sunxi_priv_data {
 static const struct emac_variant emac_variant_h3 = {
 	.default_syscon_value = 0x58000,
 	.syscon_reg = 0x30,
+	.syscon_in_ccu = false,
 	.internal_phy = PHY_INTERFACE_MODE_MII,
 	.support_mii = true,
 	.support_rmii = true,
@@ -87,6 +91,7 @@ static const struct emac_variant emac_variant_h3 = {
 static const struct emac_variant emac_variant_v3s = {
 	.default_syscon_value = 0x38000,
 	.syscon_reg = 0x30,
+	.syscon_in_ccu = false,
 	.internal_phy = PHY_INTERFACE_MODE_MII,
 	.support_mii = true
 };
@@ -94,6 +99,7 @@ static const struct emac_variant emac_variant_v3s = {
 static const struct emac_variant emac_variant_a83t = {
 	.default_syscon_value = 0,
 	.syscon_reg = 0x30,
+	.syscon_in_ccu = false,
 	.internal_phy = 0,
 	.support_mii = true,
 	.support_rgmii = true
@@ -102,6 +108,7 @@ static const struct emac_variant emac_variant_a83t = {
 static const struct emac_variant emac_variant_a64 = {
 	.default_syscon_value = 0,
 	.syscon_reg = 0x30,
+	.syscon_in_ccu = false,
 	.internal_phy = 0,
 	.support_mii = true,
 	.support_rmii = true,
@@ -893,6 +900,8 @@ static int sun8i_dwmac_probe(struct platform_device *pdev)
 	struct stmmac_resources stmmac_res;
 	struct sunxi_priv_data *gmac;
 	struct device *dev = &pdev->dev;
+	struct device_node *ccu_node;
+	struct platform_device *ccu_pdev;
 	int ret;
 
 	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
@@ -928,8 +937,27 @@ static int sun8i_dwmac_probe(struct platform_device *pdev)
 		gmac->regulator = NULL;
 	}
 
-	gmac->regmap = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
-						       "syscon");
+	if (gmac->variant->syscon_in_ccu) {
+		ccu_node = of_parse_phandle(pdev->dev.of_node,
+					    "allwinner,ccu", 0);
+		if (!ccu_node) {
+			dev_err(dev, "Could not find CCU node\n");
+			return -EINVAL;
+		}
+
+		ccu_pdev = of_find_device_by_node(ccu_node);
+		of_node_put(ccu_node);
+		if (!ccu_pdev) {
+			dev_err(dev, "Could not get CCU device\n");
+			return -EINVAL;
+		};
+
+		gmac->regmap = dev_get_regmap(&ccu_pdev->dev, NULL);
+	} else {
+		gmac->regmap = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+							       "syscon");
+	}
+
 	if (IS_ERR(gmac->regmap)) {
 		ret = PTR_ERR(gmac->regmap);
 		dev_err(&pdev->dev, "Unable to map syscon: %d\n", ret);
