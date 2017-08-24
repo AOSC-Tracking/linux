@@ -115,6 +115,15 @@ static const struct emac_variant emac_variant_a64 = {
 	.support_rgmii = true
 };
 
+static const struct emac_variant emac_variant_r40 = {
+	.default_syscon_value = 0,
+	.syscon_reg = 0x164,
+	.syscon_in_ccu = true,
+	.internal_phy = 0,
+	.support_mii = true,
+	.support_rgmii = true
+};
+
 #define EMAC_BASIC_CTL0 0x00
 #define EMAC_BASIC_CTL1 0x04
 #define EMAC_INT_STA    0x08
@@ -1014,6 +1023,8 @@ static int sun8i_dwmac_probe(struct platform_device *pdev)
 static const struct of_device_id sun8i_dwmac_match[] = {
 	{ .compatible = "allwinner,sun8i-h3-emac",
 		.data = &emac_variant_h3 },
+	{ .compatible = "allwinner,sun8i-r40-gmac",
+		.data = &emac_variant_r40 },
 	{ .compatible = "allwinner,sun8i-v3s-emac",
 		.data = &emac_variant_v3s },
 	{ .compatible = "allwinner,sun8i-a83t-emac",
