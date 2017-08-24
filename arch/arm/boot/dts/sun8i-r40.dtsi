@@ -472,6 +472,26 @@
 			#size-cells = <0>;
 		};
 
+		gmac: ethernet@1c50000 {
+			compatible = "allwinner,sun8i-r40-gmac";
+			reg = <0x01c50000 0x10000>;
+			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			resets = <&ccu RST_BUS_GMAC>;
+			reset-names = "stmmaceth";
+			clocks = <&ccu CLK_BUS_GMAC>;
+			clock-names = "stmmaceth";
+			allwinner,ccu = <&ccu>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mdio: mdio {
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+
 		gic: interrupt-controller@1c81000 {
 			compatible = "arm,gic-400";
 			reg = <0x01c81000 0x1000>,
