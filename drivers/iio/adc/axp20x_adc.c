@@ -556,8 +556,10 @@ static int axp20x_probe(struct platform_device *pdev)
 				   AXP20X_ADC_EN2_MASK, AXP20X_ADC_EN2_MASK);
 
 	/* Configure ADCs rate */
-	regmap_update_bits(info->regmap, AXP20X_ADC_RATE, AXP20X_ADC_RATE_MASK,
-			   info->data->adc_rate(100));
+	if (info->data->adc_rate)
+		regmap_update_bits(info->regmap, AXP20X_ADC_RATE,
+				   AXP20X_ADC_RATE_MASK,
+				   info->data->adc_rate(100));
 
 	ret = iio_map_array_register(indio_dev, info->data->maps);
 	if (ret < 0) {
