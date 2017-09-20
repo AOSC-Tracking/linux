@@ -28,6 +28,8 @@
 
 #define AXP20X_ADC_EN2_MASK			(GENMASK(3, 2) | BIT(7))
 #define AXP22X_ADC_EN1_MASK			(GENMASK(7, 5) | BIT(0))
+/* TODO: Enable TS and GPADC when supporting them */
+#define AXP803_ADC_EN1_MASK			GENMASK(7, 5)
 
 #define AXP20X_GPIO10_IN_RANGE_GPIO0		BIT(0)
 #define AXP20X_GPIO10_IN_RANGE_GPIO1		BIT(1)
@@ -95,6 +97,17 @@ enum axp22x_adc_channel_i {
 	AXP22X_BATT_DISCHRG_I,
 };
 
+enum axp803_adc_channel_v {
+	AXP803_TS_IN = 0,
+	AXP803_GPADC_IN,
+	AXP803_BATT_V,
+};
+
+enum axp803_adc_channel_i {
+	AXP803_BATT_CHRG_I = 2,
+	AXP803_BATT_DISCHRG_I,
+};
+
 static struct iio_map axp20x_maps[] = {
 	{
 		.consumer_dev_name = "axp20x-usb-power-supply",
@@ -142,6 +155,11 @@ static struct iio_map axp22x_maps[] = {
 		.adc_channel_label = "batt_dischrg_i",
 	}, { /* sentinel */ }
 };
+
+/*
+ * AXP803 shares the same consumer map with AXP22x, as it has no ADC for
+ * VBUS and ACIN inputs either.
+ */
 
 /*
  * Channels are mapped by physical system. Their channels share the same index.
@@ -197,6 +215,23 @@ static const struct iio_chan_spec axp22x_adc_channels[] = {
 			   AXP20X_BATT_DISCHRG_I_H),
 };
 
+static const struct iio_chan_spec axp803_adc_channels[] = {
+	{
+		.type = IIO_TEMP,
+		.address = AXP288_PMIC_ADC_H,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
+				      BIT(IIO_CHAN_INFO_SCALE) |
+				      BIT(IIO_CHAN_INFO_OFFSET),
+		.datasheet_name = "pmic_temp",
+	},
+	AXP20X_ADC_CHANNEL(AXP803_BATT_V, "batt_v", IIO_VOLTAGE,
+			   AXP20X_BATT_V_H),
+	AXP20X_ADC_CHANNEL(AXP803_BATT_CHRG_I, "batt_chrg_i", IIO_CURRENT,
+			   AXP20X_BATT_CHRG_I_H),
+	AXP20X_ADC_CHANNEL(AXP803_BATT_DISCHRG_I, "batt_dischrg_i", IIO_CURRENT,
+			   AXP20X_BATT_DISCHRG_I_H),
+};
+
 static int axp20x_adc_raw(struct iio_dev *indio_dev,
 			  struct iio_chan_spec const *chan, int *val)
 {
@@ -237,6 +272,19 @@ static int axp22x_adc_raw(struct iio_dev *indio_dev,
 		size = 12;
 
 	*val = axp20x_read_variable_width(info->regmap, chan->address, size);
+	if (*val < 0)
+		return *val;
+
+	return IIO_VAL_INT;
+}
+
+static int axp803_adc_raw(struct iio_dev *indio_dev,
+			  struct iio_chan_spec const *chan, int *val)
+{
+	struct axp20x_adc_iio *info = iio_priv(indio_dev);
+
+	/* All channels on AXP803 are stored on 12 bits. */
+	*val = axp20x_read_variable_width(info->regmap, chan->address, 12);
 	if (*val < 0)
 		return *val;
 
@@ -342,6 +390,31 @@ static int axp22x_adc_scale(struct iio_chan_spec const *chan, int *val,
 	}
 }
 
+static int axp803_adc_scale(struct iio_chan_spec const *chan, int *val,
+			    int *val2)
+{
+	switch (chan->type) {
+	case IIO_VOLTAGE:
+		if (chan->channel != AXP803_BATT_V)
+			return -EINVAL;
+
+		*val = 1;
+		*val2 = 100000;
+		return IIO_VAL_INT_PLUS_MICRO;
+
+	case IIO_CURRENT:
+		*val = 1;
+		return IIO_VAL_INT;
+
+	case IIO_TEMP:
+		*val = 106;
+		return IIO_VAL_INT;
+
+	default:
+		return -EINVAL;
+	}
+}
+
 static int axp20x_adc_offset_voltage(struct iio_dev *indio_dev, int channel,
 				     int *val)
 {
@@ -425,6 +498,26 @@ static int axp22x_read_raw(struct iio_dev *indio_dev,
 	}
 }
 
+static int axp803_read_raw(struct iio_dev *indio_dev,
+			   struct iio_chan_spec const *chan, int *val,
+			   int *val2, long mask)
+{
+	switch (mask) {
+	case IIO_CHAN_INFO_OFFSET:
+		*val = -2525;
+		return IIO_VAL_INT;
+
+	case IIO_CHAN_INFO_SCALE:
+		return axp803_adc_scale(chan, val, val2);
+
+	case IIO_CHAN_INFO_RAW:
+		return axp803_adc_raw(indio_dev, chan, val);
+
+	default:
+		return -EINVAL;
+	}
+}
+
 static int axp20x_write_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan, int val, int val2,
 			    long mask)
@@ -472,6 +565,11 @@ static const struct iio_info axp22x_adc_iio_info = {
 	.driver_module = THIS_MODULE,
 };
 
+static const struct iio_info axp803_adc_iio_info = {
+	.read_raw = axp803_read_raw,
+	.driver_module = THIS_MODULE,
+};
+
 static int axp20x_adc_rate(int rate)
 {
 	return AXP20X_ADC_RATE_HZ(rate);
@@ -512,9 +610,19 @@ static const struct axp_data axp22x_data = {
 	.maps = axp22x_maps,
 };
 
+static const struct axp_data axp803_data = {
+	.iio_info = &axp803_adc_iio_info,
+	.num_channels = ARRAY_SIZE(axp803_adc_channels),
+	.channels = axp803_adc_channels,
+	.adc_en1_mask = AXP803_ADC_EN1_MASK,
+	.adc_en2 = false,
+	.maps = axp22x_maps,
+};
+
 static const struct platform_device_id axp20x_adc_id_match[] = {
 	{ .name = "axp20x-adc", .driver_data = (kernel_ulong_t)&axp20x_data, },
 	{ .name = "axp22x-adc", .driver_data = (kernel_ulong_t)&axp22x_data, },
+	{ .name = "axp803-adc", .driver_data = (kernel_ulong_t)&axp803_data, },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(platform, axp20x_adc_id_match);
