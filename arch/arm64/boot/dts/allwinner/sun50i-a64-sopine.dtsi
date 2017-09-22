@@ -51,6 +51,10 @@
 	cpvdd-supply = <&reg_eldo1>;
 };
 
+&cpu0 {
+	cpu-supply = <&reg_dcdc2>;
+};
+
 &mmc0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&mmc0_pins>;
