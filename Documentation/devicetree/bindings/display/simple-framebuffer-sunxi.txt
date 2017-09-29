@@ -19,6 +19,7 @@ Required properties:
   "mixer0-lcd0-hdmi"
   "mixer1-lcd1-hdmi"
   "mixer1-lcd1-tve"
+  "mixer0-tcon_tv0-hdmi"
 
 Example:
 
