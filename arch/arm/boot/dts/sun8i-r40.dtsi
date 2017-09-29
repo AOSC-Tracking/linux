@@ -52,6 +52,26 @@
 	#size-cells = <1>;
 	interrupt-parent = <&gic>;
 
+	chosen {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		framebuffer-hdmi {
+			compatible = "allwinner,simple-framebuffer",
+				     "simple-framebuffer";
+			allwinner,pipeline = "mixer0-tcon_tv0-hdmi";
+			clocks = <&display_clocks CLK_BUS_MIXER0>,
+				 <&ccu CLK_BUS_TCON_TOP>,
+				 <&ccu CLK_BUS_TCON_TV0>,
+				 <&ccu CLK_BUS_HDMI0>,
+				 <&display_clocks CLK_MIXER0>,
+				 <&ccu CLK_TCON_TV0>, <&ccu CLK_HDMI>,
+				 <&ccu CLK_HDMI_SLOW>;
+			status = "disabled";
+		};
+	};
+
 	clocks {
 		#address-cells = <1>;
 		#size-cells = <1>;
