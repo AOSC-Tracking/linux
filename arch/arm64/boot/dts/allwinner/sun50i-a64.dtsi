@@ -59,7 +59,7 @@
 		#size-cells = <1>;
 		ranges;
 
-		framebuffer-lcd {
+		simplefb_lcd: framebuffer-lcd {
 			compatible = "allwinner,simple-framebuffer",
 				     "simple-framebuffer";
 			allwinner,pipeline = "mixer0-lcd0";
@@ -70,7 +70,7 @@
 			status = "disabled";
 		};
 
-		framebuffer-hdmi {
+		simplefb_hdmi: framebuffer-hdmi {
 			compatible = "allwinner,simple-framebuffer",
 				     "simple-framebuffer";
 			allwinner,pipeline = "mixer1-lcd1-hdmi";
