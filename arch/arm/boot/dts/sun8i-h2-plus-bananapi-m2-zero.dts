@@ -92,7 +92,19 @@
 	};
 };
 
+&de {
+	status = "okay";
+};
+
 &ehci0 {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&mixer0 {
 	status = "okay";
 };
 
@@ -129,6 +141,10 @@
 };
 
 &ohci0 {
+	status = "okay";
+};
+
+&tcon0 {
 	status = "okay";
 };
 
