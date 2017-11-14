@@ -51,6 +51,8 @@
 #define AXP20X_ADC_EN1_VBUS_VOLT	BIT(3)
 
 #define AXP20X_VBUS_MON_VBUS_VALID	BIT(3)
+#define AXP813_CHRG_CTRL3_VBUS_CUR_LIMIT_MASK GENMASK(7, 4)
+#define AXP813_CHRG_CTRL3_VBUS_CUR_LIMIT_OFFSET 4
 
 #define AXP813_BC_EN		BIT(0)
 
@@ -269,7 +271,9 @@ static int axp20x_usb_power_get_property(struct power_supply *psy,
 			return axp813_get_current_max(power, &val->intval);
 		return axp20x_get_current_max(power, &val->intval);
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		return axp813_get_input_current_limit(power, &val->intval);
+		if (power->axp20x_id == AXP813_ID)
+			return axp813_get_input_current_limit(power, &val->intval);
+		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		if (IS_ENABLED(CONFIG_AXP20X_ADC)) {
 			ret = iio_read_channel_processed(power->vbus_i,
@@ -423,7 +427,7 @@ static int axp20x_usb_power_set_current_max(struct axp20x_usb_power *power,
 	return -EINVAL;
 }
 
-static int axp20x_usb_power_set_input_current_limit(struct axp20x_usb_power *power,
+static int axp813_usb_power_set_input_current_limit(struct axp20x_usb_power *power,
 						    int intval)
 {
 	int val;
@@ -487,8 +491,9 @@ static int axp20x_usb_power_set_property(struct power_supply *psy,
 		return axp20x_usb_power_set_current_max(power, val->intval);
 
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		return axp20x_usb_power_set_input_current_limit(power, val->intval);
-
+		if (power->axp20x_id == AXP813_ID)
+			return axp813_usb_power_set_input_current_limit(power, val->intval);
+		fallthrough;
 	default:
 		return -EINVAL;
 	}
