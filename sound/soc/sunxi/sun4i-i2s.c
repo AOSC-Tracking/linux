@@ -275,7 +275,7 @@ static int sun4i_i2s_set_clk_rate(struct snd_soc_dai *dai,
 {
 	struct sun4i_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned int oversample_rate, clk_rate;
-	int bclk_div, mclk_div;
+	int bclk_div, mclk_div, lrck;
 	int ret;
 
 	switch (rate) {
@@ -330,6 +330,8 @@ static int sun4i_i2s_set_clk_rate(struct snd_soc_dai *dai,
 		return -EINVAL;
 	}
 
+	lrck = (clk_rate / rate / oversample_rate) * word_size;
+
 	/* Adjust the clock division values if needed */
 	bclk_div += i2s->variant->bclk_offset;
 	mclk_div += i2s->variant->mclk_offset;
@@ -344,7 +346,7 @@ static int sun4i_i2s_set_clk_rate(struct snd_soc_dai *dai,
 	if (i2s->variant->has_fmt_set_lrck_period)
 		regmap_update_bits(i2s->regmap, SUN4I_I2S_FMT0_REG,
 				   SUN8I_I2S_FMT0_LRCK_PERIOD_MASK,
-				   SUN8I_I2S_FMT0_LRCK_PERIOD(32));
+				   SUN8I_I2S_FMT0_LRCK_PERIOD(lrck));
 
 	return 0;
 }
