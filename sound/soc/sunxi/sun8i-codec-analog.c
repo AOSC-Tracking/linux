@@ -759,24 +759,6 @@ struct sun8i_codec_analog_quirks {
 	int (*add_lineout)(struct snd_soc_component *cmpnt);
 };
 
-static const struct sun8i_codec_analog_quirks sun8i_a23_quirks = {
-	.has_headphone	= true,
-	.has_hmic	= true,
-	.has_linein	= true,
-	.has_mbias	= true,
-	.has_mic2	= true,
-	.add_headphone	= sun8i_a23_codec_add_headphone,
-};
-
-static const struct sun8i_codec_analog_quirks sun8i_h3_quirks = {
-	.has_linein	= true,
-	.has_lineout	= true,
-	.has_mbias	= true,
-	.has_mic2	= true,
-	.add_lineout	= sun8i_h3_codec_add_lineout,
-};
-
-
 static int sun8i_codec_analog_add_mixer(struct snd_soc_component *cmpnt,
 					const struct sun8i_codec_analog_quirks *quirks)
 {
@@ -818,11 +800,6 @@ static int sun8i_codec_analog_add_mixer(struct snd_soc_component *cmpnt,
 
 	return 0;
 }
-
-static const struct sun8i_codec_analog_quirks sun8i_v3s_quirks = {
-	.has_headphone	= true,
-	.has_hmic	= true,
-};
 
 static int sun8i_codec_analog_cmpnt_probe(struct snd_soc_component *cmpnt)
 {
@@ -891,6 +868,31 @@ static const struct snd_soc_component_driver sun8i_codec_analog_cmpnt_drv = {
 	.probe			= sun8i_codec_analog_cmpnt_probe,
 };
 
+static const struct sun8i_codec_analog_quirks sun8i_a23_quirks = {
+	.has_headphone	= true,
+	.has_hmic	= true,
+	.has_linein	= true,
+	.has_mbias	= true,
+	.has_mic2	= true,
+	.add_headphone	= sun8i_a23_codec_add_headphone,
+	.cmpnt_drv	= &sun8i_codec_analog_cmpnt_drv,
+};
+
+static const struct sun8i_codec_analog_quirks sun8i_h3_quirks = {
+	.has_linein	= true,
+	.has_lineout	= true,
+	.has_mbias	= true,
+	.has_mic2	= true,
+	.add_lineout	= sun8i_h3_codec_add_lineout,
+	.cmpnt_drv	= &sun8i_codec_analog_cmpnt_drv,
+};
+
+static const struct sun8i_codec_analog_quirks sun8i_v3s_quirks = {
+	.has_headphone	= true,
+	.has_hmic	= true,
+	.cmpnt_drv	= &sun8i_codec_analog_cmpnt_drv,
+};
+
 static const struct of_device_id sun8i_codec_analog_of_match[] = {
 	{
 		.compatible = "allwinner,sun8i-a23-codec-analog",
@@ -913,6 +915,13 @@ static int sun8i_codec_analog_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct regmap *regmap;
 	void __iomem *base;
+	const struct sun8i_codec_analog_quirks *quirks;
+
+	quirks = of_device_get_match_data(&pdev->dev);
+	if (quirks == NULL) {
+		dev_err(&pdev->dev, "Failed to determine the quirks to use\n");
+		return -ENODEV;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);
@@ -928,7 +937,7 @@ static int sun8i_codec_analog_probe(struct platform_device *pdev)
 	}
 
 	return devm_snd_soc_register_component(&pdev->dev,
-					       &sun8i_codec_analog_cmpnt_drv,
+					       quirks->cmpnt_drv,
 					       NULL, 0);
 }
 
