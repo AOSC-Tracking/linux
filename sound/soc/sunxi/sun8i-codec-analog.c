@@ -397,7 +397,7 @@ static const struct snd_soc_dapm_route sun8i_codec_mixer_routes[] = {
 
 /* headphone specific controls, widgets, and routes */
 static const DECLARE_TLV_DB_SCALE(sun8i_codec_hp_vol_scale, -6300, 100, 1);
-static const struct snd_kcontrol_new sun8i_codec_headphone_controls[] = {
+static const struct snd_kcontrol_new sun8i_a23_codec_hp_ctrls[] = {
 	SOC_SINGLE_TLV("Headphone Playback Volume",
 		       SUN8I_ADDA_HP_VOLC,
 		       SUN8I_ADDA_HP_VOLC_HP_VOL, 0x3f, 0,
@@ -447,7 +447,7 @@ static int sun8i_headphone_amp_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-static const struct snd_soc_dapm_widget sun8i_codec_headphone_widgets[] = {
+static const struct snd_soc_dapm_widget sun8i_a23_codec_hp_widgets[] = {
 	SND_SOC_DAPM_MUX("Headphone Source Playback Route",
 			 SND_SOC_NOPM, 0, 0, sun8i_codec_hp_src),
 	SND_SOC_DAPM_OUT_DRV_E("Headphone Amp", SUN8I_ADDA_PAEN_HP_CTRL,
@@ -471,22 +471,24 @@ static const struct snd_soc_dapm_route sun8i_codec_headphone_routes[] = {
 	{ "HP", NULL, "Headphone Amp" },
 };
 
-static int sun8i_codec_add_headphone(struct snd_soc_component *cmpnt)
+static int sun8i_a23_codec_add_headphone(struct snd_soc_component *cmpnt)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 	struct device *dev = cmpnt->dev;
 	int ret;
 
 	ret = snd_soc_add_component_controls(cmpnt,
-					     sun8i_codec_headphone_controls,
-					     ARRAY_SIZE(sun8i_codec_headphone_controls));
+					     sun8i_a23_codec_hp_ctrls,
+					     ARRAY_SIZE(
+						sun8i_a23_codec_hp_ctrls));
 	if (ret) {
 		dev_err(dev, "Failed to add Headphone controls: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_dapm_new_controls(dapm, sun8i_codec_headphone_widgets,
-					ARRAY_SIZE(sun8i_codec_headphone_widgets));
+	ret = snd_soc_dapm_new_controls(dapm,
+					sun8i_a23_codec_hp_widgets,
+					ARRAY_SIZE(sun8i_a23_codec_hp_widgets));
 	if (ret) {
 		dev_err(dev, "Failed to add Headphone DAPM widgets: %d\n", ret);
 		return ret;
@@ -604,6 +606,7 @@ static const DECLARE_TLV_DB_RANGE(sun8i_codec_lineout_vol_scale,
 	0, 1, TLV_DB_SCALE_ITEM(TLV_DB_GAIN_MUTE, 0, 1),
 	2, 31, TLV_DB_SCALE_ITEM(-4350, 150, 0),
 );
+
 static const struct snd_kcontrol_new sun8i_codec_lineout_controls[] = {
 	SOC_SINGLE_TLV("Line Out Playback Volume",
 		       SUN8I_ADDA_PHONE_GAIN_CTRL,
@@ -648,7 +651,7 @@ static const struct snd_soc_dapm_route sun8i_codec_lineout_routes[] = {
 	{ "LINEOUT", NULL, "Line Out Enable", },
 };
 
-static int sun8i_codec_add_lineout(struct snd_soc_component *cmpnt)
+static int sun8i_h3_codec_add_lineout(struct snd_soc_component *cmpnt)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 	struct device *dev = cmpnt->dev;
@@ -751,6 +754,9 @@ struct sun8i_codec_analog_quirks {
 	bool has_lineout;
 	bool has_mbias;
 	bool has_mic2;
+	const struct snd_soc_component_driver *cmpnt_drv;
+	int (*add_headphone)(struct snd_soc_component *cmpnt);
+	int (*add_lineout)(struct snd_soc_component *cmpnt);
 };
 
 static const struct sun8i_codec_analog_quirks sun8i_a23_quirks = {
@@ -759,6 +765,7 @@ static const struct sun8i_codec_analog_quirks sun8i_a23_quirks = {
 	.has_linein	= true,
 	.has_mbias	= true,
 	.has_mic2	= true,
+	.add_headphone	= sun8i_a23_codec_add_headphone,
 };
 
 static const struct sun8i_codec_analog_quirks sun8i_h3_quirks = {
@@ -766,7 +773,9 @@ static const struct sun8i_codec_analog_quirks sun8i_h3_quirks = {
 	.has_lineout	= true,
 	.has_mbias	= true,
 	.has_mic2	= true,
+	.add_lineout	= sun8i_h3_codec_add_lineout,
 };
+
 
 static int sun8i_codec_analog_add_mixer(struct snd_soc_component *cmpnt,
 					const struct sun8i_codec_analog_quirks *quirks)
@@ -834,7 +843,7 @@ static int sun8i_codec_analog_cmpnt_probe(struct snd_soc_component *cmpnt)
 		return ret;
 
 	if (quirks->has_headphone) {
-		ret = sun8i_codec_add_headphone(cmpnt);
+		ret = quirks->add_headphone(cmpnt);
 		if (ret)
 			return ret;
 	}
@@ -852,7 +861,7 @@ static int sun8i_codec_analog_cmpnt_probe(struct snd_soc_component *cmpnt)
 	}
 
 	if (quirks->has_lineout) {
-		ret = sun8i_codec_add_lineout(cmpnt);
+		ret = quirks->add_lineout(cmpnt);
 		if (ret)
 			return ret;
 	}
