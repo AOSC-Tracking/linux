@@ -91,6 +91,18 @@
 	status = "okay";
 };
 
+&codec {
+	status = "okay";
+};
+
+&codec_analog {
+	status = "okay";
+};
+
+&dai {
+	status = "okay";
+};
+
 &ehci0 {
 	status = "okay";
 };
@@ -187,6 +199,10 @@
 };
 
 &tcon1 {
+	status = "okay";
+};
+
+&sound {
 	status = "okay";
 };
 
