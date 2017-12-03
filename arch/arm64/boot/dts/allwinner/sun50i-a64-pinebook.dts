@@ -22,6 +22,11 @@
 		ethernet0 = &rtl8723cs;
 	};
 
+	amplifier: speaker-amplifier {
+		compatible = "simple-audio-amplifier";
+		enable-gpios = <&pio 7 7 GPIO_ACTIVE_HIGH>;
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm 0 50000 0>;
@@ -66,8 +71,24 @@
 	};
 };
 
+&codec {
+       status = "okay";
+};
+
+&codec_analog {
+	status = "okay";
+};
+
 &cpu0 {
 	cpu-supply = <&reg_dcdc2>;
+};
+
+&dai {
+       status = "okay";
+};
+
+&ehci0 {
+	status = "okay";
 };
 
 &de {
@@ -321,6 +342,11 @@
 		reg = <0>;
 		remote-endpoint = <&anx6345_in>;
 	};
+};
+
+&sound {
+	simple-audio-card,aux-devs = <&codec_analog>, <&amplifier>;
+	status = "okay";
 };
 
 &uart0 {
