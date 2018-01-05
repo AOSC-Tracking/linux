@@ -524,6 +524,13 @@ config GPIO_NPCM_SGPIO
 	help
 	  Say Y here to support Nuvoton NPCM7XX/NPCM8XX SGPIO functionality.
 
+config GPIO_NCT6102
+	bool "NCT6102 GPIO driver"
+	def_bool y
+	depends on CPU_LOONGSON3
+	help
+	  Say yes here to support the NCT6102 GPIO device
+
 config GPIO_OCTEON
 	tristate "Cavium OCTEON GPIO"
 	depends on CAVIUM_OCTEON_SOC
