@@ -94,14 +94,22 @@ static enum drm_mode_status sun4i_rgb_mode_valid(struct drm_encoder *crtc,
 
 	tcon->dclk_min_div = 6;
 	tcon->dclk_max_div = 127;
-	rounded_rate = clk_round_rate(tcon->dclk, rate);
-	if (rounded_rate < rate)
-		return MODE_CLOCK_LOW;
+	switch (crtc->encoder_type) {
+	case DRM_MODE_ENCODER_LVDS:
+	case DRM_MODE_ENCODER_NONE:
+		DRM_DEBUG_DRIVER("Bypass dotclock check\n");
+		break;
+	default:
+		rounded_rate = clk_round_rate(tcon->dclk, rate);
+		if (rounded_rate < rate)
+			return MODE_CLOCK_LOW;
 
-	if (rounded_rate > rate)
-		return MODE_CLOCK_HIGH;
+		if (rounded_rate > rate)
+			return MODE_CLOCK_HIGH;
 
-	DRM_DEBUG_DRIVER("Clock rate OK\n");
+		DRM_DEBUG_DRIVER("Clock rate OK\n");
+		break;
+	}
 
 	return MODE_OK;
 }
