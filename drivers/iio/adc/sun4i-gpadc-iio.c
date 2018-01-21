@@ -71,11 +71,14 @@ struct gpadc_data {
 	unsigned int	temp_data[MAX_SENSOR_COUNT];
 	int		(*sample_start)(struct sun4i_gpadc_iio *info);
 	int		(*sample_end)(struct sun4i_gpadc_iio *info);
+	u32		irq_clear_map;
+	u32		irq_control_map;
 	bool		has_bus_clk;
 	bool		has_bus_rst;
 	bool		has_mod_clk;
 	int		sensor_count;
 	bool		supports_nvmem;
+	bool		support_irq;
 };
 
 static const struct gpadc_data sun4i_gpadc_data = {
@@ -90,6 +93,7 @@ static const struct gpadc_data sun4i_gpadc_data = {
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
 	.supports_nvmem = false,
+	.support_irq = false,
 };
 
 static const struct gpadc_data sun5i_gpadc_data = {
@@ -104,6 +108,7 @@ static const struct gpadc_data sun5i_gpadc_data = {
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
 	.supports_nvmem = false,
+	.support_irq = false,
 };
 
 static const struct gpadc_data sun6i_gpadc_data = {
@@ -118,6 +123,7 @@ static const struct gpadc_data sun6i_gpadc_data = {
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
 	.supports_nvmem = false,
+	.support_irq = false,
 };
 
 static const struct gpadc_data sun8i_a33_gpadc_data = {
@@ -129,6 +135,7 @@ static const struct gpadc_data sun8i_a33_gpadc_data = {
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
 	.supports_nvmem = false,
+	.support_irq = false,
 };
 
 struct sun4i_gpadc_iio {
@@ -332,6 +339,11 @@ static int sun4i_gpadc_temp_read(struct iio_dev *indio_dev, int *val,
 		return 0;
 	}
 
+	if (info->data->support_irq) {
+		regmap_read(info->regmap, info->data->temp_data[sensor], val);
+		return 0;
+	}
+
 	return sun4i_gpadc_read(indio_dev, 0, val, info->temp_data_irq);
 }
 
@@ -426,6 +438,17 @@ static irqreturn_t sun4i_gpadc_fifo_data_irq_handler(int irq, void *dev_id)
 		complete(&info->completion);
 
 out:
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t sunxi_irq_thread(int irq, void *data)
+{
+	struct sun4i_gpadc_iio *info = data;
+
+	regmap_write(info->regmap, SUN8I_H3_THS_STAT, info->data->irq_clear_map);
+
+	thermal_zone_device_update(info->tzd, THERMAL_EVENT_TEMP_SAMPLE);
+
 	return IRQ_HANDLED;
 }
 
@@ -572,12 +595,29 @@ static int sun4i_gpadc_probe_dt(struct platform_device *pdev,
 	struct nvmem_cell *cell;
 	ssize_t cell_size;
 	u64 *cell_data;
+	int irq;
 
 	info->data = of_device_get_match_data(&pdev->dev);
 	if (!info->data)
 		return -ENODEV;
 
-	info->no_irq = true;
+	if (info->data->support_irq) {
+		/* only the new versions of ths support right now irqs */
+		irq = platform_get_irq(pdev, 0);
+		if (irq < 0) {
+			dev_err(&pdev->dev, "failed to get IRQ: %d\n", irq);
+			return irq;
+		}
+
+		ret = devm_request_threaded_irq(&pdev->dev, irq, NULL,
+				sunxi_irq_thread, IRQF_ONESHOT,
+				dev_name(&pdev->dev), info);
+		if (ret)
+			return ret;
+
+	} else
+		info->no_irq = true;
+
 	indio_dev->num_channels = ARRAY_SIZE(sun8i_a33_gpadc_channels);
 	indio_dev->channels = sun8i_a33_gpadc_channels;
 
@@ -789,11 +829,13 @@ static int sun4i_gpadc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	pm_runtime_set_autosuspend_delay(&pdev->dev,
-					 SUN4I_GPADC_AUTOSUSPEND_DELAY);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_set_suspended(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
+	if (!info->data->support_irq) {
+		pm_runtime_set_autosuspend_delay(&pdev->dev,
+						 SUN4I_GPADC_AUTOSUSPEND_DELAY);
+		pm_runtime_use_autosuspend(&pdev->dev);
+		pm_runtime_set_suspended(&pdev->dev);
+		pm_runtime_enable(&pdev->dev);
+	}
 
 	if (IS_ENABLED(CONFIG_THERMAL_OF)) {
 		for (i = 0; i < info->data->sensor_count; i++) {
@@ -813,6 +855,9 @@ static int sun4i_gpadc_probe(struct platform_device *pdev)
 			return PTR_ERR(info->tzd);
 		}
 	}
+
+	if (info->data->support_irq)
+		info->data->sample_start(info);
 
 	ret = devm_iio_device_register(&pdev->dev, indio_dev);
 	if (ret < 0) {
@@ -842,6 +887,9 @@ static int sun4i_gpadc_remove(struct platform_device *pdev)
 
 	if (!IS_ENABLED(CONFIG_THERMAL_OF))
 		return 0;
+
+	if (info->data->support_irq)
+		info->data->sample_end(info);
 
 	thermal_zone_of_sensor_unregister(info->sensor_device, info->tzd);
 

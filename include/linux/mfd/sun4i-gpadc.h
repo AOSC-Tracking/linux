@@ -91,6 +91,8 @@
 #define SUN4I_GPADC_AUTOSUSPEND_DELAY			10000
 
 /* SUNXI_THS COMMON REGISTERS + DEFINES */
+#define SUN8I_H3_THS_INTC				0x44
+
 #define MAX_SENSOR_COUNT				4
 
 struct sun4i_gpadc_dev {
