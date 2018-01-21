@@ -170,6 +170,40 @@ static const struct gpadc_data sun8i_h3_ths_data = {
 		SUN8I_H3_THS_TEMP_PERIOD(0x7),
 };
 
+static const struct gpadc_data sun8i_a83t_ths_data = {
+	.temp_offset = -2724,
+	.temp_scale = -70,
+	.temp_data = {SUN8I_H3_THS_TDATA0,
+		SUN8I_A83T_THS_TDATA1,
+		SUN8I_A83T_THS_TDATA2,
+		0},
+	.sample_start = sunxi_ths_sample_start,
+	.sample_end = sunxi_ths_sample_end,
+	.sensor_count = 3,
+	.supports_nvmem = false,
+	.support_irq = true,
+	.ctrl0_map = SUN4I_GPADC_CTRL0_T_ACQ(0x1f3),
+	.ctrl2_map = SUN8I_H3_THS_ACQ1(0x1f3),
+	.sensor_en_map = SUN8I_H3_THS_TEMP_SENSE_EN0 |
+		SUN8I_A83T_THS_TEMP_SENSE_EN1 |
+		SUN8I_A83T_THS_TEMP_SENSE_EN2,
+	.filter_map = SUN4I_GPADC_CTRL3_FILTER_EN |
+		SUN4I_GPADC_CTRL3_FILTER_TYPE(0x2),
+	.irq_clear_map = SUN8I_H3_THS_INTS_ALARM_INT_0 |
+		SUN8I_A83T_THS_INTS_ALARM_INT_1 |
+		SUN8I_A83T_THS_INTS_ALARM_INT_2 |
+		SUN8I_H3_THS_INTS_SHUT_INT_0  |
+		SUN8I_A83T_THS_INTS_SHUT_INT_1  |
+		SUN8I_A83T_THS_INTS_SHUT_INT_2  |
+		SUN8I_H3_THS_INTS_TDATA_IRQ_0 |
+		SUN8I_A83T_THS_INTS_TDATA_IRQ_1 |
+		SUN8I_A83T_THS_INTS_TDATA_IRQ_2,
+	.irq_control_map = SUN8I_H3_THS_INTC_TDATA_IRQ_EN0 |
+		SUN8I_A83T_THS_INTC_TDATA_IRQ_EN1 |
+		SUN8I_A83T_THS_INTC_TDATA_IRQ_EN2 |
+		SUN8I_H3_THS_TEMP_PERIOD(0x257),
+};
+
 struct sun4i_gpadc_iio {
 	struct iio_dev			*indio_dev;
 	struct completion		completion;
@@ -667,6 +701,10 @@ static const struct of_device_id sun4i_gpadc_of_id[] = {
 	{
 		.compatible = "allwinner,sun8i-h3-ths",
 		.data = &sun8i_h3_ths_data,
+	},
+	{
+		.compatible = "allwinner,sun8i-a83t-ths",
+		.data = &sun8i_a83t_ths_data,
 	},
 	{ /* sentinel */ }
 };
