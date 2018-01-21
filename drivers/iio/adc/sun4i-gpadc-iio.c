@@ -27,6 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
@@ -74,6 +75,7 @@ struct gpadc_data {
 	bool		has_bus_rst;
 	bool		has_mod_clk;
 	int		sensor_count;
+	bool		supports_nvmem;
 };
 
 static const struct gpadc_data sun4i_gpadc_data = {
@@ -87,6 +89,7 @@ static const struct gpadc_data sun4i_gpadc_data = {
 	.sample_start = sun4i_gpadc_sample_start,
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
+	.supports_nvmem = false,
 };
 
 static const struct gpadc_data sun5i_gpadc_data = {
@@ -100,6 +103,7 @@ static const struct gpadc_data sun5i_gpadc_data = {
 	.sample_start = sun4i_gpadc_sample_start,
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
+	.supports_nvmem = false,
 };
 
 static const struct gpadc_data sun6i_gpadc_data = {
@@ -113,6 +117,7 @@ static const struct gpadc_data sun6i_gpadc_data = {
 	.sample_start = sun4i_gpadc_sample_start,
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
+	.supports_nvmem = false,
 };
 
 static const struct gpadc_data sun8i_a33_gpadc_data = {
@@ -123,6 +128,7 @@ static const struct gpadc_data sun8i_a33_gpadc_data = {
 	.sample_start = sun4i_gpadc_sample_start,
 	.sample_end = sun4i_gpadc_sample_end,
 	.sensor_count = 1,
+	.supports_nvmem = false,
 };
 
 struct sun4i_gpadc_iio {
@@ -141,6 +147,8 @@ struct sun4i_gpadc_iio {
 	struct clk			*mod_clk;
 	struct reset_control		*reset;
 	int				sensor_id;
+	u32				calibration_data[2];
+	bool				has_calibration_data[2];
 	/* prevents concurrent reads of temperature and ADC */
 	struct mutex			mutex;
 	struct thermal_zone_device	*tzd;
@@ -561,6 +569,9 @@ static int sun4i_gpadc_probe_dt(struct platform_device *pdev,
 	struct resource *mem;
 	void __iomem *base;
 	int ret;
+	struct nvmem_cell *cell;
+	ssize_t cell_size;
+	u64 *cell_data;
 
 	info->data = of_device_get_match_data(&pdev->dev);
 	if (!info->data)
@@ -574,6 +585,39 @@ static int sun4i_gpadc_probe_dt(struct platform_device *pdev,
 	base = devm_ioremap_resource(&pdev->dev, mem);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+
+	info->has_calibration_data[0] = false;
+	info->has_calibration_data[1] = false;
+
+	if (!info->data->supports_nvmem)
+		goto no_nvmem;
+
+	cell = nvmem_cell_get(&pdev->dev, "calibration");
+	if (IS_ERR(cell)) {
+		if (PTR_ERR(cell) == -EPROBE_DEFER)
+			return PTR_ERR(cell);
+		goto no_nvmem;
+	}
+
+	cell_data = (u64 *)nvmem_cell_read(cell, &cell_size);
+	nvmem_cell_put(cell);
+	switch (cell_size) {
+		case 8:
+		case 6:
+			info->has_calibration_data[1] = true;
+			info->calibration_data[1] = be32_to_cpu(
+					upper_32_bits(cell_data[0]));
+		case 4:
+		case 2:
+			info->has_calibration_data[0] = true;
+			info->calibration_data[0] = be32_to_cpu(
+					lower_32_bits(cell_data[0]));
+			break;
+		default:
+			break;
+	}
+
+no_nvmem:
 
 	info->regmap = devm_regmap_init_mmio(&pdev->dev, base,
 					     &sun4i_gpadc_regmap_config);
