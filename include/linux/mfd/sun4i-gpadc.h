@@ -90,6 +90,9 @@
 /* 10s delay before suspending the IP */
 #define SUN4I_GPADC_AUTOSUSPEND_DELAY			10000
 
+/* SUNXI_THS COMMON REGISTERS + DEFINES */
+#define MAX_SENSOR_COUNT				4
+
 struct sun4i_gpadc_dev {
 	struct device			*dev;
 	struct regmap			*regmap;
