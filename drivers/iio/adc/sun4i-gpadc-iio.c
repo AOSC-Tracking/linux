@@ -61,6 +61,9 @@ struct sun4i_gpadc_iio;
 static int sun4i_gpadc_sample_start(struct sun4i_gpadc_iio *info);
 static int sun4i_gpadc_sample_end(struct sun4i_gpadc_iio *info);
 
+static int sunxi_ths_sample_start(struct sun4i_gpadc_iio *info);
+static int sunxi_ths_sample_end(struct sun4i_gpadc_iio *info);
+
 struct gpadc_data {
 	int		temp_offset;
 	int		temp_scale;
@@ -71,6 +74,10 @@ struct gpadc_data {
 	unsigned int	temp_data[MAX_SENSOR_COUNT];
 	int		(*sample_start)(struct sun4i_gpadc_iio *info);
 	int		(*sample_end)(struct sun4i_gpadc_iio *info);
+	u32		ctrl0_map;
+	u32		ctrl2_map;
+	u32		sensor_en_map;
+	u32		filter_map;
 	u32		irq_clear_map;
 	u32		irq_control_map;
 	bool		has_bus_clk;
@@ -136,6 +143,31 @@ static const struct gpadc_data sun8i_a33_gpadc_data = {
 	.sensor_count = 1,
 	.supports_nvmem = false,
 	.support_irq = false,
+};
+
+static const struct gpadc_data sun8i_h3_ths_data = {
+	.temp_offset = -1791,
+	.temp_scale = -121,
+	.temp_data = {SUN8I_H3_THS_TDATA0, 0, 0, 0},
+	.sample_start = sunxi_ths_sample_start,
+	.sample_end = sunxi_ths_sample_end,
+	.has_bus_clk = true,
+	.has_bus_rst = true,
+	.has_mod_clk = true,
+	.sensor_count = 1,
+	.supports_nvmem = true,
+	.support_irq = true,
+	.ctrl0_map = SUN4I_GPADC_CTRL0_T_ACQ(0xff),
+	.ctrl2_map = SUN8I_H3_THS_ACQ1(0x3f),
+	.sensor_en_map = SUN8I_H3_THS_TEMP_SENSE_EN0,
+	.filter_map = SUN4I_GPADC_CTRL3_FILTER_EN |
+		SUN4I_GPADC_CTRL3_FILTER_TYPE(0x2),
+	.irq_clear_map = SUN8I_H3_THS_INTS_ALARM_INT_0 |
+			SUN8I_H3_THS_INTS_SHUT_INT_0   |
+			SUN8I_H3_THS_INTS_TDATA_IRQ_0  |
+			SUN8I_H3_THS_INTS_ALARM_OFF_0,
+	.irq_control_map = SUN8I_H3_THS_INTC_TDATA_IRQ_EN0 |
+		SUN8I_H3_THS_TEMP_PERIOD(0x7),
 };
 
 struct sun4i_gpadc_iio {
@@ -462,6 +494,16 @@ static int sun4i_gpadc_sample_end(struct sun4i_gpadc_iio *info)
 	return 0;
 }
 
+static int sunxi_ths_sample_end(struct sun4i_gpadc_iio *info)
+{
+	/* Disable ths interrupt */
+	regmap_write(info->regmap, SUN8I_H3_THS_INTC, 0x0);
+	/* Disable temperature sensor */
+	regmap_write(info->regmap, SUN8I_H3_THS_CTRL2, 0x0);
+
+	return 0;
+}
+
 static int sun4i_gpadc_runtime_suspend(struct device *dev)
 {
 	struct sun4i_gpadc_iio *info = iio_priv(dev_get_drvdata(dev));
@@ -471,6 +513,17 @@ static int sun4i_gpadc_runtime_suspend(struct device *dev)
 	clk_disable(info->bus_clk);
 
 	return info->data->sample_end(info);
+}
+
+static void sunxi_calibrate(struct sun4i_gpadc_iio *info)
+{
+	if (info->has_calibration_data[0])
+		regmap_write(info->regmap, SUNXI_THS_CDATA_0_1,
+			info->calibration_data[0]);
+
+	if (info->has_calibration_data[1])
+		regmap_write(info->regmap, SUNXI_THS_CDATA_2_3,
+			info->calibration_data[1]);
 }
 
 static int sun4i_gpadc_sample_start(struct sun4i_gpadc_iio *info)
@@ -488,6 +541,35 @@ static int sun4i_gpadc_sample_start(struct sun4i_gpadc_iio *info)
 	regmap_write(info->regmap, SUN4I_GPADC_TPR,
 		     SUN4I_GPADC_TPR_TEMP_ENABLE |
 		     SUN4I_GPADC_TPR_TEMP_PERIOD(800));
+
+	return 0;
+}
+
+static int sunxi_ths_sample_start(struct sun4i_gpadc_iio *info)
+{
+	u32 value;
+	sunxi_calibrate(info);
+
+	if (info->data->ctrl0_map)
+		regmap_write(info->regmap, SUN8I_H3_THS_CTRL0,
+			info->data->ctrl0_map);
+
+	regmap_write(info->regmap, SUN8I_H3_THS_CTRL2,
+		info->data->ctrl2_map);
+
+	regmap_write(info->regmap, SUN8I_H3_THS_STAT,
+			info->data->irq_clear_map);
+
+	regmap_write(info->regmap, SUN8I_H3_THS_FILTER,
+		info->data->filter_map);
+
+	regmap_write(info->regmap, SUN8I_H3_THS_INTC,
+		info->data->irq_control_map);
+
+	regmap_read(info->regmap, SUN8I_H3_THS_CTRL2, &value);
+
+	regmap_write(info->regmap, SUN8I_H3_THS_CTRL2,
+		info->data->sensor_en_map | value);
 
 	return 0;
 }
@@ -581,6 +663,10 @@ static const struct of_device_id sun4i_gpadc_of_id[] = {
 	{
 		.compatible = "allwinner,sun8i-a33-ths",
 		.data = &sun8i_a33_gpadc_data,
+	},
+	{
+		.compatible = "allwinner,sun8i-h3-ths",
+		.data = &sun8i_h3_ths_data,
 	},
 	{ /* sentinel */ }
 };
