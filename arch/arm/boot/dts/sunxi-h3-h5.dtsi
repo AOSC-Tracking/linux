@@ -230,6 +230,12 @@
 		sid: eeprom@1c14000 {
 			/* compatible is in per SoC .dtsi file */
 			reg = <0x1c14000 0x400>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			ths_calib: thermal-sensor-calibration@34 {
+				reg = <0x34 0x8>;
+			};
 		};
 
 		usb_otg: usb@1c19000 {
@@ -481,6 +487,17 @@
 				pins = "PA15", "PA16";
 				function = "uart3";
 			};
+		};
+
+		ths: thermal-sensor@1c25000 {
+			/* compatible is in per SoC .dtsi file */
+			reg = <0x01c25000 0x100>;
+			interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_THS>, <&ccu CLK_THS>;
+			clock-names = "bus", "mod";
+			resets = <&ccu RST_BUS_THS>;
+			nvmem-cells = <&ths_calib>;
+			nvmem-cell-names = "calib";
 		};
 
 		timer@1c20c00 {
