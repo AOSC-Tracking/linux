@@ -235,3 +235,8 @@
 &sid {
 	compatible = "allwinner,sun8i-h3-sid";
 };
+
+&ths {
+	compatible = "allwinner,sun8i-h3-ths";
+	#thermal-sensor-cells = <0>;
+};
