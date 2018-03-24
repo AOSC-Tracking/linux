@@ -22,6 +22,7 @@
 #define CLK_MIXER0_DIV	3
 #define CLK_MIXER1_DIV	4
 #define CLK_WB_DIV	5
+#define CLK_ROT_DIV	11
 
 #define CLK_NUMBER	(CLK_WB + 1)
 
