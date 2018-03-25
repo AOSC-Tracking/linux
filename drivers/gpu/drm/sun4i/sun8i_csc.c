@@ -34,6 +34,34 @@ static const u32 yvu2rgb[] = {
 	0x000004A8, 0x00000000, 0x00000813, 0xFFFBAC4A,
 };
 
+/*
+ * DE3 has a bit different CSC units. Factors are in two's complement format.
+ * First three have 17 bits for fractinal part and last two 2 bits. First
+ * three values in each line are multiplication factor, 4th is difference,
+ * which is subtracted from the input value before the multiplication and
+ * last value is constant, which is added at the end.
+ *
+ * x' = c00 * (x + d0) + c01 * (y + d1) + c02 * (z + d2) + const0
+ * y' = c10 * (x + d0) + c11 * (y + d1) + c12 * (z + d2) + const1
+ * z' = c20 * (x + d0) + c21 * (y + d1) + c22 * (z + d2) + const2
+ *
+ * Please note that above formula is true only for Blender CSC. Other DE3 CSC
+ * units takes only positive value for difference. From what can be deducted
+ * from BSP driver code, those units probably automatically assume that
+ * difference has to be subtracted.
+ */
+static const u32 yuv2rgb_de3[] = {
+	0x0002542a, 0x00000000, 0x0003312a, 0xffffffc0, 0x00000000,
+	0x0002542a, 0xffff376b, 0xfffe5fc3, 0xfffffe00, 0x00000000,
+	0x0002542a, 0x000408d3, 0x00000000, 0xfffffe00, 0x00000000,
+};
+
+static const u32 yvu2rgb_de3[] = {
+	0x0002542a, 0x0003312a, 0x00000000, 0xffffffc0, 0x00000000,
+	0x0002542a, 0xfffe5fc3, 0xffff376b, 0xfffffe00, 0x00000000,
+	0x0002542a, 0x00000000, 0x000408d3, 0xfffffe00, 0x00000000,
+};
+
 static void sun8i_csc_set_coefficients(struct regmap *map, u32 base,
 				       enum sun8i_csc_mode mode)
 {
@@ -61,6 +89,38 @@ static void sun8i_csc_set_coefficients(struct regmap *map, u32 base,
 	}
 }
 
+static void sun8i_de3_ccsc_set_coefficients(struct regmap *map, int layer,
+					    enum sun8i_csc_mode mode)
+{
+	const u32 *table;
+	int i, j;
+
+	switch (mode) {
+	case SUN8I_CSC_MODE_YUV2RGB:
+		table = yuv2rgb_de3;
+		break;
+	case SUN8I_CSC_MODE_YVU2RGB:
+		table = yvu2rgb_de3;
+		break;
+	default:
+		DRM_WARN("Wrong CSC mode specified.\n");
+		return;
+	}
+
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < 3; j++)
+			regmap_write(map,
+				     SUN8I_MIXER_BLEND_CSC_COEFF(DE3_BLD_BASE,
+								 layer, i, j),
+				     table[i * 5 + j]);
+		regmap_write(map,
+			     SUN8I_MIXER_BLEND_CSC_CONST(DE3_BLD_BASE,
+							 layer, i),
+			     SUN8I_MIXER_BLEND_CSC_CONST_VAL(table[i * 5 + 3],
+							     table[i * 5 + 4]));
+	}
+}
+
 static void sun8i_csc_enable(struct regmap *map, u32 base, bool enable)
 {
 	u32 val;
@@ -73,21 +133,45 @@ static void sun8i_csc_enable(struct regmap *map, u32 base, bool enable)
 	regmap_update_bits(map, SUN8I_CSC_CTRL(base), SUN8I_CSC_CTRL_EN, val);
 }
 
+static void sun8i_de3_ccsc_enable(struct regmap *map, int layer, bool enable)
+{
+	u32 val, mask;
+
+	mask = SUN8I_MIXER_BLEND_CSC_CTL_EN(layer);
+
+	if (enable)
+		val = mask;
+	else
+		val = 0;
+
+	regmap_update_bits(map, SUN8I_MIXER_BLEND_CSC_CTL(DE3_BLD_BASE),
+			   mask, val);
+}
+
 void sun8i_csc_set_ccsc_coefficients(struct sun8i_mixer *mixer, int layer,
 				     enum sun8i_csc_mode mode)
 {
-	u32 base;
+	if (!mixer->cfg->is_de3) {
+		u32 base;
 
-	base = ccsc_base[mixer->cfg->ccsc][layer];
+		base = ccsc_base[mixer->cfg->ccsc][layer];
 
-	sun8i_csc_set_coefficients(mixer->engine.regs, base, mode);
+		sun8i_csc_set_coefficients(mixer->engine.regs, base, mode);
+	} else {
+		sun8i_de3_ccsc_set_coefficients(mixer->engine.regs,
+						layer, mode);
+	}
 }
 
 void sun8i_csc_enable_ccsc(struct sun8i_mixer *mixer, int layer, bool enable)
 {
-	u32 base;
+	if (!mixer->cfg->is_de3) {
+		u32 base;
 
-	base = ccsc_base[mixer->cfg->ccsc][layer];
+		base = ccsc_base[mixer->cfg->ccsc][layer];
 
-	sun8i_csc_enable(mixer->engine.regs, base, enable);
+		sun8i_csc_enable(mixer->engine.regs, base, enable);
+	} else {
+		sun8i_de3_ccsc_enable(mixer->engine.regs, layer, enable);
+	}
 }

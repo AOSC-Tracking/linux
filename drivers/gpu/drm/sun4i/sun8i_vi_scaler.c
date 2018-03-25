@@ -835,7 +835,10 @@ static const u32 bicubic4coefftab32[480] = {
 
 static inline u32 sun8i_vi_scaler_base(struct sun8i_mixer *mixer, int channel)
 {
-	return 0x20000 + DE2_VI_SCALER_SIZE * channel;
+	if (mixer->cfg->is_de3)
+		return 0x20000 + DE3_VI_SCALER_SIZE * channel;
+	else
+		return 0x20000 + DE2_VI_SCALER_SIZE * channel;
 }
 
 static int sun8i_vi_scaler_coef_index(unsigned int step)
@@ -949,6 +952,35 @@ void sun8i_vi_scaler_setup(struct sun8i_mixer *mixer, int layer,
 	} else {
 		chphase = hphase;
 		cvphase = vphase;
+	}
+
+	if (mixer->cfg->is_de3) {
+		u32 val;
+
+		if (format->hsub == 1 && format->vsub == 1)
+			val = SUN8I_SCALER_VSU_SCALE_MODE_UI;
+		else
+			val = SUN8I_SCALER_VSU_SCALE_MODE_NORMAL;
+
+		regmap_write(mixer->engine.regs,
+			     SUN8I_SCALER_VSU_SCALE_MODE(base), val);
+
+		regmap_write(mixer->engine.regs,
+			     SUN8I_SCALER_VSU_DIR_THR(base),
+			     SUN8I_SCALER_VSU_SUB_ZERO_DIR_THR(0) |
+			     SUN8I_SCALER_VSU_ZERO_DIR_THR(0) |
+			     SUN8I_SCALER_VSU_HORZ_DIR_THR(0xff) |
+			     SUN8I_SCALER_VSU_VERT_DIR_THR(1));
+		regmap_write(mixer->engine.regs,
+			     SUN8I_SCALER_VSU_EDGE_THR(base),
+			     SUN8I_SCALER_VSU_EDGE_SHIFT(8) |
+			     SUN8I_SCALER_VSU_EDGE_OFFSET(0));
+		regmap_write(mixer->engine.regs,
+			     SUN8I_SCALER_VSU_EDSCL_CTRL(base), 0);
+		regmap_write(mixer->engine.regs,
+			     SUN8I_SCALER_VSU_ANGLE_THR(base),
+			     SUN8I_SCALER_VSU_ANGLE_SHIFT(2) |
+			     SUN8I_SCALER_VSU_ANGLE_OFFSET(0));
 	}
 
 	regmap_write(mixer->engine.regs,
