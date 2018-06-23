@@ -74,6 +74,7 @@
 #define PCI_DEVICE_ID_AMCC_ADDIDATA_APCI7800 0x818e
 
 #define PCI_DEVICE_ID_WCHIC_CH384_4S	0x3470
+#define PCI_DEVICE_ID_WCHIC_CH384_4S1P	0x3450
 #define PCI_DEVICE_ID_WCHIC_CH384_8S	0x3853
 
 #define PCI_DEVICE_ID_MOXA_CP102E	0x1024
@@ -2849,6 +2850,14 @@ static struct pci_serial_quirk pci_serial_quirks[] = {
 		.subdevice      = PCI_ANY_ID,
 		.init           = pci_wch_ch38x_init,
 		.exit		= pci_wch_ch38x_exit,
+		.setup		= pci_wch_ch38x_setup,
+	},
+	/* WCH CH384 4S1P card (16850 clone) */
+	{
+		.vendor         = PCI_VENDOR_ID_WCHIC,
+		.device         = PCI_DEVICE_ID_WCHIC_CH384_4S1P,
+		.subvendor      = PCI_ANY_ID,
+		.subdevice      = PCI_ANY_ID,
 		.setup          = pci_wch_ch38x_setup,
 	},
 	/*
@@ -3926,6 +3935,8 @@ static const struct pci_device_id blacklist[] = {
 	{ PCI_VDEVICE(WCHCN, 0x5053), REPORT_CONFIG(PARPORT_SERIAL), },
 	/* WCH CH382 2S1P */
 	{ PCI_VDEVICE(WCHIC, 0x3250), REPORT_CONFIG(PARPORT_SERIAL), },
+	/* WCH CH384 4S1P */
+	{ PCI_VDEVICE(WCHIC, 0x3450), REPORT_CONFIG(PARPORT_SERIAL), },
 
 	/* Intel platforms with MID UART */
 	{ PCI_VDEVICE(INTEL, 0x081b), REPORT_8250_CONFIG(MID), },
