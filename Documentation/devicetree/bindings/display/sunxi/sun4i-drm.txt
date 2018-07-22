@@ -223,13 +223,14 @@ It allows display pipeline to be configured in very different ways:
                  \ [3] TCON-TV1 [1] - TVE1/RGB
 
 Note that both TCON TOP references same physical unit. Both mixers can be
-connected to any TCON.
+connected to any TCON. Units may not exist on a certain SoC.
 
 Required properties:
   - compatible: value must be one of:
     * allwinner,sun8i-r40-tcon-top
+    * allwinner,sun50i-h6-tcon-top
   - reg: base address and size of the memory-mapped region.
-  - clocks: phandle to the clocks feeding the TCON TOP
+  - clocks: phandle to the clocks feeding the TCON TOP, if exist
     * bus: TCON TOP interface clock
     * tcon-tv0: TCON TV0 clock
     * tve0: TVE0 clock
