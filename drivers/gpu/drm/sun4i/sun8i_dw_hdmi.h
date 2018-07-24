@@ -9,6 +9,7 @@
 #include <drm/bridge/dw_hdmi.h>
 #include <drm/drm_encoder.h>
 #include <linux/clk.h>
+#include <linux/of_gpio.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
@@ -172,6 +173,7 @@ struct sun8i_hdmi_phy {
 	unsigned int			rcal;
 	struct regmap			*regs;
 	struct reset_control		*rst_phy;
+	struct gpio_desc		*gpiod_ddc_en;
 	struct sun8i_hdmi_phy_variant	*variant;
 };
 
