@@ -656,6 +656,18 @@ int sun8i_hdmi_phy_probe(struct sun8i_dw_hdmi *hdmi, struct device_node *node)
 		return PTR_ERR(phy->regs);
 	}
 
+	phy->gpiod_ddc_en = devm_gpiod_get_from_of_node(dev, node,
+						       "ddc-en-gpios", 0,
+						       GPIOD_OUT_LOW,
+						       "ddc-en");
+	if (IS_ERR(phy->gpiod_ddc_en)) {
+		dev_err(dev, "Couldn't request DDC enable GPIO\n");
+		return PTR_ERR(phy->gpiod_ddc_en);
+	}
+
+	if (phy->gpiod_ddc_en)
+		gpiod_set_value_cansleep(phy->gpiod_ddc_en, 1);
+
 	phy->clk_bus = of_clk_get_by_name(node, "bus");
 	if (IS_ERR(phy->clk_bus)) {
 		dev_err(dev, "Could not get bus clock\n");
@@ -752,6 +764,9 @@ void sun8i_hdmi_phy_remove(struct sun8i_dw_hdmi *hdmi)
 	clk_disable_unprepare(phy->clk_mod);
 	clk_disable_unprepare(phy->clk_bus);
 	clk_disable_unprepare(phy->clk_phy);
+
+	if (phy->gpiod_ddc_en)
+		gpiod_set_value_cansleep(phy->gpiod_ddc_en, 0);
 
 	reset_control_assert(phy->rst_phy);
 
