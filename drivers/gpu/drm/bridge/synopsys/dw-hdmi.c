@@ -2160,6 +2160,7 @@ static void dw_hdmi_bridge_mode_set(struct drm_bridge *bridge,
 
 	/* Store the display mode for plugin/DKMS poweron events */
 	memcpy(&hdmi->previous_mode, mode, sizeof(hdmi->previous_mode));
+	dw_hdmi_setup(hdmi, mode);
 
 	mutex_unlock(&hdmi->mutex);
 }
