@@ -41,6 +41,24 @@
 			opp-microvolt = <880000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
 		};
+
+		opp-1008000000 {
+			opp-hz = /bits/ 64 <1008000000>;
+			opp-microvolt = <940000>;
+			clock-latency-ns = <244144>; /* 8 32k periods */
+		};
+
+		opp-1320000000 {
+			opp-hz = /bits/ 64 <1320000000>;
+			opp-microvolt = <1000000>;
+			clock-latency-ns = <244144>; /* 8 32k periods */
+		};
+
+		opp-1488000000 {
+			opp-hz = /bits/ 64 <1488000000>;
+			opp-microvolt = <1060000>;
+			clock-latency-ns = <244144>; /* 8 32k periods */
+		};
 	};
 
 	cpus {
