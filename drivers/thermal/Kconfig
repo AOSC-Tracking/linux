@@ -415,6 +415,17 @@ config MTK_THERMAL
 	  Enable this option if you want to have support for thermal management
 	  controller present in Mediatek SoCs
 
+config SUN50I_H6_THS
+	tristate "Thermal sensor driver for Allwinner H6"
+	depends on ARCH_SUNXI || COMPILE_TEST
+	depends on HAS_IOMEM
+	depends on NVMEM
+	depends on OF
+	depends on RESET_CONTROLLER
+	help
+	  Enable this option if you want to have support for thermal reporting
+	  on Allwinner H6.
+
 menu "Broadcom thermal drivers"
 depends on ARCH_BCM || ARCH_BRCMSTB || ARCH_BCM2835 || COMPILE_TEST
 source "drivers/thermal/broadcom/Kconfig"
