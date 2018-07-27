@@ -63,7 +63,7 @@ static u8 sunxi_sid_read_byte(const struct sunxi_sid *sid,
 {
 	u32 sid_key;
 
-	sid_key = ioread32be(sid->base + round_down(offset, 4));
+	sid_key = readl(sid->base + round_down(offset, 4));
 	sid_key >>= (offset % 4) * 8;
 
 	return sid_key; /* Only return the last byte */
