@@ -20,6 +20,9 @@ Required properties:
   "mixer0-lcd0-hdmi"
   "mixer1-lcd1-hdmi"
   "mixer1-lcd1-tve"
+  For DE2/3 with TCON_TOP, one of:
+  "mixer0-tcon_tv0-hdmi"
+  "mixer0-tcon_lcd0"
 
 Example:
 
