@@ -107,6 +107,8 @@ properties:
       - mixer0-lcd0-hdmi
       - mixer1-lcd1-hdmi
       - mixer1-lcd1-tve
+      - mixer0-tcon_tv0-hdmi
+      - mixer0-tcon_lcd0"
 
   amlogic,pipeline:
     description: Pipeline used by the framebuffer on Amlogic SoCs
