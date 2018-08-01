@@ -6,13 +6,30 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/sun50i-h6-ccu.h>
 #include <dt-bindings/clock/sun50i-h6-r-ccu.h>
+#include <dt-bindings/clock/sun8i-de2.h>
 #include <dt-bindings/reset/sun50i-h6-ccu.h>
 #include <dt-bindings/reset/sun50i-h6-r-ccu.h>
+#include <dt-bindings/reset/sun8i-de2.h>
 
 / {
 	interrupt-parent = <&gic>;
 	#address-cells = <1>;
 	#size-cells = <1>;
+
+	chosen {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		simplefb_hdmi: framebuffer-hdmi {
+			compatible = "allwinner,simple-framebuffer",
+				     "simple-framebuffer";
+			allwinner,pipeline = "mixer0-tcon_tv0-hdmi";
+			clocks = <&display_clocks CLK_MIXER0>,
+				 <&ccu CLK_TCON_TV0>, <&ccu CLK_HDMI>;
+			status = "disabled";
+		};
+	};
 
 	cpus {
 		#address-cells = <1>;
@@ -91,6 +108,28 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
+
+		de3@1000000 {
+			compatible = "allwinner,sun50i-h6-de3",
+				     "allwinner,sun50i-a64-de2";
+			reg = <0x1000000 0x400000>;
+			allwinner,sram = <&de2_sram 1>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0x1000000 0x400000>;
+
+			display_clocks: clock@0 {
+				compatible = "allwinner,sun50i-h6-de3-clk";
+				reg = <0x0 0x10000>;
+				clocks = <&ccu CLK_DE>,
+					 <&ccu CLK_BUS_DE>;
+				clock-names = "mod",
+					      "bus";
+				resets = <&ccu RST_BUS_DE>;
+				#clock-cells = <1>;
+				#reset-cells = <1>;
+			};
+		};
 
 		syscon: syscon@3000000 {
 			compatible = "allwinner.sun50i-h6-system-control",
