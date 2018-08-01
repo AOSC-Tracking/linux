@@ -10,11 +10,12 @@ firmware / bootloader use, and the OS should ignore them.
 
 Required properties:
 - compatible: "allwinner,simple-framebuffer"
-- allwinner,pipeline, one of:
+- allwinner,pipeline, For the first generation DE, one of:
   "de_be0-lcd0"
   "de_be1-lcd1"
   "de_be0-lcd0-hdmi"
   "de_be1-lcd1-hdmi"
+  For DE2 without TCON_TOP, one of:
   "mixer0-lcd0"
   "mixer0-lcd0-hdmi"
   "mixer1-lcd1-hdmi"
