@@ -271,6 +271,27 @@ static void sun8i_hdmi_phy_disable(struct dw_hdmi *hdmi, void *data)
 	phy->variant->phy_disable(hdmi, phy);
 }
 
+enum drm_connector_status sun8i_hdmi_phy_read_hpd(struct dw_hdmi *hdmi,
+						  void *data)
+{
+	enum drm_connector_status first, second, third;
+
+	first = dw_hdmi_phy_read_hpd(hdmi, data);
+	msleep(10);
+	second = dw_hdmi_phy_read_hpd(hdmi, data);
+
+	if (first == second)
+		return first;
+
+	msleep(10);
+	third = dw_hdmi_phy_read_hpd(hdmi, data);
+	
+	if (first == third)
+		return first;
+	else
+		return second;
+}
+
 static const struct dw_hdmi_phy_ops sun8i_hdmi_phy_ops = {
 	.init = &sun8i_hdmi_phy_config,
 	.disable = &sun8i_hdmi_phy_disable,
