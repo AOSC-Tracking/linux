@@ -137,10 +137,16 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 		goto err_assert_ctrl_reset;
 	}
 
+	ret = clk_rate_exclusive_get(hdmi->clk_tmds);
+	if (ret) {
+		dev_err(dev, "Could not get exclusivity over the tmds clock\n");
+		goto err_disable_clk_tmds;
+	}
+
 	phy_node = of_parse_phandle(dev->of_node, "phys", 0);
 	if (!phy_node) {
 		dev_err(dev, "Can't found PHY phandle\n");
-		goto err_disable_clk_tmds;
+		goto err_put_clk_tmds_exclusivity;
 	}
 
 	ret = sun8i_hdmi_phy_probe(hdmi, phy_node);
@@ -179,6 +185,8 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 cleanup_encoder:
 	drm_encoder_cleanup(encoder);
 	sun8i_hdmi_phy_remove(hdmi);
+err_put_clk_tmds_exclusivity:
+	clk_rate_exclusive_put(hdmi->clk_tmds);
 err_disable_clk_tmds:
 	clk_disable_unprepare(hdmi->clk_tmds);
 err_assert_ctrl_reset:
@@ -194,6 +202,7 @@ static void sun8i_dw_hdmi_unbind(struct device *dev, struct device *master,
 
 	dw_hdmi_unbind(hdmi->hdmi);
 	sun8i_hdmi_phy_remove(hdmi);
+	clk_rate_exclusive_put(hdmi->clk_tmds);
 	clk_disable_unprepare(hdmi->clk_tmds);
 	reset_control_assert(hdmi->rst_ctrl);
 }
