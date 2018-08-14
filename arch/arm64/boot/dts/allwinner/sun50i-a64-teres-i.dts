@@ -55,11 +55,13 @@
 		capslock {
 			label = "teres-i:green:capslock";
 			gpios = <&pio 2 7 GPIO_ACTIVE_HIGH>; /* PC7 */
+			linux,default-trigger = "kbd-capslock";
 		};
 
 		numlock {
 			label = "teres-i:green:numlock";
 			gpios = <&pio 2 4 GPIO_ACTIVE_HIGH>; /* PC4 */
+			linux,default-trigger = "kbd-numlock";
 		};
 	};
 
