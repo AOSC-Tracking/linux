@@ -122,6 +122,10 @@
 	status = "okay";
 };
 
+&cpu0 {
+	cpu-supply = <&vdd_cpux>;
+};
+
 &ehci0 {
 	status = "okay";
 };
