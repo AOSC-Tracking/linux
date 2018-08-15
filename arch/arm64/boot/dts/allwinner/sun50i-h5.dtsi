@@ -247,3 +247,8 @@
 &rtc {
 	compatible = "allwinner,sun50i-h5-rtc";
 };
+
+&ths {
+	compatible = "allwinner,sun50i-h5-ths";
+	#thermal-sensor-cells = <1>;
+};
