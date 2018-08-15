@@ -167,3 +167,8 @@
 		     <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
 	compatible = "allwinner,sun50i-h5-pinctrl";
 };
+
+&ths {
+	compatible = "allwinner,sun50i-h5-ths";
+	#thermal-sensor-cells = <1>;
+};
