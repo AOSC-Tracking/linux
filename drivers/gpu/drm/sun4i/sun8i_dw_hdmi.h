@@ -182,6 +182,7 @@ struct sun8i_dw_hdmi_quirks {
 
 struct sun8i_dw_hdmi {
 	struct clk			*clk_tmds;
+	unsigned long			clk_tmds_freq;
 	struct device			*dev;
 	struct dw_hdmi			*hdmi;
 	struct drm_encoder		encoder;
