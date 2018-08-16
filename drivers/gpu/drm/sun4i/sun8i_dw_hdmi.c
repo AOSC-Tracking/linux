@@ -20,12 +20,28 @@ static void sun8i_dw_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 {
 	struct sun8i_dw_hdmi *hdmi = encoder_to_sun8i_dw_hdmi(encoder);
 
-	clk_set_rate(hdmi->clk_tmds, mode->crtc_clock * 1000);
+	hdmi->clk_tmds_freq = mode->crtc_clock * 1000;
+}
+
+static void sun8i_dw_hdmi_encoder_enable(struct drm_encoder *encoder)
+{
+	struct sun8i_dw_hdmi *hdmi = encoder_to_sun8i_dw_hdmi(encoder);
+
+	clk_set_rate_exclusive(hdmi->clk_tmds, hdmi->clk_tmds_freq);
+}
+
+static void sun8i_dw_hdmi_encoder_disable(struct drm_encoder *encoder)
+{
+	struct sun8i_dw_hdmi *hdmi = encoder_to_sun8i_dw_hdmi(encoder);
+
+	clk_rate_exclusive_put(hdmi->clk_tmds);
 }
 
 static const struct drm_encoder_helper_funcs
 sun8i_dw_hdmi_encoder_helper_funcs = {
 	.mode_set = sun8i_dw_hdmi_encoder_mode_set,
+	.enable = sun8i_dw_hdmi_encoder_enable,
+	.disable = sun8i_dw_hdmi_encoder_disable,
 };
 
 static const struct drm_encoder_funcs sun8i_dw_hdmi_encoder_funcs = {
