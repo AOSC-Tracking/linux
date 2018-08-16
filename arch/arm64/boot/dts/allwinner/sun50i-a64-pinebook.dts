@@ -40,6 +40,17 @@
 		};
 	};
 
+	connector {
+		compatible = "hdmi-connector";
+		type = "a";
+
+		port {
+			hdmi_con_in: endpoint {
+				remote-endpoint = <&hdmi_out_con>;
+			};
+		};
+	};
+
 	gpio_keys {
 		compatible = "gpio-keys";
 
@@ -84,7 +95,22 @@
 	status = "okay";
 };
 
+&hdmi {
+	hvcc-supply = <&reg_dldo1>;
+	status = "okay";
+};
+
+&hdmi_out {
+	hdmi_out_con: endpoint {
+		remote-endpoint = <&hdmi_con_in>;
+	};
+};
+
 &mixer0 {
+	status = "okay";
+};
+
+&mixer1 {
 	status = "okay";
 };
 
@@ -321,6 +347,10 @@
 		reg = <0>;
 		remote-endpoint = <&anx6345_in>;
 	};
+};
+
+&tcon1 {
+	status = "okay";
 };
 
 &uart0 {
