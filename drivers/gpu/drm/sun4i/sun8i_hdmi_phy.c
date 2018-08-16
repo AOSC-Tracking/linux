@@ -238,8 +238,14 @@ static int sun8i_hdmi_phy_config(struct dw_hdmi *hdmi, void *data,
 	regmap_update_bits(phy->regs, SUN8I_HDMI_PHY_DBG_CTRL_REG,
 			   SUN8I_HDMI_PHY_DBG_CTRL_POL_MASK, val);
 
-	if (phy->variant->has_phy_clk)
+	if (phy->variant->has_phy_clk) {
+		if (!phy->clk_phy_exclusive) {
+			clk_rate_exclusive_get(phy->clk_phy);
+			phy->clk_phy_exclusive = true;
+		}
+
 		clk_set_rate(phy->clk_phy, mode->crtc_clock * 1000);
+	}
 
 	return phy->variant->phy_config(hdmi, phy, mode->crtc_clock * 1000);
 };
@@ -247,6 +253,7 @@ static int sun8i_hdmi_phy_config(struct dw_hdmi *hdmi, void *data,
 static void sun8i_hdmi_phy_disable_a83t(struct dw_hdmi *hdmi,
 					struct sun8i_hdmi_phy *phy)
 {
+	/* A83T variant doesn't have PHY clock */
 	dw_hdmi_phy_gen2_txpwron(hdmi, 0);
 	dw_hdmi_phy_gen2_pddq(hdmi, 1);
 
@@ -257,6 +264,12 @@ static void sun8i_hdmi_phy_disable_a83t(struct dw_hdmi *hdmi,
 static void sun8i_hdmi_phy_disable_h3(struct dw_hdmi *hdmi,
 				      struct sun8i_hdmi_phy *phy)
 {
+	/* H3 variant has PHY clock */
+	if (phy->clk_phy_exclusive) {
+		clk_rate_exclusive_put(phy->clk_phy);
+		phy->clk_phy_exclusive = false;
+	}
+
 	regmap_write(phy->regs, SUN8I_HDMI_PHY_ANA_CFG1_REG,
 		     SUN8I_HDMI_PHY_ANA_CFG1_LDOEN |
 		     SUN8I_HDMI_PHY_ANA_CFG1_ENVBS |
