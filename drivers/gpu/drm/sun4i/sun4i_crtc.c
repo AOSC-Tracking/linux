@@ -113,7 +113,7 @@ static void sun4i_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	drm_crtc_vblank_off(crtc);
 
-	sun4i_tcon_set_status(scrtc->tcon, encoder, false);
+	sun4i_tcon_set_status(scrtc->tcon, encoder, false, 0);
 
 	if (crtc->state->event && !crtc->state->active) {
 		spin_lock_irq(&crtc->dev->event_lock);
@@ -132,7 +132,8 @@ static void sun4i_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	DRM_DEBUG_DRIVER("Enabling the CRTC\n");
 
-	sun4i_tcon_set_status(scrtc->tcon, encoder, true);
+	sun4i_tcon_set_status(scrtc->tcon, encoder, true,
+			      crtc->state->adjusted_mode.crtc_clock * 1000);
 
 	drm_crtc_vblank_on(crtc);
 }
