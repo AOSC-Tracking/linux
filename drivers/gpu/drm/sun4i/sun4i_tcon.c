@@ -80,7 +80,7 @@ static int sun4i_tcon_get_pixel_depth(const struct drm_encoder *encoder)
 }
 
 static void sun4i_tcon_channel_set_status(struct sun4i_tcon *tcon, int channel,
-					  bool enabled)
+					  bool enabled, unsigned long dotclock)
 {
 	struct clk *clk;
 
@@ -105,8 +105,8 @@ static void sun4i_tcon_channel_set_status(struct sun4i_tcon *tcon, int channel,
 	}
 
 	if (enabled) {
+		clk_set_rate_exclusive(clk, dotclock);
 		clk_prepare_enable(clk);
-		clk_rate_exclusive_get(clk);
 	} else {
 		clk_rate_exclusive_put(clk);
 		clk_disable_unprepare(clk);
@@ -161,7 +161,7 @@ static void sun4i_tcon_lvds_set_status(struct sun4i_tcon *tcon,
 
 void sun4i_tcon_set_status(struct sun4i_tcon *tcon,
 			   const struct drm_encoder *encoder,
-			   bool enabled)
+			   bool enabled, unsigned long dotclock)
 {
 	bool is_lvds = false;
 	int channel;
@@ -193,7 +193,7 @@ void sun4i_tcon_set_status(struct sun4i_tcon *tcon,
 	if (is_lvds && enabled)
 		sun4i_tcon_lvds_set_status(tcon, encoder, true);
 
-	sun4i_tcon_channel_set_status(tcon, channel, enabled);
+	sun4i_tcon_channel_set_status(tcon, channel, enabled, dotclock);
 }
 
 void sun4i_tcon_enable_vblank(struct sun4i_tcon *tcon, bool enable)
@@ -267,9 +267,6 @@ static int sun4i_tcon_get_clk_delay(const struct drm_display_mode *mode,
 static void sun4i_tcon0_mode_set_common(struct sun4i_tcon *tcon,
 					const struct drm_display_mode *mode)
 {
-	/* Configure the dot clock */
-	clk_set_rate(tcon->dclk, mode->crtc_clock * 1000);
-
 	/* Set the resolution */
 	regmap_write(tcon->regs, SUN4I_TCON0_BASIC0_REG,
 		     SUN4I_TCON0_BASIC0_X(mode->crtc_hdisplay) |
@@ -496,9 +493,6 @@ static void sun4i_tcon1_mode_set(struct sun4i_tcon *tcon,
 	u32 val;
 
 	WARN_ON(!tcon->quirks->has_channel_1);
-
-	/* Configure the dot clock */
-	clk_set_rate(tcon->sclk1, mode->crtc_clock * 1000);
 
 	/* Adjust clock delay */
 	clk_delay = sun4i_tcon_get_clk_delay(mode, 1);

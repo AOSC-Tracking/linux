@@ -275,7 +275,8 @@ void sun4i_tcon_mode_set(struct sun4i_tcon *tcon,
 			 const struct drm_encoder *encoder,
 			 const struct drm_display_mode *mode);
 void sun4i_tcon_set_status(struct sun4i_tcon *crtc,
-			   const struct drm_encoder *encoder, bool enable);
+			   const struct drm_encoder *encoder, bool enable,
+			   unsigned long dotclock);
 
 extern const struct of_device_id sun4i_tcon_of_table[];
 
