@@ -652,7 +652,7 @@
 
 		tcon_tv: lcd-controller@6515000 {
 			compatible = "allwinner,sun50i-h6-tcon-tv",
-				     "allwinner,sun8i-a83t-tcon-tv";
+				     "allwinner,sun8i-r40-tcon-tv";
 			reg = <0x06515000 0x1000>;
 			interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&ccu CLK_BUS_TCON_TV0>,
