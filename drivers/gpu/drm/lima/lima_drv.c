@@ -402,7 +402,6 @@ static const struct of_device_id dt_match[] = {
 	{ .compatible = "arm,mali-450", .data = (void *)lima_gpu_mali450 },
 	{}
 };
-MODULE_DEVICE_TABLE(of, dt_match);
 
 static struct platform_driver lima_platform_driver = {
 	.probe      = lima_pdev_probe,
