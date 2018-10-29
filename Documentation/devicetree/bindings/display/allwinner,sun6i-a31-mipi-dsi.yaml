@@ -50,6 +50,11 @@ properties:
       port should be the input endpoint, usually coming from the
       associated TCON.
 
+  dsi-supply:
+    description:
+      VCC-DSI supply for the DSI encoder
+
+
 patternProperties:
   "^panel@[0-9]+$": true
 
