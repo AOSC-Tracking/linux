@@ -106,6 +106,10 @@
 	status = "okay";
 };
 
+&gpu {
+	mali-supply = <&reg_dcdcc>;
+};
+
 &hdmi {
 	status = "okay";
 };
