@@ -89,6 +89,11 @@ module_param(hpsa_simple_mode, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(hpsa_simple_mode,
 	"Use 'simple mode' rather than 'performant mode'");
 
+static bool hpsa_use_nvram_hba_flag;
+module_param(hpsa_use_nvram_hba_flag, bool, 0444);
+MODULE_PARM_DESC(hpsa_use_nvram_hba_flag,
+	"Use flag from NVRAM to enable HBA mode");
+
 /* define the PCI info for the cards we can control */
 static const struct pci_device_id hpsa_pci_device_id[] = {
 	{PCI_VENDOR_ID_HP,     PCI_DEVICE_ID_HP_CISSE,     0x103C, 0x3241},
@@ -3076,6 +3081,37 @@ out:
 	return rc;
 }
 
+static int hpsa_bmic_ctrl_mode_sense(struct ctlr_info *h,
+	struct bmic_controller_parameters *buf)
+{
+	int rc = IO_OK;
+	struct CommandList *c;
+	struct ErrorInfo *ei;
+
+	c = cmd_alloc(h);
+
+	if (fill_cmd(c, BMIC_SENSE_CONTROLLER_PARAMETERS, h, buf, sizeof(*buf),
+			0, RAID_CTLR_LUNID, TYPE_CMD)) {
+		rc = -1;
+		goto out;
+	}
+
+	rc = hpsa_scsi_do_simple_cmd_with_retry(h, c, DMA_FROM_DEVICE,
+		NO_TIMEOUT);
+	if (rc)
+		goto out;
+
+	ei = c->err_info;
+	if (ei->CommandStatus != 0 && ei->CommandStatus != CMD_DATA_UNDERRUN) {
+		hpsa_scsi_interpret_error(h, c);
+		rc = -1;
+	}
+
+out:
+	cmd_free(h, c);
+	return rc;
+}
+
 static int hpsa_send_reset(struct ctlr_info *h, struct hpsa_scsi_dev_t *dev,
 	u8 reset_type, int reply_queue)
 {
@@ -4324,6 +4360,50 @@ static bool hpsa_skip_device(struct ctlr_info *h, u8 *lunaddrbytes,
 	return false;
 }
 
+static int hpsa_nvram_hba_flag_enabled(struct ctlr_info *h, bool *flag_enabled)
+{
+	int rc;
+	struct bmic_controller_parameters *ctlr_params;
+
+	ctlr_params = kzalloc(sizeof(*ctlr_params), GFP_KERNEL);
+	if (!ctlr_params) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	rc = hpsa_bmic_ctrl_mode_sense(h, ctlr_params);
+	if (rc)
+		goto out;
+
+	*flag_enabled = ctlr_params->nvram_flags & HPSA_NVRAM_FLAG_HBA;
+
+out:
+	kfree(ctlr_params);
+	return rc;
+}
+
+static int hpsa_update_nvram_hba_mode(struct ctlr_info *h)
+{
+	int rc;
+	bool flag_enabled;
+
+	if (!hpsa_use_nvram_hba_flag)
+		return 0;
+
+	rc = hpsa_nvram_hba_flag_enabled(h, &flag_enabled);
+	if (rc == -ENOMEM)
+		dev_warn(&h->pdev->dev, "Out of memory.\n");
+	if (rc)
+		return rc;
+
+	dev_info(&h->pdev->dev, "NVRAM HBA flag: %s\n",
+		flag_enabled ? "enabled" : "disabled");
+
+	h->nvram_hba_mode_enabled = flag_enabled;
+
+	return 0;
+}
+
 static void hpsa_update_scsi_devices(struct ctlr_info *h)
 {
 	/* the idea here is we could get notified
@@ -4376,6 +4456,11 @@ static void hpsa_update_scsi_devices(struct ctlr_info *h)
 		dev_warn(&h->pdev->dev,
 			"%s: Can't determine number of local logical devices.\n",
 			__func__);
+	}
+
+	if (hpsa_update_nvram_hba_mode(h)) {
+		h->drv_req_rescan = 1;
+		goto out;
 	}
 
 	/* We might see up to the maximum number of logical and physical disks
@@ -4463,11 +4548,16 @@ static void hpsa_update_scsi_devices(struct ctlr_info *h)
 		 * Expose all devices except for physical devices that
 		 * are masked.
 		 */
-		if (MASKED_DEVICE(lunaddrbytes) && this_device->physical_device)
-			this_device->expose_device = 0;
-		else
+		if (MASKED_DEVICE(lunaddrbytes) &&
+				this_device->physical_device) {
+			if (is_disk_or_zbc(this_device) &&
+					h->nvram_hba_mode_enabled)
+				this_device->expose_device = 1;
+			else
+				this_device->expose_device = 0;
+		} else {
 			this_device->expose_device = 1;
-
+		}
 
 		/*
 		 * Get the SAS address for physical devices that are exposed.
