@@ -1546,6 +1546,14 @@ static inline int device_updated(struct hpsa_scsi_dev_t *dev1,
 	return 0;
 }
 
+static inline bool device_expose_changed(struct hpsa_scsi_dev_t *dev1,
+	struct hpsa_scsi_dev_t *dev2)
+{
+	if (dev1->expose_device != dev2->expose_device)
+		return true;
+	return false;
+}
+
 /* Find needle in haystack.  If exact match found, return DEVICE_SAME,
  * and return needle location in *index.  If scsi3addr matches, but not
  * vendor, model, serial num, etc. return DEVICE_CHANGED, and return needle
@@ -1572,6 +1580,8 @@ static int hpsa_scsi_find_entry(struct hpsa_scsi_dev_t *needle,
 		if (SCSI3ADDR_EQ(needle->scsi3addr, haystack[i]->scsi3addr)) {
 			*index = i;
 			if (device_is_the_same(needle, haystack[i])) {
+				if (device_expose_changed(needle, haystack[i]))
+					return DEVICE_CHANGED;
 				if (device_updated(needle, haystack[i]))
 					return DEVICE_UPDATED;
 				return DEVICE_SAME;
