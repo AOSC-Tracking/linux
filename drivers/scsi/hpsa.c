@@ -4387,10 +4387,11 @@ out:
 	return rc;
 }
 
-static int hpsa_update_nvram_hba_mode(struct ctlr_info *h)
+static int hpsa_update_nvram_hba_mode(struct ctlr_info *h, u32 nlogicals)
 {
 	int rc;
 	bool flag_enabled;
+	bool ignore;
 
 	if (!hpsa_use_nvram_hba_flag)
 		return 0;
@@ -4401,10 +4402,13 @@ static int hpsa_update_nvram_hba_mode(struct ctlr_info *h)
 	if (rc)
 		return rc;
 
-	dev_info(&h->pdev->dev, "NVRAM HBA flag: %s\n",
-		flag_enabled ? "enabled" : "disabled");
+	ignore = flag_enabled && nlogicals;
 
-	h->nvram_hba_mode_enabled = flag_enabled;
+	dev_info(&h->pdev->dev, "NVRAM HBA flag: %s%s\n",
+		flag_enabled ? "enabled" : "disabled",
+		ignore ? " (ignored because of existing logical devices)" : "");
+
+	h->nvram_hba_mode_enabled = flag_enabled && !ignore;
 
 	return 0;
 }
@@ -4463,7 +4467,7 @@ static void hpsa_update_scsi_devices(struct ctlr_info *h)
 			__func__);
 	}
 
-	if (hpsa_update_nvram_hba_mode(h)) {
+	if (hpsa_update_nvram_hba_mode(h, nlogicals)) {
 		h->drv_req_rescan = 1;
 		goto out;
 	}
