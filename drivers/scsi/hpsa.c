@@ -4365,6 +4365,12 @@ static bool hpsa_skip_device(struct ctlr_info *h, u8 *lunaddrbytes,
 	return false;
 }
 
+static bool is_hba_supported(const struct bmic_identify_controller *id_ctlr)
+{
+	return le32_to_cpu(id_ctlr->yet_more_controller_flags) &
+			YET_MORE_CTLR_FLAG_HBA_MODE_SUPP;
+}
+
 static int hpsa_nvram_hba_flag_enabled(struct ctlr_info *h, bool *flag_enabled)
 {
 	int rc;
@@ -4387,7 +4393,8 @@ out:
 	return rc;
 }
 
-static int hpsa_update_nvram_hba_mode(struct ctlr_info *h, u32 nlogicals)
+static int hpsa_update_nvram_hba_mode(struct ctlr_info *h, u32 nlogicals,
+	const struct bmic_identify_controller *id_ctlr)
 {
 	int rc;
 	bool flag_enabled;
@@ -4395,6 +4402,11 @@ static int hpsa_update_nvram_hba_mode(struct ctlr_info *h, u32 nlogicals)
 
 	if (!hpsa_use_nvram_hba_flag)
 		return 0;
+
+	if (!is_hba_supported(id_ctlr)) {
+		dev_info(&h->pdev->dev, "NVRAM HBA flag: not supported\n");
+		return 0;
+	}
 
 	rc = hpsa_nvram_hba_flag_enabled(h, &flag_enabled);
 	if (rc == -ENOMEM)
@@ -4467,7 +4479,7 @@ static void hpsa_update_scsi_devices(struct ctlr_info *h)
 			__func__);
 	}
 
-	if (hpsa_update_nvram_hba_mode(h, nlogicals)) {
+	if (hpsa_update_nvram_hba_mode(h, nlogicals, id_ctlr)) {
 		h->drv_req_rescan = 1;
 		goto out;
 	}
