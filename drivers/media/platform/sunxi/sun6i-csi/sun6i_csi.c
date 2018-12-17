@@ -362,6 +362,9 @@ static enum csi_input_seq get_csi_input_seq(struct sun6i_csi_dev *sdev,
 		break;
 
 	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_VYUY:
 		return CSI_INPUT_SEQ_YUYV;
 
 	default:
