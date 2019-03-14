@@ -98,6 +98,20 @@ static void sun4i_crtc_atomic_flush(struct drm_crtc *crtc,
 			drm_crtc_send_vblank_event(crtc, event);
 		spin_unlock_irq(&crtc->dev->event_lock);
 	}
+
+	if (crtc->state->color_mgmt_changed) {
+		if (crtc->state->gamma_lut) {
+			/* LUT can be only updated when gamma correction is
+			 * disabled
+			 */
+			sun4i_tcon_enable_gamma(scrtc->tcon, false);
+			sun4i_tcon_load_gamma_lut(scrtc->tcon,
+						  crtc->state->gamma_lut->data);
+			sun4i_tcon_enable_gamma(scrtc->tcon, true);
+		} else
+			sun4i_tcon_enable_gamma(scrtc->tcon, false);
+	}
+
 }
 
 static void sun4i_crtc_atomic_disable(struct drm_crtc *crtc,
@@ -181,6 +195,7 @@ static const struct drm_crtc_funcs sun4i_crtc_funcs = {
 	.set_config		= drm_atomic_helper_set_config,
 	.enable_vblank		= sun4i_crtc_enable_vblank,
 	.disable_vblank		= sun4i_crtc_disable_vblank,
+	.gamma_set		= drm_atomic_helper_legacy_gamma_set,
 };
 
 struct sun4i_crtc *sun4i_crtc_init(struct drm_device *drm,
