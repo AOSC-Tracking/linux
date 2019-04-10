@@ -184,6 +184,9 @@
 		reg = <0x18>;
 		interrupt-parent = <&pio>;
 		interrupts = <7 5 IRQ_TYPE_LEVEL_HIGH>; /* PH5 */
+		mount-matrix = "0", "-1", "0",
+			       "-1", "0", "0",
+			       "0", "0", "-1";
 	};
 };
 
