@@ -676,6 +676,7 @@ struct xhci_virt_ep {
 /* usb_hub_clear_tt_buffer is in progress */
 #define EP_CLEARING_TT		(1 << 8)
 #define EP_STALLED		(1 << 9)	/* For stall handling */
+#define EP_EJ188_FIX		(1 << 10)
 	/* ----  Related to URB cancellation ---- */
 	struct list_head	cancelled_td_list;
 	struct xhci_hcd		*xhci;
