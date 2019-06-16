@@ -54,6 +54,7 @@ struct tsensor {
 };
 
 struct ths_thermal_chip {
+	bool            has_mod_clk;
 	int		sensor_num;
 	int		offset;
 	int		scale;
@@ -69,6 +70,7 @@ struct ths_device {
 	struct regmap				*regmap;
 	struct reset_control			*reset;
 	struct clk				*bus_clk;
+	struct clk                              *mod_clk;
 	struct tsensor				sensor[MAX_SENSOR_NUM];
 };
 
@@ -280,6 +282,12 @@ static int sun8i_ths_resource_init(struct ths_device *tmdev)
 	if (IS_ERR(tmdev->bus_clk))
 		return PTR_ERR(tmdev->bus_clk);
 
+	if (tmdev->chip->has_mod_clk) {
+		tmdev->mod_clk = devm_clk_get(&pdev->dev, "mod");
+		if (IS_ERR(tmdev->mod_clk))
+			return PTR_ERR(tmdev->mod_clk);
+	}
+
 	ret = reset_control_deassert(tmdev->reset);
 	if (ret)
 		return ret;
@@ -288,12 +296,21 @@ static int sun8i_ths_resource_init(struct ths_device *tmdev)
 	if (ret)
 		goto assert_reset;
 
+	if (tmdev->chip->has_mod_clk) {
+		ret = clk_prepare_enable(tmdev->mod_clk);
+		if (ret)
+			goto bus_disable;
+	}
+
 	ret = sun50i_ths_calibrate(tmdev);
 	if (ret)
-		goto bus_disable;
+		goto mod_disable;
 
 	return 0;
 
+mod_disable:
+	if (tmdev->chip->has_mod_clk)
+		clk_disable_unprepare(tmdev->mod_clk);
 bus_disable:
 	clk_disable_unprepare(tmdev->bus_clk);
 assert_reset:
@@ -402,6 +419,9 @@ static int sun8i_ths_probe(struct platform_device *pdev)
 static int sun8i_ths_remove(struct platform_device *pdev)
 {
 	struct ths_device *tmdev = platform_get_drvdata(pdev);
+
+	if (tmdev->chip->has_mod_clk)
+		clk_disable_unprepare(tmdev->mod_clk);
 
 	clk_disable_unprepare(tmdev->bus_clk);
 	reset_control_assert(tmdev->reset);
