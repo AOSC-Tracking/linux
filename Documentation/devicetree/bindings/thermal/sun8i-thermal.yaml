@@ -16,6 +16,7 @@ description: |-
 properties:
   compatible:
     enum:
+      - allwinner,sun8i-h3-ths
       - allwinner,sun50i-h6-ths
 
   reg:
@@ -29,13 +30,22 @@ properties:
 
   clocks:
     minItems: 1
-    maxItems: 1
+    maxItems: 2
 
   clock-names:
-    const: bus
+    items:
+      - const: bus
+      - const: mod
 
   '#thermal-sensor-cells':
-    const: 1
+    enum: [ 0, 1 ]
+    description: |
+      Definition depends on sensor number:
+
+      For "allwinner,sun8i-h3-ths",
+      value must be 0.
+      For other supported sensors,
+      value must be 1.
 
   nvmem-cells:
     items:
@@ -55,6 +65,19 @@ required:
   - '#thermal-sensor-cells'
 
 examples:
+  - |
+    ths: thermal-sensor@1c25000 {
+         compatible = "allwinner,sun8i-h3-ths";
+         reg = <0x01c25000 0x400>;
+         clocks = <&ccu CLK_BUS_THS>, <&ccu CLK_THS>;
+         clock-names = "bus", "mod";
+         resets = <&ccu RST_BUS_THS>;
+         interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+         nvmem-cells = <&tsen_calib>;
+         nvmem-cell-names = "calib";
+         #thermal-sensor-cells = <0>;
+    };
+
   - |
     ths: thermal-sensor@5070400 {
          compatible = "allwinner,sun50i-h6-ths";
