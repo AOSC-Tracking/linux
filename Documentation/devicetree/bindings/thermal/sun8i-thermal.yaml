@@ -18,6 +18,7 @@ properties:
     enum:
       - allwinner,sun8i-h3-ths
       - allwinner,sun50i-a64-ths
+      - allwinner,sun50i-h5-ths
       - allwinner,sun50i-h6-ths
 
   reg:
