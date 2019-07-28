@@ -102,6 +102,16 @@ static int sun8i_ths_reg2temp(struct ths_device *tmdev,
 		return (reg + tmdev->chip->offset) * tmdev->chip->scale;
 }
 
+static int sun50i_h5_calc_temp(int id, int reg)
+{
+	if (reg >= 0x500)
+		return -1191 * reg / 10 + 223000;
+	else if (id == 0)
+		return -1452 * reg / 10 + 259000;
+	else
+		return -1590 * reg / 10 + 276000;
+}
+
 static int sun8i_ths_get_temp(void *data, int *temp)
 {
 	struct tsensor *s = data;
@@ -544,6 +554,18 @@ static const struct ths_thermal_chip sun50i_a64_ths = {
 	.irq_ack = sun8i_h3_irq_ack,
 };
 
+static const struct ths_thermal_chip sun50i_h5_ths = {
+	.sensor_num = 2,
+	.acq = 479,
+	.period = 58,
+	.has_mod_clk = true,
+	.temp_data_base = SUN8I_THS_TEMP_DATA,
+	.calibrate = sun8i_h3_ths_calibrate,
+	.init = sun8i_h3_thermal_init,
+	.irq_ack = sun8i_h3_irq_ack,
+	.calc_temp = sun50i_h5_calc_temp,
+};
+
 static const struct ths_thermal_chip sun50i_h6_ths = {
 	.sensor_num = 2,
 	.offset = -2794,
@@ -560,6 +582,7 @@ static const struct ths_thermal_chip sun50i_h6_ths = {
 static const struct of_device_id of_ths_match[] = {
 	{ .compatible = "allwinner,sun8i-h3-ths", .data = &sun8i_h3_ths },
 	{ .compatible = "allwinner,sun50i-a64-ths", .data = &sun50i_a64_ths },
+	{ .compatible = "allwinner,sun50i-h5-ths", .data = &sun50i_h5_ths },
 	{ .compatible = "allwinner,sun50i-h6-ths", .data = &sun50i_h6_ths },
 	{ /* sentinel */ },
 };
