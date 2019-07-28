@@ -58,6 +58,8 @@ struct ths_thermal_chip {
 	int		sensor_num;
 	int		offset;
 	int		scale;
+	int		acq;
+	int		period;
 	int		ft_deviation;
 	int		temp_data_base;
 	int		(*calibrate)(struct ths_device *tmdev,
@@ -335,17 +337,16 @@ static int sun50i_thermal_init(struct ths_device *tmdev)
 	/*
 	 * clkin = 24MHz
 	 * T acquire = clkin / (x + 1)
-	 *           = 20us
 	 */
 	regmap_write(tmdev->regmap, SUN50I_THS_CTRL0,
-		     SUN50I_THS_CTRL0_T_ACQ(479));
+		     SUN50I_THS_CTRL0_T_ACQ(tmdev->chip->acq));
 	/* average over 4 samples */
 	regmap_write(tmdev->regmap, SUN50I_H6_THS_MFC,
 		     SUN50I_THS_FILTER_EN |
 		     SUN50I_THS_FILTER_TYPE(1));
-	/* period = (x + 1) * 4096 / clkin; ~10ms */
+	/* period = (x + 1) * 4096 / clkin */
 	regmap_write(tmdev->regmap, SUN50I_H6_THS_PC,
-		     SUN50I_H6_THS_PC_TEMP_PERIOD(58));
+		     SUN50I_H6_THS_PC_TEMP_PERIOD(tmdev->chip->period));
 	/* enable sensor */
 	val = GENMASK(tmdev->chip->sensor_num - 1, 0);
 	regmap_write(tmdev->regmap, SUN50I_H6_THS_ENABLE, val);
@@ -442,6 +443,8 @@ static const struct ths_thermal_chip sun50i_h6_ths = {
 	.sensor_num = 2,
 	.offset = -2794,
 	.scale = -67,
+	.acq = 479,
+	.period = 58,
 	.ft_deviation = SUN50I_H6_FT_DEVIATION,
 	.temp_data_base = SUN50I_H6_THS_TEMP_DATA,
 	.calibrate = sun50i_h6_ths_calibrate,
