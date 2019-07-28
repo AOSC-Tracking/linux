@@ -79,6 +79,7 @@ struct ths_thermal_chip {
 				     u16 *caldata, int callen);
 	int		(*init)(struct ths_device *tmdev);
 	int             (*irq_ack)(struct ths_device *tmdev);
+	int		(*calc_temp)(int id, int reg);
 };
 
 struct ths_device {
@@ -93,9 +94,12 @@ struct ths_device {
 
 /* Temp Unit: millidegree Celsius */
 static int sun8i_ths_reg2temp(struct ths_device *tmdev,
-			      int reg)
+			      int id, int reg)
 {
-	return (reg + tmdev->chip->offset) * tmdev->chip->scale;
+	if (tmdev->chip->calc_temp)
+		return tmdev->chip->calc_temp(id, reg);
+	else
+		return (reg + tmdev->chip->offset) * tmdev->chip->scale;
 }
 
 static int sun8i_ths_get_temp(void *data, int *temp)
@@ -111,7 +115,7 @@ static int sun8i_ths_get_temp(void *data, int *temp)
 	if (!val)
 		return -EBUSY;
 
-	*temp = sun8i_ths_reg2temp(tmdev, val);
+	*temp = sun8i_ths_reg2temp(tmdev, s->id, val);
 	/*
 	 * XX - According to the original sdk, there are some platforms(rarely)
 	 * that add a fixed offset value after calculating the temperature
@@ -234,7 +238,7 @@ static int sun50i_h6_ths_calibrate(struct ths_device *tmdev,
 
 	for (i = 0; i < tmdev->chip->sensor_num; i++) {
 		int reg = (int)caldata[i + 1];
-		int sensor_temp = sun8i_ths_reg2temp(tmdev, reg);
+		int sensor_temp = sun8i_ths_reg2temp(tmdev, i, reg);
 		int delta, cdata, calib_offest;
 
 		/*
