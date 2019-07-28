@@ -63,6 +63,10 @@
 	};
 };
 
+&de {
+	status = "okay";
+};
+
 &emac {
 	pinctrl-names = "default";
 	pinctrl-0 = <&ext_rgmii_pins>;
@@ -74,14 +78,11 @@
 	status = "okay";
 };
 
-&mdio {
-	ext_rgmii_phy: ethernet-phy@1 {
-		compatible = "ethernet-phy-ieee802.3-c22";
-		reg = <1>;
-	};
+&ehci0 {
+	status = "okay";
 };
 
-&de {
+&ehci3 {
 	status = "okay";
 };
 
@@ -95,12 +96,11 @@
 	};
 };
 
-&ehci0 {
-	status = "okay";
-};
-
-&ehci3 {
-	status = "okay";
+&mdio {
+	ext_rgmii_phy: ethernet-phy@1 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <1>;
+	};
 };
 
 &mmc0 {
