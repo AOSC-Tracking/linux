@@ -164,6 +164,14 @@
 
 #include "axp22x.dtsi"
 
+&ac_power_supply {
+	status = "okay";
+};
+
+&battery_power_supply {
+	status = "okay";
+};
+
 &ir0 {
 	status = "okay";
 };
@@ -326,6 +334,10 @@
 		shutdown-gpios = <&pio 7 12 GPIO_ACTIVE_HIGH>; /* PH12 */
 		max-speed = <1500000>;
 	};
+};
+
+&usb_power_supply {
+	status = "okay";
 };
 
 &usbphy {
