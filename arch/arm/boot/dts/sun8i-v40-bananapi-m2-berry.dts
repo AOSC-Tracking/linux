@@ -303,6 +303,10 @@
 	};
 };
 
+&usb_power_supply {
+	status = "okay";
+};
+
 &usbphy {
 	usb1_vbus-supply = <&reg_vcc5v0>;
 	status = "okay";
