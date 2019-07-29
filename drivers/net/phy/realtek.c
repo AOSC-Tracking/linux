@@ -9,6 +9,7 @@
  * Copyright (c) 2004 Freescale Semiconductor, Inc.
  */
 #include <linux/bitops.h>
+#include <linux/of.h>
 #include <linux/phy.h>
 #include <linux/module.h>
 
@@ -32,6 +33,13 @@
 #define RTL8211E_TX_DELAY			BIT(1)
 #define RTL8211E_RX_DELAY			BIT(2)
 #define RTL8211E_MODE_MII_GMII			BIT(3)
+/*
+ * The following number resides in the same register with
+ * the delay bits and mode bit above. However, no known
+ * document can explain this, and this value is directly
+ * received from Realtek via Pine64.
+ */
+#define RTL8211E_CONF_MAGIC_PINE64		0xb400
 
 #define RTL8201F_ISR				0x1e
 #define RTL8201F_IER				0x13
@@ -186,6 +194,7 @@ static int rtl8211e_config_init(struct phy_device *phydev)
 {
 	int ret = 0, oldpage;
 	u16 val;
+	struct device_node *of_node = phydev->mdio.dev.of_node;
 
 	/* enable TX/RX delay for rgmii-* modes, and disable them for rgmii. */
 	switch (phydev->interface) {
@@ -223,6 +232,12 @@ static int rtl8211e_config_init(struct phy_device *phydev)
 
 	ret = __phy_modify(phydev, 0x1c, RTL8211E_TX_DELAY | RTL8211E_RX_DELAY,
 			   val);
+
+	if (of_node &&
+	    of_property_read_bool(of_node, "realtek,config-magic-for-pine64")) {
+		ret = __phy_modify(phydev, 0x1c, GENMASK(15, 9),
+				   RTL8211E_CONF_MAGIC_PINE64);
+	}
 
 err_restore_page:
 	return phy_restore_page(phydev, oldpage, ret);
