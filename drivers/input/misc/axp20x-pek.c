@@ -288,8 +288,7 @@ static int axp20x_pek_probe_input_device(struct axp20x_pek *axp20x_pek,
 		return error;
 	}
 
-	if (axp20x_pek->axp20x->variant == AXP288_ID)
-		enable_irq_wake(axp20x_pek->irq_dbr);
+	enable_irq_wake(axp20x_pek->irq_dbr);
 
 	return 0;
 }
@@ -371,9 +370,6 @@ static int axp20x_pek_probe(struct platform_device *pdev)
 static int __maybe_unused axp20x_pek_resume_noirq(struct device *dev)
 {
 	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
-
-	if (axp20x_pek->axp20x->variant != AXP288_ID)
-		return 0;
 
 	/*
 	 * Clear interrupts from button presses during suspend, to avoid
