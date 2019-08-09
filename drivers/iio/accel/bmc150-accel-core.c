@@ -799,7 +799,7 @@ bmc150_accel_get_mount_matrix(const struct iio_dev *indio_dev,
 }
 
 static const struct iio_chan_spec_ext_info bmc150_accel_ext_info[] = {
-	IIO_MOUNT_MATRIX(IIO_SHARED_BY_DIR, bmc150_accel_get_mount_matrix),
+	IIO_MOUNT_MATRIX(IIO_SHARED_BY_ALL, bmc150_accel_get_mount_matrix),
 	{ }
 };
 
