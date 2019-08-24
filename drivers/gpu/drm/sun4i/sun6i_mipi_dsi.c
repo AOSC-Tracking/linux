@@ -819,7 +819,7 @@ static u32 sun6i_dsi_dcs_build_pkt_hdr(struct sun6i_dsi *dsi,
 {
 	u32 pkt = msg->type;
 
-	if (msg->type == MIPI_DSI_DCS_LONG_WRITE) {
+	if (msg->type == MIPI_DSI_DCS_LONG_WRITE || msg->type == MIPI_DSI_GENERIC_LONG_WRITE) {
 		pkt |= ((msg->tx_len) & 0xffff) << 8;
 		pkt |= (((msg->tx_len) >> 8) & 0xffff) << 16;
 	} else {
@@ -974,6 +974,7 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 		ret = sun6i_dsi_dcs_write_short(dsi, msg);
 		break;
 
+	case MIPI_DSI_GENERIC_LONG_WRITE:
 	case MIPI_DSI_DCS_LONG_WRITE:
 		ret = sun6i_dsi_dcs_write_long(dsi, msg);
 		break;
