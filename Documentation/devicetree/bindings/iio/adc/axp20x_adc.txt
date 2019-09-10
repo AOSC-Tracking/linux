@@ -7,6 +7,10 @@ Required properties:
     - "x-powers,axp813-adc",
   - #io-channel-cells: should be 1,
 
+Optional properties:
+  - x-powers,ts-as-gpadc: Boolean. Defines whether the TS pin should be used
+    as GPADC rather than battery temperature sensor pin.
+
 Example:
 
 &axp22x {
