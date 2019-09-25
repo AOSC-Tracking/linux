@@ -94,7 +94,9 @@ struct lima_bo *lima_bo_create(struct lima_device *dev, u32 size,
 			goto err_out;
 		}
 	} else {
-		mapping_set_gfp_mask(bo->gem.filp->f_mapping, GFP_DMA32);
+		mapping_set_gfp_mask(bo->gem.filp->f_mapping,
+				     GFP_DMA32 | __GFP_RETRY_MAYFAIL |
+				     __GFP_NOWARN);
 		bo->pages = drm_gem_get_pages(&bo->gem);
 		if (IS_ERR(bo->pages)) {
 			ret = ERR_CAST(bo->pages);
