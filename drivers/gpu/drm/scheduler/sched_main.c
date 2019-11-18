@@ -284,10 +284,24 @@ static void drm_sched_job_timedout(struct work_struct *work)
 	unsigned long flags;
 
 	sched = container_of(work, struct drm_gpu_scheduler, work_tdr.work);
+
+	/*
+	 * Protects against concurrent deletion in drm_sched_cleanup_jobs that
+	 * is already in progress.
+	 */
+	spin_lock_irqsave(&sched->job_list_lock, flags);
 	job = list_first_entry_or_null(&sched->ring_mirror_list,
 				       struct drm_sched_job, node);
 
 	if (job) {
+		/*
+		 * Remove the bad job so it cannot be freed by already in progress
+		 * drm_sched_cleanup_jobs. It will be reinsrted back after sched->thread
+		 * is parked at which point it's safe.
+		 */
+		list_del_init(&job->node);
+		spin_unlock_irqrestore(&sched->job_list_lock, flags);
+
 		job->sched->ops->timedout_job(job);
 
 		/*
@@ -299,6 +313,8 @@ static void drm_sched_job_timedout(struct work_struct *work)
 			sched->free_guilty = false;
 		}
 	}
+	else
+		spin_unlock_irqrestore(&sched->job_list_lock, flags);
 
 	spin_lock_irqsave(&sched->job_list_lock, flags);
 	drm_sched_start_timeout(sched);
@@ -368,6 +384,19 @@ void drm_sched_stop(struct drm_gpu_scheduler *sched, struct drm_sched_job *bad)
 	unsigned long flags;
 
 	kthread_park(sched->thread);
+
+	/*
+	 * Reinsert back the bad job here - now it's safe as drm_sched_cleanup_jobs
+	 * cannot race against us and release the bad job at this point - we parked
+	 * (waited for) any in progress (earlier) cleanups and any later ones will
+	 * bail out due to sched->thread being parked.
+	 */
+	if (bad && bad->sched == sched)
+		/*
+		 * Add at the head of the queue to reflect it was the earliest
+		 * job extracted.
+		 */
+		list_add(&bad->node, &sched->ring_mirror_list);
 
 	/*
 	 * Iterate the job list from later to  earlier one and either deactive
@@ -647,16 +676,19 @@ static void drm_sched_cleanup_jobs(struct drm_gpu_scheduler *sched)
 	    !cancel_delayed_work(&sched->work_tdr))
 		return;
 
-
-	while (!list_empty(&sched->ring_mirror_list)) {
+	/* See drm_sched_job_timedout for why the locking is here */
+	while (true) {
 		struct drm_sched_job *job;
 
-		job = list_first_entry(&sched->ring_mirror_list,
-				       struct drm_sched_job, node);
-		if (!dma_fence_is_signaled(&job->s_fence->finished))
-			break;
-
 		spin_lock_irqsave(&sched->job_list_lock, flags);
+		job = list_first_entry_or_null(&sched->ring_mirror_list,
+					       struct drm_sched_job, node);
+
+		if (!job || !dma_fence_is_signaled(&job->s_fence->finished)) {
+			spin_unlock_irqrestore(&sched->job_list_lock, flags);
+			break;
+		}
+
 		/* remove job from ring_mirror_list */
 		list_del_init(&job->node);
 		spin_unlock_irqrestore(&sched->job_list_lock, flags);
