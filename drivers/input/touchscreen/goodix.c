@@ -48,7 +48,7 @@ struct goodix_ts_data {
 	struct regulator *vddio;
 	struct gpio_desc *gpiod_int;
 	struct gpio_desc *gpiod_rst;
-	u16 id;
+	char id[5];
 	u16 version;
 	const char *cfg_name;
 	struct completion firmware_loading_complete;
@@ -211,28 +211,25 @@ static int goodix_i2c_write_u8(struct i2c_client *client, u16 reg, u8 value)
 	return goodix_i2c_write(client, reg, &value, sizeof(value));
 }
 
-static const struct goodix_chip_data *goodix_get_chip_data(u16 id)
+static const struct goodix_chip_data *goodix_get_chip_data(const char *id)
 {
-	switch (id) {
-	case 1151:
-	case 5663:
-	case 5688:
+	if (!strcmp(id, "1151") ||
+	    !strcmp(id, "5663") ||
+	    !strcmp(id, "5688"))
 		return &gt1x_chip_data;
 
-	case 911:
-	case 9271:
-	case 9110:
-	case 927:
-	case 928:
+	if (!strcmp(id, "911") ||
+	    !strcmp(id, "9271") ||
+	    !strcmp(id, "9110") ||
+	    !strcmp(id, "927") ||
+	    !strcmp(id, "928"))
 		return &gt911_chip_data;
 
-	case 912:
-	case 967:
+	if (!strcmp(id, "912") ||
+	    !strcmp(id, "967"))
 		return &gt967_chip_data;
 
-	default:
-		return &gt9x_chip_data;
-	}
+	return &gt9x_chip_data;
 }
 
 static int goodix_ts_read_input_report(struct goodix_ts_data *ts, u8 *data)
@@ -630,12 +627,11 @@ static int goodix_read_version(struct goodix_ts_data *ts)
 
 	memcpy(id_str, buf, 4);
 	id_str[4] = 0;
-	if (kstrtou16(id_str, 10, &ts->id))
-		ts->id = 0x1001;
+	strcpy(ts->id, id_str);
 
 	ts->version = get_unaligned_le16(&buf[4]);
 
-	dev_info(&ts->client->dev, "ID %d, version: %04x\n", ts->id,
+	dev_info(&ts->client->dev, "ID %s, version: %04x\n", ts->id,
 		 ts->version);
 
 	return 0;
@@ -693,7 +689,8 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
 	ts->input_dev->phys = "input/ts";
 	ts->input_dev->id.bustype = BUS_I2C;
 	ts->input_dev->id.vendor = 0x0416;
-	ts->input_dev->id.product = ts->id;
+	if (kstrtou16(ts->id, 10, &ts->input_dev->id.product))
+		ts->input_dev->id.product = 0x1001;
 	ts->input_dev->id.version = ts->version;
 
 	/* Capacitive Windows/Home button on some devices */
@@ -864,7 +861,7 @@ static int goodix_ts_probe(struct i2c_client *client,
 	if (ts->gpiod_int && ts->gpiod_rst) {
 		/* update device config */
 		ts->cfg_name = devm_kasprintf(&client->dev, GFP_KERNEL,
-					      "goodix_%d_cfg.bin", ts->id);
+					      "goodix_%s_cfg.bin", ts->id);
 		if (!ts->cfg_name)
 			return -ENOMEM;
 
