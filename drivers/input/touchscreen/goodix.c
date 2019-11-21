@@ -215,7 +215,8 @@ static const struct goodix_chip_data *goodix_get_chip_data(const char *id)
 {
 	if (!strcmp(id, "1151") ||
 	    !strcmp(id, "5663") ||
-	    !strcmp(id, "5688"))
+	    !strcmp(id, "5688") ||
+	    !strcmp(id, "917S"))
 		return &gt1x_chip_data;
 
 	if (!strcmp(id, "911") ||
@@ -996,6 +997,7 @@ static const struct of_device_id goodix_of_match[] = {
 	{ .compatible = "goodix,gt911" },
 	{ .compatible = "goodix,gt9110" },
 	{ .compatible = "goodix,gt912" },
+	{ .compatible = "goodix,gt917s" },
 	{ .compatible = "goodix,gt927" },
 	{ .compatible = "goodix,gt9271" },
 	{ .compatible = "goodix,gt928" },
