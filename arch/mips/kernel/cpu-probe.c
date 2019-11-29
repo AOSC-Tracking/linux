@@ -28,6 +28,10 @@
 #include <asm/spram.h>
 #include <linux/uaccess.h>
 
+#ifdef CONFIG_CPU_LOONGSON3
+#include <loongson_regs.h>
+#endif
+
 /* Hardware capabilities */
 unsigned int elf_hwcap __read_mostly;
 EXPORT_SYMBOL_GPL(elf_hwcap);
@@ -1946,6 +1950,9 @@ static inline void decode_cpucfg(struct cpuinfo_mips *c)
 
 	if (cfg2 & LOONGSON_CFG2_LSPW)
 		c->options |= MIPS_CPU_LDPTE;
+
+	if (cfg2 & LOONGSON_CFG2_LLFTP)
+		c->options |= MIPS_CPU_CONST_TIMER;
 
 	if (cfg3 & LOONGSON_CFG3_LCAMP)
 		c->ases |= MIPS_ASE_LOONGSON_CAM;
