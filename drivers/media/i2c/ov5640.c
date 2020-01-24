@@ -1832,6 +1832,23 @@ static int ov5640_set_mode(struct ov5640_dev *sensor)
 	if (ret < 0)
 		return ret;
 
+	u8 tmp;
+	ret = ov5640_read_reg(sensor, 0x5308, &tmp);
+	if (ret)
+		return ret;
+
+	ret = ov5640_write_reg(sensor, 0x5308, tmp | 0x10 | 0x40);
+	if (ret)
+		return ret;
+
+	ret = ov5640_write_reg(sensor, 0x5306, 0);
+	if (ret)
+		return ret;
+
+	ret = ov5640_write_reg(sensor, 0x5302, 0);
+	if (ret)
+		return ret;
+
 	sensor->pending_mode_change = false;
 	sensor->last_mode = mode;
 
