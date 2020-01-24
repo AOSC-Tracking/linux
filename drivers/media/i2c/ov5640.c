@@ -111,7 +111,11 @@ enum ov5640_mode_id {
 };
 
 enum ov5640_frame_rate {
-	OV5640_15_FPS = 0,
+	OV5640_2_FPS = 0,
+	OV5640_3_FPS,
+	OV5640_5_FPS,
+	OV5640_7_FPS,
+	OV5640_15_FPS,
 	OV5640_30_FPS,
 	OV5640_60_FPS,
 	OV5640_NUM_FRAMERATES,
@@ -153,6 +157,10 @@ MODULE_PARM_DESC(virtual_channel,
 		 "MIPI CSI-2 virtual channel (0..3), default 0");
 
 static const int ov5640_framerates[] = {
+	[OV5640_2_FPS] = 2,
+	[OV5640_3_FPS] = 3,
+	[OV5640_5_FPS] = 5,
+	[OV5640_7_FPS] = 7,
 	[OV5640_15_FPS] = 15,
 	[OV5640_30_FPS] = 30,
 	[OV5640_60_FPS] = 60,
@@ -2157,11 +2165,11 @@ static int ov5640_try_frame_interval(struct ov5640_dev *sensor,
 				     u32 width, u32 height)
 {
 	const struct ov5640_mode_info *mode;
-	enum ov5640_frame_rate rate = OV5640_15_FPS;
+	enum ov5640_frame_rate rate = OV5640_2_FPS;
 	int minfps, maxfps, best_fps, fps;
 	int i;
 
-	minfps = ov5640_framerates[OV5640_15_FPS];
+	minfps = ov5640_framerates[OV5640_2_FPS];
 	maxfps = ov5640_framerates[OV5640_60_FPS];
 
 	if (fi->numerator == 0) {
