@@ -564,8 +564,7 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 		dev_dbg(sdev->dev,
 			"Calculating pixelformat(0x%x)'s bytesperline as a packed format\n",
 			config->pixelformat);
-		bytesperline_y = (sun6i_csi_get_bpp(config->pixelformat) *
-				  config->width) / 8;
+		bytesperline_y = sdev->csi.video.fmt.fmt.pix.bytesperline;
 		bytesperline_c = 0;
 		planar_offset[1] = -1;
 		planar_offset[2] = -1;
