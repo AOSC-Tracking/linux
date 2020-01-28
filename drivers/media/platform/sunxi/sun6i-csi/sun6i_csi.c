@@ -761,15 +761,16 @@ static int sun6i_csi_v4l2_init(struct sun6i_csi *csi)
 	media_device_init(&csi->media_dev);
 	v4l2_async_notifier_init(&csi->notifier);
 
+	/*
 	ret = v4l2_ctrl_handler_init(&csi->ctrl_handler, 0);
 	if (ret) {
 		dev_err(csi->dev, "V4L2 controls handler init failed (%d)\n",
 			ret);
 		goto clean_media;
 	}
-
+          */
 	csi->v4l2_dev.mdev = &csi->media_dev;
-	csi->v4l2_dev.ctrl_handler = &csi->ctrl_handler;
+	//csi->v4l2_dev.ctrl_handler = &csi->ctrl_handler;
 	ret = v4l2_device_register(csi->dev, &csi->v4l2_dev);
 	if (ret) {
 		dev_err(csi->dev, "V4L2 device registration failed (%d)\n",
@@ -803,7 +804,7 @@ clean_video:
 unreg_v4l2:
 	v4l2_device_unregister(&csi->v4l2_dev);
 free_ctrl:
-	v4l2_ctrl_handler_free(&csi->ctrl_handler);
+	//v4l2_ctrl_handler_free(&csi->ctrl_handler);
 clean_media:
 	v4l2_async_notifier_cleanup(&csi->notifier);
 	media_device_cleanup(&csi->media_dev);
