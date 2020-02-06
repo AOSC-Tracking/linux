@@ -183,6 +183,11 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	ec25_codec: ec25-codec {
+		#sound-dai-cells = <1>;
+		compatible = "quectel,ec25";
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -238,7 +243,7 @@
 
 &codec {
 	pinctrl-names = "default";
-	pinctrl-0 = <&aif3_pins>;
+	pinctrl-0 = <&aif2_pins>, <&aif3_pins>;
 	status = "okay";
 };
 
@@ -609,6 +614,23 @@
 			"MIC1", "Internal Microphone",
 			"Headset Microphone", "HBIAS",
 			"MIC2", "Headset Microphone";
+
+	simple-audio-card,dai-link@1 {
+		format = "dsp_a";
+		frame-master = <&link1_codec>;
+		bitclock-master = <&link1_codec>;
+		bitclock-inversion;
+
+		link1_cpu: cpu {
+			sound-dai = <&ec25_codec 0>;
+		};
+
+		link1_codec: codec {
+			sound-dai = <&codec 1>;
+			dai-tdm-slot-num = <1>;
+			dai-tdm-slot-width = <32>;
+		};
+	};
 
 	simple-audio-card,dai-link@2 {
 		format = "dsp_a";
