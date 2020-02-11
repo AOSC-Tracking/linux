@@ -189,7 +189,15 @@
 &i2c1 {
 	status = "okay";
 
-	/* TODO: add Bochs BMA223 accelerometer here */
+	bma223@18 {
+		compatible = "bosch,bma223", "bosch,bma222e";
+		reg = <0x18>;
+		interrupt-parent = <&pio>;
+		interrupts = <7 5 IRQ_TYPE_LEVEL_HIGH>; /* PH5 */
+		mount-matrix = "0", "-1", "0",
+			       "-1", "0", "0",
+			       "0", "0", "-1";
+	};
 };
 
 &lradc {
