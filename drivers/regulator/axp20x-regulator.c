@@ -93,6 +93,8 @@
 #define AXP22X_WORKMODE_DCDCX_MASK(x)	BIT_MASK(x)
 
 #define AXP22X_MISC_N_VBUSEN_FUNC	BIT(4)
+#define AXP22X_MISC_16S_RESET_FUNC	BIT(3)
+#define AXP22X_MISC_OTP			BIT(2)
 
 #define AXP22X_DCDC1_V_OUT_MASK		GENMASK(4, 0)
 #define AXP22X_DCDC2_V_OUT_MASK		GENMASK(5, 0)
@@ -1357,6 +1359,11 @@ static int axp20x_regulator_probe(struct platform_device *pdev)
 			return PTR_ERR(rdev);
 		}
 	}
+
+	// enable 16s power-on reset and over-temperature protection
+	regmap_update_bits(axp20x->regmap, AXP20X_OVER_TMP,
+			   AXP22X_MISC_16S_RESET_FUNC | AXP22X_MISC_OTP,
+			   AXP22X_MISC_16S_RESET_FUNC | AXP22X_MISC_OTP);
 
 	return 0;
 }
