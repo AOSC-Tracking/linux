@@ -316,6 +316,7 @@ static int sunxi_rsb_read(struct sunxi_rsb *rsb, u8 rtaddr, u8 addr,
 {
 	u32 cmd;
 	int ret;
+	u32 mask;
 
 	if (!buf)
 		return -EINVAL;
@@ -323,12 +324,15 @@ static int sunxi_rsb_read(struct sunxi_rsb *rsb, u8 rtaddr, u8 addr,
 	switch (len) {
 	case 1:
 		cmd = RSB_CMD_RD8;
+		mask = 0xffu;
 		break;
 	case 2:
 		cmd = RSB_CMD_RD16;
+		mask = 0xffffu;
 		break;
 	case 4:
 		cmd = RSB_CMD_RD32;
+		mask = 0xffffffffu;
 		break;
 	default:
 		dev_err(rsb->dev, "Invalid access width: %zd\n", len);
@@ -345,7 +349,7 @@ static int sunxi_rsb_read(struct sunxi_rsb *rsb, u8 rtaddr, u8 addr,
 	if (ret)
 		goto unlock;
 
-	*buf = readl(rsb->regs + RSB_DATA);
+	*buf = readl(rsb->regs + RSB_DATA) & mask;
 
 unlock:
 	mutex_unlock(&rsb->lock);
