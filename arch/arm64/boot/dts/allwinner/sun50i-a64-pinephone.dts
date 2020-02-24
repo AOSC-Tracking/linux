@@ -232,6 +232,9 @@
 		reg = <0x68>;
 		interrupt-parent = <&pio>;
 		interrupts = <7 5 IRQ_TYPE_LEVEL_HIGH>; /* PH5 */
+		mount-matrix = "0", "1", "0",
+			       "-1", "0", "0",
+			       "0", "0", "-1";
 	};
 
 	stk3311@48 {
