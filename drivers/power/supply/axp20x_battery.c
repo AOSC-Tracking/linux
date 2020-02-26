@@ -375,6 +375,11 @@ static int axp20x_battery_set_max_voltage(struct axp20x_batt_ps *axp20x_batt,
 		val = AXP20X_CHRG_CTRL1_TGT_4_2V;
 		break;
 
+	case 4350000:
+	case 4360000:
+		val = AXP20X_CHRG_CTRL1_TGT_4_36V;
+		break;
+
 	default:
 		/*
 		 * AXP20x max voltage can be set to 4.36V and AXP22X max voltage
