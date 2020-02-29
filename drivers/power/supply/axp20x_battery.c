@@ -34,6 +34,7 @@
 
 #define AXP20X_PWR_STATUS_BAT_CHARGING	BIT(2)
 
+#define AXP20X_PWR_OP_BATT_CHARGING	BIT(6)
 #define AXP20X_PWR_OP_BATT_PRESENT	BIT(5)
 #define AXP20X_PWR_OP_BATT_ACTIVATED	BIT(3)
 
@@ -221,12 +222,12 @@ static int axp20x_battery_get_prop(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_STATUS:
-		ret = regmap_read(axp20x_batt->regmap, AXP20X_PWR_INPUT_STATUS,
+		ret = regmap_read(axp20x_batt->regmap, AXP20X_PWR_OP_MODE,
 				  &reg);
 		if (ret)
 			return ret;
 
-		if (reg & AXP20X_PWR_STATUS_BAT_CHARGING) {
+		if (reg & AXP20X_PWR_OP_BATT_CHARGING) {
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 			return 0;
 		}
