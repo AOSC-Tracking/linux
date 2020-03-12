@@ -418,6 +418,7 @@ static void loongson3_init_secondary(void)
 		     cpu_logical_map(cpu) % loongson_sysconf.cores_per_package);
 	cpu_data[cpu].package =
 		cpu_logical_map(cpu) / loongson_sysconf.cores_per_package;
+	__cpu_full_name[cpu] = cpu_full_name;
 }
 
 static void loongson3_smp_finish(void)
