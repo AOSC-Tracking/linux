@@ -297,6 +297,10 @@
 
 #include "axp803.dtsi"
 
+&axp_adc {
+	x-powers,ts-as-gpadc;
+};
+
 &battery_power_supply {
 	status = "okay";
 };
