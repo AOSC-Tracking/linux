@@ -247,6 +247,14 @@ config PCI_MESON
 	  and therefore the driver re-uses the DesignWare core functions to
 	  implement the driver.
 
+config PCIE_SUNXI_WRAPPED
+	bool "Wrapped Allwinner SoCs PCIe controllers"
+	depends on PCI_MSI_IRQ_DOMAIN
+	select PCIE_DW_HOST
+	help
+	  Say Y here it you want PCIe controller support on Allwinner H6, wrapped
+	  to a regular PCIe controller by a hypervisor.
+
 config PCIE_TEGRA194
 	tristate
 

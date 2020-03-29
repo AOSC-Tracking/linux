@@ -70,6 +70,16 @@
 		enable-active-high;
 	};
 
+	reg_pcie_slot: pcie-slot-power {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie-slot-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		startup-delay-us = <100000>;
+		gpio = <&pio 2 15 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
 	reg_usb_vbus: vbus {
 		compatible = "regulator-fixed";
 		regulator-name = "usb-vbus";
@@ -169,6 +179,14 @@
 };
 
 &ohci3 {
+	status = "okay";
+};
+
+&pcie {
+	vcc-supply = <&reg_bldo2>;
+	vdd-supply = <&reg_dcdcd>;
+	slot-supply = <&reg_pcie_slot>;
+	perst-gpio = <&pio 6 14 GPIO_ACTIVE_LOW>; /* PG14 */
 	status = "okay";
 };
 
