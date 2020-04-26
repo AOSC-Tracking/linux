@@ -104,12 +104,20 @@
 	};
 };
 
+&hdmi_sound {
+	status = "okay";
+};
+
 &i2c1 {
 	status = "okay";
 };
 
 &i2c1_pins {
 	bias-pull-up;
+};
+
+&i2s2 {
+	status = "okay";
 };
 
 &mdio {
