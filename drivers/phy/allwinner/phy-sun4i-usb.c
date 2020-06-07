@@ -34,6 +34,7 @@
 #include <linux/reset.h>
 #include <linux/spinlock.h>
 #include <linux/usb/of.h>
+#include <linux/usb/role.h>
 #include <linux/workqueue.h>
 
 #define REG_ISCR			0x00
@@ -151,6 +152,9 @@ struct sun4i_usb_phy_data {
 	int id_det;
 	int vbus_det;
 	struct delayed_work detect;
+	struct usb_role_switch_desc switch_desc;
+	struct usb_role_switch *role_switch;
+	int usb_role;
 };
 
 #define to_sun4i_usb_phy_data(phy) \
@@ -362,6 +366,9 @@ static int sun4i_usb_phy_exit(struct phy *_phy)
 
 static int sun4i_usb_phy0_get_id_det(struct sun4i_usb_phy_data *data)
 {
+	if (data->usb_role >= 0)
+		return data->usb_role == USB_ROLE_HOST ? 0 : 1;
+
 	switch (data->dr_mode) {
 	case USB_DR_MODE_OTG:
 		if (data->id_det_gpio)
@@ -378,6 +385,9 @@ static int sun4i_usb_phy0_get_id_det(struct sun4i_usb_phy_data *data)
 
 static int sun4i_usb_phy0_get_vbus_det(struct sun4i_usb_phy_data *data)
 {
+	if (data->usb_role >= 0)
+		return data->usb_role == USB_ROLE_NONE ? 0 : 1;
+
 	if (data->vbus_det_gpio)
 		return gpiod_get_value_cansleep(data->vbus_det_gpio);
 
@@ -397,7 +407,7 @@ static int sun4i_usb_phy0_get_vbus_det(struct sun4i_usb_phy_data *data)
 
 static bool sun4i_usb_phy0_have_vbus_det(struct sun4i_usb_phy_data *data)
 {
-	return data->vbus_det_gpio || data->vbus_power_supply;
+	return data->usb_role >= 0 || data->vbus_det_gpio || data->vbus_power_supply;
 }
 
 static bool sun4i_usb_phy0_poll(struct sun4i_usb_phy_data *data)
@@ -568,6 +578,8 @@ static void sun4i_usb_phy0_id_vbus_det_scan(struct work_struct *work)
 	data->force_session_end = false;
 
 	if (id_det != data->id_det) {
+		pr_err("phy id_det change to %s\n", id_det ? "device" : "host");
+
 		/* id-change, force session end if we've no vbus detection */
 		if (data->dr_mode == USB_DR_MODE_OTG &&
 		    !sun4i_usb_phy0_have_vbus_det(data))
@@ -657,6 +669,24 @@ static struct phy *sun4i_usb_phy_xlate(struct device *dev,
 	return data->phys[args->args[0]].phy;
 }
 
+static int sun4i_usb_role_set(struct usb_role_switch *sw, enum usb_role role)
+{
+	struct sun4i_usb_phy_data *data = usb_role_switch_get_drvdata(sw);
+
+	data->usb_role = role;
+	queue_delayed_work(system_wq, &data->detect, 0);
+
+	return 0;
+}
+
+static enum usb_role sun4i_usb_role_get(struct usb_role_switch *sw)
+{
+	struct sun4i_usb_phy_data *data = usb_role_switch_get_drvdata(sw);
+	int role = sun4i_usb_phy0_get_id_det(data) ? USB_ROLE_DEVICE : USB_ROLE_HOST;
+
+	return data->usb_role >= 0 ? data->usb_role : role;
+}
+
 static int sun4i_usb_phy_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -670,6 +700,8 @@ static int sun4i_usb_phy_remove(struct platform_device *pdev)
 		devm_free_irq(dev, data->vbus_det_irq, data);
 
 	cancel_delayed_work_sync(&data->detect);
+
+	usb_role_switch_unregister(data->role_switch);
 
 	return 0;
 }
@@ -699,6 +731,8 @@ static int sun4i_usb_phy_probe(struct platform_device *pdev)
 	data->cfg = of_device_get_match_data(dev);
 	if (!data->cfg)
 		return -EINVAL;
+
+	data->usb_role = -1;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy_ctrl");
 	data->base = devm_ioremap_resource(dev, res);
@@ -854,6 +888,23 @@ static int sun4i_usb_phy_probe(struct platform_device *pdev)
 	if (IS_ERR(phy_provider)) {
 		sun4i_usb_phy_remove(pdev); /* Stop detect work */
 		return PTR_ERR(phy_provider);
+	}
+
+	/* setup role switcher */
+	data->switch_desc.name = "usb0";
+	data->switch_desc.fwnode = dev_fwnode(dev);
+	data->switch_desc.set = sun4i_usb_role_set;
+	data->switch_desc.get = sun4i_usb_role_get;
+	data->switch_desc.driver_data = data;
+
+	/*
+	 * Don't interfere with the default behavior of this driver until
+	 * the consumer of the role switch uses the switch for the first time.
+	 */
+	data->role_switch = usb_role_switch_register(dev, &data->switch_desc);
+	if (IS_ERR(data->role_switch)) {
+		dev_warn(dev, "Unable to register Role Switch\n");
+		data->role_switch = NULL;
 	}
 
 	dev_dbg(dev, "successfully loaded\n");
