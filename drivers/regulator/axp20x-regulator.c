@@ -1347,6 +1347,14 @@ static int axp20x_regulator_probe(struct platform_device *pdev)
 						&dcdc5_name);
 	}
 
+	if (!drivevbus &&
+	    of_property_read_bool(pdev->dev.parent->of_node, "x-powers,sense-vbus-en")) {
+		/* make N_VBUSEN an input */
+		regmap_update_bits(axp20x->regmap, AXP20X_OVER_TMP,
+				   AXP22X_MISC_N_VBUSEN_FUNC,
+				   AXP22X_MISC_N_VBUSEN_FUNC);
+	}
+
 	if (drivevbus) {
 		struct regulator_desc *new_desc;
 		bool drivevbus_vin = false;

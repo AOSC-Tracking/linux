@@ -15,6 +15,10 @@
 	};
 };
 
+&axp803 {
+	x-powers,sense-vbus-en;
+};
+
 &backlight {
 	power-supply = <&reg_ldo_io0>;
 	/*
