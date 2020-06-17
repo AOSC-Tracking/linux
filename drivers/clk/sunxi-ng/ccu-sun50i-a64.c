@@ -527,8 +527,18 @@ static SUNXI_CCU_M_WITH_MUX_GATE(de_clk, "de", de_parents,
 				 0x104, 0, 4, 24, 3, BIT(31),
 				 CLK_SET_RATE_PARENT);
 
-static const char * const tcon0_parents[] = { "pll-mipi", "pll-video0-2x" };
-static const u8 tcon0_table[] = { 0, 2, };
+#define SUN50I_A64_TCON0_REG	0x118
+
+/*
+ * When using PLL-Video0 as the parent of tcon0 clock, tcon0 clock will
+ * conflict with HDMI PHY clock (also a child of PLL-Video0) which is on
+ * another display pipeline. Force tcon0 to use PLL-MIPI as parent here
+ * to prevent this. As the parent of PLL-MIPI is still PLL-Video0, a notifier
+ * is required to restore the rate of TCON0 when the rate of PLL-Video0
+ * changed.
+ */
+static const char * const tcon0_parents[] = { "pll-mipi", /* "pll-video0-2x" */ };
+static const u8 tcon0_table[] = { 0, /* 2, */ };
 static SUNXI_CCU_MUX_TABLE_WITH_GATE(tcon0_clk, "tcon0", tcon0_parents,
 				     tcon0_table, 0x118, 24, 3, BIT(31),
 				     CLK_SET_RATE_PARENT);
@@ -935,6 +945,10 @@ static struct ccu_mux_nb sun50i_a64_cpu_nb = {
 	.bypass_index	= 1, /* index of 24 MHz oscillator */
 };
 
+static struct ccu_rate_reset_nb sun50i_a64_pll_video0_reset_tcon0_nb = {
+	.common		= &pll_video0_clk.common,
+};
+
 static int sun50i_a64_ccu_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -954,6 +968,11 @@ static int sun50i_a64_ccu_probe(struct platform_device *pdev)
 
 	writel(0x515, reg + SUN50I_A64_PLL_MIPI_REG);
 
+	/* Force the parent of TCON0 to PLL-MIPI */
+	val = readl(reg + SUN50I_A64_TCON0_REG);
+	val &= ~GENMASK(26, 24);
+	writel(val | (0 << 24), reg + SUN50I_A64_TCON0_REG);
+
 	ret = sunxi_ccu_probe(pdev->dev.of_node, reg, &sun50i_a64_ccu_desc);
 	if (ret)
 		return ret;
@@ -964,6 +983,10 @@ static int sun50i_a64_ccu_probe(struct platform_device *pdev)
 	/* Reparent CPU during PLL CPU rate changes */
 	ccu_mux_notifier_register(pll_cpux_clk.common.hw.clk,
 				  &sun50i_a64_cpu_nb);
+
+	/* Reset the rate of TCON0 clock when PLL-VIDEO0 is changed */
+	sun50i_a64_pll_video0_reset_tcon0_nb.target_clk = tcon0_clk.common.hw.clk;
+	ccu_rate_reset_notifier_register(&sun50i_a64_pll_video0_reset_tcon0_nb);
 
 	return 0;
 }
