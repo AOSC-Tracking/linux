@@ -188,6 +188,10 @@
 	};
 };
 
+&hdmi_sound {
+	status = "okay";
+};
+
 &i2c0 {
 	status = "okay";
 
@@ -218,6 +222,10 @@
 			       "-1", "0", "0",
 			       "0", "0", "-1";
 	};
+};
+
+&i2s2 {
+	status = "okay";
 };
 
 &lradc {
