@@ -8,6 +8,84 @@
 / {
 	model = "Pine64 PinePhone Developer Batch (1.0)";
 	compatible = "pine64,pinephone-1.0", "allwinner,sun50i-a64";
+
+	reg_vbus: usb0-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb0-vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&pio 3 6 GPIO_ACTIVE_HIGH>; /* PD6 */
+		enable-active-high;
+		vin-supply = <&reg_drivevbus>;
+	};
+};
+
+&axp803 {
+	x-powers,drive-vbus-en;
+};
+
+&i2c0 {
+	hdmi-bridge@28 {
+		compatible = "analogix,anx7688";
+		reg = <0x28>;
+
+		interrupt-parent = <&r_pio>;
+		interrupts = <0 11 IRQ_TYPE_EDGE_FALLING>; /* PL11 */
+
+		enable-gpios = <&pio 3 10 GPIO_ACTIVE_LOW>; /* PD10 */
+		reset-gpios = <&r_pio 0 9 GPIO_ACTIVE_HIGH>; /* PL9 */
+
+		cabledet-gpios = <&r_pio 0 8 GPIO_ACTIVE_HIGH>; /* PL8 */
+
+		avdd10-supply = <&reg_anx1v0>;
+		dvdd10-supply = <&reg_anx1v0>;
+		/* This is for the HW hack variant, but will also work for non-modified version. */
+		avdd18-supply = <&reg_ldo_io1>;
+		dvdd18-supply = <&reg_ldo_io1>;
+		avdd33-supply = <&reg_dldo1>;
+		vconn-supply = <&reg_vconn5v0>;
+		hdmi_vt-supply = <&reg_dldo1>;
+
+		/*
+		 * ANX7688 can't enable/disable USB-5V <-> DCIN switch by
+		 * itself, and PMIC's N_VBUSEN is not connected anywhere either,
+		 * so we need to configure everything in software:
+		 *
+		 * - get the VBUS status from ANX7688 via I2C
+		 * - configure PMIC to let it know vbus drive status (via
+		 *   reg_drivevbus)
+		 * - enable VBUS switch and USB-5V regulator (via reg_vbus
+		 *   and reg_usb_5v)
+		 */
+		vbus-supply = <&reg_vbus>;
+		vbus_in-supply = <&usb_power_supply>;
+
+		port {
+			typec0_dr_sw: endpoint {
+				remote-endpoint = <&usb0_drd_sw>;
+			};
+		};
+	};
+};
+
+/*
+ * The N_VBUSEN pin is disconnected, but we need to inform the PMIC about
+ * the VBUS status anyway. To avoid the pin from floating and to inform
+ * the PMIC, about VBUS status, we couple reg_drivevbus with reg_vbus.
+ */
+&reg_drivevbus {
+	vin-supply = <&reg_usb_5v>;
+	status = "okay";
+};
+
+&usbphy {
+	usb-role-switch;
+
+	port {
+		usb0_drd_sw: endpoint {
+			remote-endpoint = <&typec0_dr_sw>;
+		};
+	};
 };
 
 &sgm3140 {
