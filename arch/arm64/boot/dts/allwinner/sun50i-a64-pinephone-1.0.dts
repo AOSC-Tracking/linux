@@ -78,6 +78,28 @@
 	status = "okay";
 };
 
+&uart3 {
+	modem {
+		compatible = "quectel,eg25";
+		char-device-name = "modem-power";
+
+		power-supply = <&reg_vbat_bb>; /* PL7 */
+
+		enable-gpios = <&pio 7 8 GPIO_ACTIVE_LOW>; /* PH8 */
+		reset-gpios = <&pio 2 4 GPIO_ACTIVE_HIGH>; /* PC4 */
+		pwrkey-gpios = <&pio 1 3 GPIO_ACTIVE_HIGH>; /* PB3 */
+
+		sleep-gpios = <&pio 7 7 GPIO_ACTIVE_HIGH>; /* PH7 */
+		wakeup-gpios = <&pio 1 2 GPIO_ACTIVE_HIGH>; /* PB2-RI */
+
+		cts-gpios = <&pio 3 5 GPIO_ACTIVE_HIGH>; /* PD5-CTS */
+		dtr-gpios = <&r_pio 0 6 GPIO_ACTIVE_HIGH>; /* PL6-DTR */
+		rts-gpios = <&pio 3 4 GPIO_ACTIVE_HIGH>; /* PD4-RTS */
+
+		quectel,qdai = "1,0,0,2,0,1,1,1";
+	};
+};
+
 &usbphy {
 	usb-role-switch;
 
