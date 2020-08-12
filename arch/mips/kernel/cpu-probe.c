@@ -1942,6 +1942,13 @@ static inline void decode_cpucfg(struct cpuinfo_mips *c)
 	if (cfg1 & LOONGSON_CFG1_MMI)
 		c->ases |= MIPS_ASE_LOONGSON_MMI;
 
+#ifdef CONFIG_CPU_HAS_ASX
+	if (cfg1 & LOONGSON_CFG1_LASX) {
+		c->ases |= MIPS_ASE_LOONGSON_ASX;
+		set_c0_config6(MIPS_CONF6_LASXMODE);
+	}
+#endif
+
 	if (cfg2 & LOONGSON_CFG2_LEXT1)
 		c->ases |= MIPS_ASE_LOONGSON_EXT;
 
