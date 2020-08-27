@@ -167,6 +167,7 @@ struct anx7688 {
         struct regulator_bulk_data supplies[ANX7688_NUM_SUPPLIES];
 	struct power_supply *vbus_in_supply;
 	struct notifier_block vbus_in_nb;
+	int current_limit;
         struct gpio_desc *gpio_enable;
         struct gpio_desc *gpio_reset;
         struct gpio_desc *gpio_cabledet;
@@ -724,7 +725,6 @@ static int anx7688_update_cc_status(struct anx7688 *anx7688, int cc_status)
         struct device *dev = anx7688->dev;
 	union power_supply_propval val = {0,};
 	int cc1, cc2, cc = -1, ret;
-	int current_limit = 0;
 
 	cc1 = anx7688_cc_status(cc_status & 0xf);
 	cc2 = anx7688_cc_status((cc_status >> 4) & 0xf);
@@ -737,12 +737,13 @@ static int anx7688_update_cc_status(struct anx7688 *anx7688, int cc_status)
 	if (cc < 0)
 		return 0;
 
+	anx7688->current_limit = 0;
 	if (cc == TYPEC_PWR_MODE_1_5A)
-		current_limit = 1500 * 1000;
+		anx7688->current_limit = 1500 * 1000;
 	else if (cc == TYPEC_PWR_MODE_3_0A)
-		current_limit = 3000 * 1000;
+		anx7688->current_limit = 3000 * 1000;
 
-	if (current_limit) {
+	if (anx7688->current_limit) {
 		/*
 		 * Disable BC1.2 detection, because we'll be setting
 		 * a current limit determined by USB-PD
@@ -755,7 +756,7 @@ static int anx7688_update_cc_status(struct anx7688 *anx7688, int cc_status)
 		if (ret)
 			dev_err(dev, "failed to disable USB BC1.2 detection\n");
 
-		val.intval = current_limit;
+		val.intval = anx7688->current_limit;
 		dev_dbg(dev, "setting vbus_in current limit to %d mA\n", val.intval);
 		ret = power_supply_set_property(anx7688->vbus_in_supply,
 						POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
@@ -1425,6 +1426,29 @@ static void anx7688_handle_vbus_in_notify(struct anx7688* anx7688)
 	struct device *dev = anx7688->dev;
 	int ret;
 
+	if (anx7688->current_limit) {
+		ret = power_supply_get_property(anx7688->vbus_in_supply,
+						POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+						&psy_val);
+		if (ret) {
+			dev_err(dev, "failed to get vbus_in current\n");
+			return;
+		}
+
+		if (psy_val.intval == anx7688->current_limit)
+			goto check_type;
+
+		psy_val.intval = anx7688->current_limit;
+		dev_dbg(dev, "setting vbus_in current limit to %d mA\n", psy_val.intval);
+		ret = power_supply_set_property(anx7688->vbus_in_supply,
+						POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+						&psy_val);
+		if (ret)
+			dev_err(dev, "failed to set vbus_in current to %d mA\n",
+				psy_val.intval / 1000);
+	}
+
+check_type:
 	ret = power_supply_get_property(anx7688->vbus_in_supply,
 					POWER_SUPPLY_PROP_USB_TYPE,
 					&psy_val);
