@@ -1426,7 +1426,8 @@ static void anx7688_handle_vbus_in_notify(struct anx7688* anx7688)
 	struct device *dev = anx7688->dev;
 	int ret;
 
-	if (anx7688->current_limit) {
+	/* PD charger doesn't like this for some reason, so it's disabled for now */
+	if (anx7688->current_limit && false) {
 		ret = power_supply_get_property(anx7688->vbus_in_supply,
 						POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 						&psy_val);
