@@ -346,16 +346,19 @@ static u64 notrace arm64_858921_read_cntvct_el0(void)
  * number of CPU cycles in 3 consecutive 24 MHz counter periods.
  */
 #define __sun50i_a64_read_reg(reg) ({					\
-	u64 _val;							\
+	u64 _old;							\
+	u64 _new;							\
 	int _retries = 150;						\
 									\
+	_new = read_sysreg(reg);						\
 	do {								\
-		_val = read_sysreg(reg);				\
+		_old = _new;						\
+		_new = read_sysreg(reg);					\
 		_retries--;						\
-	} while (((_val + 1) & GENMASK(9, 0)) <= 1 && _retries);	\
+	} while (((int64_t) _new) - ((int64_t) _old) < 0 && ((_new + 1) & GENMASK(9, 0)) <= 1 && _retries);	\
 									\
 	WARN_ON_ONCE(!_retries);					\
-	_val;								\
+	_new;								\
 })
 
 static u64 notrace sun50i_a64_read_cntpct_el0(void)
