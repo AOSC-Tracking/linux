@@ -569,7 +569,7 @@ static int mpwr_eg25_power_up(struct mpwr_dev* mpwr)
         }
 
 	/* setup URC port */
-	ret = mpwr_serdev_at_cmd(mpwr, "AT+QURCCFG=\"urcport\",\"usbat\"", 2000);
+	ret = mpwr_serdev_at_cmd(mpwr, "AT+QURCCFG=\"urcport\",\"all\"", 2000);
         if (ret)
 		dev_err(mpwr->dev, "Modem may not report URCs to the right port!\n");
 
