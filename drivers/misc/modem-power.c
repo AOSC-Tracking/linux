@@ -132,6 +132,8 @@ struct mpwr_dev {
 	struct gpio_desc *sleep_gpio;
 	struct gpio_desc *dtr_gpio;
 	struct gpio_desc *host_ready_gpio;
+	struct gpio_desc *cts_gpio;
+	struct gpio_desc *rts_gpio;
 
 	/* inputs */
 	struct gpio_desc *status_gpio;
@@ -850,9 +852,12 @@ static const struct mpwr_gpio mpwr_eg25_gpios[] = {
 	MPWR_GPIO_DEF(status, GPIOD_IN, false),
 	MPWR_GPIO_DEF_IRQ(wakeup, GPIOD_IN, true,
 			  IRQF_TRIGGER_FALLING),
+
 	// XXX: not really needed...
 	MPWR_GPIO_DEF(sleep, GPIOD_OUT_LOW, false),
 	MPWR_GPIO_DEF(host_ready, GPIOD_OUT_HIGH, false),
+	MPWR_GPIO_DEF(cts, GPIOD_IN, false),
+	MPWR_GPIO_DEF(rts, GPIOD_OUT_LOW, false),
 	{ },
 };
 
