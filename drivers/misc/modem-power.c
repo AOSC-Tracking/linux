@@ -317,7 +317,7 @@ static const struct mpwr_eg25_qcfg mpwr_eg25_qcfgs[] = {
 	{ "airplanecontrol",    "1",   mpwr_eg25_qcfg_airplanecontrol_is_ok },
 
 	// available since firmware R07A08_01.002.01.002
-	{ "fast/poweroff", "1" },
+	{ "fast/poweroff", 	"1" },
 };
 
 static char* mpwr_serdev_get_response_value(struct mpwr_dev *mpwr,
