@@ -287,6 +287,8 @@ struct mpwr_eg25_qcfg {
 	bool (*is_ok)(const char* val);
 };
 
+#define EG25G_LATEST_KNOWN_FIRMWARE "EG25GGBR07A08M2G_01.002.07"
+
 static const struct mpwr_eg25_qcfg mpwr_eg25_qcfgs[] = {
 	//{ "risignaltype",       "\"respective\"", },
 	{ "risignaltype",       "\"physical\"", },
@@ -488,10 +490,19 @@ static int mpwr_eg25_power_up(struct mpwr_dev* mpwr)
 	/* print firmware version */
         ret = mpwr_serdev_at_cmd_with_retry(mpwr, "AT+QVERSION;+QSUBSYSVER", 1000, 15);
         if (ret == 0 && mpwr->msg_len > 0) {
+		bool outdated = false;
+
 		dev_info(mpwr->dev, "===================================================\n");
-		for (off = 0; off < mpwr->msg_len; off += strlen(mpwr->msg + off) + 1)
+		for (off = 0; off < mpwr->msg_len; off += strlen(mpwr->msg + off) + 1) {
+			if (strstr(mpwr->msg + off, "Project Rev") && !strstr(mpwr->msg + off, EG25G_LATEST_KNOWN_FIRMWARE))
+				outdated = true;
+
 			dev_info(mpwr->dev, "%s\n", mpwr->msg + off);
+		}
 		dev_info(mpwr->dev, "===================================================\n");
+
+		if (outdated)
+			dev_warn(mpwr->dev, "Your modem has an outdated firmware. Latest know version is %s. Consider updating.\n", EG25G_LATEST_KNOWN_FIRMWARE);
 	}
 
 	/* print ADB key to dmesg */
