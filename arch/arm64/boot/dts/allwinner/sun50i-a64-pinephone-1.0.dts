@@ -96,7 +96,7 @@
 		dtr-gpios = <&r_pio 0 6 GPIO_ACTIVE_HIGH>; /* PL6-DTR */
 		rts-gpios = <&pio 3 4 GPIO_ACTIVE_HIGH>; /* PD4-RTS */
 
-		quectel,qdai = "1,0,0,2,0,1,1,1";
+		quectel,qdai = "1,1,0,1,0,0,1,1";
 	};
 };
 
