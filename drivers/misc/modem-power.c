@@ -554,7 +554,17 @@ open_serdev:
 
 	/* reset the modem, to apply QDAI config if necessary */
 	if (needs_restart) {
-		mpwr_serdev_at_cmd(mpwr, "AT+CFUN=1,1", 15000);
+		dev_info(mpwr->dev, "Restarting modem\n");
+        
+		/* reboot is broken with fastboot enabled */
+		mpwr_serdev_at_cmd(mpwr, "AT+QCFG=\"fast/poweroff\",0", 5000);
+
+		ret = mpwr_serdev_at_cmd(mpwr, "AT+CFUN=1,1", 5000);
+		if (ret)
+			goto err_shutdown;
+
+		/* wait a bit before starting to probe the modem again */
+		msleep(6000);
 
 		ret = mpwr_serdev_at_cmd_with_retry_ignore_timeout(mpwr, "AT&FE0", 1000, 30);
 		if (ret)
