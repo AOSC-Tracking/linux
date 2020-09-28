@@ -9,6 +9,7 @@
 #include <linux/clkdev.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
+#include <linux/firmware.h>
 #include <linux/device.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
@@ -31,7 +32,11 @@
 
 #define OV5640_DEFAULT_SLAVE_ID 0x3c
 
+#define OV5640_REG_SYS_RESET00		0x3000
+#define OV5640_REG_SYS_RESET01		0x3001
 #define OV5640_REG_SYS_RESET02		0x3002
+#define OV5640_REG_SYS_CLOCK_ENABLE00	0x3004
+#define OV5640_REG_SYS_CLOCK_ENABLE01	0x3005
 #define OV5640_REG_SYS_CLOCK_ENABLE02	0x3006
 #define OV5640_REG_SYS_CTRL0		0x3008
 #define OV5640_REG_SYS_CTRL0_SW_PWDN	0x42
@@ -41,6 +46,14 @@
 #define OV5640_REG_PAD_OUTPUT_ENABLE01	0x3017
 #define OV5640_REG_PAD_OUTPUT_ENABLE02	0x3018
 #define OV5640_REG_PAD_OUTPUT00		0x3019
+#define OV5640_REG_FW_CMD_MAIN		0x3022
+#define OV5640_REG_FW_CMD_ACK		0x3023
+#define OV5640_REG_FW_CMD_PARA0		0x3024
+#define OV5640_REG_FW_CMD_PARA1		0x3025
+#define OV5640_REG_FW_CMD_PARA2		0x3026
+#define OV5640_REG_FW_CMD_PARA3		0x3027
+#define OV5640_REG_FW_CMD_PARA4		0x3028
+#define OV5640_REG_FW_STATUS		0x3029
 #define OV5640_REG_SYSTEM_CONTROL1	0x302e
 #define OV5640_REG_SC_PLL_CTRL0		0x3034
 #define OV5640_REG_SC_PLL_CTRL1		0x3035
@@ -59,6 +72,7 @@
 #define OV5640_REG_AEC_PK_MANUAL	0x3503
 #define OV5640_REG_AEC_PK_REAL_GAIN	0x350a
 #define OV5640_REG_AEC_PK_VTS		0x350c
+#define OV5640_REG_VCM_CONTROL4		0x3606
 #define OV5640_REG_TIMING_DVPHO		0x3808
 #define OV5640_REG_TIMING_DVPVO		0x380a
 #define OV5640_REG_TIMING_HTS		0x380c
@@ -96,6 +110,20 @@
 #define OV5640_REG_SDE_CTRL4		0x5584
 #define OV5640_REG_SDE_CTRL5		0x5585
 #define OV5640_REG_AVG_READOUT		0x56a1
+#define OV5640_REG_FIRMWARE_BASE	0x8000
+
+#define OV5640_FW_STATUS_S_FIRMWARE	0x7f
+#define OV5640_FW_STATUS_S_STARTUP	0x7e
+#define OV5640_FW_STATUS_S_IDLE		0x70
+#define OV5640_FW_STATUS_S_FOCUSING	0x00
+#define OV5640_FW_STATUS_S_FOCUSED	0x10
+
+#define OV5640_FW_CMD_TRIGGER_FOCUS	0x03
+#define OV5640_FW_CMD_CONTINUOUS_FOCUS	0x04
+#define OV5640_FW_CMD_GET_FOCUS_RESULT	0x07
+#define OV5640_FW_CMD_RELEASE_FOCUS	0x08
+#define OV5640_FW_CMD_ZONE_CONFIG	0x12
+#define OV5640_FW_CMD_DEFAULT_ZONES	0x80
 
 enum ov5640_mode_id {
 	OV5640_MODE_QCIF_176_144 = 0,
@@ -219,6 +247,12 @@ struct ov5640_ctrls {
 		struct v4l2_ctrl *auto_gain;
 		struct v4l2_ctrl *gain;
 	};
+	struct {
+		struct v4l2_ctrl *focus_auto;
+		struct v4l2_ctrl *af_start;
+		struct v4l2_ctrl *af_stop;
+		struct v4l2_ctrl *af_status;
+	};
 	struct v4l2_ctrl *brightness;
 	struct v4l2_ctrl *light_freq;
 	struct v4l2_ctrl *saturation;
@@ -262,6 +296,8 @@ struct ov5640_dev {
 
 	bool pending_mode_change;
 	bool streaming;
+
+	bool af_initialized;
 };
 
 static inline struct ov5640_dev *to_ov5640_dev(struct v4l2_subdev *sd)
@@ -658,6 +694,11 @@ static int ov5640_write_reg(struct ov5640_dev *sensor, u16 reg, u8 val)
 		return ret;
 	}
 
+	return 0;
+}
+
+static int ov5640_write_reg_bulk(struct ov5640_dev *sensor, u16 start, u8* data, int length)
+{
 	return 0;
 }
 
@@ -1149,6 +1190,26 @@ static int ov5640_load_regs(struct ov5640_dev *sensor,
 
 	return ov5640_set_timings(sensor, mode);
 }
+
+/* read white balance */
+static int ov5640_get_white_balance(struct ov5640_dev *sensor)
+{
+	int ret;
+	u16 red_balance, blue_balance;
+
+	ret = ov5640_read_reg16(sensor, OV5640_REG_AWB_R_GAIN, &red_balance);
+	if (ret)
+		return ret;
+	ret = ov5640_read_reg16(sensor, OV5640_REG_AWB_B_GAIN, &blue_balance);
+	if (ret)
+		return ret;
+
+	sensor->ctrls.red_balance->val = red_balance;
+	sensor->ctrls.blue_balance->val = blue_balance;
+
+	return ret;
+}
+
 
 static int ov5640_set_autoexposure(struct ov5640_dev *sensor, bool on)
 {
@@ -1917,6 +1978,116 @@ static void ov5640_reset(struct ov5640_dev *sensor)
 	usleep_range(20000, 25000);
 }
 
+static int ov5640_copy_fw_to_device(struct ov5640_dev *sensor,
+					const struct firmware *fw)
+{
+	struct i2c_client *client = sensor->i2c_client;
+	struct i2c_msg msg;
+	u8 buf[64];
+	u8 fw_status;
+	unsigned addr;
+	int i;
+	int ret;
+
+	dev_info(&client->dev, "firmware upload start\n");
+
+	// Putting MCU in reset state
+	ret = ov5640_write_reg(sensor, OV5640_REG_SYS_RESET00, 0x20);
+	if (ret)
+		return ret;
+
+	// Write firmware
+	for (addr = 0; addr < fw->size; addr += sizeof(buf) - 2) {
+		memset(buf, 0, sizeof buf);
+		buf[0] = (OV5640_REG_FIRMWARE_BASE + addr) >> 8;
+		buf[1] = (OV5640_REG_FIRMWARE_BASE + addr) & 0xff;
+		memcpy(buf+2, fw->data + addr, min_t(unsigned, fw->size - addr, sizeof(buf) - 2));
+		
+		msg.addr = client->addr;
+		msg.flags = client->flags;
+		msg.buf = buf;
+		msg.len = sizeof(buf);
+
+		ret = i2c_transfer(client->adapter, &msg, 1);
+		
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	// Reset MCU state
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_MAIN, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_ACK, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_PARA0, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_PARA1, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_PARA2, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_PARA3, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_CMD_PARA4, 0x00);
+	ov5640_write_reg(sensor, OV5640_REG_FW_STATUS, 0x7f);
+
+	// Start AF MCU
+	ov5640_write_reg(sensor, OV5640_REG_SYS_RESET00, 0x00);
+	if (ret)
+		return ret;
+
+	dev_info(&client->dev, "firmware upload success\n");
+
+	// Wait for firmware to be ready
+	for (i = 0; i < 100; i++) {
+		ret = ov5640_read_reg(sensor, OV5640_REG_FW_STATUS, &fw_status);
+		if (fw_status == OV5640_FW_STATUS_S_IDLE) {
+			dev_info(&client->dev, "fw started after %d ms\n", i * 50);
+			return ret;
+		}
+		msleep(50);
+	}
+	dev_err(&client->dev, "uploaded firmware didn't start, got to 0x%x\n", fw_status);
+	return -ETIMEDOUT;
+}
+
+static int ov5640_af_init(struct ov5640_dev *sensor)
+{
+	struct i2c_client *client = sensor->i2c_client;
+	const char* fwname = "ov5640_af.bin";
+	const struct firmware *fw;
+	int ret;
+
+	if (sensor->af_initialized) {
+		return 0;
+	}
+
+	if (firmware_request_nowarn(&fw, fwname, &client->dev) == 0) {
+		ret = ov5640_copy_fw_to_device(sensor, fw);
+		if (ret == 0)
+			sensor->af_initialized = 1;
+	} else {
+		dev_warn(&client->dev, "%s: no autofocus firmware available (%s)\n",
+			__func__, fwname);
+		ret = -1;
+	}
+	release_firmware(fw);
+
+	if (ret)
+		return ret;
+
+	// Enable AF systems
+	ret = ov5640_mod_reg(sensor, OV5640_REG_SYS_CLOCK_ENABLE00,
+			     (BIT(6) | BIT(5)), (BIT(6) | BIT(5)));
+	if (ret)
+		return ret;
+	ret = ov5640_mod_reg(sensor, OV5640_REG_SYS_CLOCK_ENABLE01,
+			     BIT(6), BIT(6));
+	if (ret)
+		return ret;
+
+	// Set lens focus driver on
+	ov5640_write_reg(sensor, OV5640_REG_VCM_CONTROL4, 0x3f);
+	if (ret)
+		return ret;
+
+	return ret;
+}
+
 static int ov5640_set_power_on(struct ov5640_dev *sensor)
 {
 	struct i2c_client *client = sensor->i2c_client;
@@ -1937,6 +2108,8 @@ static int ov5640_set_power_on(struct ov5640_dev *sensor)
 			__func__);
 		goto xclk_off;
 	}
+
+	sensor->af_initialized = 0;
 
 	ov5640_reset(sensor);
 	ov5640_power(sensor, true);
@@ -2429,6 +2602,35 @@ static int ov5640_set_framefmt(struct ov5640_dev *sensor,
 			      is_jpeg ? (BIT(5) | BIT(3)) : 0);
 }
 
+static int ov5640_fw_command(struct ov5640_dev *sensor, int command)
+{
+	u8 fw_ack;
+	int i;
+	int ret;
+
+	ret = ov5640_write_reg(sensor, OV5640_REG_FW_CMD_ACK, 0x01);
+	if(ret)
+		return ret;
+	
+	ret = ov5640_write_reg(sensor, OV5640_REG_FW_CMD_MAIN, command);
+	if(ret)
+		return ret;
+
+	for (i = 0; i < 100; i++) {
+		ret = ov5640_read_reg(sensor, OV5640_REG_FW_CMD_ACK, &fw_ack);
+		if (ret)
+			return ret;
+
+		if (fw_ack == 0){
+			return ret;
+		}
+
+		msleep(50);
+	}
+	return -ETIMEDOUT;
+}
+
+
 /*
  * Sensor Controls.
  */
@@ -2545,6 +2747,41 @@ static int ov5640_set_ctrl_exposure(struct ov5640_dev *sensor,
 	return ret;
 }
 
+static int ov5640_set_ctrl_focus(struct ov5640_dev *sensor, int command)
+{
+	struct i2c_client *client = sensor->i2c_client;
+	int ret;
+
+	ret = ov5640_af_init(sensor);
+	if (ret) {
+		dev_err(&client->dev, "%s: no autofocus firmware loaded\n",
+			__func__);
+		return 0;
+	}
+
+	if (command == OV5640_FW_CMD_RELEASE_FOCUS) {
+		dev_dbg(&client->dev, "%s: Releasing autofocus\n",
+			__func__);
+		return ov5640_fw_command(sensor, OV5640_FW_CMD_RELEASE_FOCUS);
+	}
+	
+	// Restart zone config
+	ret = ov5640_fw_command(sensor, OV5640_FW_CMD_ZONE_CONFIG);
+	if (ret)
+		return ret;
+
+	// Set default focus zones
+	ret = ov5640_fw_command(sensor, OV5640_FW_CMD_DEFAULT_ZONES);
+	if (ret)
+		return ret;
+
+	dev_dbg(&client->dev, "%s: Triggering autofocus\n",
+		__func__);
+
+	// Start focussing
+	return ov5640_fw_command(sensor, command);
+}
+
 static int ov5640_set_ctrl_gain(struct ov5640_dev *sensor, bool auto_gain)
 {
 	struct ov5640_ctrls *ctrls = &sensor->ctrls;
@@ -2651,6 +2888,32 @@ static int ov5640_set_ctrl_vflip(struct ov5640_dev *sensor, int value)
 			      (BIT(2) | BIT(1)) : 0);
 }
 
+static int ov5640_get_af_status(struct ov5640_dev *sensor)
+{
+	u8 fw_status;
+	int ret;
+
+	ret = ov5640_read_reg(sensor, OV5640_REG_FW_STATUS, &fw_status);
+	if (ret)
+		return ret;
+
+	switch (fw_status) {
+		case OV5640_FW_STATUS_S_FIRMWARE:
+		case OV5640_FW_STATUS_S_STARTUP:
+			return V4L2_AUTO_FOCUS_STATUS_FAILED;
+			break;
+		case OV5640_FW_STATUS_S_IDLE:
+			return V4L2_AUTO_FOCUS_STATUS_IDLE;
+			break;
+		case OV5640_FW_STATUS_S_FOCUSED:
+			return V4L2_AUTO_FOCUS_STATUS_REACHED;
+			break;
+		default:
+			return V4L2_AUTO_FOCUS_STATUS_BUSY;
+			break;
+	}
+}
+
 static int ov5640_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct v4l2_subdev *sd = ctrl_to_sd(ctrl);
@@ -2671,6 +2934,17 @@ static int ov5640_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		if (val < 0)
 			return val;
 		sensor->ctrls.exposure->val = val;
+		break;
+	case V4L2_CID_FOCUS_AUTO:
+		val = ov5640_get_af_status(sensor);
+		if (val < 0)
+			return val;
+		sensor->ctrls.af_status->val = val;
+		break;
+	case V4L2_CID_AUTO_WHITE_BALANCE:
+		val = ov5640_get_white_balance(sensor);
+		if (val < 0)
+			return val;
 		break;
 	}
 
@@ -2702,6 +2976,18 @@ static int ov5640_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		ret = ov5640_set_ctrl_white_balance(sensor, ctrl->val);
+		break;
+	case V4L2_CID_FOCUS_AUTO:
+		if (ctrl->val)
+			ret = ov5640_set_ctrl_focus(sensor, OV5640_FW_CMD_CONTINUOUS_FOCUS);
+		else
+			ret = ov5640_set_ctrl_focus(sensor, OV5640_FW_CMD_RELEASE_FOCUS);
+		break;
+	case V4L2_CID_AUTO_FOCUS_START:
+		ret = ov5640_set_ctrl_focus(sensor, OV5640_FW_CMD_TRIGGER_FOCUS);
+		break;
+	case V4L2_CID_AUTO_FOCUS_STOP:
+		ret = ov5640_set_ctrl_focus(sensor, OV5640_FW_CMD_RELEASE_FOCUS);
 		break;
 	case V4L2_CID_HUE:
 		ret = ov5640_set_ctrl_hue(sensor, ctrl->val);
@@ -2775,6 +3061,20 @@ static int ov5640_init_controls(struct ov5640_dev *sensor)
 	ctrls->gain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_GAIN,
 					0, 1023, 1, 0);
 
+	/* Autofocus */
+	ctrls->focus_auto = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_AUTO,
+					    0, 1, 1, 0);
+	ctrls->af_start = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_AUTO_FOCUS_START,
+					    0, 1, 1, 0);
+	ctrls->af_stop = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_AUTO_FOCUS_STOP,
+					   0, 1, 1, 0);
+	ctrls->af_status = v4l2_ctrl_new_std(hdl, ops,
+					     V4L2_CID_AUTO_FOCUS_STATUS, 0,
+					     (V4L2_AUTO_FOCUS_STATUS_BUSY |
+					      V4L2_AUTO_FOCUS_STATUS_REACHED |
+					      V4L2_AUTO_FOCUS_STATUS_FAILED),
+					     0, V4L2_AUTO_FOCUS_STATUS_IDLE);
+
 	ctrls->saturation = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_SATURATION,
 					      0, 255, 1, 64);
 	ctrls->hue = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_HUE,
@@ -2804,10 +3104,13 @@ static int ov5640_init_controls(struct ov5640_dev *sensor)
 	ctrls->pixel_rate->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 	ctrls->gain->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrls->exposure->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->red_balance->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->blue_balance->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
-	v4l2_ctrl_auto_cluster(3, &ctrls->auto_wb, 0, false);
+	v4l2_ctrl_auto_cluster(3, &ctrls->auto_wb, 0, true);
 	v4l2_ctrl_auto_cluster(2, &ctrls->auto_gain, 0, true);
 	v4l2_ctrl_auto_cluster(2, &ctrls->auto_exp, 1, true);
+	v4l2_ctrl_cluster(4, &ctrls->focus_auto);
 
 	sensor->sd.ctrl_handler = hdl;
 	return 0;
