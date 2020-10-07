@@ -3349,7 +3349,7 @@ static int ov5640_probe(struct i2c_client *client)
 		&ov5640_mode_data[OV5640_MODE_VGA_640_480];
 	sensor->last_mode = sensor->current_mode;
 
-	sensor->ae_target = 52;
+	sensor->ae_target = 28;
 
 	/* optional indication of physical rotation of sensor */
 	ret = fwnode_property_read_u32(dev_fwnode(&client->dev), "rotation",
