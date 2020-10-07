@@ -621,7 +621,7 @@ static const char * const dsi_dphy_parents[] = { "pll-video0", "pll-periph0" };
 static const u8 dsi_dphy_table[] = { 0, 2, };
 static SUNXI_CCU_M_WITH_MUX_TABLE_GATE(dsi_dphy_clk, "dsi-dphy",
 				       dsi_dphy_parents, dsi_dphy_table,
-				       0x168, 0, 4, 8, 2, BIT(15), CLK_SET_RATE_PARENT);
+				       0x168, 0, 4, 8, 2, BIT(15), 0);
 
 static SUNXI_CCU_M_WITH_GATE(gpu_clk, "gpu", "pll-gpu",
 			     0x1a0, 0, 3, BIT(31), CLK_SET_RATE_PARENT);
@@ -969,6 +969,8 @@ static struct ccu_rate_reset_nb sun50i_a64_pll_video0_reset_tcon0_nb = {
 	.common		= &pll_video0_clk.common,
 };
 
+#define CCU_MIPI_DSI_CLK 0x168
+
 static int sun50i_a64_ccu_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -990,6 +992,12 @@ static int sun50i_a64_ccu_probe(struct platform_device *pdev)
 	writel(0x10040000, reg + SUN50I_A64_PLL_AUDIO_BIAS_REG);
 
 	writel(0x515, reg + SUN50I_A64_PLL_MIPI_REG);
+
+	/* Set MIPI-DSI clock parent to periph0(1x), so that video0(1x) is free to change. */
+	val = readl(reg + CCU_MIPI_DSI_CLK);
+	val &= 0x30f;
+	val |= (2 << 8) | ((4 - 1) << 0); /* M-1 */
+	writel(val, reg + CCU_MIPI_DSI_CLK);
 
 	/* Force the parent of TCON0 to PLL-MIPI */
 	val = readl(reg + SUN50I_A64_TCON0_REG);
