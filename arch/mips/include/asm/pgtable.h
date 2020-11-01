@@ -160,7 +160,7 @@ static inline void pte_clear(struct mm_struct *mm, unsigned long addr, pte_t *pt
 #else
 
 #define pte_none(pte)		(!(pte_val(pte) & ~_PAGE_GLOBAL))
-#define pte_present(pte)	(pte_val(pte) & _PAGE_PRESENT)
+#define pte_present(pte)	(pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE))
 #define pte_no_exec(pte)	(pte_val(pte) & _PAGE_NO_EXEC)
 
 /*
@@ -731,7 +731,7 @@ static inline pmd_t pmd_modify(pmd_t pmd, pgprot_t newprot)
 
 static inline pmd_t pmd_mkinvalid(pmd_t pmd)
 {
-	pmd_val(pmd) &= ~(_PAGE_PRESENT | _PAGE_VALID | _PAGE_DIRTY);
+	pmd_val(pmd) &= ~(_PAGE_PRESENT | _PAGE_VALID | _PAGE_PROTNONE | _PAGE_DIRTY);
 
 	return pmd;
 }
@@ -752,6 +752,18 @@ static inline pmd_t pmdp_huge_get_and_clear(struct mm_struct *mm,
 }
 
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
+
+#ifdef CONFIG_NUMA_BALANCING
+static inline long pte_protnone(pte_t pte)
+{
+	return (pte_val(pte) & _PAGE_PROTNONE);
+}
+
+static inline long pmd_protnone(pmd_t pmd)
+{
+	return (pmd_val(pmd) & _PAGE_PROTNONE);
+}
+#endif /* CONFIG_NUMA_BALANCING */
 
 #ifdef _PAGE_HUGE
 #define pmd_leaf(pmd)	((pmd_val(pmd) & _PAGE_HUGE) != 0)
