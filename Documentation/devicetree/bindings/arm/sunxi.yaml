@@ -682,6 +682,11 @@ properties:
           - const: pine64,pinetab
           - const: allwinner,sun50i-a64
 
+      - description: Pine64 PineTab (Developer sample with the old LCD panel)
+        items:
+          - const: pine64,pinetab-dev
+          - const: allwinner,sun50i-a64
+
       - description: Pine64 SoPine Baseboard
         items:
           - const: pine64,sopine-baseboard
