@@ -389,7 +389,7 @@
 
 &hdmi {
 	hvcc-supply = <&reg_dldo1>;
-	status = "okay";
+	status = "disabled";
 };
 
 &hdmi_out {
