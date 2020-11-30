@@ -16,8 +16,6 @@
 
 	aliases {
 		ethernet0 = &gmac0;
-		mmc0 = &sdmmc0;
-		mmc1 = &sdhci;
 	};
 
 	chosen: chosen {
