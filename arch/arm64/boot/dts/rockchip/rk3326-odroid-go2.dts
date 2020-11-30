@@ -15,7 +15,6 @@
 	compatible = "hardkernel,rk3326-odroid-go2", "rockchip,rk3326";
 
 	aliases {
-		mmc0 = &sdmmc;
 	};
 
 	chosen {

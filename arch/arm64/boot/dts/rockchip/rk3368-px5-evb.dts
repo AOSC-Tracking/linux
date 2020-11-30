@@ -12,8 +12,6 @@
 	compatible = "rockchip,px5-evb", "rockchip,px5", "rockchip,rk3368";
 
 	aliases {
-		mmc0 = &sdmmc;
-		mmc1 = &emmc;
 	};
 
 	chosen {

@@ -11,8 +11,6 @@
 	compatible = "firefly,roc-rk3308-cc", "rockchip,rk3308";
 
 	aliases {
-		mmc0 = &sdmmc;
-		mmc1 = &emmc;
 	};
 
 	chosen {

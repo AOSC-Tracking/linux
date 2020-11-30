@@ -21,8 +21,6 @@
 	compatible = "radxa,rockpi-e", "rockchip,rk3328";
 
 	aliases {
-		mmc0 = &sdmmc;
-		mmc1 = &emmc;
 	};
 
 	chosen {
