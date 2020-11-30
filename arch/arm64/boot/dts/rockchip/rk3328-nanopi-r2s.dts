@@ -15,7 +15,6 @@
 
 	aliases {
 		ethernet1 = &rtl8153;
-		mmc0 = &sdmmc;
 	};
 
 	chosen {
