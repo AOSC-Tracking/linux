@@ -9,9 +9,6 @@
 	compatible = "zkmagic,a95x-z2", "rockchip,rk3318";
 
 	aliases {
-		mmc0 = &sdmmc;
-		mmc1 = &sdio;
-		mmc2 = &emmc;
 	};
 
 	chosen {

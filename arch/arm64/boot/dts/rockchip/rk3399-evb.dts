@@ -12,7 +12,6 @@
 	compatible = "rockchip,rk3399-evb", "rockchip,rk3399";
 
 	aliases {
-		mmc0 = &sdhci;
 	};
 
 	backlight: backlight {

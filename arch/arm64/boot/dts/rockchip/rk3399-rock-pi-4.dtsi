@@ -13,8 +13,6 @@
 
 / {
 	aliases {
-		mmc0 = &sdmmc;
-		mmc1 = &sdhci;
 	};
 
 	chosen {
