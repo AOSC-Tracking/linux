@@ -914,6 +914,10 @@
 		bt_reset_pin: bt-reset-pin {
 			rockchip,pins = <0 RK_PB1 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+
+		wifi_int_l_pin: wifi-int-l {
+			rockchip,pins = <0 RK_PA3 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
 	};
 };
 
@@ -960,6 +964,18 @@
 	pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk>;
 	sd-uhs-sdr104;
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	brcm: sdio-wifi@1 {
+		reg = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_int_l_pin>;
+		compatible = "brcm,bcm4329-fmac";
+		interrupt-parent = <&gpio0>;
+		interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-names = "host-wake";
+	};
 };
 
 &sdhci {
