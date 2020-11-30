@@ -12,7 +12,6 @@
 	compatible = "geekbuying,geekbox", "rockchip,rk3368";
 
 	aliases {
-		mmc0 = &emmc;
 	};
 
 	chosen {

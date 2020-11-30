@@ -43,6 +43,8 @@
 		spi1 = &spi1;
 		spi2 = &spi2;
 		spi3 = &spi3;
+		mmc0 = &sdmmc0;
+		mmc1 = &sdhci;
 	};
 
 	cpus {

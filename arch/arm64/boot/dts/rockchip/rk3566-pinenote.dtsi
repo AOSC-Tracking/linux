@@ -9,10 +9,6 @@
 #include "rk3566.dtsi"
 
 / {
-	aliases {
-		mmc0 = &sdhci;
-	};
-
 	chosen {
 		stdout-path = "serial2:1500000n8";
 	};

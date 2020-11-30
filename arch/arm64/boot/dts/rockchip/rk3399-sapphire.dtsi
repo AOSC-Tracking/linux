@@ -12,8 +12,6 @@
 	compatible = "rockchip,rk3399-sapphire", "rockchip,rk3399";
 
 	aliases {
-		mmc0 = &sdmmc;
-		mmc1 = &sdhci;
 	};
 
 	chosen {

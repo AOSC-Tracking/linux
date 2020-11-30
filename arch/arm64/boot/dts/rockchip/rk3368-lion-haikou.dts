@@ -11,7 +11,6 @@
 	compatible = "tsd,rk3368-lion-haikou", "rockchip,rk3368";
 
 	aliases {
-		mmc1 = &sdmmc;
 	};
 
 	chosen {

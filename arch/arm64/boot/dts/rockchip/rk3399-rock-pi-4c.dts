@@ -13,7 +13,6 @@
 	compatible = "radxa,rockpi4c", "radxa,rockpi4", "rockchip,rk3399";
 
 	aliases {
-		mmc2 = &sdio0;
 	};
 };
 
