@@ -711,10 +711,10 @@
 			op-sink-microwatt = <1000000>;
 			power-role = "dual";
 			sink-pdos =
-				<PDO_FIXED(5000, 2500, PDO_FIXED_USB_COMM)>;
+				<PDO_FIXED(5000, 2500, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
 			source-pdos =
-				<PDO_FIXED(5000, 1400, PDO_FIXED_USB_COMM)>;
-			try-power-role = "sink";
+				<PDO_FIXED(5000, 1400, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
+			try-power-role = "source";
 
 			ports {
 				#address-cells = <1>;
