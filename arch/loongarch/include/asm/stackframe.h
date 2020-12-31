@@ -159,6 +159,10 @@
 	cfi_st  u0, PT_R21, \docfi
 	csrrd	u0, PERCPU_BASE_KS
 9:
+#ifdef CONFIG_KGDB
+	li.w	t0, CSR_CRMD_WE
+	csrxchg	t0, t0, LOONGARCH_CSR_CRMD
+#endif
 	UNWIND_HINT_REGS
 	.endm
 

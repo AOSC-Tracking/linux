@@ -64,10 +64,12 @@ obj-$(CONFIG_UNWINDER_ORC)		+= unwind_orc.o
 obj-$(CONFIG_PERF_EVENTS)	+= perf_event.o perf_regs.o
 obj-$(CONFIG_HAVE_HW_BREAKPOINT)	+= hw_breakpoint.o
 
+obj-$(CONFIG_KGDB)		+= kgdb.o
 obj-$(CONFIG_KPROBES)		+= kprobes.o
 obj-$(CONFIG_RETHOOK)		+= rethook.o rethook_trampoline.o
 obj-$(CONFIG_UPROBES)		+= uprobes.o
 
 obj-$(CONFIG_JUMP_LABEL)	+= jump_label.o
+obj-$(CONFIG_SPINLOCK_TEST)	+= spinlock_test.o
 
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)

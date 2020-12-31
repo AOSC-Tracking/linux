@@ -721,6 +721,12 @@ asmlinkage void noinstr do_bp(struct pt_regs *regs)
 
 	bcode = (opcode & 0x7fff);
 
+#ifdef CONFIG_KGDB_LOW_LEVEL_TRAP
+	if (kgdb_ll_trap(DIE_TRAP, str, regs, code, current->thread.trap_nr,
+			 SIGTRAP) == NOTIFY_STOP)
+		return;
+#endif /* CONFIG_KGDB_LOW_LEVEL_TRAP */
+
 	/*
 	 * notify the kprobe handlers, if instruction is likely to
 	 * pertain to them.
