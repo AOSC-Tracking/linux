@@ -196,7 +196,7 @@ static int klp_resolve_symbols(Elf_Shdr *sechdrs, const char *strtab,
 	int i, cnt, ret;
 	char sym_objname[MODULE_NAME_LEN];
 	char sym_name[KSYM_NAME_LEN];
-	Elf_Rela *relas;
+	Elf_Rela *relas, *last = NULL;
 	Elf_Sym *sym;
 	unsigned long sympos, addr;
 	bool sym_vmlinux;
@@ -217,6 +217,10 @@ static int klp_resolve_symbols(Elf_Shdr *sechdrs, const char *strtab,
 	relas = (Elf_Rela *) relasec->sh_addr;
 	/* For each rela in this klp relocation section */
 	for (i = 0; i < relasec->sh_size / sizeof(Elf_Rela); i++) {
+		if (last && relas[i].r_offset == last->r_offset)
+			continue;
+
+		last = &relas[i];
 		sym = (Elf_Sym *)sechdrs[symndx].sh_addr + ELF_R_SYM(relas[i].r_info);
 		if (sym->st_shndx != SHN_LIVEPATCH) {
 			pr_err("symbol %s is not marked as a livepatch symbol\n",
