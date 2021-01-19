@@ -57,6 +57,7 @@
 #include <asm/processor.h>
 #include <asm/pointer_auth.h>
 #include <asm/stacktrace.h>
+#include <asm/cpu_ops.h>
 
 #if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_STACKPROTECTOR_PER_TASK)
 #include <linux/stackprotector.h>
@@ -74,8 +75,14 @@ void (*arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
 
 static void noinstr __cpu_do_idle(void)
 {
-	dsb(sy);
-	wfi();
+	const struct cpu_operations *ops = get_cpu_ops(task_cpu(current));
+
+	if (ops->cpu_wfi) {
+		ops->cpu_wfi();
+	} else {
+		dsb(sy);
+		wfi();
+	}
 }
 
 static void noinstr __cpu_do_idle_irqprio(void)

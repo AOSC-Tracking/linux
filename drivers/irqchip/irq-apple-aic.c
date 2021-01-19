@@ -19,6 +19,7 @@
 
 #include <asm/exception.h>
 #include <asm/irq.h>
+#include <asm/smp.h>
 
 #define REG_ID_REVISION                 0x0000
 #define REG_ID_CONFIG                   0x0004
@@ -54,11 +55,16 @@
 #define  REG_CPU_SHIFT                  7
 #define  REG_PERCPU(r,c)                ((r)+REG_CPU_REGION-REG_CPU_LOCAL+((c)<<REG_CPU_SHIFT))
 
+#define NUM_IPI                         8
+
 static struct aic_chip_data {
     void __iomem *base;
     struct irq_domain *domain;
     unsigned int num_irqs;
+    bool fast_ipi;
 } aic;
+
+static DEFINE_PER_CPU(atomic_t, aic_ipi_mask);
 
 static void apple_aic_irq_mask(struct irq_data *d)
 {
@@ -77,32 +83,92 @@ static struct irq_chip apple_aic_irq_chip = {
     .irq_unmask   = apple_aic_irq_unmask,
 };
 
-static void apple_aic_fiq_mask(struct irq_data *d)
+static void apple_aic_fiq_ipi_mask(struct irq_data *d)
 {
 }
 
-static void apple_aic_fiq_unmask(struct irq_data *d)
+static void apple_aic_fiq_ipi_unmask(struct irq_data *d)
 {
 }
 
 static struct irq_chip apple_aic_irq_chip_fiq = {
     .name        = "apple_aic_fiq",
-    .irq_mask    = apple_aic_fiq_mask,
-    .irq_unmask  = apple_aic_fiq_unmask,
+    .irq_mask    = apple_aic_fiq_ipi_mask,
+    .irq_unmask  = apple_aic_fiq_ipi_unmask,
+};
+
+#define SR_APPLE_IPI_LOCAL                s3_5_c15_c0_0
+#define SR_APPLE_IPI_REMOTE               s3_5_c15_c0_1
+#define SR_APPLE_IPI_STAT                 s3_5_c15_c1_1
+
+#ifdef CONFIG_SMP
+static void apple_aic_ipi_send_mask(struct irq_data *d, const struct cpumask *mask)
+{
+    int cpu, lcpu;
+    int irqnr = d->hwirq - (aic.num_irqs + 2);
+
+    if (WARN_ON(irqnr < 0  || irqnr >= NUM_IPI))
+        return;
+
+    /*
+     * Ensure that stores to Normal memory are visible to the
+     * other CPUs before issuing the IPI.
+     */
+    wmb();
+
+    for_each_cpu(cpu, mask) {
+        smp_mb__before_atomic();
+        atomic_or(1u << irqnr, per_cpu_ptr(&aic_ipi_mask, cpu));
+        smp_mb__after_atomic();
+        lcpu = get_cpu();
+        if(aic.fast_ipi) {
+            if((lcpu >> 2) == (cpu >> 2))
+                write_sysreg(cpu & 3, SR_APPLE_IPI_LOCAL);
+            else
+                write_sysreg((cpu & 3) | ((cpu >> 2) << 16), SR_APPLE_IPI_REMOTE);
+        } else
+            writel(lcpu == cpu ? REG_IPI_FLAG_SELF : (REG_IPI_FLAG_OTHER << cpu), aic.base + REG_IPI_SET);
+        put_cpu();
+    }
+
+    /* Force the above writes to be executed */
+    if(aic.fast_ipi)
+        isb();
+}
+#else
+#define apple_aic_ipi_send_mask NULL
+#endif
+
+static struct irq_chip apple_aic_irq_chip_ipi = {
+    .name        = "apple_aic_ipi",
+    .irq_mask    = apple_aic_fiq_ipi_mask,
+    .irq_unmask  = apple_aic_fiq_ipi_unmask,
+    .ipi_send_mask = apple_aic_ipi_send_mask,
 };
 
 static int apple_aic_irq_domain_xlate(struct irq_domain *d, struct device_node *ctrlr, const u32 *intspec, unsigned int intsize, unsigned long *out_hwirq, unsigned int *out_type)
 {
-    if(intspec[0]) { /* FIQ */
-        if(intspec[1] >= 2)
-            return -EINVAL;
-        if(out_hwirq)
-            *out_hwirq = aic.num_irqs + intspec[1];
-    } else {
+    switch(intspec[0]) {
+    case 0: /* IRQ */
         if(intspec[1] >= aic.num_irqs)
             return -EINVAL;
         if(out_hwirq)
             *out_hwirq = intspec[1];
+        break;
+    case 1: /* FIQ */
+        if(intspec[1] >= 2)
+            return -EINVAL;
+        if(out_hwirq)
+            *out_hwirq = aic.num_irqs + intspec[1];
+        break;
+    case 2: /* IPI */
+        if(intspec[1] >= NUM_IPI)
+            return -EINVAL;
+        if(out_hwirq)
+            *out_hwirq = aic.num_irqs + 2 + intspec[1];
+        break;
+    default:
+        return -EINVAL;
     }
 
     if(out_type)
@@ -112,7 +178,11 @@ static int apple_aic_irq_domain_xlate(struct irq_domain *d, struct device_node *
 
 static int apple_aic_irq_domain_map(struct irq_domain *d, unsigned int virq, irq_hw_number_t hw)
 {
-    if(hw >= aic.num_irqs) {
+    if(hw >= aic.num_irqs + 2) {
+        irq_set_percpu_devid(virq);
+        irq_domain_set_info(d, virq, hw, &apple_aic_irq_chip_ipi, d->host_data, handle_percpu_devid_irq, NULL, NULL);
+        irq_set_status_flags(virq, IRQ_NOAUTOEN);
+    } else if(hw >= aic.num_irqs) {
         irq_set_percpu_devid(virq);
         irq_domain_set_info(d, virq, hw, &apple_aic_irq_chip_fiq, d->host_data, handle_percpu_devid_irq, NULL, NULL);
         irq_set_status_flags(virq, IRQ_NOAUTOEN);
@@ -131,8 +201,10 @@ static const struct irq_domain_ops apple_aic_irq_domain_ops = {
 
 static void __exception_irq_entry apple_aic_handle_irq(struct pt_regs *regs)
 {
+    atomic_t *maskptr;
     uint32_t ack;
-    unsigned done = 0;
+    unsigned done = 0, irqnr;
+    unsigned long mask;
 
     while(1) {
         ack = readl(aic.base + REG_IRQ_ACK);
@@ -143,6 +215,26 @@ static void __exception_irq_entry apple_aic_handle_irq(struct pt_regs *regs)
         case REG_IRQ_ACK_TYPE_IRQ:
             handle_domain_irq(aic.domain, ack & REG_IRQ_ACK_NUM_MASK, regs);
             break;
+        case REG_IRQ_ACK_TYPE_IPI:
+#ifdef CONFIG_SMP
+            if(ack == REG_IRQ_ACK_IPI_SELF)
+                writel(REG_IPI_FLAG_SELF, aic.base + REG_IPI_CLEAR);
+            else
+                writel(REG_IPI_FLAG_OTHER, aic.base + REG_IPI_CLEAR);
+            maskptr = get_cpu_ptr(&aic_ipi_mask);
+            smp_mb__before_atomic();
+            mask = atomic_xchg(maskptr, 0);
+            smp_mb__after_atomic();
+            put_cpu_ptr(&aic_ipi_mask);
+            for_each_set_bit(irqnr, &mask, NUM_IPI) {
+                handle_domain_irq(aic.domain, aic.num_irqs + 2 + irqnr, regs);
+            }
+            if(ack == REG_IRQ_ACK_IPI_SELF)
+                writel(REG_IPI_FLAG_SELF, aic.base + REG_PERCPU(REG_IPI_ENABLE, __smp_processor_id()));
+            else
+                writel(REG_IPI_FLAG_OTHER, aic.base + REG_PERCPU(REG_IPI_ENABLE, __smp_processor_id()));
+#endif
+            break;
         }
         if(done)
             break;
@@ -151,12 +243,36 @@ static void __exception_irq_entry apple_aic_handle_irq(struct pt_regs *regs)
 
 static void __exception_irq_entry apple_aic_handle_fiq(struct pt_regs *regs)
 {
+#ifdef CONFIG_SMP
+    atomic_t *maskptr;
+    unsigned long mask;
+    unsigned irqnr;
+
+    if(aic.fast_ipi) {
+        if(read_sysreg(SR_APPLE_IPI_STAT)) {
+            write_sysreg(1, SR_APPLE_IPI_STAT);
+
+            maskptr = get_cpu_ptr(&aic_ipi_mask);
+            smp_mb__before_atomic();
+            mask = atomic_xchg(maskptr, 0);
+            smp_mb__after_atomic();
+            put_cpu_ptr(&aic_ipi_mask);
+            for_each_set_bit(irqnr, &mask, NUM_IPI)
+                handle_domain_irq(aic.domain, aic.num_irqs + 2 + irqnr, regs);
+        }
+    }
+#endif
     handle_domain_irq(aic.domain, aic.num_irqs, regs);
 }
 
 void apple_aic_cpu_prepare(unsigned int cpu)
 {
     unsigned i;
+
+    if(aic.fast_ipi)
+        writel(REG_IPI_FLAG_SELF | REG_IPI_FLAG_OTHER, aic.base + REG_PERCPU(REG_IPI_DISABLE, cpu));
+    else
+        writel(REG_IPI_FLAG_SELF | REG_IPI_FLAG_OTHER, aic.base + REG_PERCPU(REG_IPI_ENABLE, cpu));
 
     for(i=0; i<aic.num_irqs; i++)
         writel(readl(aic.base + REG_IRQ_AFFINITY(i)) | (1u << cpu), aic.base + REG_IRQ_AFFINITY(i));
@@ -165,6 +281,9 @@ void apple_aic_cpu_prepare(unsigned int cpu)
 static int __init apple_aic_init(struct device_node *node, struct device_node *interrupt_parent)
 {
     unsigned i;
+#ifdef CONFIG_SMP
+    int base_ipi, ret;
+#endif
 
     if(!node)
         return -ENODEV;
@@ -173,8 +292,10 @@ static int __init apple_aic_init(struct device_node *node, struct device_node *i
     if(WARN(!aic.base, "unable to map aic registers\n"))
         return -EINVAL;
 
+    aic.fast_ipi = of_property_read_bool(node, "fast-ipi");
+
     aic.num_irqs = readl(aic.base + REG_ID_CONFIG) & 0xFFFF;
-    pr_info("Apple AIC: %d IRQs + 1 FIQ + 1 dummy\n", aic.num_irqs);
+    pr_info("Apple AIC: %d IRQs + 1 FIQ + 1 dummy + %d IPIs%s\n", aic.num_irqs, NUM_IPI, aic.fast_ipi ? " (fast)" : "");
 
     for(i=0; i<aic.num_irqs; i++)
         writel(1, aic.base + REG_IRQ_AFFINITY(i));
@@ -187,8 +308,17 @@ static int __init apple_aic_init(struct device_node *node, struct device_node *i
 
     apple_aic_cpu_prepare(0);
 
-    aic.domain = irq_domain_add_linear(node, aic.num_irqs + 2, &apple_aic_irq_domain_ops, &apple_aic_irq_chip);
+    aic.domain = irq_domain_add_linear(node, aic.num_irqs + 2 + NUM_IPI, &apple_aic_irq_domain_ops, &apple_aic_irq_chip);
     irq_set_default_host(aic.domain);
+
+#ifdef CONFIG_SMP
+    base_ipi = aic.num_irqs + 2;
+    ret = irq_create_strict_mappings(aic.domain, base_ipi, aic.num_irqs + 2, NUM_IPI);
+    if(ret < 0)
+        pr_err("%s: irq_create_strict_mappings failed with %d\n", __func__, ret);
+    set_smp_ipi_range(base_ipi, NUM_IPI);
+#endif
+
     return 0;
 }
 

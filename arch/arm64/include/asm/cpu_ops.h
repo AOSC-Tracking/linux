@@ -23,6 +23,7 @@
  * @cpu_boot:	Boots a cpu into the kernel.
  * @cpu_postboot: Optionally, perform any post-boot cleanup or necessary
  *		synchronisation. Called from the cpu being booted.
+ * @cpu_wfi:    Optionally, replace calls to WFI in default idle with this.
  * @cpu_can_disable: Determines whether a CPU can be disabled based on
  *		mechanism-specific information.
  * @cpu_disable: Prepares a cpu to die. May fail for some mechanism-specific
@@ -43,6 +44,7 @@ struct cpu_operations {
 	int		(*cpu_prepare)(unsigned int);
 	int		(*cpu_boot)(unsigned int);
 	void		(*cpu_postboot)(void);
+	void		(*cpu_wfi)(void);
 #ifdef CONFIG_HOTPLUG_CPU
 	bool		(*cpu_can_disable)(unsigned int cpu);
 	int		(*cpu_disable)(unsigned int cpu);

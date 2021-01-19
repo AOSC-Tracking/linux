@@ -62,6 +62,56 @@
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@1 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <1>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@2 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <2>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@3 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <3>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@4 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <0x10100>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@5 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <0x10101>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@6 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <0x10102>;
+            enable-method = "apple,startcpu";
+        };
+
+        cpu@7 {
+            device_type = "cpu";
+            compatible = "apple,v1";
+            reg = <0x10103>;
+            enable-method = "apple,startcpu";
         };
     };
 
@@ -90,6 +140,18 @@
         #address-cells = <2>;
         #size-cells = <2>;
         ranges;
+
+        applestart: applestart@23b754004 {
+            compatible = "apple,startcpu";
+            reg = <0x2 0x3b754004 0x0 0xc   0x2 0x10050000 0x0 0x8   0x2 0x10030fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x10150000 0x0 0x8   0x2 0x10130fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x10250000 0x0 0x8   0x2 0x10230fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x10350000 0x0 0x8   0x2 0x10330fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x11050000 0x0 0x8   0x2 0x11030fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x11150000 0x0 0x8   0x2 0x11130fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x11250000 0x0 0x8   0x2 0x11230fb0 0x0 0x4
+                   0x2 0x3b754004 0x0 0xc   0x2 0x11350000 0x0 0x8   0x2 0x11330fb0 0x0 0x4>;
+        };
 
         aic: interrupt-controller@23b100000 {
             compatible = "apple,aic";
