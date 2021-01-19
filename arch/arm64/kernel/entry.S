@@ -501,6 +501,14 @@ tsk	.req	x28		// current thread_info
 	irq_stack_exit
 	.endm
 
+	.macro	fiq_handler
+	ldr_l	x1, handle_arch_fiq
+	mov	x0, sp
+	irq_stack_entry
+	blr	x1
+	irq_stack_exit
+	.endm
+
 #ifdef CONFIG_ARM64_PSEUDO_NMI
 	/*
 	 * Set res to 0 if irqs were unmasked in interrupted context.
@@ -549,18 +557,18 @@ SYM_CODE_START(vectors)
 
 	kernel_ventry	1, sync				// Synchronous EL1h
 	kernel_ventry	1, irq				// IRQ EL1h
-	kernel_ventry	1, fiq_invalid			// FIQ EL1h
+	kernel_ventry	1, fiq				// FIQ EL1h
 	kernel_ventry	1, error			// Error EL1h
 
 	kernel_ventry	0, sync				// Synchronous 64-bit EL0
 	kernel_ventry	0, irq				// IRQ 64-bit EL0
-	kernel_ventry	0, fiq_invalid			// FIQ 64-bit EL0
+	kernel_ventry	0, fiq				// FIQ 64-bit EL0
 	kernel_ventry	0, error			// Error 64-bit EL0
 
 #ifdef CONFIG_COMPAT
 	kernel_ventry	0, sync_compat, 32		// Synchronous 32-bit EL0
 	kernel_ventry	0, irq_compat, 32		// IRQ 32-bit EL0
-	kernel_ventry	0, fiq_invalid_compat, 32	// FIQ 32-bit EL0
+	kernel_ventry	0, fiq_compat, 32		// FIQ 32-bit EL0
 	kernel_ventry	0, error_compat, 32		// Error 32-bit EL0
 #else
 	kernel_ventry	0, sync_invalid, 32		// Synchronous 32-bit EL0
@@ -663,7 +671,7 @@ SYM_CODE_END(el1_sync)
 SYM_CODE_START_LOCAL_NOALIGN(el1_irq)
 	kernel_entry 1
 	gic_prio_irq_setup pmr=x20, tmp=x1
-	enable_da_f
+	enable_da
 
 	mov	x0, sp
 	bl	enter_el1_irq_or_nmi
@@ -691,6 +699,38 @@ alternative_else_nop_endif
 	kernel_exit 1
 SYM_CODE_END(el1_irq)
 
+	.align	6
+SYM_CODE_START_LOCAL_NOALIGN(el1_fiq)
+	kernel_entry 1
+	gic_prio_irq_setup pmr=x20, tmp=x1
+	enable_da
+
+	mov	x0, sp
+	bl	enter_el1_irq_or_nmi
+
+	fiq_handler
+
+#ifdef CONFIG_PREEMPTION
+	ldr	x24, [tsk, #TSK_TI_PREEMPT]	// get preempt count
+alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	/*
+	 * DA_F were cleared at start of handling. If anything is set in DAIF,
+	 * we come back from an NMI, so skip preemption
+	 */
+	mrs	x0, daif
+	orr	x24, x24, x0
+alternative_else_nop_endif
+	cbnz	x24, 1f				// preempt count != 0 || NMI return path
+	bl	arm64_preempt_schedule_irq	// irq en/disable is done inside
+1:
+#endif
+
+	mov	x0, sp
+	bl	exit_el1_irq_or_nmi
+
+	kernel_exit 1
+SYM_CODE_END(el1_fiq)
+
 /*
  * EL0 mode handlers.
  */
@@ -717,6 +757,12 @@ SYM_CODE_START_LOCAL_NOALIGN(el0_irq_compat)
 	b	el0_irq_naked
 SYM_CODE_END(el0_irq_compat)
 
+	.align	6
+SYM_CODE_START_LOCAL_NOALIGN(el0_fiq_compat)
+	kernel_entry 0, 32
+	b	el0_fiq_naked
+SYM_CODE_END(el0_fiq_compat)
+
 SYM_CODE_START_LOCAL_NOALIGN(el0_error_compat)
 	kernel_entry 0, 32
 	b	el0_error_naked
@@ -729,7 +775,7 @@ SYM_CODE_START_LOCAL_NOALIGN(el0_irq)
 el0_irq_naked:
 	gic_prio_irq_setup pmr=x20, tmp=x0
 	user_exit_irqoff
-	enable_da_f
+	enable_da
 
 	tbz	x22, #55, 1f
 	bl	do_el0_irq_bp_hardening
@@ -738,6 +784,22 @@ el0_irq_naked:
 
 	b	ret_to_user
 SYM_CODE_END(el0_irq)
+
+	.align	6
+SYM_CODE_START_LOCAL_NOALIGN(el0_fiq)
+	kernel_entry 0
+el0_fiq_naked:
+	gic_prio_irq_setup pmr=x20, tmp=x0
+	user_exit_irqoff
+	enable_da
+
+	tbz	x22, #55, 1f
+	bl	do_el0_irq_bp_hardening
+1:
+	fiq_handler
+
+	b	ret_to_user
+SYM_CODE_END(el0_fiq)
 
 SYM_CODE_START_LOCAL(el1_error)
 	kernel_entry 1
@@ -759,7 +821,7 @@ el0_error_naked:
 	mov	x0, sp
 	mov	x1, x25
 	bl	do_serror
-	enable_da_f
+	enable_da
 	b	ret_to_user
 SYM_CODE_END(el0_error)
 

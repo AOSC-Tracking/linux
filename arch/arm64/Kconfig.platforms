@@ -328,4 +328,11 @@ config ARCH_ZYNQMP
 	help
 	  This enables support for Xilinx ZynqMP Family
 
+config ARCH_APPLE
+	bool "Apple Silicon SoC Family"
+	select APPLE_AIC
+	help
+	  This enables support for Apple processors present
+	  on Mac computers.
+
 endmenu

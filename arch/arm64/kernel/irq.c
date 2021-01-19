@@ -88,3 +88,17 @@ void __init init_IRQ(void)
 		local_daif_restore(DAIF_PROCCTX_NOIRQ);
 	}
 }
+
+/*
+ * Analogous to the generic handle_arch_irq / set_handle_irq
+ */
+void (*handle_arch_fiq)(struct pt_regs *) __ro_after_init;
+
+int __init set_handle_fiq(void (*handle_fiq)(struct pt_regs *))
+{
+	if (handle_arch_fiq)
+		return -EBUSY;
+
+	handle_arch_fiq = handle_fiq;
+	return 0;
+}

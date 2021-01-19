@@ -67,6 +67,8 @@ static struct clock_event_device __percpu *arch_timer_evt;
 
 static enum arch_timer_ppi_nr arch_timer_uses_ppi = ARCH_TIMER_VIRT_PPI;
 static bool arch_timer_c3stop;
+static bool arch_timer_use_cntp;
+static bool arch_timer_use_cntv;
 static bool arch_timer_mem_use_virtual;
 static bool arch_counter_suspend_stop;
 #ifdef CONFIG_GENERIC_GETTIMEOFDAY
@@ -1000,8 +1002,8 @@ static void __init arch_counter_register(unsigned type)
 	if (type & ARCH_TIMER_TYPE_CP15) {
 		u64 (*rd)(void);
 
-		if ((IS_ENABLED(CONFIG_ARM64) && !is_hyp_mode_available()) ||
-		    arch_timer_uses_ppi == ARCH_TIMER_VIRT_PPI) {
+		if ((IS_ENABLED(CONFIG_ARM64) && !is_hyp_mode_available() && !arch_timer_use_cntp) ||
+		    arch_timer_uses_ppi == ARCH_TIMER_VIRT_PPI || arch_timer_use_cntv) {
 			if (arch_timer_counter_has_wa())
 				rd = arch_counter_get_cntvct_stable;
 			else
@@ -1259,10 +1261,10 @@ static int __init arch_timer_common_init(void)
  */
 static enum arch_timer_ppi_nr __init arch_timer_select_ppi(void)
 {
-	if (is_kernel_in_hyp_mode())
+	if (is_kernel_in_hyp_mode() && arch_timer_ppi[ARCH_TIMER_HYP_PPI])
 		return ARCH_TIMER_HYP_PPI;
 
-	if (!is_hyp_mode_available() && arch_timer_ppi[ARCH_TIMER_VIRT_PPI])
+	if ((!is_hyp_mode_available() || arch_timer_use_cntv) && arch_timer_ppi[ARCH_TIMER_VIRT_PPI])
 		return ARCH_TIMER_VIRT_PPI;
 
 	if (IS_ENABLED(CONFIG_ARM64))
@@ -1298,6 +1300,8 @@ static int __init arch_timer_of_init(struct device_node *np)
 	arch_timer_of_configure_rate(rate, np);
 
 	arch_timer_c3stop = !of_property_read_bool(np, "always-on");
+	arch_timer_use_cntp = of_property_read_bool(np, "use-cntp");
+	arch_timer_use_cntv = of_property_read_bool(np, "use-cntv");
 
 	/* Check for globally applicable workarounds */
 	arch_timer_check_ool_workaround(ate_match_dt, np);
