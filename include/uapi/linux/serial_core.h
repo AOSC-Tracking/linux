@@ -277,4 +277,7 @@
 /* Freescale LINFlexD UART */
 #define PORT_LINFLEXUART	122
 
+/* Apple UART */
+#define PORT_APPLE_UART		123
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */

@@ -1599,6 +1599,22 @@ config SERIAL_LITEUART_CONSOLE
 	  and warnings and which allows logins in single user mode).
 	  Otherwise, say 'N'.
 
+config SERIAL_APPLE_UART
+	tristate "Apple serial port support"
+	depends on ARCH_APPLE || (COMPILE_TEST && OF)
+	default ARCH_APPLE
+	select SERIAL_CORE
+	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
+	help
+	  Select this to add support for Apple chip serial ports, including console.
+
+config SERIAL_APPLE_UART_PORTS
+	int "Maximum number of UART ports (1-16)"
+	range 1 16
+	depends on SERIAL_APPLE_UART
+	default "8"
+
 endmenu
 
 config SERIAL_MCTRL_GPIO
