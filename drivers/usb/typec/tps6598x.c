@@ -27,6 +27,7 @@
 #define TPS_REG_INT_CLEAR1		0x18
 #define TPS_REG_INT_CLEAR2		0x19
 #define TPS_REG_STATUS			0x1a
+#define TPS_REG_POWER_STATE		0x20
 #define TPS_REG_SYSTEM_CONF		0x28
 #define TPS_REG_CTRL_CONF		0x29
 #define TPS_REG_POWER_STATUS		0x3f
@@ -41,6 +42,10 @@
 #define TPS_STATUS_PORTROLE(s)		(!!((s) & BIT(5)))
 #define TPS_STATUS_DATAROLE(s)		(!!((s) & BIT(6)))
 #define TPS_STATUS_VCONN(s)		(!!((s) & BIT(7)))
+
+/* TPS_REG_POWER_STATE values */
+#define TPS_POWER_STATE_S0		0
+#define TPS_POWER_STATE_BOOT		7
 
 /* TPS_REG_SYSTEM_CONF bits */
 #define TPS_SYSCONF_PORTINFO(c)		((c) & 7)
@@ -92,6 +97,7 @@ struct tps6598x {
 	struct regmap *regmap;
 	struct mutex lock; /* device lock */
 	u8 i2c_protocol:1;
+	u8 i2c_no_long_writes:1;
 
 	struct typec_port *port;
 	struct typec_partner *partner;
@@ -156,7 +162,12 @@ static int tps6598x_block_write(struct tps6598x *tps, u8 reg,
 	data[0] = len;
 	memcpy(&data[1], val, len);
 
-	return regmap_raw_write(tps->regmap, reg, data, sizeof(data));
+	return regmap_raw_write(tps->regmap, reg, data, tps->i2c_no_long_writes ? len + 1 : sizeof(data));
+}
+
+static inline int tps6598x_read8(struct tps6598x *tps, u8 reg, u8 *val)
+{
+	return tps6598x_block_read(tps, reg, val, sizeof(u8));
 }
 
 static inline int tps6598x_read16(struct tps6598x *tps, u8 reg, u16 *val)
@@ -573,6 +584,7 @@ static int tps6598x_probe(struct i2c_client *client)
 	u32 status;
 	u32 conf;
 	u32 vid;
+	u8 pstate;
 	int ret;
 
 	tps = devm_kzalloc(&client->dev, sizeof(*tps), GFP_KERNEL);
@@ -600,10 +612,30 @@ static int tps6598x_probe(struct i2c_client *client)
 	if (i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
 		tps->i2c_protocol = true;
 
+	/* Some drivers don't like 65-byte writes, either. */
+	if (device_property_read_bool(&client->dev, "no-long-writes"))
+		tps->i2c_no_long_writes = true;
+
 	/* Make sure the controller has application firmware running */
 	ret = tps6598x_check_mode(tps);
 	if (ret)
 		return ret;
+
+	ret = tps6598x_read8(tps, TPS_REG_POWER_STATE, &pstate);
+	if (ret < 0)
+		return ret;
+
+	if(pstate == TPS_POWER_STATE_BOOT) {
+		/* on Apple M1, this is how the CD3217/8 comes up; transition to S0 */
+		u8 ssps_data[2] = { TPS_POWER_STATE_S0, 0 };
+
+		ret = tps6598x_exec_cmd(tps, "SSPS", sizeof(ssps_data), ssps_data, 0, NULL);
+		if (ret) {
+			dev_err(&client->dev, "failed to set power state S0\n");
+			return ret;
+		}
+		dev_err(&client->dev, "port is now in power state S0\n");
+	}
 
 	ret = tps6598x_read32(tps, TPS_REG_STATUS, &status);
 	if (ret < 0)
@@ -675,14 +707,16 @@ static int tps6598x_probe(struct i2c_client *client)
 			dev_err(&client->dev, "failed to register partner\n");
 	}
 
-	ret = devm_request_threaded_irq(&client->dev, client->irq, NULL,
-					tps6598x_interrupt,
-					IRQF_SHARED | IRQF_ONESHOT,
-					dev_name(&client->dev), tps);
-	if (ret) {
-		tps6598x_disconnect(tps, 0);
-		typec_unregister_port(tps->port);
-		goto err_role_put;
+	if (!device_property_read_bool(&client->dev, "no-interrupt")) {
+		ret = devm_request_threaded_irq(&client->dev, client->irq, NULL,
+						tps6598x_interrupt,
+						IRQF_SHARED | IRQF_ONESHOT,
+						dev_name(&client->dev), tps);
+		if (ret) {
+			tps6598x_disconnect(tps, 0);
+			typec_unregister_port(tps->port);
+			goto err_role_put;
+		}
 	}
 
 	i2c_set_clientdata(client, tps);
