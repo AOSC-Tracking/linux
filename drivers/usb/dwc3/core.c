@@ -1298,6 +1298,9 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	 */
 	hird_threshold = 12;
 
+	if(device_property_read_u32(dev, "linux,dma_mask_bits", &dwc->dma_mask_bits) < 0)
+		dwc->dma_mask_bits = 32;
+
 	dwc->maximum_speed = usb_get_maximum_speed(dev);
 	dwc->dr_mode = usb_get_dr_mode(dev);
 	dwc->hsphy_mode = of_usb_get_phy_mode(dev->of_node);
@@ -1517,6 +1520,8 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc->regs_size	= resource_size(&dwc_res);
 
 	dwc3_get_properties(dwc);
+
+	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(dwc->dma_mask_bits));
 
 	dwc->reset = devm_reset_control_array_get(dev, true, true);
 	if (IS_ERR(dwc->reset))
