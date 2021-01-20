@@ -249,6 +249,14 @@ config SPAPR_TCE_IOMMU
 	  Enables bits of IOMMU API required by VFIO. The iommu_ops
 	  is not implemented as it is not necessary for VFIO.
 
+config APPLE_DART_IOMMU
+	bool "Apple ARM SoC DART IOMMU"
+	depends on ARCH_APPLE
+	select ARM_DMA_USE_IOMMU
+	select IOMMU_API
+	help
+	  Support for DART IOMMU on Apple ARM SoCs.
+
 # ARM IOMMU support
 config ARM_SMMU
 	tristate "ARM Ltd. System MMU (SMMU) Support"
