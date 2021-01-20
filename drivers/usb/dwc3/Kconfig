@@ -53,6 +53,14 @@ endchoice
 
 comment "Platform Glue Driver Support"
 
+config USB_DWC3_APPLE_M1
+	tristate "Apple M1 Platform"
+	depends on (ARCH_APPLE || COMPILE_TEST) && OF
+	default USB_DWC3
+	help
+	  Apple M1 SoC contains two DesignWare DWC3 cores,
+	  say 'Y' or 'M' if you have one such device.
+
 config USB_DWC3_OMAP
 	tristate "Texas Instruments OMAP5 and similar Platforms"
 	depends on ARCH_OMAP2PLUS || COMPILE_TEST
