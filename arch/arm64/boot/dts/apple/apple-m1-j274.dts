@@ -289,11 +289,10 @@
         };
 
         usb_dart0: usb_dart0@382f00000 {
-            compatible = "apple,dart";
+            compatible = "apple,dart-m1";
             clocks = <&atc0_usb>;
             reg = <0x3 0x82f00000 0x0 0x80000   0x3 0x82f80000 0x0 0x4000>;
             interrupts = <0 781 4>;
-            version = <1>;
             page-bits = <14>;
             sid-mask = <11>;
             sid-remap = <0 1>;
@@ -345,11 +344,10 @@
         };
 
         usb_dart1: usb_dart1@502f00000 {
-            compatible = "apple,dart";
+            compatible = "apple,dart-m1";
             clocks = <&atc1_usb>;
             reg = <0x5 0x02f00000 0x0 0x80000   0x5 0x02f80000 0x0 0x4000>;
             interrupts = <0 861 4>;
-            version = <1>;
             page-bits = <14>;
             sid-mask = <11>;
             sid-remap = <0 1>;
