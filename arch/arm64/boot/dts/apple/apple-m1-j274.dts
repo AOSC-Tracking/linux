@@ -86,28 +86,28 @@
             enable-method = "apple,startcpu";
         };
 
-        cpu@4 {
+        cpu@0x10100 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10100>;
             enable-method = "apple,startcpu";
         };
 
-        cpu@5 {
+        cpu@0x10101 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10101>;
             enable-method = "apple,startcpu";
         };
 
-        cpu@6 {
+        cpu@0x10102 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10102>;
             enable-method = "apple,startcpu";
         };
 
-        cpu@7 {
+        cpu@0x10103 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10103>;
@@ -151,6 +151,11 @@
                    0x2 0x3b754004 0x0 0xc   0x2 0x11150000 0x0 0x8   0x2 0x11130fb0 0x0 0x4
                    0x2 0x3b754004 0x0 0xc   0x2 0x11250000 0x0 0x8   0x2 0x11230fb0 0x0 0x4
                    0x2 0x3b754004 0x0 0xc   0x2 0x11350000 0x0 0x8   0x2 0x11330fb0 0x0 0x4>;
+        };
+
+        cpufreq: cpufreq@210e00000 {
+            compatible = "apple,pmgr-cpufreq-m1";
+            reg = <0x2 0x10e00000 0x0 0x100000   0x2 0x11e00000 0x0 0x100000   0x2 0x3b700000 0x0 0x100000>;
         };
 
         aic: interrupt-controller@23b100000 {

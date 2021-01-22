@@ -31,6 +31,12 @@ config ARM_ALLWINNER_SUN50I_CPUFREQ_NVMEM
 	  To compile this driver as a module, choose M here: the
 	  module will be called sun50i-cpufreq-nvmem.
 
+config ARM_APPLE_M1_CPUFREQ
+	tristate "Apple M1 CPU power state driver"
+	depends on ARCH_APPLE
+	help
+	  This add the CPUFreq driver support for Apple M1 SoC.
+
 config ARM_ARMADA_37XX_CPUFREQ
 	tristate "Armada 37xx CPUFreq support"
 	depends on ARCH_MVEBU && CPUFREQ_DT
