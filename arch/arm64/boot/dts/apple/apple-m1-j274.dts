@@ -63,6 +63,7 @@
             compatible = "apple,v1";
             reg = <0>;
             enable-method = "apple,startcpu";
+            apple,cluster = <0>;
         };
 
         cpu@1 {
@@ -70,6 +71,7 @@
             compatible = "apple,v1";
             reg = <1>;
             enable-method = "apple,startcpu";
+            apple,cluster = <0>;
         };
 
         cpu@2 {
@@ -77,6 +79,7 @@
             compatible = "apple,v1";
             reg = <2>;
             enable-method = "apple,startcpu";
+            apple,cluster = <0>;
         };
 
         cpu@3 {
@@ -84,34 +87,39 @@
             compatible = "apple,v1";
             reg = <3>;
             enable-method = "apple,startcpu";
+            apple,cluster = <0>;
         };
 
-        cpu@0x10100 {
+        cpu@10100 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10100>;
             enable-method = "apple,startcpu";
+            apple,cluster = <1>;
         };
 
-        cpu@0x10101 {
+        cpu@10101 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10101>;
             enable-method = "apple,startcpu";
+            apple,cluster = <1>;
         };
 
-        cpu@0x10102 {
+        cpu@10102 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10102>;
             enable-method = "apple,startcpu";
+            apple,cluster = <1>;
         };
 
-        cpu@0x10103 {
+        cpu@10103 {
             device_type = "cpu";
             compatible = "apple,v1";
             reg = <0x10103>;
             enable-method = "apple,startcpu";
+            apple,cluster = <1>;
         };
     };
 
@@ -155,7 +163,8 @@
 
         cpufreq: cpufreq@210e00000 {
             compatible = "apple,pmgr-cpufreq-m1";
-            reg = <0x2 0x10e00000 0x0 0x100000   0x2 0x11e00000 0x0 0x100000   0x2 0x3b700000 0x0 0x100000>;
+            reg = <0x2 0x10e00000 0x0 0x100000   0x2 0x11e00000 0x0 0x100000
+                   0x2 0x3b700000 0x0 0x100000   0x2 0x00200000 0x0 0x200000>;
         };
 
         aic: interrupt-controller@23b100000 {

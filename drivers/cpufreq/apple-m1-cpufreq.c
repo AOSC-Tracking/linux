@@ -13,15 +13,20 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 
-#define NUM_BASES			3
+#define NUM_BASES			4
 #define NUM_CLUSTERS			2
 #define PMGR_BASE			2
+#define MCC_BASE			3
 
 #define CLUSTER_ECPU			0
 #define CLUSTER_PCPU			1
 
 #define DFLT_STATE			2
 #define SETVOLT_MIN_STATE		6
+
+#define DRAMCFG_SLOW			0
+#define DRAMCFG_FAST			1
+#define FAST_FREQ_INVALID		(-1u)
 
 #define CLUSTER_VCTRL			0x20000
 #define   CLUSTER_VCTRL_SETVOLT		BIT(29)
@@ -61,6 +66,10 @@
 #define PMGR_CPUTVM3			0x48400
 #define   PMGR_CPUTVM_ENABLE		BIT(0)
 
+#define MCC_NUM_LANES			8
+#define MCC_DRAMCFG0(ln)		(0xdc4 + 0x40000 * (ln))
+#define MCC_DRAMCFG1(ln)		(0xdbc + 0x40000 * (ln))
+
 struct apple_m1_cpufreq_data {
 	struct device *dev;
 	void __iomem *base[NUM_BASES];
@@ -70,6 +79,8 @@ struct apple_m1_cpufreq_data {
 		struct cpufreq_frequency_table *freqs;
 		unsigned set_volt;
 	} cluster[NUM_CLUSTERS];
+	u32 pcpu_fast_freq;
+	u32 pcpu_dramcfg[2][MCC_NUM_LANES][2];
 };
 
 static inline void rmwq(u64 clr, u64 set, void __iomem *base)
@@ -98,7 +109,10 @@ static int apple_m1_cpufreq_wait_idle(struct apple_m1_cpufreq_cluster *hcc)
 static int apple_m1_cpufreq_set_target(struct cpufreq_policy *policy, unsigned int index)
 {
 	struct apple_m1_cpufreq_cluster *hcc = policy->driver_data;
-	unsigned set_volt;
+	struct apple_m1_cpufreq_data *hc = hcc->hc;
+	int cluster = hcc - hc->cluster;
+	void __iomem *mcc;
+	unsigned set_volt, cfg, ln;
 	int res;
 
 	res = apple_m1_cpufreq_wait_idle(hcc);
@@ -122,6 +136,16 @@ static int apple_m1_cpufreq_set_target(struct cpufreq_policy *policy, unsigned i
 	else
 		rmwq(CLUSTER_VCTRL_SETVOLT, 0, hcc->base + CLUSTER_VCTRL);
 	hcc->set_volt = set_volt;
+
+	if(cluster == CLUSTER_PCPU && hc->pcpu_fast_freq != FAST_FREQ_INVALID) {
+		/* tolerance for roundoff  */
+		cfg = (hcc->freqs[index].frequency > (hc->pcpu_fast_freq * 1000 + 1000)) ? DRAMCFG_FAST : DRAMCFG_SLOW;
+		mcc = hc->base[MCC_BASE];
+		for(ln=0; ln<MCC_NUM_LANES; ln++) {
+			writel(hc->pcpu_dramcfg[cfg][ln][0], mcc + MCC_DRAMCFG0(ln));
+			writel(hc->pcpu_dramcfg[cfg][ln][1], mcc + MCC_DRAMCFG1(ln));
+		}
+	}
 
 	res = apple_m1_cpufreq_wait_idle(hcc);
 	if(res < 0)
@@ -206,10 +230,10 @@ static struct cpufreq_driver apple_m1_cpufreq_driver = {
 };
 
 static struct cpufreq_frequency_table *apple_m1_cpufreq_dt_to_table(struct device *dev,
-						const char *ftname, const char *maxname)
+								    const char *ftname)
 {
 	int cnt, idx;
-	u32 max, freq;
+	u32 freq;
 	struct cpufreq_frequency_table *ft;
 
 	/* table in dtree is in clock cycle (in fixpoint-16 microseconds), voltage pairs */
@@ -218,10 +242,6 @@ static struct cpufreq_frequency_table *apple_m1_cpufreq_dt_to_table(struct devic
 		dev_err(dev, "missing frequency table '%s' in dt.\n", ftname);
 		return ERR_PTR(-ENOENT);
 	}
-
-	if(of_property_read_u32(dev->of_node, maxname, &max) < 0) /* maximum freq in MHz */
-		max = -1u;
-	max *= 1000; /* now in kHz */
 
 	ft = devm_kzalloc(dev, sizeof(ft[0]) * (cnt + 2), GFP_KERNEL);
 	if(!ft)
@@ -235,8 +255,7 @@ static struct cpufreq_frequency_table *apple_m1_cpufreq_dt_to_table(struct devic
 		ft[idx+1].frequency = CPUFREQ_ENTRY_INVALID;
 		if(freq >= 16) { /* result should fit in u32 */
 			freq = (65536 * 1000000ull) / freq; /* fixpoint cycle time to kHz */
-			if(freq < max || freq - 1000 < max) /* guard against rounding */
-				ft[idx+1].frequency = freq;
+			ft[idx+1].frequency = freq;
 		}
 	}
 	ft[cnt+1].frequency = CPUFREQ_TABLE_END;
@@ -273,6 +292,17 @@ static void apple_m1_cpufreq_hwsetup(struct apple_m1_cpufreq_data *hc)
 {
 	void __iomem **base = hc->base;
 	void __iomem *pmgr = hc->base[PMGR_BASE];
+	void __iomem *mcc = hc->base[MCC_BASE];
+	unsigned ln;
+
+	for(ln=0; ln<MCC_NUM_LANES; ln++) {
+		hc->pcpu_dramcfg[DRAMCFG_SLOW][ln][0] = readl(mcc + MCC_DRAMCFG0(ln));
+		hc->pcpu_dramcfg[DRAMCFG_SLOW][ln][1] = readl(mcc + MCC_DRAMCFG1(ln));
+		if(!ln)
+			continue;
+		hc->pcpu_dramcfg[DRAMCFG_FAST][ln][0] = hc->pcpu_dramcfg[DRAMCFG_FAST][0][0];
+		hc->pcpu_dramcfg[DRAMCFG_FAST][ln][1] = hc->pcpu_dramcfg[DRAMCFG_FAST][0][1];
+	}
 
 	rmwq(CLUSTER_PSTATE_DISABLE, 0, base[0] + CLUSTER_PSTATE);
 	rmwq(CLUSTER_PSTATE_DISABLE, 0, base[1] + CLUSTER_PSTATE);
@@ -291,6 +321,7 @@ static void apple_m1_cpufreq_hwsetup(struct apple_m1_cpufreq_data *hc)
 static int apple_m1_cpufreq_probe(struct platform_device *pdev)
 {
 	struct apple_m1_cpufreq_data *hc;
+	struct device_node *np = pdev->dev.of_node;
 	struct resource *res;
 	unsigned int i = 0, err;
 
@@ -314,15 +345,20 @@ static int apple_m1_cpufreq_probe(struct platform_device *pdev)
 		hc->cluster[i].base = hc->base[i];
 	}
 
-	hc->cluster[0].freqs = apple_m1_cpufreq_dt_to_table(&pdev->dev,
-		"tunable-ecpu-states", "tunable-ecpu-max-freq");
+	hc->cluster[0].freqs = apple_m1_cpufreq_dt_to_table(&pdev->dev, "tunable-ecpu-states");
 	if(IS_ERR(hc->cluster[0].freqs))
 		return PTR_ERR(hc->cluster[0].freqs);
 
-	hc->cluster[1].freqs = apple_m1_cpufreq_dt_to_table(&pdev->dev,
-		"tunable-pcpu-states", "tunable-pcpu-max-freq");
+	hc->cluster[1].freqs = apple_m1_cpufreq_dt_to_table(&pdev->dev, "tunable-pcpu-states");
 	if(IS_ERR(hc->cluster[1].freqs))
 		return PTR_ERR(hc->cluster[1].freqs);
+
+	if(of_property_read_u32(np, "tunable-pcpu-fast-freq", &hc->pcpu_fast_freq) < 0 ||
+	   of_property_read_u32_array(np, "tunable-pcpu-fast-dcfg",
+				      hc->pcpu_dramcfg[DRAMCFG_FAST][0], 2) < 0) {
+		dev_warn(&pdev->dev, "tunable-pcpu-fast-* entries not in dtree, limited clock scaling.\n");
+		hc->pcpu_fast_freq = FAST_FREQ_INVALID;
+	}
 
 	apple_m1_cpufreq_hwsetup(hc);
 
