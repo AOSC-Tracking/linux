@@ -116,6 +116,7 @@ enum recvr_type {
 	recvr_type_dj,
 	recvr_type_hidpp,
 	recvr_type_gaming_hidpp,
+	recvr_type_gaming_hidpp_missing_mse_report_id,  /* lightspeed receiver missing the mouse report ID */
 	recvr_type_mouse_only,
 	recvr_type_27mhz,
 	recvr_type_bluetooth,
@@ -1430,6 +1431,7 @@ static int logi_dj_ll_parse(struct hid_device *hid)
 		dbg_hid("%s: sending a mouse descriptor, reports_supported: %llx\n",
 			__func__, djdev->reports_supported);
 		if (djdev->dj_receiver_dev->type == recvr_type_gaming_hidpp ||
+		    djdev->dj_receiver_dev->type == recvr_type_gaming_hidpp_missing_mse_report_id ||
 		    djdev->dj_receiver_dev->type == recvr_type_mouse_only)
 			rdcat(rdesc, &rsize, mse_high_res_descriptor,
 			      sizeof(mse_high_res_descriptor));
@@ -1690,20 +1692,34 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 			data[0] = data[1];
 			data[1] = 0;
 		}
-		/*
-		 * Mouse-only receivers send unnumbered mouse data. The 27 MHz
-		 * receiver uses 6 byte packets, the nano receiver 8 bytes.
-		 */
-		if (djrcv_dev->unnumbered_application == HID_GD_MOUSE &&
-		    size <= 8) {
-			u8 mouse_report[9];
 
-			/* Prepend report id */
-			mouse_report[0] = REPORT_TYPE_MOUSE;
-			memcpy(mouse_report + 1, data, size);
-			logi_dj_recv_forward_input_report(hdev, mouse_report,
-							  size + 1);
-		}
+		if (djrcv_dev->unnumbered_application == HID_GD_MOUSE) {
+			/*
+			 * Mouse-only receivers send unnumbered mouse data. The 27 MHz
+			 * receiver uses 6 byte packets, the nano receiver 8 bytes.
+			 */
+			if (size <= 8) {
+				u8 mouse_report[9];
+
+				/* Prepend report id */
+				mouse_report[0] = REPORT_TYPE_MOUSE;
+				memcpy(mouse_report + 1, data, size);
+				logi_dj_recv_forward_input_report(hdev, mouse_report,
+								  size + 1);
+
+			/*
+			 * A variant of the ligtpseed receivers is missing the mouse
+			 * report ID.
+			 */
+			} else if (djrcv_dev->type == recvr_type_gaming_hidpp_missing_mse_report_id) {
+				u8 mouse_report[17];
+
+				/* Prepend report id */
+				mouse_report[0] = REPORT_TYPE_MOUSE;
+				memcpy(mouse_report + 1, data, size);
+				logi_dj_recv_forward_input_report(hdev, mouse_report,
+								  size + 1);
+			}
 
 		return false;
 	}
@@ -1773,6 +1789,7 @@ static int logi_dj_probe(struct hid_device *hdev,
 	case recvr_type_dj:		no_dj_interfaces = 3; break;
 	case recvr_type_hidpp:		no_dj_interfaces = 2; break;
 	case recvr_type_gaming_hidpp:	no_dj_interfaces = 3; break;
+	case recvr_type_gaming_hidpp_missing_mse_report_id: no_dj_interfaces = 3; break;
 	case recvr_type_mouse_only:	no_dj_interfaces = 2; break;
 	case recvr_type_27mhz:		no_dj_interfaces = 2; break;
 	case recvr_type_bluetooth:	no_dj_interfaces = 2; break;
@@ -1980,6 +1997,11 @@ static const struct hid_device_id logi_dj_receivers[] = {
 	  HID_USB_DEVICE(USB_VENDOR_ID_LOGITECH,
 		USB_DEVICE_ID_LOGITECH_NANO_RECEIVER_LIGHTSPEED_1_1),
 	 .driver_data = recvr_type_gaming_hidpp},
+
+	{ /* Logitech lightspeed receiver (0xc547) */
+	  HID_USB_DEVICE(USB_VENDOR_ID_LOGITECH,
+		USB_DEVICE_ID_LOGITECH_NANO_RECEIVER_LIGHTSPEED_1_2),
+	 .driver_data = recvr_type_gaming_hidpp_missing_mse_report_id},
 
 	{ /* Logitech 27 MHz HID++ 1.0 receiver (0xc513) */
 	  HID_USB_DEVICE(USB_VENDOR_ID_LOGITECH, USB_DEVICE_ID_MX3000_RECEIVER),
