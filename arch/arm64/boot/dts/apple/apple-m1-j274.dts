@@ -408,5 +408,14 @@
                 linux,dma_mask_bits = <64>;
             };
         };
+
+        smc_mbox: smc_mbox@23e408800 {
+            compatible = "apple,iop-mailbox-m1";
+            reg = <0x2 0x3e400000 0x0 0x20000>;
+            interrupts = <0 400 4   0 403 4>;
+
+            #mbox-cells = <1>;
+            endpoints = <32>;
+        };
     };
 };

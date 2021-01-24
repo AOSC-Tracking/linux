@@ -8,6 +8,14 @@ menuconfig MAILBOX
 
 if MAILBOX
 
+
+config APPLE_IOP_MBOX
+	tristate "Apple IOP Mailbox"
+	depends on ARCH_APPLE
+	help
+	  Apple M1 SoC and related chips use many mailboxes to communicate
+	  with on-chip coprocessors. Say Y to enable them.
+
 config ARM_MHU
 	tristate "ARM MHU Mailbox"
 	depends on ARM_AMBA

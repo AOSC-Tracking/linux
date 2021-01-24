@@ -1,0 +1,41 @@
+Apple IOP mailbox handler
+--------------------------
+
+Apple SoCs contain numerous IOPs (I/O Processors) that talk to the cores
+running Linux (AP) over a common mailbox protocol. Each IOP has its own
+instance of the mailbox interface, which typically carries multiple endpoints,
+and many IOPs also follow a common initialization scheme to discover and start
+available endpoints.
+
+This driver provides a Linux mailbox for each endpoint.
+
+Required properties:
+
+- compatible : shall be "apple,iop-mailbox-m1" (for IOPs on M1 SoC)
+- reg : MMIO area used by the IOP mailbox interface
+- interrupts : two interrupt specifiers, a AP-to-IOP mailbox empty notifier,
+	       and a IOP-to-AP message available notiifer
+- #mbox-cells : should be <1> as the parameter cell specifies endpoint index
+- endpoints : should contain a list of cells enumerating endpoints to be
+	      exposed as mailboxes; if endpoint <0> is present, the common
+	      initialization scheme is not used and mailbox client for this
+	      endpoint can take over startup
+
+Optional properties:
+
+- wait-init : bool; if true, the common initialization scheme will start only
+	      when the first message is sent to any endpoint; this allows
+	      a client to initialize some non-mailbox hardware the mailbox
+	      depends on before talking to the mailbox
+- clocks : clocks to be brought up before the mailbox interface is used
+
+Example:
+
+        smc_mbox: smc_mbox@23e408800 {
+            compatible = "apple,iop-mailbox-m1";
+            reg = <0x2 0x3e400000 0x0 0x20000>;
+            interrupts = <0 400 4   0 403 4>;
+
+            #mbox-cells = <1>;
+            endpoints = <32>;
+        };
