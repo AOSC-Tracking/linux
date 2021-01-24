@@ -1,0 +1,42 @@
+Apple SMC on ARM SoCs
+----------------------
+
+All Apple ARM SoCs since A11 (including the M1) contain a coprocessor called
+SMC. It has similar functionality but a different interface than the SMC on
+Apple x86 systems.
+
+The SMC provides hardware monitoring (temperature, voltage, battery) and some
+control functions exposed as GPIOs (they are likely physically GPIOs on the
+system PMIC, managed through SMC).
+
+The driver requires the Apple IOP mailbox driver to function.
+
+Required properties:
+
+- compatible : shall be "apple,smc-m1" (for SMC on M1 SoC)
+- reg : MMIO area used by the non-mailbox interface (ARM core control MMIO)
+- mboxes : should be a reference to one mailbox, typically <32>, on an IOP
+	   mailbox instance
+- gpio-controller : should be present as the SMC provides up to 32 GPIOs
+- #gpio-cells : should be <2>
+
+Optional properties:
+
+- gpio-%d : where %d is index of the GPIO, and the contents of the property
+	    is a bit pattern applied when setting the GPIO; this marks the
+	    GPIO as available to clients and allows it to be set
+
+Example:
+
+        smc: smc@23e050000 {
+            compatible = "apple,smc-m1";
+            reg = <0x2 0x3e050000 0x0 0x4000>;
+            mboxes = <&smc_mbox 32>;
+
+            gpio-controller;
+            #gpio-cells = <2>;
+            gpio-9 = <0x10000>;
+            gpio-13 = <0x800000>;
+            gpio-15 = <0>;
+            gpio-20 = <0>;
+        };

@@ -417,5 +417,18 @@
             #mbox-cells = <1>;
             endpoints = <32>;
         };
+
+        smc: smc@23e050000 {
+            compatible = "apple,smc-m1";
+            reg = <0x2 0x3e050000 0x0 0x4000>;
+            mboxes = <&smc_mbox 32>;
+
+            gpio-controller;
+            #gpio-cells = <2>;
+            gpio-9 = <0x10000>;
+            gpio-13 = <0x800000>;
+            gpio-15 = <0>;
+            gpio-20 = <0>;
+        };
     };
 };
