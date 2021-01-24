@@ -54,6 +54,27 @@
         };
     };
 
+    io-ranges {
+        #address-cells = <0x2>;
+        #size-cells = <0x2>;
+        ranges;
+
+        on_chip_io@200000000 {
+            reg = <0x2 0x00000000 0x2 0x00000000>;
+            type = <1>; /* 0 - nGnRE, 1 - nGnRnE */
+        };
+
+        on_chip_io@500000000 {
+            reg = <0x5 0x00000000 0x0 0x80000000>;
+            type = <1>;
+        };
+
+        on_chip_io@680000000 {
+            reg = <0x6 0x80000000 0x0 0x20000000>;
+            type = <1>;
+        };
+    };
+
     cpus {
         #address-cells = <1>;
         #size-cells = <0>;

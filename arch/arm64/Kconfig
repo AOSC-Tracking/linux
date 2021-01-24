@@ -260,6 +260,9 @@ config ARCH_MMAP_RND_COMPAT_BITS_MAX
 config NO_IOPORT_MAP
 	def_bool y if !PCI
 
+config IOTYPE_RANGES
+	def_bool n
+
 config STACKTRACE_SUPPORT
 	def_bool y
 

@@ -17,6 +17,62 @@
 #include <asm/fixmap.h>
 #include <asm/tlbflush.h>
 
+#if CONFIG_IOTYPE_RANGES
+
+/*
+ * This feature allows a device tree (see parsing in arch/arm64/mm/init.c)
+ * to override device I/O type for specified ranges. It is intended for use
+ * in cases where the SoC bus implementation does not work correctly with
+ * the default nGnRE mode.
+ */
+
+#define MAX_IOTYPE_RANGES	8
+
+#define IOTYPE_RANGE_nGnRE	0
+#define IOTYPE_RANGE_nGnRnE	1
+
+static struct iotype_range {
+	phys_addr_t addr, size;
+	u32 type;
+} iotype_ranges[MAX_IOTYPE_RANGES];
+static unsigned num_iotype_ranges = 0;
+
+int ioremap_add_io_type_range(phys_addr_t addr, phys_addr_t size, u32 type)
+{
+	if(num_iotype_ranges >= MAX_IOTYPE_RANGES)
+		return 1;
+
+	iotype_ranges[num_iotype_ranges].addr = addr;
+	iotype_ranges[num_iotype_ranges].size = size;
+	iotype_ranges[num_iotype_ranges].type = type;
+	num_iotype_ranges ++;
+
+	return 0;
+}
+
+static pgprot_t apply_io_type_range_prot(phys_addr_t addr, pgprot_t prot)
+{
+	/* linear search... for now at least there's very few ranges */
+	unsigned i;
+
+	for (i = 0; i < num_iotype_ranges; i ++)
+		if(addr >= iotype_ranges[i].addr &&
+		   addr - iotype_ranges[i].addr < iotype_ranges[i].size) {
+			switch(iotype_ranges[i].type) {
+			case IOTYPE_RANGE_nGnRE:
+				return __pgprot(PROT_DEVICE_nGnRE);
+			case IOTYPE_RANGE_nGnRnE:
+				return __pgprot(PROT_DEVICE_nGnRnE);
+			}
+		}
+
+	return prot;
+}
+
+#else
+#define apply_io_type_range_prot(addr,prot) (prot)
+#endif
+
 static void __iomem *__ioremap_caller(phys_addr_t phys_addr, size_t size,
 				      pgprot_t prot, void *caller)
 {
@@ -32,6 +88,11 @@ static void __iomem *__ioremap_caller(phys_addr_t phys_addr, size_t size,
 	 */
 	phys_addr &= PAGE_MASK;
 	size = PAGE_ALIGN(size + offset);
+
+	/*
+	 * Allow system MMIO access specification to override mapping type.
+	 */
+	prot = apply_io_type_range_prot(phys_addr, prot);
 
 	/*
 	 * Don't allow wraparound, zero size or outside PHYS_MASK.

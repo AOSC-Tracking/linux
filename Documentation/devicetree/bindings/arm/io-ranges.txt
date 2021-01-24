@@ -1,0 +1,33 @@
+* MMIO type ranges in device tree
+
+Some platforms require specific device access type for specific SoC buses.
+For instance,  Apple ARM hardware requires different MMIO accesses in PCIe
+and on-chip MMIO areas.  This device-tree binding allows specifying the
+access type on a per-range basis.
+
+The io-ranges node at / of device tree does not represent a real device,
+but contains a list of MMIO address ranges, similar to reserved-memory.
+
+Required properties:
+
+- reg: the MMIO region of the range
+- type: type of access used for that region:
+    0 - nGnRE
+    1 - nGnRnE
+
+Example:
+
+/ {
+	io-ranges {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		ranges;
+
+		on_chip_io@200000000 {
+			reg = <0x2 0x00000000 0x2 0x00000000>;
+			type = <1>;
+		};
+
+		/* ... */
+	};
+};

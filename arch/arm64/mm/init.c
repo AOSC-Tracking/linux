@@ -20,6 +20,7 @@
 #include <linux/sort.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
+#include <linux/libfdt.h>
 #include <linux/dma-direct.h>
 #include <linux/dma-map-ops.h>
 #include <linux/efi.h>
@@ -296,12 +297,58 @@ static void __init fdt_enforce_memory_region(void)
 		memblock_cap_memory_range(reg.base, reg.size);
 }
 
+#if CONFIG_IOTYPE_RANGES
+
+/* in ioremap.c */
+int ioremap_add_io_type_range(phys_addr_t addr, phys_addr_t size, u32 type);
+
+static int __init fdt_parse_io_type_range_scan(unsigned long node,
+		const char *uname, void *data)
+{
+	int reg_len, type_len;
+	const __be32 *reg = of_get_flat_dt_prop(node, "reg", &reg_len);
+	const __be32 *type = of_get_flat_dt_prop(node, "type", &type_len);
+	phys_addr_t addr, size;
+
+	if(!reg || !type ||
+	   reg_len < dt_root_addr_cells + dt_root_size_cells || type_len < 1)
+		return 0;
+
+	addr = dt_mem_next_cell(dt_root_addr_cells, &reg);
+	size = dt_mem_next_cell(dt_root_size_cells, &reg);
+
+	if(ioremap_add_io_type_range(addr, size, of_read_number(type, 1)))
+		return 1;
+
+	return 0;
+}
+
+static void __init fdt_parse_io_type_ranges(void)
+{
+	unsigned long root, ioranges;
+
+	root = of_get_flat_dt_root();
+	ioranges = of_get_flat_dt_subnode_by_name(root, "io-ranges");
+	if (ioranges == -FDT_ERR_NOTFOUND)
+		return;
+
+	if(of_scan_flat_dt_subnodes(ioranges, fdt_parse_io_type_range_scan, NULL))
+		pr_warn("Too many I/O type ranges. Check MAX_IOTYPE_RANGES.\n");
+}
+
+#else
+#define fdt_parse_io_type_ranges() do{}while(0)
+#endif
+
 void __init arm64_memblock_init(void)
 {
 	const s64 linear_region_size = PAGE_END - _PAGE_OFFSET(vabits_actual);
 
 	/* Handle linux,usable-memory-range property */
 	fdt_enforce_memory_region();
+
+	/* Parse MMIO type range specifications */
+	fdt_parse_io_type_ranges();
 
 	/* Remove memory above our supported physical address size */
 	memblock_remove(1ULL << PHYS_MASK_SHIFT, ULLONG_MAX);
