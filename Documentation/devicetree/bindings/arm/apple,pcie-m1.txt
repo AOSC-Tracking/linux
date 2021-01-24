@@ -1,0 +1,108 @@
+PCIe on Apple ARM M1
+---------------------
+
+Apple M1 SoC includes three PCI Express root complexes. Two are used for
+Thunderbolt and one for onboard devices such as WLAN, BT, USB or Ethernet.
+This driver provides support for the complex used for onboard devices.
+
+The driver exposes 3 PCIe root ports.
+
+The driver requires the Apple DART driver as well as GPIO support, and needs
+to be filled out with tunable values by bootloader based on information from
+Apple firmware.
+
+Required properties:
+
+- compatible : shall be "apple,pcie-m1"
+- device_type : "pci"
+- reg : MMIO areas, in order:
+	* configuration (ECAM) space
+	* core and AXI bridge registers
+	* port registers for each of 3 ports
+- interrupts : interrupts used by driver, in order:
+	* port interrupt for each of 3 ports
+	* 32 MSI vectors
+- clock-names : "core", "aux", "ref"
+- clocks : three clocks to be brought up before the PCIe core, see above
+- pinctrl-0 : reference to a pinctrl peripheral set corresponding to
+	CLKREQ# pins (the driver will set them to peripheral mode)
+- pinctrl-names : "default" (see above)
+- perst-gpios : PERST# pin reference for each port
+- clkreq-gpios : CLKREQ# pin reference for each port
+- #address-cells : <3> (standard PCI bridge)
+- #size-cells : <2>
+- ranges : PCI to system range mapping used for BARs (standard PCI bridge)
+- #interrupt-cells : <1> (MSI interrupts only)
+- msi-controller : must be set
+- msi-parent : must be set to self
+- msi-doorbell : set to 64-bit address of MSI doorbell register, typically
+	<0x0 0xfffff000>
+- iommu-map : standard map of PCIe IOMMUs; refer to appropriate DARTs; since
+	the Apple PCIe core actually maps DARTs by port number (not bus
+	number as expected by iommu-map), this is somewhat fragile and relies
+	on the mapping of ports to buses
+
+Optional properties:
+
+- devpwr-gpios : list of GPIOs used for powering on devices
+- devpwr-on-%d : set of <gpio-index> <state> pairs executed before trying
+	to talk to port %d; <gpio-index> refers to the devpwr-gpios table,
+	and <state> is 0, 1, or 2 for "set to input"; if devpwr-on-%d is
+	not present the port link is not initialized at all
+- refclk-always-on-%d : forces PCIe REFCLK to be always provided for the
+	specifed port %d (no clock gating)
+- max-speed-%d : sets maximum speed allowed for port %d
+
+Filled by bootloader:
+
+- tunable-axi2af : settings applied to AXI bridge registers
+- tunable-common : settings applied to root complex registers
+- tunable-phy-ip-auspma : settings applied to PHY PMA registers
+- tunable-phy-ip-pll : settings applied to PHY PLL registers
+- tunable-phy : settings applied to PHY core registers
+- tunable-fuse : settings applied to PHY registers based on on-chip fuses
+- tunable-port%d-config : settings applied to port registers for port %d
+- tunable-port%d : PCIe Gen1/2 settings applied to port config space
+- tunable-port%d-gen3-shadow : PCIe Gen3 settings applied to port config space
+- tunable-port%d-gen4-shadow : PCIe Gen4 settings applied to port config space
+
+Example:
+
+        pcie: pcie@690000000 {
+            compatible = "apple,pcie-m1";
+            reg = <0x6 0x90000000 0x0 0x1000000                                                                 /* config */
+                   0x6 0x80000000 0x0 0x100000  0x6 0x8c000000 0x0 0x100000                                     /* core and AXI bridge */
+                   0x6 0x81000000 0x0 0x20000   0x6 0x82000000 0x0 0x20000   0x6 0x83000000 0x0 0x20000>;       /* ports */
+            interrupt-parent = <&aic>;
+            interrupts = <0 695 4   0 698 4   0 701 4                                                           /* state */
+                          0 704 1   0 705 1   0 706 1   0 707 1   0 708 1   0 709 1   0 710 1   0 711 1         /* MSI */
+                          0 712 1   0 713 1   0 714 1   0 715 1   0 716 1   0 717 1   0 718 1   0 719 1
+                          0 720 1   0 721 1   0 722 1   0 723 1   0 724 1   0 725 1   0 726 1   0 727 1
+                          0 728 1   0 729 1   0 730 1   0 731 1   0 732 1   0 733 1   0 734 1   0 735 1>;
+            clocks = <&pcie_gp_clk &pcie_clk &pcie_refclk>;
+            clock-names = "core", "aux", "ref";
+            pinctrl-0 = <&pcie_clkreq_pins>;
+            pinctrl-names = "default";
+            perst-gpios = <&gpio 152 0   &gpio 153 0   &gpio 33 0>;
+            clkreq-gpios = <&gpio 150 0   &gpio 151 0   &gpio 32 0>;
+            devpwr-gpios = <&smc 13 0>;
+            devpwr-on-0 = <0 1>;
+            devpwr-on-1 = <>;
+            devpwr-on-2 = <>;
+            #address-cells = <3>;
+            #size-cells = <2>;
+            #interrupt-cells = <1>;
+            device_type = "pci";
+            msi-controller;
+            msi-parent = <&pcie>;
+            msi-doorbell = <0x0 0xfffff000>;
+            ranges = <0x43000000   0x6 0xa0000000   0x6 0xa0000000 0x0 0x20000000
+                      0x02000000   0x0 0xc0000000   0x6 0xc0000000 0x0 0x40000000>;
+            bus-range = <0x00 0x0f>;
+            iommu-map = <0x0000 &pcie_dart0 0x8000 0x0100>, /* fake, and should never be used as RC bridges don't DMA */
+                        <0x0100 &pcie_dart0 0x0000 0x0100>,
+                        <0x0200 &pcie_dart1 0x0000 0x0100>,
+                        <0x0300 &pcie_dart2 0x0000 0x0100>;
+            refclk-always-on-2;
+            max-speed-2 = <1>; /* 2.5 GT/s */
+        };

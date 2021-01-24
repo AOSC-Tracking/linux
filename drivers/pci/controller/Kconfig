@@ -22,6 +22,16 @@ config PCI_AARDVARK
 	 controller is part of the South Bridge of the Marvel Armada
 	 3700 SoC.
 
+config PCIE_APPLE_M1
+	bool "Apple M1 PCIe controller"
+	depends on ARCH_APPLE
+	depends on OF
+	depends on PCI_MSI_IRQ_DOMAIN
+	select PCI_HOST_COMMON
+	help
+	  Say Y here if you want to enable support for the PCIe controller
+	  found in the Apple M1 SoC.
+
 config PCIE_XILINX_NWL
 	bool "NWL PCIe Core"
 	depends on ARCH_ZYNQMP || COMPILE_TEST
