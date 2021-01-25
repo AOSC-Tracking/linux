@@ -63,6 +63,13 @@ config SPI_ALTERA
 	help
 	  This is the driver for the Altera SPI Controller.
 
+config SPI_APPLE_MC
+	tristate "Apple ARM SoC SPI-MC controller"
+	depends on GPIOLIB
+	help
+	  This is the driver for SPI controller found in new Apple ARM SoCs,
+	  including the M1.
+
 config SPI_AR934X
 	tristate "Qualcomm Atheros AR934X/QCA95XX SPI controller driver"
 	depends on ATH79 || COMPILE_TEST

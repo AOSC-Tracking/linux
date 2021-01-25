@@ -213,7 +213,7 @@
             clock-output-names = "gpio_clk";
         };
 
-        gpio: pinctrl@20f100000 {
+        gpio: pinctrl@23c100000 {
             compatible = "apple,gpio-v0";
             reg = <0x2 0x3c100000 0x0 0x100000>;
             pin-count = <212>;
@@ -538,6 +538,38 @@
                         <0x0300 &pcie_dart2 0x0000 0x0100>;
             refclk-always-on-2;
             max-speed-2 = <1>; /* 2.5 GT/s */
+        };
+
+        spi_p_clk: spi_p_clk@23b700218 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b700218 0x0 0x8>;
+            clocks = <&sio_clk>;
+            clock-output-names = "spi_p_clk";
+        };
+
+        spi1_clk: spi1_clk@23b700248 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b700248 0x0 0x8>;
+            clocks = <&spi_p_clk>;
+            clock-output-names = "spi1_clk";
+        };
+
+        spi1: spi@235104000 {
+            compatible = "apple,spi-mc-m1";
+            reg = <0x2 0x35104000 0x0 0x4000>;
+            interrupts = <0 615 4>;
+            clocks = <&spi1_clk>;
+            cs-gpios = <&gpio 45 0>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            flash@0 {
+                compatible = "jedec,spi-nor";
+                reg = <0>;
+                spi-max-frequency = <3000000>;
+            };
         };
     };
 };
