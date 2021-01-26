@@ -5,7 +5,8 @@ Apple SoCs contain numerous IOPs (I/O Processors) that talk to the cores
 running Linux (AP) over a common mailbox protocol. Each IOP has its own
 instance of the mailbox interface, which typically carries multiple endpoints,
 and many IOPs also follow a common initialization scheme to discover and start
-available endpoints.
+available endpoints. It also provides standard memory grant features for
+mandatory endpoints 1-4 (crash log, syslog, debug, stats report).
 
 This driver provides a Linux mailbox for each endpoint.
 
@@ -19,7 +20,9 @@ Required properties:
 - endpoints : should contain a list of cells enumerating endpoints to be
 	      exposed as mailboxes; if endpoint <0> is present, the common
 	      initialization scheme is not used and mailbox client for this
-	      endpoint can take over startup
+	      endpoint can take over startup; if any of endpoints <1 2 3 4>
+	      is present, built-in support for these mandatory endpoints is
+	      not provided
 
 Optional properties:
 

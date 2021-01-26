@@ -9,19 +9,28 @@
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
+#include <linux/workqueue.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
 
-#define DEBUG_MSG		0
-
 #define NUM_IRQ			2
 #define IRQ_A2I_EMPTY		0
 #define IRQ_I2A_FULL		1
 
+#define EP_MGMT			0
+#define EP_CRASHLOG		1
+#define EP_SYSLOG		2
+#define EP_DEBUG		3
+#define EP_IORPT		4
 #define EP_INVALID		(-1u)
+
+/* EP_CRASHLOG to EP_IORPT */
+#define AUTO_EP_MASK		0x1E
+
+#define MSG_INVALID(msg)	(((msg)[1] | 0xFF) == -1ull)
 
 enum apple_iop_mailbox_ep0_state {
 	EP0_IDLE,
@@ -30,7 +39,8 @@ enum apple_iop_mailbox_ep0_state {
 	EP0_WAIT_EPMAP,
 	EP0_SEND_EPACK,
 	EP0_SEND_EPSTART,
-	EP0_SEND_PWRON,
+	EP0_WAIT_PWROK,
+	EP0_SEND_PWRACK,
 };
 
 struct apple_iop_mailbox_data {
@@ -38,6 +48,8 @@ struct apple_iop_mailbox_data {
 	void __iomem *base;
 	struct mbox_controller mbctrl;
 	struct clk_bulk_data *clks;
+	struct work_struct builtin_work;
+	u32 builtin_mask;
 	int num_clks;
 	spinlock_t lock;
 	int irq[NUM_IRQ];
@@ -45,14 +57,16 @@ struct apple_iop_mailbox_data {
 	/* wait with setup for first message; this is used by IOPs that
 	   need custom initialization before the mailbox is live */
 	bool wait_init;
+	/* show debug message trace */
+	bool trace;
 	/* table of expected endpoints (index in ep to EP number) */
 	struct apple_iop_mailbox_ep {
 		struct apple_iop_mailbox_data *am;
 		struct list_head a2i_list;
 		u64 a2i_msg[2], i2a_msg[2];
 		u32 epnum;
-		bool a2i_busy;
-		bool discovered;
+		bool a2i_busy, a2i_wait, i2a_live, i2a_work;
+		bool builtin, discovered;
 	} *ep;
 	struct mbox_chan *mbchans;
 	unsigned num_ep;
@@ -61,11 +75,18 @@ struct apple_iop_mailbox_data {
 	unsigned num_rev_ep;
 	/* list of endpoints with A2I messages waiting */
 	struct list_head a2i_list;
+	struct list_head a2i_list_system;
 	/* channel currently in A2I buffer */
 	unsigned a2i_cur_chan;
 	/* EP0 discovery state */
 	enum apple_iop_mailbox_ep0_state ep0_state;
 	u64 ep0_sub;
+	/* builtin EP state */
+	struct apple_iop_mailbox_builtin_ep {
+		dma_addr_t dmah;
+		size_t size;
+		void *ptr;
+	} builtin_ep[EP_IORPT-EP_CRASHLOG+1];
 };
 
 /* A2I -> AP to IOP, I2A -> IOP to AP */
@@ -100,6 +121,7 @@ static int apple_iop_mailbox_ep0_next_a2i(struct apple_iop_mailbox_data *am, u64
 	case EP0_IDLE:
 	case EP0_WAIT_HELLO:
 	case EP0_WAIT_EPMAP:
+	case EP0_WAIT_PWROK:
 	default:
 		return 0;
 	case EP0_SEND_HELLO:
@@ -113,7 +135,7 @@ static int apple_iop_mailbox_ep0_next_a2i(struct apple_iop_mailbox_data *am, u64
 		if(am->ep0_sub & 0x80000) {
 			am->ep0_sub = apple_iop_mailbox_ep0_next_discovered_ep(am, 0);
 			if(am->ep0_sub == EP_INVALID)
-				am->ep0_state = EP0_SEND_PWRON;
+				am->ep0_state = EP0_WAIT_PWROK;
 			else
 				am->ep0_state = EP0_SEND_EPSTART;
 		} else
@@ -124,10 +146,10 @@ static int apple_iop_mailbox_ep0_next_a2i(struct apple_iop_mailbox_data *am, u64
 		msg[1] = 0;
 		am->ep0_sub = apple_iop_mailbox_ep0_next_discovered_ep(am, am->ep0_sub + 1);
 		if(am->ep0_sub == EP_INVALID)
-			am->ep0_state = EP0_SEND_PWRON;
+			am->ep0_state = EP0_WAIT_PWROK;
 		return 1;
-	case EP0_SEND_PWRON:
-		msg[0] = 0x00b0000000000020;
+	case EP0_SEND_PWRACK:
+		msg[0] = 0x00b0000000000000 | am->ep0_sub;
 		msg[1] = 0;
 		am->ep0_state = EP0_IDLE;
 		dev_info(am->dev, "completed startup.\n");
@@ -163,14 +185,17 @@ static void apple_iop_mailbox_ep0_push_i2a(struct apple_iop_mailbox_data *am, u6
 			am->ep0_state = EP0_SEND_EPACK;
 			return;
 		}
+		break;
+	case EP0_WAIT_PWROK:
 		if(msgtype == 7) {
-			am->ep0_sub = apple_iop_mailbox_ep0_next_discovered_ep(am, 0);
-			if(am->ep0_sub == EP_INVALID)
-				am->ep0_state = EP0_SEND_PWRON;
-			else
-				am->ep0_state = EP0_SEND_EPSTART;
+			am->ep0_state = EP0_SEND_PWRACK;
+			am->ep0_sub = msg[0] & 0xFFFFFFFFul;
 			return;
 		}
+		break;
+	case EP0_IDLE:
+		if(msgtype == 11)
+			return;
 		break;
 	default:
 		;
@@ -196,6 +221,15 @@ static void apple_iop_mailbox_unmask_a2i_empty(struct apple_iop_mailbox_data *am
 	am->a2i_empty_masked = false;
 }
 
+static int apple_iop_mailbox_a2i_ok(struct apple_iop_mailbox_data *am, unsigned epnum)
+{
+	if(am->ep0_state == EP0_IDLE)
+		return 1;
+	if(am->ep0_state == EP0_WAIT_PWROK && epnum < 32)
+		return 1;
+	return (epnum == 0);
+}
+
 static irqreturn_t apple_iop_mailbox_a2i_empty_isr(int irq, void *dev_id)
 {
 	struct apple_iop_mailbox_data *am = dev_id;
@@ -214,37 +248,51 @@ static irqreturn_t apple_iop_mailbox_a2i_empty_isr(int irq, void *dev_id)
 
 		apple_iop_mailbox_mask_a2i_empty(am);
 		if(apple_iop_mailbox_ep0_next_a2i(am, msg)) {
-#if DEBUG_MSG
-			dev_info(am->dev, "tx msg %016llx %16llx\n", msg[0], msg[1]);
-#endif
+			if(am->trace)
+				dev_info(am->dev, "tx msg %016llx %16llx\n", msg[0], msg[1]);
 			writeq(msg[0], am->base + A2I_MSG0);
 			writeq(msg[1], am->base + A2I_MSG1);
 			apple_iop_mailbox_unmask_a2i_empty(am);
-		} else if(!list_empty(&am->a2i_list)) {
-			ep = list_first_entry(&am->a2i_list, struct apple_iop_mailbox_ep, a2i_list);
-			list_del(&ep->a2i_list);
 
-#if DEBUG_MSG
-			dev_info(am->dev, "tx msg %016llx %16llx [%d]\n",
-				 ep->a2i_msg[0], ep->a2i_msg[1], ep->epnum);
-#endif
-			writeq(ep->a2i_msg[0], am->base + A2I_MSG0);
-			writeq(ep->a2i_msg[1], am->base + A2I_MSG1);
-			apple_iop_mailbox_unmask_a2i_empty(am);
+		} else if(!list_empty(&am->a2i_list_system) || !list_empty(&am->a2i_list)) {
+			if(!list_empty(&am->a2i_list_system))
+				ep = list_first_entry(&am->a2i_list_system,
+					struct apple_iop_mailbox_ep, a2i_list);
+			else
+				ep = list_first_entry(&am->a2i_list,
+					struct apple_iop_mailbox_ep, a2i_list);
 
-			am->a2i_cur_chan = ep - am->ep;
+			if(apple_iop_mailbox_a2i_ok(am, ep->epnum)) {
+				list_del(&ep->a2i_list);
+				if(am->trace)
+					dev_info(am->dev, "tx msg %016llx %16llx [%d]\n",
+						 ep->a2i_msg[0], ep->a2i_msg[1], ep->epnum);
+				if(!MSG_INVALID(ep->a2i_msg)) {
+					writeq(ep->a2i_msg[0], am->base + A2I_MSG0);
+					writeq(ep->a2i_msg[1], am->base + A2I_MSG1);
+				}
+				apple_iop_mailbox_unmask_a2i_empty(am);
+
+				am->a2i_cur_chan = ep - am->ep;
+			}
 		}
 	} else
 		dev_err(am->dev, "empty_isr called but a2i_stat is 0x%x - not empty.\n", stat);
 
+	if(chan != EP_INVALID && !am->ep[chan].i2a_live)
+		chan = EP_INVALID;
+
 	spin_unlock_irqrestore(&am->lock, flags);
 
 	if(chan != EP_INVALID) {
-#if DEBUG_MSG
-		dev_info(am->dev, "tx complete [%d/%d].\n", am->ep[chan].epnum, chan);
-#endif
+		if(am->trace)
+			dev_info(am->dev, "tx complete [%d/%d].\n", am->ep[chan].epnum, chan);
 		am->ep[chan].a2i_busy = false;
-		mbox_chan_txdone(&am->mbchans[chan], 0);
+
+		if(am->ep[chan].builtin)
+			schedule_work(&am->builtin_work);
+		else
+			mbox_chan_txdone(&am->mbchans[chan], 0);
 	}
 
 	return IRQ_HANDLED;
@@ -270,9 +318,8 @@ static irqreturn_t apple_iop_mailbox_i2a_full_isr(int irq, void *dev_id)
 	msg[0] = readq(am->base + I2A_MSG0);
 	msg[1] = readq(am->base + I2A_MSG1);
 	epnum = msg[1] & 0xFF;
-#if DEBUG_MSG
-	dev_info(am->dev, "rx msg %016llx %16llx\n", msg[0], msg[1]);
-#endif
+	if(am->trace)
+		dev_info(am->dev, "rx msg %016llx %16llx\n", msg[0], msg[1]);
 
 	if(epnum < am->num_rev_ep)
 		chan = am->rev_ep[epnum];
@@ -283,19 +330,29 @@ static irqreturn_t apple_iop_mailbox_i2a_full_isr(int irq, void *dev_id)
 		/* if empty, push the notification state machine */
 		stat = readl(am->base + A2I_STAT);
 		if(!(stat & A2I_STAT_FULL) && apple_iop_mailbox_ep0_next_a2i(am, msg)) {
-#if DEBUG_MSG
-			dev_info(am->dev, "tx msg %016llx %16llx\n", msg[0], msg[1]);
-#endif
+			if(am->trace)
+				dev_info(am->dev, "tx msg %016llx %16llx\n", msg[0], msg[1]);
 			writeq(msg[0], am->base + A2I_MSG0);
 			writeq(msg[1], am->base + A2I_MSG1);
 			apple_iop_mailbox_unmask_a2i_empty(am);
 		}
 	}
 
+	if(chan != EP_INVALID && am->ep[chan].builtin) {
+		am->ep[chan].i2a_work = true;
+		am->ep[chan].i2a_msg[0] = msg[0];
+		am->ep[chan].i2a_msg[1] = msg[1];
+	} else if(chan != EP_INVALID && !am->ep[chan].i2a_live)
+		chan = EP_INVALID;
+
 	spin_unlock_irqrestore(&am->lock, flags);
 
-	if(chan != EP_INVALID)
-		mbox_chan_received_data(&am->mbchans[chan], msg);
+	if(chan != EP_INVALID) {
+		if(am->ep[chan].builtin)
+			schedule_work(&am->builtin_work);
+		else
+			mbox_chan_received_data(&am->mbchans[chan], msg);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -341,18 +398,23 @@ static int apple_iop_mailbox_send_data(struct mbox_chan *chan, void *_msg)
 
 	msg1 = (msg[1] & ~0xFFul) | ep->epnum;
 
-	if(am->a2i_cur_chan != EP_INVALID || am->ep0_state != EP0_IDLE) {
+	if(am->a2i_cur_chan != EP_INVALID || !apple_iop_mailbox_a2i_ok(am, ep->epnum) ||
+	   MSG_INVALID(msg)) {
 		ep->a2i_msg[0] = msg[0];
 		ep->a2i_msg[1] = msg1;
 		ep->a2i_busy = true;
-		list_add(&ep->a2i_list, &am->a2i_list);
+		if(ep->epnum < 32)
+			list_add(&ep->a2i_list, &am->a2i_list_system);
+		else
+			list_add(&ep->a2i_list, &am->a2i_list);
+		if(MSG_INVALID(msg))
+			apple_iop_mailbox_unmask_a2i_empty(am);
 	} else {
 		stat = readl(am->base + A2I_STAT);
 		if(!(stat & A2I_STAT_FULL)) {
-#if DEBUG_MSG
-			dev_info(am->dev, "tx msg %016llx %16llx [%d]\n",
-				 msg[0], msg[1], ep->epnum);
-#endif
+			if(am->trace)
+				dev_info(am->dev, "tx msg %016llx %16llx [%d]\n",
+					 msg[0], msg[1], ep->epnum);
 			writeq(msg[0], am->base + A2I_MSG0);
 			writeq(msg1, am->base + A2I_MSG1);
 			apple_iop_mailbox_unmask_a2i_empty(am);
@@ -369,8 +431,121 @@ static int apple_iop_mailbox_send_data(struct mbox_chan *chan, void *_msg)
 	return 0;
 }
 
+static const char * const apple_iop_builtin_epname[] = {
+	"crash log",
+	"syslog",
+	"debug",
+	"I/O report",
+};
+
+static void apple_iop_builtin_work_ep(struct apple_iop_mailbox_data *am, unsigned epnum,
+	struct mbox_chan *chan, u64 *msg)
+{
+	struct apple_iop_mailbox_builtin_ep *bep = &am->builtin_ep[epnum - 1];
+	u64 size, addr;
+
+	if(!msg)
+		return;
+
+	if(bep->ptr) {
+		/* process message - print? */
+		apple_iop_mailbox_send_data(chan, msg);
+		if(epnum == EP_CRASHLOG)
+			dev_err(am->dev, "received crash: 0x%llx (buffer at 0x%llx+0x%llx)\n",
+				(long long)msg[0], (long long)bep->dmah, (long long)bep->size);
+	} else {
+		/* allocate buffer for this built-in EP */
+		size = (msg[0] >> 44) & 255;
+		switch((msg[0] >> 52) & 3) {
+		case 0:
+			size = 0;
+			break;
+		case 1:
+		case 3:
+			size <<= 12;
+			break;
+		case 2:
+			size <<= 20;
+			break;
+		}
+
+		dev_info(am->dev, "allocating %d kB buffer for %s endpoint.\n",
+			 (int)(size >> 10), apple_iop_builtin_epname[epnum - 1]);
+		bep->ptr = dma_alloc_coherent(am->dev, size, &bep->dmah, GFP_KERNEL);
+		bep->size = size;
+		if(bep->ptr)
+			addr = bep->dmah;
+		else
+			addr = 0;
+		msg[0] &= ~0xFFFFFFFFFFF;
+		msg[0] |= bep->dmah;
+		apple_iop_mailbox_send_data(chan, msg);
+	}
+}
+
+static void apple_iop_builtin_work_func(struct work_struct *work)
+{
+	struct apple_iop_mailbox_data *am =
+		container_of(work, struct apple_iop_mailbox_data, builtin_work);
+	unsigned long flags;
+	uint64_t msg[2];
+	unsigned epnum, vld, chan;
+	struct apple_iop_mailbox_ep *ep;
+
+	spin_lock_irqsave(&am->lock, flags);
+
+	for(epnum=EP_CRASHLOG; epnum<=EP_IORPT; epnum++) {
+		chan = am->rev_ep[epnum];
+		if(chan == EP_INVALID)
+			continue;
+		ep = &am->ep[chan];
+		if(!ep->builtin || !(ep->a2i_wait || ep->i2a_work))
+			continue;
+
+		vld = ep->i2a_work;
+		if(vld) {
+			msg[0] = ep->i2a_msg[0];
+			msg[1] = ep->i2a_msg[1];
+		}
+		ep->a2i_wait = false;
+		ep->i2a_work = false;
+
+		spin_unlock_irqrestore(&am->lock, flags);
+		apple_iop_builtin_work_ep(am, epnum, &am->mbchans[chan], vld ? msg : NULL);
+		spin_lock_irqsave(&am->lock, flags);
+	}
+
+	spin_unlock_irqrestore(&am->lock, flags);
+}
+
+static int apple_iop_mailbox_startup(struct mbox_chan *chan)
+{
+	struct apple_iop_mailbox_ep *ep = chan->con_priv;
+	struct apple_iop_mailbox_data *am = ep->am;
+	unsigned long flags;
+
+	spin_lock_irqsave(&am->lock, flags);
+	ep->i2a_live = true;
+	spin_unlock_irqrestore(&am->lock, flags);
+
+	return 0;
+}
+
+static void apple_iop_mailbox_shutdown(struct mbox_chan *chan)
+{
+	struct apple_iop_mailbox_ep *ep = chan->con_priv;
+	struct apple_iop_mailbox_data *am = ep->am;
+	unsigned long flags;
+
+	spin_lock_irqsave(&am->lock, flags);
+	ep->i2a_live = false;
+	spin_unlock_irqrestore(&am->lock, flags);
+}
+
 static const struct mbox_chan_ops apple_iop_mailbox_ops = {
+	.startup = apple_iop_mailbox_startup,
 	.send_data = apple_iop_mailbox_send_data,
+	.shutdown = apple_iop_mailbox_shutdown,
 };
 
 static const irq_handler_t apple_iop_mailbox_isr_table[NUM_IRQ] = {
@@ -404,8 +579,9 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 	struct apple_iop_mailbox_data *am;
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *res;
-	unsigned int i, irq, max_ep = 0;
+	unsigned int i, irq, max_ep = 0, system_ep_mask = 0, num_system_ep;
 	unsigned long flags;
+	u32 epnum;
 	int err;
 
 	am = devm_kzalloc(&pdev->dev, sizeof(*am), GFP_KERNEL);
@@ -414,7 +590,10 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 	am->dev = &pdev->dev;
 	spin_lock_init(&am->lock);
 	INIT_LIST_HEAD(&am->a2i_list);
+	INIT_LIST_HEAD(&am->a2i_list_system);
 	am->a2i_cur_chan = EP_INVALID;
+
+	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if(!res) {
@@ -430,6 +609,7 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 	}
 
 	am->wait_init = of_property_read_bool(np, "wait-init");
+	am->trace = of_property_read_bool(np, "debug-trace");
 
 	err = of_property_count_elems_of_size(np, "endpoints", sizeof(u32));
 	if(err <= 0) {
@@ -438,14 +618,28 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 	}
 	am->num_ep = err;
 
-	am->ep = devm_kzalloc(&pdev->dev, sizeof(am->ep[0]) * am->num_ep, GFP_KERNEL);
+	/* figure out which system endpoints will be built-in */
+	for(i=0; i<am->num_ep; i++) {
+		err = of_property_read_u32_index(np, "endpoints", i, &epnum);
+		if(err < 0)
+			return err;
+		if(epnum < 32)
+			system_ep_mask |= 1 << epnum;
+	}
+
+	system_ep_mask = (~system_ep_mask) & AUTO_EP_MASK;
+	am->builtin_mask = system_ep_mask;
+	num_system_ep = hweight_long(system_ep_mask);
+
+	am->ep = devm_kzalloc(&pdev->dev, sizeof(am->ep[0]) * (am->num_ep + num_system_ep), GFP_KERNEL);
 	if(!am->ep)
 		return -ENOMEM;
 
-	am->mbchans = devm_kzalloc(&pdev->dev, sizeof(am->mbchans[0]) * am->num_ep, GFP_KERNEL);
+	am->mbchans = devm_kzalloc(&pdev->dev, sizeof(am->mbchans[0]) * (am->num_ep + num_system_ep), GFP_KERNEL);
 	if(!am->mbchans)
 		return -ENOMEM;
 
+	/* build table of explicitly specified endpoints */
 	for(i=0; i<am->num_ep; i++) {
 		am->ep[i].am = am;
 		err = of_property_read_u32_index(np, "endpoints", i, &am->ep[i].epnum);
@@ -456,6 +650,23 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 
 		am->mbchans[i].con_priv = &am->ep[i];
 	}
+
+	/* build table of built-in endpoints */
+	for(epnum=EP_CRASHLOG; epnum<=EP_IORPT; epnum++) {
+		if(!(system_ep_mask & (1 << epnum)))
+			continue;
+		i = (am->num_ep ++);
+
+		am->ep[i].am = am;
+		am->ep[i].epnum = epnum;
+		am->ep[i].builtin = true;
+		am->ep[i].i2a_live = true;
+		if(epnum > max_ep)
+			max_ep = epnum;
+
+		am->mbchans[i].con_priv = &am->ep[i];
+	}
+
 	max_ep ++;
 
 	am->rev_ep = devm_kzalloc(&pdev->dev, sizeof(u32) * max_ep, GFP_KERNEL);
@@ -472,6 +683,8 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 		am->ep0_state = EP0_IDLE;
 	else
 		am->ep0_state = EP0_WAIT_HELLO;
+
+	INIT_WORK(&am->builtin_work, apple_iop_builtin_work_func);
 
 	err = devm_clk_bulk_get_all(am->dev, &am->clks);
 	if(err < 0) {
