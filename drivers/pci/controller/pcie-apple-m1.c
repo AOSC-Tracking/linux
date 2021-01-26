@@ -15,6 +15,7 @@
 #include <linux/of_pci.h>
 #include <linux/gpio/consumer.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/iopoll.h>
 #include <asm/io.h>
 
 #define NUM_MSI				32
@@ -403,19 +404,6 @@ static int pcie_apple_m1_link_up(struct pcie_apple_m1 *pcie, unsigned idx)
 	return !!(linksts & PORT_LINKSTS_UP);
 }
 
-static int pcie_apple_m1_wait_poll(struct pcie_apple_m1 *pcie, unsigned idx, volatile void __iomem *addr, uint32_t mask, uint32_t min, uint32_t max, unsigned msec, const char *msg)
-{
-	uint32_t val = 0;
-	while(msec --) {
-		val = readl(addr);
-		if((val & mask) >= min && (val & mask) <= max)
-			return 0;
-		usleep_range(1000, 2000);
-	}
-	pr_err("pcie%d: %s timed out (%08x/%08x/%08x-%08x)\n", idx, msg, val, mask, min, max);
-	return -ETIMEDOUT;
-}
-
 static unsigned pcie_apple_m1_find_pcicap(struct pcie_apple_m1 *pcie, unsigned busdevfn, unsigned type)
 {
 	unsigned ptr, next;
@@ -474,21 +462,28 @@ static void pcie_apple_m1_init_port(struct pcie_apple_m1 *pcie, unsigned idx)
 
 static int pcie_apple_m1_setup_refclk(struct pcie_apple_m1 *pcie, unsigned idx)
 {
+	u32 stat;
 	int res;
 
-	res = pcie_apple_m1_wait_poll(pcie, idx, pcie->base_core[0] + CORE_RC_PHYIF_STAT, CORE_RC_PHYIF_STAT_REFCLK, CORE_RC_PHYIF_STAT_REFCLK, CORE_RC_PHYIF_STAT_REFCLK, 50, "core refclk");
-	if(res < 0)
+	res = readl_poll_timeout(pcie->base_core[0] + CORE_RC_PHYIF_STAT, stat, (stat & CORE_RC_PHYIF_STAT_REFCLK), 100, 50000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: core refclk wait timed out.\n", __func__);
 		return res;
+	}
 
 	rmwl(0, CORE_LANE_CTL_CFGACC, pcie->base_core[0] + CORE_LANE_CTL(idx));
 	rmwl(0, CORE_LANE_CFG_REFCLK0REQ, pcie->base_core[0] + CORE_LANE_CFG(idx));
-	res = pcie_apple_m1_wait_poll(pcie, idx, pcie->base_core[0] + CORE_LANE_CFG(idx), CORE_LANE_CFG_REFCLK0ACK, CORE_LANE_CFG_REFCLK0ACK, CORE_LANE_CFG_REFCLK0ACK, 50, "lane refclk0");
-	if(res < 0)
+	res = readl_poll_timeout(pcie->base_core[0] + CORE_LANE_CFG(idx), stat, (stat & CORE_LANE_CFG_REFCLK0ACK), 100, 50000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: lane refclk%d wait timed out (port %d).\n", __func__, 0, idx);
 		return res;
+	}
 	rmwl(0, CORE_LANE_CFG_REFCLK1, pcie->base_core[0] + CORE_LANE_CFG(idx));
-	res = pcie_apple_m1_wait_poll(pcie, idx, pcie->base_core[0] + CORE_LANE_CFG(idx), CORE_LANE_CFG_REFCLK1, CORE_LANE_CFG_REFCLK1, CORE_LANE_CFG_REFCLK1, 50, "lane refclk0");
-	if(res < 0)
+	res = readl_poll_timeout(pcie->base_core[0] + CORE_LANE_CFG(idx), stat, (stat & CORE_LANE_CFG_REFCLK1), 100, 50000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: lane refclk%d wait timed out (port %d).\n", __func__, 1, idx);
 		return res;
+	}
 	rmwl(CORE_LANE_CTL_CFGACC, 0, pcie->base_core[0] + CORE_LANE_CTL(idx));
 	udelay(1);
 	rmwl(0, CORE_LANE_CFG_REFCLKEN, pcie->base_core[0] + CORE_LANE_CFG(idx));
@@ -512,6 +507,7 @@ static int pcie_apple_m1_setup_port(struct pcie_apple_m1 *pcie, unsigned idx)
 {
 	char tunable_name[64] = { 0 };
 	unsigned ptr;
+	u32 stat;
 	int res;
 
 	if(pcie_apple_m1_link_up(pcie, idx))
@@ -537,17 +533,21 @@ static int pcie_apple_m1_setup_port(struct pcie_apple_m1 *pcie, unsigned idx)
 	rmwl(0, PORT_PERST_OFF, pcie->base_port[idx] + PORT_PERST);
 	gpiod_direction_output(pcie->perstn[idx], 1);
 
-	res = pcie_apple_m1_wait_poll(pcie, idx, pcie->base_port[idx] + PORT_STATUS, PORT_STATUS_READY, PORT_STATUS_READY, PORT_STATUS_READY, 250, "port ready");
-	if(res < 0)
+	res = readl_poll_timeout(pcie->base_port[idx] + PORT_STATUS, stat, (stat & PORT_STATUS_READY), 100, 250000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: status ready wait timed out (port %d).\n", __func__, idx);
 		return res;
+	}
 
 	if(!pcie->refclk_always_on[idx])
 		rmwl(PORT_REFCLK_CGDIS, 0, pcie->base_port[idx] + PORT_REFCLK);
 	rmwl(PORT_APPCLK_CGDIS, 0, pcie->base_port[idx] + PORT_APPCLK);
 
-	res = pcie_apple_m1_wait_poll(pcie, idx, pcie->base_port[idx] + PORT_LINKSTS, PORT_LINKSTS_BUSY, 0, 0, 250, "port link not busy");
-	if(res < 0)
+	res = readl_poll_timeout(pcie->base_port[idx] + PORT_LINKSTS, stat, !(stat & PORT_LINKSTS_BUSY), 100, 250000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: link not busy wait timed out (port %d).\n", __func__, idx);
 		return res;
+	}
 
 	ptr = pcie_apple_m1_find_pcicap(pcie, idx << 3, 0x10);
 
@@ -582,7 +582,9 @@ static int pcie_apple_m1_setup_port(struct pcie_apple_m1 *pcie, unsigned idx)
 	usleep_range(5000, 10000);
 
 	rmwl(0, PORT_LTSSMCTL_START, pcie->base_port[idx] + PORT_LTSSMCTL);
-	pcie_apple_m1_wait_poll(pcie, idx, pcie->base_port[idx] + PORT_LINKSTS, PORT_LINKSTS_UP, PORT_LINKSTS_UP, PORT_LINKSTS_UP, 500, "link up");
+	res = readl_poll_timeout(pcie->base_port[idx] + PORT_LINKSTS, stat, (stat & PORT_LINKSTS_UP), 100, 500000);
+	if(res < 0)
+		dev_warn(&pcie->pdev->dev, "%s: link up wait timed out (port %d).\n", __func__, idx);
 
 	return 0;
 }
@@ -590,16 +592,25 @@ static int pcie_apple_m1_setup_port(struct pcie_apple_m1 *pcie, unsigned idx)
 static int pcie_apple_m1_setup_phy_global(struct pcie_apple_m1 *pcie)
 {
 	int res;
+	u32 stat;
 
 	res = pcie_apple_m1_tunable(pcie, "tunable-phy");
 	if(res < 0)
 		return res;
 
 	rmwl(0, CORE_PHY_CTL_CLK0REQ, pcie->base_core[0] + CORE_PHY_CTL);
-	pcie_apple_m1_wait_poll(pcie, 0, pcie->base_core[0] + CORE_PHY_CTL, CORE_PHY_CTL_CLK0ACK, CORE_PHY_CTL_CLK0ACK, CORE_PHY_CTL_CLK0ACK, 50, "global phy clk0");
+	res = readl_poll_timeout(pcie->base_core[0] + CORE_PHY_CTL, stat, (stat & CORE_PHY_CTL_CLK0ACK), 100, 50000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: global phy clk%d wait timed out.\n", __func__, 0);
+		return res;
+	}
 	udelay(1);
 	rmwl(0, CORE_PHY_CTL_CLK1REQ, pcie->base_core[0] + CORE_PHY_CTL);
-	pcie_apple_m1_wait_poll(pcie, 0, pcie->base_core[0] + CORE_PHY_CTL, CORE_PHY_CTL_CLK1ACK, CORE_PHY_CTL_CLK1ACK, CORE_PHY_CTL_CLK1ACK, 50, "global phy clk1");
+	res = readl_poll_timeout(pcie->base_core[0] + CORE_PHY_CTL, stat, (stat & CORE_PHY_CTL_CLK1ACK), 100, 50000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: global phy clk%d wait timed out.\n", __func__, 1);
+		return res;
+	}
 	rmwl(CORE_PHY_CTL_RESET, 0, pcie->base_core[0] + CORE_PHY_CTL);
 	udelay(1);
 	rmwl(0, CORE_RC_PHYIF_CTL_RUN, pcie->base_core[0] + CORE_RC_PHYIF_CTL);
@@ -624,6 +635,7 @@ static int pcie_apple_m1_setup_ports(struct pcie_apple_m1 *pcie)
 {
 	int res;
 	unsigned port;
+	u32 stat;
 
 	res = pcie_apple_m1_tunable(pcie, "tunable-axi2af");
 	if(res < 0)
@@ -640,7 +652,11 @@ static int pcie_apple_m1_setup_ports(struct pcie_apple_m1 *pcie)
 	rmwl(1, 0, pcie->base_core[0] + 0x34);
 	writel(0x140, pcie->base_core[0] + 0x54);
 	writel(CORE_RC_CTL_RUN, pcie->base_core[0] + CORE_RC_CTL);
-	pcie_apple_m1_wait_poll(pcie, 0, pcie->base_core[0] + CORE_RC_STAT, CORE_RC_STAT_READY, CORE_RC_STAT_READY, CORE_RC_STAT_READY, 50, "root complex ready");
+	res = readl_poll_timeout(pcie->base_core[0] + CORE_RC_CTL, stat, (stat & CORE_RC_STAT_READY), 100, 50000);
+	if(res < 0) {
+		dev_err(&pcie->pdev->dev, "%s: root complex ready wait timed out.\n", __func__);
+		return res;
+	}
 
 	for(port=0; port<NUM_PORT; port++) {
 		if(pcie->devpwron[port].num < 0)
