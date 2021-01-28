@@ -6213,14 +6213,17 @@ static resource_size_t pci_specified_resource_alignment(struct pci_dev *dev,
 {
 	int align_order, count;
 	resource_size_t align = pcibios_default_alignment();
+	struct pci_host_bridge *bridge;
 	const char *p;
 	int ret;
+
+	bridge = pci_find_host_bridge(dev->bus);
 
 	spin_lock(&resource_alignment_lock);
 	p = resource_alignment_param;
 	if (!p || !*p)
 		goto out;
-	if (pci_has_flag(PCI_PROBE_ONLY)) {
+	if (pci_has_flag(PCI_PROBE_ONLY) || (bridge && bridge->probe_only)) {
 		align = 0;
 		pr_info_once("PCI: Ignoring requested alignments (PCI_PROBE_ONLY)\n");
 		goto out;

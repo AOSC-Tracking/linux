@@ -3005,7 +3005,7 @@ int pci_host_probe(struct pci_host_bridge *bridge)
 	 * ioport_resource trees in either pci_bus_claim_resources()
 	 * or pci_bus_assign_resources().
 	 */
-	if (pci_has_flag(PCI_PROBE_ONLY)) {
+	if (pci_has_flag(PCI_PROBE_ONLY) || bridge->probe_only) {
 		pci_bus_claim_resources(bus);
 	} else {
 		pci_bus_size_bridges(bus);
