@@ -571,5 +571,50 @@
                 spi-max-frequency = <3000000>;
             };
         };
+
+        ans_clk: ans_clk@23b7003f0 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b7003f0 0x0 0x8>;
+            clocks = <&pcie_clk>;
+            clock-output-names = "ans_clk";
+        };
+
+        pcie_st_clk: pcie_st_clk@23b700418 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b700418 0x0 0x8>;
+            clocks = <&ans_clk>;
+            clock-output-names = "pcie_st_clk";
+        };
+
+        ans_mbox: ans_mbox@277400000 {
+            compatible = "apple,iop-mailbox-m1";
+            reg = <0x2 0x77400000 0x0 0x20000>;
+            interrupts = <0 583 4   0 586 4>;
+            clocks = <&pcie_st_clk>;
+
+            #mbox-cells = <1>;
+            endpoints = <32>;
+            wait-init;
+        };
+
+        ans: ans@27bcc0000 {
+            compatible = "apple,nvme-m1";
+            reg = <0x2 0x7bcc0000 0x0 0x40000  /* NVMe + Apple regs */
+                   0x2 0x7bc50000 0x0 0x4000>; /* SART regs */
+            interrupts = <0 590 4>;
+            clocks = <&pcie_st_clk>;
+            mboxes = <&ans_mbox 32>;
+
+            #address-cells = <3>;
+            #size-cells = <2>;
+            #interrupt-cells = <1>;
+            device_type = "pci";
+            msi-controller;
+            msi-parent = <&ans>;
+            ranges = <0x02000000   0x0 0x7bc00000   0x2 0x7bc00000 0x0 0x00100000>;
+            bus-range = <0x00 0x01>;
+        };
     };
 };
