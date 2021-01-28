@@ -270,7 +270,7 @@ static int pcie_apple_m1_irq_domain_alloc(struct irq_domain *dom, unsigned int v
 	unsigned long flags;
 	int pos;
 	u32 busdevfn = ((u32 *)args)[2];
-	unsigned bus = busdevfn >> 19, port;
+	unsigned bus = (busdevfn >> 19) & 255, port;
 
 	if(bus < 1) /* no MSIs on root ports */
 		return -ENOSPC;
@@ -322,6 +322,7 @@ static void pcie_apple_m1_setup_rid2sid(struct device *dev, unsigned int busdevf
 	struct pcie_apple_m1 *pcie = dev_get_drvdata(dev);
 	unsigned i, port, new = 0;
 
+	busdevfn &= 0xFFFF;
 	port = pcie_apple_m1_bus_to_port(pcie, busdevfn >> 8);
 	if(port >= NUM_PORT)
 		return;
