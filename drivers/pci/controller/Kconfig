@@ -32,6 +32,17 @@ config PCIE_APPLE_M1
 	  Say Y here if you want to enable support for the PCIe controller
 	  found in the Apple M1 SoC.
 
+config PCIE_APPLE_M1_NVME
+	bool "Apple M1 NVMe controller"
+	depends on ARCH_APPLE
+	depends on OF
+	depends on PCI_MSI_IRQ_DOMAIN
+	select PCI_HOST_COMMON
+	help
+	  Say Y here if you want to enable support for the NVMe-like ANS
+	  controler found in the Apple M1 SoC. It will be visible as a PCI
+	  host bridge.
+
 config PCIE_XILINX_NWL
 	bool "NWL PCIe Core"
 	depends on ARCH_ZYNQMP || COMPILE_TEST
