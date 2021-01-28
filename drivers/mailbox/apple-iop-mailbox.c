@@ -15,6 +15,7 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
+#include <linux/apple_iop_mapper.h>
 
 #define NUM_IRQ			2
 #define IRQ_A2I_EMPTY		0
@@ -54,6 +55,9 @@ struct apple_iop_mailbox_data {
 	spinlock_t lock;
 	int irq[NUM_IRQ];
 	bool a2i_empty_masked;
+	/* memory mapper used by built-in endpoints for allocation */
+	apple_iop_mapper_func_t mapper_func;
+	void *mapper_priv;
 	/* wait with setup for first message; this is used by IOPs that
 	   need custom initialization before the mailbox is live */
 	bool wait_init;
@@ -442,6 +446,7 @@ static void apple_iop_builtin_work_ep(struct apple_iop_mailbox_data *am, unsigne
 	struct mbox_chan *chan, u64 *msg)
 {
 	struct apple_iop_mailbox_builtin_ep *bep = &am->builtin_ep[epnum - 1];
+	unsigned long flags;
 	u64 size, addr;
 
 	if(!msg)
@@ -473,9 +478,13 @@ static void apple_iop_builtin_work_ep(struct apple_iop_mailbox_data *am, unsigne
 			 (int)(size >> 10), apple_iop_builtin_epname[epnum - 1]);
 		bep->ptr = dma_alloc_coherent(am->dev, size, &bep->dmah, GFP_KERNEL);
 		bep->size = size;
-		if(bep->ptr)
+		if(bep->ptr) {
 			addr = bep->dmah;
-		else
+			spin_lock_irqsave(&am->lock, flags);
+			if(am->mapper_func)
+				addr = am->mapper_func(am->mapper_priv, addr, size);
+			spin_unlock_irqrestore(&am->lock, flags);
+		} else
 			addr = 0;
 		msg[0] &= ~0xFFFFFFFFFFF;
 		msg[0] |= bep->dmah;
@@ -572,6 +581,20 @@ static struct mbox_chan *apple_iop_mailbox_of_xlate(struct mbox_controller *mbox
 
 	chan = am->rev_ep[epnum];
 	return &mbox->chans[chan];
+}
+
+int apple_iop_set_mapper_func(void *iop_mbox_chan, apple_iop_mapper_func_t func, void *priv)
+{
+	struct mbox_chan *chan = iop_mbox_chan;
+	struct apple_iop_mailbox_ep *ep = chan->con_priv;
+	struct apple_iop_mailbox_data *am = ep->am;
+	unsigned long flags;
+
+	spin_lock_irqsave(&am->lock, flags);
+	am->mapper_func = func;
+	am->mapper_priv = priv;
+	spin_unlock_irqrestore(&am->lock, flags);
+	return 0;
 }
 
 static int apple_iop_mailbox_probe(struct platform_device *pdev)
