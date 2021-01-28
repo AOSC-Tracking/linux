@@ -42,6 +42,18 @@
 #define NVME_MAX_KB_SZ	4096
 #define NVME_MAX_SEGS	127
 
+#define APPLE_MODESEL_REG	0x1304
+#define APPLE_LINEAR_ASQ_DB	0x2490c
+#define APPLE_LINEAR_IOSQ_DB	0x24910
+#define APPLE_NVMMU_TCB_INVAL	0x28118
+#define APPLE_NVMMU_TCB_STAT	0x28120
+#define APPLE_NVMMU_NUM		0x28100
+#define APPLE_NVMMU_BASE_ASQ	0x28108
+#define APPLE_NVMMU_BASE_IOSQ	0x28110
+#define APPLE_LINEAR_BAR_SIZE	0x40000
+#define APPLE_NVMMU_TCB_SIZE	0x4000
+#define APPLE_NVMMU_TCB_PITCH	0x80
+
 static int use_threaded_interrupts;
 module_param(use_threaded_interrupts, int, 0);
 
@@ -144,6 +156,10 @@ struct nvme_dev {
 	u32 *dbbuf_eis;
 	dma_addr_t dbbuf_eis_dma_addr;
 
+	/* Apple NVMMU support */
+	dma_addr_t nvmmu_tcb_phys;
+	void *nvmmu_tcb_ptr;
+
 	/* host memory buffer support: */
 	u64 host_mem_size;
 	u32 nr_host_mem_descs;
@@ -195,7 +211,7 @@ struct nvme_queue {
 	struct nvme_completion *cqes;
 	dma_addr_t sq_dma_addr;
 	dma_addr_t cq_dma_addr;
-	u32 __iomem *q_db;
+	u32 __iomem *q_db, *q_linear_db;
 	u32 q_depth;
 	u16 cq_vector;
 	u16 sq_tail;
@@ -492,6 +508,105 @@ static inline void nvme_write_sq_db(struct nvme_queue *nvmeq, bool write_sq)
 	nvmeq->last_sq_tail = nvmeq->sq_tail;
 }
 
+/*
+ * Service for Apple's unique 'CoastGuard' NVMMU.
+ */
+
+struct apple_nvmmu_tcb {
+	u8 opcode;
+	u8 dma_flags;
+	u8 command_id;
+	u8 _pad0;
+	u32 prpl_size;
+	u64 _pad1[2];
+	u64 prp1;
+	u64 prp2;
+};
+#define TCB_DMA_WRITE	BIT(0)
+#define TCB_DMA_READ	BIT(1)
+
+static void nvme_apple_nvmmu_set(struct nvme_dev *dev, unsigned qid, struct nvme_command *cmd)
+{
+	unsigned tag = cmd->common.command_id, sz;
+	struct apple_nvmmu_tcb *tcb;
+
+	tcb = dev->nvmmu_tcb_ptr + (qid ? APPLE_NVMMU_TCB_SIZE : 0) +
+	      tag * APPLE_NVMMU_TCB_PITCH;
+	memset(tcb, 0, sizeof(*tcb));
+
+	tcb->opcode = cmd->common.opcode;
+	tcb->command_id = tag;
+	if(qid) {
+		switch(cmd->common.opcode) {
+		case nvme_cmd_write:
+		case nvme_cmd_write_uncor:
+		case nvme_cmd_compare:
+			tcb->dma_flags = TCB_DMA_READ;
+			tcb->prpl_size = cmd->rw.length;
+			tcb->prp1 = cmd->rw.dptr.prp1;
+			tcb->prp2 = cmd->rw.dptr.prp2;
+			break;
+		case nvme_cmd_read:
+			tcb->dma_flags = TCB_DMA_WRITE;
+			tcb->prpl_size = cmd->rw.length;
+			tcb->prp1 = cmd->rw.dptr.prp1;
+			tcb->prp2 = cmd->rw.dptr.prp2;
+			break;
+		case nvme_cmd_dsm:
+			tcb->dma_flags = TCB_DMA_READ;
+			tcb->prp1 = cmd->rw.dptr.prp1;
+			break;
+		default:
+			;
+		}
+	} else {
+		switch(cmd->common.opcode) {
+		case nvme_admin_create_sq:
+		case nvme_admin_create_cq:
+			tcb->dma_flags = TCB_DMA_READ | TCB_DMA_WRITE;
+			tcb->prp1 = cmd->create_sq.prp1;
+			break;
+		case nvme_admin_get_log_page:
+			sz = cmd->get_log_page.numdu;
+			sz = (sz << 16) | cmd->get_log_page.numdl;
+			tcb->dma_flags = TCB_DMA_WRITE;
+			tcb->prp1 = sz >> 12;
+			break;
+		case nvme_admin_identify:
+			tcb->dma_flags = TCB_DMA_WRITE;
+			tcb->prp1 = cmd->identify.dptr.prp1;
+			tcb->prp2 = cmd->identify.dptr.prp2;
+			break;
+		case nvme_admin_set_features:
+			tcb->dma_flags = TCB_DMA_READ;
+			tcb->prp1 = cmd->features.dptr.prp1;
+			tcb->prp2 = cmd->features.dptr.prp2;
+			break;
+		case nvme_admin_get_features:
+			tcb->dma_flags = TCB_DMA_WRITE;
+			tcb->prp1 = cmd->features.dptr.prp1;
+			tcb->prp2 = cmd->features.dptr.prp2;
+			break;
+		default:
+			;
+		}
+	}
+}
+
+static void nvme_apple_nvmmu_inval(struct nvme_dev *dev, unsigned qid, unsigned tag)
+{
+	struct apple_nvmmu_tcb *tcb;
+
+	tcb = dev->nvmmu_tcb_ptr + (qid ? APPLE_NVMMU_TCB_SIZE : 0) +
+	      tag * APPLE_NVMMU_TCB_PITCH;
+	memset(tcb, 0, sizeof(*tcb));
+
+	writel(tag, dev->bar + APPLE_NVMMU_TCB_INVAL);
+	if(readl(dev->bar + APPLE_NVMMU_TCB_STAT))
+		dev_warn(dev->ctrl.device,
+			"NVMMU TCB invalidation failed\n");
+}
+
 /**
  * nvme_submit_cmd() - Copy a command into a queue and ring the doorbell
  * @nvmeq: The queue to use
@@ -502,17 +617,31 @@ static void nvme_submit_cmd(struct nvme_queue *nvmeq, struct nvme_command *cmd,
 			    bool write_sq)
 {
 	spin_lock(&nvmeq->sq_lock);
-	memcpy(nvmeq->sq_cmds + (nvmeq->sq_tail << nvmeq->sqes),
-	       cmd, sizeof(*cmd));
-	if (++nvmeq->sq_tail == nvmeq->q_depth)
-		nvmeq->sq_tail = 0;
-	nvme_write_sq_db(nvmeq, write_sq);
+
+	if(nvmeq->dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ) {
+		u32 tag = cmd->common.command_id;
+		nvme_apple_nvmmu_set(nvmeq->dev, nvmeq->qid, cmd);
+
+		memcpy(nvmeq->sq_cmds + (tag << nvmeq->sqes),
+		       cmd, sizeof(*cmd));
+		writel(tag, nvmeq->q_linear_db);
+	} else {
+		memcpy(nvmeq->sq_cmds + (nvmeq->sq_tail << nvmeq->sqes),
+		       cmd, sizeof(*cmd));
+		if (++nvmeq->sq_tail == nvmeq->q_depth)
+			nvmeq->sq_tail = 0;
+		nvme_write_sq_db(nvmeq, write_sq);
+	}
 	spin_unlock(&nvmeq->sq_lock);
 }
 
 static void nvme_commit_rqs(struct blk_mq_hw_ctx *hctx)
 {
 	struct nvme_queue *nvmeq = hctx->driver_data;
+
+	/* with LINEAR_SQ, requests are directly submitted via MMIO */
+	if(nvmeq->dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ)
+		return;
 
 	spin_lock(&nvmeq->sq_lock);
 	if (nvmeq->sq_tail != nvmeq->last_sq_tail)
@@ -999,6 +1128,9 @@ static inline void nvme_handle_cqe(struct nvme_queue *nvmeq, u16 idx)
 	struct nvme_completion *cqe = &nvmeq->cqes[idx];
 	__u16 command_id = READ_ONCE(cqe->command_id);
 	struct request *req;
+
+	if(nvmeq->dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ)
+		nvme_apple_nvmmu_inval(nvmeq->dev, nvmeq->qid, cqe->command_id);
 
 	/*
 	 * AEN requests are special as they don't time out and can
@@ -1524,6 +1656,7 @@ static int nvme_alloc_queue(struct nvme_dev *dev, int qid, int depth)
 	nvmeq->cq_head = 0;
 	nvmeq->cq_phase = 1;
 	nvmeq->q_db = &dev->dbs[qid * 2 * dev->db_stride];
+	nvmeq->q_linear_db = dev->bar + (qid ? APPLE_LINEAR_IOSQ_DB : APPLE_LINEAR_ASQ_DB);
 	nvmeq->qid = qid;
 	dev->ctrl.queue_count++;
 
@@ -1559,6 +1692,7 @@ static void nvme_init_queue(struct nvme_queue *nvmeq, u16 qid)
 	nvmeq->cq_head = 0;
 	nvmeq->cq_phase = 1;
 	nvmeq->q_db = &dev->dbs[qid * 2 * dev->db_stride];
+	nvmeq->q_linear_db = dev->bar + (qid ? APPLE_LINEAR_IOSQ_DB : APPLE_LINEAR_ASQ_DB);
 	memset((void *)nvmeq->cqes, 0, CQ_SIZE(nvmeq));
 	nvme_dbbuf_init(dev, nvmeq, qid);
 	dev->online_queues++;
@@ -1725,6 +1859,22 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 	if (result < 0)
 		return result;
 
+	if (dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ) {
+		if (!dev->nvmmu_tcb_ptr) {
+			dev->nvmmu_tcb_ptr = dma_alloc_coherent(dev->dev,
+				APPLE_NVMMU_TCB_SIZE * 2, &dev->nvmmu_tcb_phys, GFP_KERNEL);
+			if (!dev->nvmmu_tcb_ptr)
+				return -ENOMEM;
+			memset(dev->nvmmu_tcb_ptr, 0, APPLE_NVMMU_TCB_SIZE * 2);
+		}
+
+		lo_hi_writeq(dev->nvmmu_tcb_phys, dev->bar + APPLE_NVMMU_BASE_ASQ);
+		lo_hi_writeq(dev->nvmmu_tcb_phys + APPLE_NVMMU_TCB_SIZE,
+			dev->bar + APPLE_NVMMU_BASE_IOSQ);
+		writel(APPLE_NVMMU_TCB_SIZE / APPLE_NVMMU_TCB_PITCH - 1,
+			dev->bar + APPLE_NVMMU_NUM);
+	}
+
 	result = nvme_alloc_queue(dev, 0, NVME_AQ_DEPTH);
 	if (result)
 		return result;
@@ -1738,6 +1888,9 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 	writel(aqa, dev->bar + NVME_REG_AQA);
 	lo_hi_writeq(nvmeq->sq_dma_addr, dev->bar + NVME_REG_ASQ);
 	lo_hi_writeq(nvmeq->cq_dma_addr, dev->bar + NVME_REG_ACQ);
+
+	if(dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ)
+		writel(0, dev->bar + APPLE_MODESEL_REG);
 
 	result = nvme_enable_ctrl(&dev->ctrl);
 	if (result)
@@ -2199,6 +2352,7 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 			return -ENOMEM;
 	} while (1);
 	adminq->q_db = dev->dbs;
+	adminq->q_linear_db = dev->bar + APPLE_LINEAR_ASQ_DB;
 
  retry:
 	/* Deregister the admin queue's interrupt */
@@ -2412,6 +2566,10 @@ static int nvme_pci_enable(struct nvme_dev *dev)
 		dev_warn(dev->ctrl.device, "detected Apple NVMe controller, "
 			"set queue depth=%u to work around controller resets\n",
 			dev->q_depth);
+	} else if (dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ) {
+		dev->q_depth = 64;
+		dev_warn(dev->ctrl.device, "detected Apple ANS2 controller, "
+			"set queue depth=%u for linear SQ\n", dev->q_depth);
 	} else if (pdev->vendor == PCI_VENDOR_ID_SAMSUNG &&
 		   (pdev->device == 0xa821 || pdev->device == 0xa822) &&
 		   NVME_CAP_MQES(dev->ctrl.cap) == 0) {
@@ -2772,11 +2930,15 @@ static const struct nvme_ctrl_ops nvme_pci_ctrl_ops = {
 static int nvme_dev_map(struct nvme_dev *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev->dev);
+	resource_size_t map_size = NVME_REG_DBS + 4096;
 
 	if (pci_request_mem_regions(pdev, "nvme"))
 		return -ENODEV;
 
-	if (nvme_remap_bar(dev, NVME_REG_DBS + 4096))
+	if (dev->ctrl.quirks & NVME_QUIRK_LINEAR_SQ)
+		map_size = APPLE_LINEAR_BAR_SIZE;
+
+	if (nvme_remap_bar(dev, map_size))
 		goto release;
 
 	return 0;
@@ -2911,6 +3073,7 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	dev->dev = get_device(&pdev->dev);
 	pci_set_drvdata(pdev, dev);
 
+	dev->ctrl.quirks = quirks;
 	result = nvme_dev_map(dev);
 	if (result)
 		goto put_pci;
@@ -3032,6 +3195,9 @@ static void nvme_remove(struct pci_dev *pdev)
 	nvme_dev_remove_admin(dev);
 	nvme_free_queues(dev, 0);
 	nvme_release_prp_pools(dev);
+	if (dev->nvmmu_tcb_ptr)
+		dma_free_coherent(&pdev->dev, APPLE_NVMMU_TCB_SIZE * 2,
+			dev->nvmmu_tcb_ptr, dev->nvmmu_tcb_phys);
 	nvme_dev_unmap(dev);
 	nvme_uninit_ctrl(&dev->ctrl);
 }
@@ -3278,6 +3444,10 @@ static const struct pci_device_id nvme_id_table[] = {
 		.driver_data = NVME_QUIRK_SINGLE_VECTOR |
 				NVME_QUIRK_128_BYTES_SQES |
 				NVME_QUIRK_SHARED_TAGS },
+	{ PCI_DEVICE(PCI_VENDOR_ID_APPLE, 0xff81),
+		.driver_data = NVME_QUIRK_SINGLE_VECTOR |
+				NVME_QUIRK_SHARED_TAGS |
+				NVME_QUIRK_LINEAR_SQ },
 
 	{ PCI_DEVICE_CLASS(PCI_CLASS_STORAGE_EXPRESS, 0xffffff) },
 	{ 0, }
