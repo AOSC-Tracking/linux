@@ -55,6 +55,9 @@
 #include <linux/spi/spi.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/gpio/consumer.h>
 
 #include <asm/barrier.h>
 #include <asm/unaligned.h>
@@ -90,6 +93,7 @@
 #define APPLE_FLAG_FKEY		0x01
 
 #define SPI_RW_CHG_DELAY_US	100	/* from experimentation, in µs */
+#define SPI_END_CS_DELAY_US	20
 
 #define SYNAPTICS_VENDOR_ID	0x06cb
 
@@ -387,10 +391,24 @@ struct applespi_data {
 	u8				last_fn_pressed;
 	struct input_mt_pos		pos[MAX_FINGERS];
 	int				slots[MAX_FINGERS];
+
+	bool				of_mode;
+
+	/* ACPI specific */
+#ifdef CONFIG_ACPI
 	int				gpe;
 	acpi_handle			sien;
 	acpi_handle			sist;
+#endif
 
+#ifdef CONFIG_OF
+	/* OF specific */
+	int				gpioirq;
+	struct gpio_desc		*spiengpio, *irqgpio;
+	bool				gpioirq_enabled;
+#endif
+
+	struct spi_transfer		rw_t;
 	struct spi_transfer		dl_t;
 	struct spi_transfer		rd_t;
 	struct spi_message		rd_m;
@@ -549,19 +567,29 @@ static applespi_trace_fun applespi_get_trace_fun(enum applespi_evt_type type)
 static void applespi_setup_read_txfrs(struct applespi_data *applespi)
 {
 	struct spi_message *msg = &applespi->rd_m;
+	struct spi_transfer *rw_t = &applespi->rw_t;
 	struct spi_transfer *dl_t = &applespi->dl_t;
 	struct spi_transfer *rd_t = &applespi->rd_t;
 
+	memset(rw_t, 0, sizeof(*rw_t));
 	memset(dl_t, 0, sizeof(*dl_t));
 	memset(rd_t, 0, sizeof(*rd_t));
+
+	rw_t->delay.value = SPI_RW_CHG_DELAY_US;
+	rw_t->delay.unit = SPI_DELAY_UNIT_USECS;
+	rw_t->cs_change = 1;
 
 	dl_t->delay.value = applespi->spi_settings.spi_cs_delay;
 	dl_t->delay.unit = SPI_DELAY_UNIT_USECS;
 
 	rd_t->rx_buf = applespi->rx_buffer;
 	rd_t->len = APPLESPI_PACKET_SIZE;
+	rd_t->delay.value = SPI_END_CS_DELAY_US;
+	rd_t->delay.unit = SPI_DELAY_UNIT_USECS;
 
 	spi_message_init(msg);
+	if(applespi->of_mode)
+		spi_message_add_tail(rw_t, msg);
 	spi_message_add_tail(dl_t, msg);
 	spi_message_add_tail(rd_t, msg);
 }
@@ -599,6 +627,8 @@ static void applespi_setup_write_txfrs(struct applespi_data *applespi)
 
 	st_t->rx_buf = applespi->tx_status;
 	st_t->len = APPLESPI_STATUS_SIZE;
+	st_t->delay.value = SPI_END_CS_DELAY_US;
+	st_t->delay.unit = SPI_DELAY_UNIT_USECS;
 
 	spi_message_init(msg);
 	spi_message_add_tail(wt_t, msg);
@@ -638,27 +668,35 @@ static inline bool applespi_check_write_status(struct applespi_data *applespi,
 
 static int applespi_get_spi_settings(struct applespi_data *applespi)
 {
-	struct acpi_device *adev = ACPI_COMPANION(&applespi->spi->dev);
-	const union acpi_object *o;
 	struct spi_settings *settings = &applespi->spi_settings;
 
-	if (!acpi_dev_get_property(adev, "spiCSDelay", ACPI_TYPE_BUFFER, &o))
-		settings->spi_cs_delay = *(u64 *)o->buffer.pointer;
-	else
-		dev_warn(&applespi->spi->dev,
-			 "Property spiCSDelay not found\n");
+	if(applespi->of_mode) {
+		settings->spi_cs_delay = 100;
+		settings->reset_a2r_usec = 25;
+		settings->reset_rec_usec = 10;
+	} else {
+#ifdef CONFIG_ACPI
+		struct acpi_device *adev = ACPI_COMPANION(&applespi->spi->dev);
+		const union acpi_object *o;
+		if (!acpi_dev_get_property(adev, "spiCSDelay", ACPI_TYPE_BUFFER, &o))
+			settings->spi_cs_delay = *(u64 *)o->buffer.pointer;
+		else
+			dev_warn(&applespi->spi->dev,
+				 "Property spiCSDelay not found\n");
 
-	if (!acpi_dev_get_property(adev, "resetA2RUsec", ACPI_TYPE_BUFFER, &o))
-		settings->reset_a2r_usec = *(u64 *)o->buffer.pointer;
-	else
-		dev_warn(&applespi->spi->dev,
-			 "Property resetA2RUsec not found\n");
+		if (!acpi_dev_get_property(adev, "resetA2RUsec", ACPI_TYPE_BUFFER, &o))
+			settings->reset_a2r_usec = *(u64 *)o->buffer.pointer;
+		else
+			dev_warn(&applespi->spi->dev,
+				 "Property resetA2RUsec not found\n");
 
-	if (!acpi_dev_get_property(adev, "resetRecUsec", ACPI_TYPE_BUFFER, &o))
-		settings->reset_rec_usec = *(u64 *)o->buffer.pointer;
-	else
-		dev_warn(&applespi->spi->dev,
-			 "Property resetRecUsec not found\n");
+		if (!acpi_dev_get_property(adev, "resetRecUsec", ACPI_TYPE_BUFFER, &o))
+			settings->reset_rec_usec = *(u64 *)o->buffer.pointer;
+		else
+			dev_warn(&applespi->spi->dev,
+				 "Property resetRecUsec not found\n");
+#endif
+	}
 
 	dev_dbg(&applespi->spi->dev,
 		"SPI settings: spi_cs_delay=%llu reset_a2r_usec=%llu reset_rec_usec=%llu\n",
@@ -684,21 +722,34 @@ static int applespi_setup_spi(struct applespi_data *applespi)
 
 static int applespi_enable_spi(struct applespi_data *applespi)
 {
-	acpi_status acpi_sts;
 	unsigned long long spi_status;
 
-	/* check if SPI is already enabled, so we can skip the delay below */
-	acpi_sts = acpi_evaluate_integer(applespi->sist, NULL, NULL,
-					 &spi_status);
-	if (ACPI_SUCCESS(acpi_sts) && spi_status)
-		return 0;
+	if(applespi->of_mode) {
+#ifdef CONFIG_OF
+		spi_status = gpiod_get_value(applespi->spiengpio);
+		if(spi_status)
+			return 0;
 
-	/* SIEN(1) will enable SPI communication */
-	acpi_sts = acpi_execute_simple_method(applespi->sien, NULL, 1);
-	if (ACPI_FAILURE(acpi_sts)) {
-		dev_err(&applespi->spi->dev, "SIEN failed: %s\n",
-			acpi_format_exception(acpi_sts));
-		return -ENODEV;
+		gpiod_direction_output(applespi->spiengpio, 1);
+#endif
+	} else {
+#ifdef CONFIG_ACPI
+		acpi_status acpi_sts;
+
+		/* check if SPI is already enabled, so we can skip the delay below */
+		acpi_sts = acpi_evaluate_integer(applespi->sist, NULL, NULL,
+						 &spi_status);
+		if (ACPI_SUCCESS(acpi_sts) && spi_status)
+			return 0;
+
+		/* SIEN(1) will enable SPI communication */
+		acpi_sts = acpi_execute_simple_method(applespi->sien, NULL, 1);
+		if (ACPI_FAILURE(acpi_sts)) {
+			dev_err(&applespi->spi->dev, "SIEN failed: %s\n",
+				acpi_format_exception(acpi_sts));
+			return -ENODEV;
+		}
+#endif
 	}
 
 	/*
@@ -1564,12 +1615,22 @@ static void applespi_async_read_complete(void *context)
 		applespi_got_data(applespi);
 	}
 
-	acpi_finish_gpe(NULL, applespi->gpe);
+	if(applespi->of_mode) {
+#ifdef CONFIG_OF
+		if(!applespi->gpioirq_enabled) {
+			applespi->gpioirq_enabled = true;
+			enable_irq(applespi->gpioirq);
+		}
+#endif
+	} else {
+#ifdef CONFIG_ACPI
+		acpi_finish_gpe(NULL, applespi->gpe);
+#endif
+	}
 }
 
-static u32 applespi_notify(acpi_handle gpe_device, u32 gpe, void *context)
+static void applespi_irq_handler(struct applespi_data *applespi)
 {
-	struct applespi_data *applespi = context;
 	int sts;
 	unsigned long flags;
 
@@ -1589,12 +1650,35 @@ static u32 applespi_notify(acpi_handle gpe_device, u32 gpe, void *context)
 	}
 
 	spin_unlock_irqrestore(&applespi->cmd_msg_lock, flags);
+}
 
+#ifdef CONFIG_ACPI
+static u32 applespi_notify(acpi_handle gpe_device, u32 gpe, void *context)
+{
+	struct applespi_data *applespi = context;
+	applespi_irq_handler(applespi);
 	return ACPI_INTERRUPT_HANDLED;
 }
+#endif
+
+#ifdef CONFIG_OF
+static irqreturn_t applespi_gpioirq_isr(int irq, void *dev_id)
+{
+	struct applespi_data *applespi = dev_id;
+
+	if(applespi->gpioirq_enabled) {
+		applespi->gpioirq_enabled = false;
+		disable_irq_nosync(applespi->gpioirq);
+	}
+
+	applespi_irq_handler(applespi);
+	return IRQ_HANDLED;
+}
+#endif
 
 static int applespi_get_saved_bl_level(struct applespi_data *applespi)
 {
+#ifdef CONFIG_EFI
 	struct efivar_entry *efivar_entry;
 	u16 efi_data = 0;
 	unsigned long efi_data_len;
@@ -1618,11 +1702,15 @@ static int applespi_get_saved_bl_level(struct applespi_data *applespi)
 	kfree(efivar_entry);
 
 	return sts ? sts : efi_data;
+#else
+	return 0;
+#endif
 }
 
 static void applespi_save_bl_level(struct applespi_data *applespi,
 				   unsigned int level)
 {
+#ifdef CONFIG_EFI
 	efi_guid_t efi_guid;
 	u32 efi_attr;
 	unsigned long efi_data_len;
@@ -1641,22 +1729,40 @@ static void applespi_save_bl_level(struct applespi_data *applespi,
 	if (sts)
 		dev_warn(&applespi->spi->dev,
 			 "Error saving backlight level to EFI vars: %d\n", sts);
+#endif
 }
 
 static int applespi_probe(struct spi_device *spi)
 {
 	struct applespi_data *applespi;
-	acpi_handle spi_handle = ACPI_HANDLE(&spi->dev);
-	acpi_status acpi_sts;
 	int sts, i;
+#ifdef CONFIG_ACPI
+	acpi_handle spi_handle;
+	acpi_status acpi_sts;
 	unsigned long long gpe, usb_status;
+#endif
+	bool of_mode = false;
 
-	/* check if the USB interface is present and enabled already */
-	acpi_sts = acpi_evaluate_integer(spi_handle, "UIST", NULL, &usb_status);
-	if (ACPI_SUCCESS(acpi_sts) && usb_status) {
-		/* let the USB driver take over instead */
-		dev_info(&spi->dev, "USB interface already enabled\n");
+	if (spi->dev.of_node)
+		of_mode = true;
+
+	if(of_mode) {
+#ifndef CONFIG_OF
 		return -ENODEV;
+#endif
+	} else {
+#ifdef CONFIG_ACPI
+		/* check if the USB interface is present and enabled already */
+		spi_handle = ACPI_HANDLE(&spi->dev);
+		acpi_sts = acpi_evaluate_integer(spi_handle, "UIST", NULL, &usb_status);
+		if (ACPI_SUCCESS(acpi_sts) && usb_status) {
+			/* let the USB driver take over instead */
+			dev_info(&spi->dev, "USB interface already enabled\n");
+			return -ENODEV;
+		}
+#else
+		return -ENODEV;
+#endif
 	}
 
 	/* allocate driver data */
@@ -1665,6 +1771,7 @@ static int applespi_probe(struct spi_device *spi)
 		return -ENOMEM;
 
 	applespi->spi = spi;
+	applespi->of_mode = of_mode;
 
 	INIT_WORK(&applespi->work, applespi_worker);
 
@@ -1686,21 +1793,41 @@ static int applespi_probe(struct spi_device *spi)
 	    !applespi->rx_buffer || !applespi->msg_buf)
 		return -ENOMEM;
 
-	/* cache ACPI method handles */
-	acpi_sts = acpi_get_handle(spi_handle, "SIEN", &applespi->sien);
-	if (ACPI_FAILURE(acpi_sts)) {
-		dev_err(&applespi->spi->dev,
-			"Failed to get SIEN ACPI method handle: %s\n",
-			acpi_format_exception(acpi_sts));
-		return -ENODEV;
-	}
+	if(of_mode) {
+#ifdef CONFIG_OF
+		applespi->spiengpio = devm_gpiod_get_index(&spi->dev, "spien", 0, 0);
+		if(IS_ERR(applespi->spiengpio)) {
+			sts = PTR_ERR(applespi->spiengpio);
+			if(sts != -EPROBE_DEFER)
+				dev_err(&spi->dev, "failed to get spien gpio: %d\n", sts);
+			return sts;
+		}
 
-	acpi_sts = acpi_get_handle(spi_handle, "SIST", &applespi->sist);
-	if (ACPI_FAILURE(acpi_sts)) {
-		dev_err(&applespi->spi->dev,
-			"Failed to get SIST ACPI method handle: %s\n",
-			acpi_format_exception(acpi_sts));
-		return -ENODEV;
+		/* reset the controller on boot */
+		gpiod_direction_output(applespi->spiengpio, 1);
+		msleep(5);
+		gpiod_direction_output(applespi->spiengpio, 0);
+		msleep(5);
+#endif
+	} else {
+#ifdef CONFIG_ACPI
+		/* cache ACPI method handles */
+		acpi_sts = acpi_get_handle(spi_handle, "SIEN", &applespi->sien);
+		if (ACPI_FAILURE(acpi_sts)) {
+			dev_err(&applespi->spi->dev,
+				"Failed to get SIEN ACPI method handle: %s\n",
+				acpi_format_exception(acpi_sts));
+			return -ENODEV;
+		}
+
+		acpi_sts = acpi_get_handle(spi_handle, "SIST", &applespi->sist);
+		if (ACPI_FAILURE(acpi_sts)) {
+			dev_err(&applespi->spi->dev,
+				"Failed to get SIST ACPI method handle: %s\n",
+				acpi_format_exception(acpi_sts));
+			return -ENODEV;
+		}
+#endif
 	}
 
 	/* prepare SPI settings and locks */
@@ -1759,38 +1886,68 @@ static int applespi_probe(struct spi_device *spi)
 		return -ENODEV;
 	}
 
-	/*
-	 * The applespi device doesn't send interrupts normally (as is described
-	 * in its DSDT), but rather seems to use ACPI GPEs.
-	 */
-	acpi_sts = acpi_evaluate_integer(spi_handle, "_GPE", NULL, &gpe);
-	if (ACPI_FAILURE(acpi_sts)) {
-		dev_err(&applespi->spi->dev,
-			"Failed to obtain GPE for SPI slave device: %s\n",
-			acpi_format_exception(acpi_sts));
-		return -ENODEV;
-	}
-	applespi->gpe = (int)gpe;
+	if(of_mode) {
+#ifdef CONFIG_OF
+		applespi->irqgpio = devm_gpiod_get_index(&spi->dev, "irq", 0, 0);
+		if(IS_ERR(applespi->irqgpio)) {
+			sts = PTR_ERR(applespi->irqgpio);
+			if(sts != -EPROBE_DEFER)
+				dev_err(&spi->dev, "failed to get irq gpio: %d\n", sts);
+			return sts;
+		}
+		gpiod_direction_input(applespi->irqgpio);
 
-	acpi_sts = acpi_install_gpe_handler(NULL, applespi->gpe,
-					    ACPI_GPE_LEVEL_TRIGGERED,
-					    applespi_notify, applespi);
-	if (ACPI_FAILURE(acpi_sts)) {
-		dev_err(&applespi->spi->dev,
-			"Failed to install GPE handler for GPE %d: %s\n",
-			applespi->gpe, acpi_format_exception(acpi_sts));
-		return -ENODEV;
-	}
+		applespi->suspended = false;
+		applespi->gpioirq_enabled = true;
 
-	applespi->suspended = false;
+		applespi->gpioirq = of_irq_get(spi->dev.of_node, 0);
+		if(applespi->gpioirq < 0) {
+			dev_err(&spi->dev, "failed to map IRQ: %d\n", applespi->gpioirq);
+			return applespi->gpioirq;
+		}
+		sts = devm_request_irq(&spi->dev, applespi->gpioirq, applespi_gpioirq_isr, 0,
+				dev_name(&spi->dev), applespi);
+		if(sts < 0) {
+			dev_err(&spi->dev, "failed to request IRQ: %d\n", sts);
+			return sts;
+		}
+#endif
+	} else {
+#ifdef CONFIG_ACPI
+		/*
+		 * The applespi device doesn't send interrupts normally (as is described
+		 * in its DSDT), but rather seems to use ACPI GPEs.
+		 */
+		acpi_sts = acpi_evaluate_integer(spi_handle, "_GPE", NULL, &gpe);
+		if (ACPI_FAILURE(acpi_sts)) {
+			dev_err(&applespi->spi->dev,
+				"Failed to obtain GPE for SPI slave device: %s\n",
+				acpi_format_exception(acpi_sts));
+			return -ENODEV;
+		}
+		applespi->gpe = (int)gpe;
 
-	acpi_sts = acpi_enable_gpe(NULL, applespi->gpe);
-	if (ACPI_FAILURE(acpi_sts)) {
-		dev_err(&applespi->spi->dev,
-			"Failed to enable GPE handler for GPE %d: %s\n",
-			applespi->gpe, acpi_format_exception(acpi_sts));
-		acpi_remove_gpe_handler(NULL, applespi->gpe, applespi_notify);
-		return -ENODEV;
+		acpi_sts = acpi_install_gpe_handler(NULL, applespi->gpe,
+						    ACPI_GPE_LEVEL_TRIGGERED,
+						    applespi_notify, applespi);
+		if (ACPI_FAILURE(acpi_sts)) {
+			dev_err(&applespi->spi->dev,
+				"Failed to install GPE handler for GPE %d: %s\n",
+				applespi->gpe, acpi_format_exception(acpi_sts));
+			return -ENODEV;
+		}
+
+		applespi->suspended = false;
+
+		acpi_sts = acpi_enable_gpe(NULL, applespi->gpe);
+		if (ACPI_FAILURE(acpi_sts)) {
+			dev_err(&applespi->spi->dev,
+				"Failed to enable GPE handler for GPE %d: %s\n",
+				applespi->gpe, acpi_format_exception(acpi_sts));
+			acpi_remove_gpe_handler(NULL, applespi->gpe, applespi_notify);
+			return -ENODEV;
+		}
+#endif
 	}
 
 	/* trigger touchpad setup */
@@ -1863,8 +2020,13 @@ static int applespi_remove(struct spi_device *spi)
 
 	applespi_drain_writes(applespi);
 
-	acpi_disable_gpe(NULL, applespi->gpe);
-	acpi_remove_gpe_handler(NULL, applespi->gpe, applespi_notify);
+	if (applespi->of_mode) {
+	} else {
+#ifdef CONFIG_ACPI
+		acpi_disable_gpe(NULL, applespi->gpe);
+		acpi_remove_gpe_handler(NULL, applespi->gpe, applespi_notify);
+#endif
+	}
 	device_wakeup_disable(&spi->dev);
 
 	applespi_drain_reads(applespi);
@@ -1895,7 +2057,6 @@ static int __maybe_unused applespi_suspend(struct device *dev)
 {
 	struct spi_device *spi = to_spi_device(dev);
 	struct applespi_data *applespi = spi_get_drvdata(spi);
-	acpi_status acpi_sts;
 	int sts;
 
 	/* turn off caps-lock - it'll stay on otherwise */
@@ -1907,11 +2068,17 @@ static int __maybe_unused applespi_suspend(struct device *dev)
 	applespi_drain_writes(applespi);
 
 	/* disable the interrupt */
-	acpi_sts = acpi_disable_gpe(NULL, applespi->gpe);
-	if (ACPI_FAILURE(acpi_sts))
-		dev_err(&applespi->spi->dev,
-			"Failed to disable GPE handler for GPE %d: %s\n",
-			applespi->gpe, acpi_format_exception(acpi_sts));
+	if (applespi->of_mode) {
+	} else {
+#ifdef CONFIG_ACPI
+		acpi_status acpi_sts;
+		acpi_sts = acpi_disable_gpe(NULL, applespi->gpe);
+		if (ACPI_FAILURE(acpi_sts))
+			dev_err(&applespi->spi->dev,
+				"Failed to disable GPE handler for GPE %d: %s\n",
+				applespi->gpe, acpi_format_exception(acpi_sts));
+#endif
+	}
 
 	applespi_drain_reads(applespi);
 
@@ -1922,7 +2089,6 @@ static int __maybe_unused applespi_resume(struct device *dev)
 {
 	struct spi_device *spi = to_spi_device(dev);
 	struct applespi_data *applespi = spi_get_drvdata(spi);
-	acpi_status acpi_sts;
 	unsigned long flags;
 
 	/* ensure our flags and state reflect a newly resumed device */
@@ -1943,11 +2109,17 @@ static int __maybe_unused applespi_resume(struct device *dev)
 	applespi_enable_spi(applespi);
 
 	/* re-enable the interrupt */
-	acpi_sts = acpi_enable_gpe(NULL, applespi->gpe);
-	if (ACPI_FAILURE(acpi_sts))
-		dev_err(&applespi->spi->dev,
-			"Failed to re-enable GPE handler for GPE %d: %s\n",
-			applespi->gpe, acpi_format_exception(acpi_sts));
+	if (applespi->of_mode) {
+	} else {
+#ifdef CONFIG_ACPI
+		acpi_status acpi_sts;
+		acpi_sts = acpi_enable_gpe(NULL, applespi->gpe);
+		if (ACPI_FAILURE(acpi_sts))
+			dev_err(&applespi->spi->dev,
+				"Failed to re-enable GPE handler for GPE %d: %s\n",
+				applespi->gpe, acpi_format_exception(acpi_sts));
+#endif
+	}
 
 	/* switch the touchpad into multitouch mode */
 	applespi_init(applespi, true);
@@ -1961,6 +2133,12 @@ static const struct acpi_device_id applespi_acpi_match[] = {
 };
 MODULE_DEVICE_TABLE(acpi, applespi_acpi_match);
 
+static const struct of_device_id applespi_of_match[] = {
+	{ .compatible = "input,applespi-kbd-v1" },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, applespi_of_match);
+
 static const struct dev_pm_ops applespi_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(applespi_suspend, applespi_resume)
 	.poweroff_late	= applespi_poweroff_late,
@@ -1970,6 +2148,7 @@ static struct spi_driver applespi_driver = {
 	.driver		= {
 		.name			= "applespi",
 		.acpi_match_table	= applespi_acpi_match,
+		.of_match_table		= applespi_of_match,
 		.pm			= &applespi_pm_ops,
 	},
 	.probe		= applespi_probe,

@@ -72,9 +72,9 @@ config ATARI_KBD_CORE
 
 config KEYBOARD_APPLESPI
 	tristate "Apple SPI keyboard and trackpad"
-	depends on ACPI && EFI
+	depends on (ACPI && EFI) || (OF && GPIOLIB)
 	depends on SPI
-	depends on X86 || COMPILE_TEST
+	depends on X86 || ARM64 || COMPILE_TEST
 	depends on LEDS_CLASS
 	select CRC16
 	help
