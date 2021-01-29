@@ -239,6 +239,32 @@
             };
         };
 
+        nub_gpio_clk: nub_gpio_clk@23d280080 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3d280080 0x0 0x8>;
+            clocks = <&refclk24mhz>;
+            clock-output-names = "nub_gpio_clk";
+        };
+
+        nub_gpio: pinctrl@23d1f0000 {
+            compatible = "apple,gpio-v0";
+            reg = <0x2 0x3d1f0000 0x0 0x4000>;
+            pin-count = <23>;
+            pin-base = <212>;
+            pin-prefix = "nubgpio";
+
+            interrupts = <0 330 4   0 331 4   0 332 4   0 333 4   0 334 4   0 335 4   0 336 4>;
+
+            clocks = <&nub_gpio_clk>;
+
+            gpio-controller;
+            #gpio-cells = <2>;
+
+            interrupt-controller;
+            #interrupt-cells = <2>;
+        };
+
         sio_busif_clk: sio_busif_clk@23b7001c0 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
@@ -569,6 +595,34 @@
                 compatible = "jedec,spi-nor";
                 reg = <0>;
                 spi-max-frequency = <3000000>;
+            };
+        };
+
+        spi3_clk: spi3_clk@23b700258 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b700258 0x0 0x8>;
+            clocks = <&spi_p_clk>;
+            clock-output-names = "spi3_clk";
+        };
+
+        spi3: spi@23510c000 {
+            compatible = "apple,spi-mc-m1";
+            reg = <0x2 0x3510c000 0x0 0x4000>;
+            interrupts = <0 617 4>;
+            clocks = <&spi3_clk>;
+            cs-gpios = <&gpio 49 0>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            keyboard@0 {
+                compatible = "input,applespi-kbd-v1";
+                reg = <0>;
+                spi-max-frequency = <4000000>;
+                spien-gpios = <&gpio 195 0>;
+                irq-gpios = <&nub_gpio 13 0>;
+                interrupt-parent = <&nub_gpio>;
+                interrupts = <13 8>;
             };
         };
 
