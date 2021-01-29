@@ -395,7 +395,7 @@ static int apple_gpio_gpio_register(struct apple_gpio_pinctrl *pctl)
 	pctl->gpio_chip.direction_output = apple_gpio_gpio_direction_output;
 	pctl->gpio_chip.get = apple_gpio_gpio_get;
 	pctl->gpio_chip.set = apple_gpio_gpio_set;
-	pctl->gpio_chip.base = 0;
+	pctl->gpio_chip.base = pctl->pin_base;
 	pctl->gpio_chip.ngpio = pctl->npins;
 	pctl->gpio_chip.parent = pctl->dev;
 	pctl->gpio_chip.of_node = node;
@@ -507,7 +507,7 @@ static int apple_gpio_pinctrl_probe(struct platform_device *pdev)
 	for(i=0; i<pctl->npins; i++) {
 		apple_gpio_init_reg(pctl, i);
 
-		pctl->pins[i].number = pctl->pin_base + i;
+		pctl->pins[i].number = i;
 		pctl->pins[i].name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%s%d", pctl->pin_prefix, i);
 		pctl->pins[i].drv_data = pctl;
 		pctl->pin_names[i] = pctl->pins[i].name;
