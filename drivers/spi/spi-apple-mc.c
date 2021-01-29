@@ -59,12 +59,15 @@
 #define  REG_HWDLY_POST_SHIFT		16
 #define REG_HWDLY_POST_2		0x194
 
-#define TIMEOUT_MS			1000
+#define TIMEOUT_MS			100
 
 #define FIFO_SIZE			16
 
+#define MAX_SEG_SIZE			16384
+
 struct apple_spimc {
 	struct spi_controller *master;
+	struct device *dev;
 	void __iomem *base;
 	unsigned int clkfreq;
 	unsigned int speed;
@@ -83,13 +86,18 @@ static inline struct apple_spimc *spidev_to_apple_spimc(struct spi_device *spi)
 	return spi_controller_get_devdata(spi->master);
 }
 
-static void apple_spimc_continue_tx(struct apple_spimc *spi, unsigned avail)
+static void apple_spimc_continue_tx(struct apple_spimc *spi, unsigned avail, unsigned prime)
 {
 	unsigned maxtx = (avail & REG_AVAIL_TXFIFO_MASK) >> REG_AVAIL_TXFIFO_SHIFT;
-	unsigned data;
-	unsigned cfg;
+	unsigned data, maxrx, cfg;
 
 	maxtx = FIFO_SIZE - maxtx;
+	if(!prime) {
+		maxrx = (avail & REG_AVAIL_RXFIFO_MASK) >> REG_AVAIL_RXFIFO_SHIFT;
+		if(maxrx < maxtx)
+			maxtx = maxrx;
+	}
+
 	while(spi->tx_compl < spi->len && maxtx) {
 		if(spi->tx_buf)
 			data = spi->tx_buf[spi->tx_compl];
@@ -132,7 +140,7 @@ static irqreturn_t apple_spimc_irq(int irq, void *dev_id)
 {
 	struct apple_spimc *spi = dev_id;
 	unsigned long flags;
-	unsigned status, avail;
+	unsigned status, avail, done;
 
 	spin_lock_irqsave(&spi->lock, flags);
 
@@ -140,9 +148,9 @@ static irqreturn_t apple_spimc_irq(int irq, void *dev_id)
 	avail = readl(spi->base + REG_AVAIL);
 	writel(status, spi->base + REG_STATUS);
 
-	apple_spimc_continue_tx(spi, avail);
-
-	if(apple_spimc_continue_rx(spi, avail))
+	done = apple_spimc_continue_rx(spi, avail);
+	apple_spimc_continue_tx(spi, avail, 0);
+	if(done)
 		complete(&spi->done);
 
 	spin_unlock_irqrestore(&spi->lock, flags);
@@ -177,6 +185,8 @@ static int apple_spimc_prepare(struct spi_device *spid, unsigned int speed)
 
 	if(readl(spi->base + REG_RXCNT))
 		writel(0, spi->base + REG_RXCNT);
+	if(readl(spi->base + REG_TXCNT))
+		writel(0, spi->base + REG_TXCNT);
 	avail = readl(spi->base + REG_AVAIL);
 	avail = (avail & REG_AVAIL_RXFIFO_MASK) >> REG_AVAIL_RXFIFO_SHIFT;
 	while(avail --)
@@ -188,6 +198,7 @@ static int apple_spimc_prepare(struct spi_device *spid, unsigned int speed)
 	writel(REG_STATUS_COMPL | REG_STATUS_TXEMPTY | REG_STATUS_RXRDY, spi->base + REG_STATUS);
 	writel(readl(spi->base + REG_SPCON) & ~REG_SPCON_MODE, spi->base + REG_SPCON);
 	writel(REG_CONFIG_SET, spi->base + REG_CONFIG);
+	writel(REG_CLKCFG_ENABLE, spi->base + REG_CLKCFG);
 	writel(readl(spi->base + REG_HWDLY_CFG) & ~REG_HWDLY_CFG_EN, spi->base + REG_HWDLY_CFG);
 	writel(readl(spi->base + REG_HWDLY_PRE) & ~REG_HWDLY_PRE_EN, spi->base + REG_HWDLY_PRE);
 	writel(readl(spi->base + REG_HWDLY_POST) & ~REG_HWDLY_POST_EN, spi->base + REG_HWDLY_POST);
@@ -200,16 +211,16 @@ static int apple_spimc_prepare(struct spi_device *spid, unsigned int speed)
 
 static int apple_spimc_transfer_one_message(struct spi_controller *master, struct spi_message *m)
 {
-	unsigned long timeout = msecs_to_jiffies(TIMEOUT_MS);
+	unsigned long timeout;
 	struct apple_spimc *spi = spi_controller_get_devdata(master);
 	struct spi_device *spid = m->spi;
-	unsigned int speed = spid->max_speed_hz;
+	unsigned int speed = spid->max_speed_hz, avail;
 	struct spi_transfer *t = NULL;
-	int status = 0;
-	unsigned long flags;
+	int status = 0, seg, offs;
+	unsigned long flags, cs_set = 0;
 
 	list_for_each_entry(t, &m->transfers, transfer_list)
-		if(t->speed_hz < speed)
+		if(t->speed_hz < speed && t->speed_hz)
 			speed = t->speed_hz;
 
 	if(apple_spimc_prepare(spid, speed)) {
@@ -217,52 +228,78 @@ static int apple_spimc_transfer_one_message(struct spi_controller *master, struc
 		goto msg_done;
 	}
 
-	apple_spimc_set_cs(spid, 1);
-
 	m->actual_length = 0;
 	list_for_each_entry(t, &m->transfers, transfer_list) {
-		spin_lock_irqsave(&spi->lock, flags);
-
-		reinit_completion(&spi->done);
-
-		spi->len = t->len;
-		spi->tx_compl = spi->rx_compl = 0;
-		spi->tx_buf = t->tx_buf;
-		spi->rx_buf = t->rx_buf;
-
-		writel(t->len, spi->base + REG_RXCNT);
-		writel(t->len, spi->base + REG_TXCNT);
-		writel(REG_CONFIG_SET | REG_CONFIG_PIOEN, spi->base + REG_CONFIG);
-		writel(REG_CLKCFG_ENABLE, spi->base + REG_CLKCFG);
-
-		apple_spimc_continue_tx(spi, readl(spi->base + REG_AVAIL));
-
-		spin_unlock_irqrestore(&spi->lock, flags);
-
-		timeout = wait_for_completion_timeout(&spi->done, timeout);
-
-		spin_lock_irqsave(&spi->lock, flags);
-
-		writel(0, spi->base + REG_CLKCFG);
-		writel(REG_CONFIG_SET, spi->base + REG_CONFIG);
-		writel(REG_STATUS_COMPL | REG_STATUS_TXEMPTY | REG_STATUS_RXRDY,
-			spi->base + REG_STATUS);
-
-		if(timeout == 0) {
-			dev_err(&spid->dev, "transfer timed out with %d/%d remaining.\n",
-				spi->len - spi->tx_compl, spi->len - spi->rx_compl);
-			status = -ETIMEDOUT;
+		if(!cs_set && (t->len || !t->cs_change)) {
+			apple_spimc_set_cs(spid, 1);
+			cs_set = 1;
 		}
 
-		m->actual_length += t->len;
+		for(offs=0; offs<t->len; offs+=seg) {
+			seg = t->len - offs;
+			if(seg > MAX_SEG_SIZE)
+				seg = MAX_SEG_SIZE;
 
-		spin_unlock_irqrestore(&spi->lock, flags);
+			spin_lock_irqsave(&spi->lock, flags);
+
+			reinit_completion(&spi->done);
+
+			spi->len = seg;
+			spi->tx_compl = spi->rx_compl = 0;
+			spi->tx_buf = t->tx_buf ? (t->tx_buf + offs) : NULL;
+			spi->rx_buf = t->rx_buf ? (t->rx_buf + offs) : NULL;
+
+			writel(spi->len, spi->base + REG_TXCNT);
+			writel(spi->len, spi->base + REG_RXCNT);
+			writel(REG_CONFIG_SET | REG_CONFIG_PIOEN, spi->base + REG_CONFIG);
+
+			avail = readl(spi->base + REG_AVAIL);
+			apple_spimc_continue_tx(spi, avail, 1);
+
+			spin_unlock_irqrestore(&spi->lock, flags);
+
+			timeout = msecs_to_jiffies(TIMEOUT_MS);
+			timeout = wait_for_completion_timeout(&spi->done, timeout);
+
+			spin_lock_irqsave(&spi->lock, flags);
+
+			writel(REG_CONFIG_SET, spi->base + REG_CONFIG);
+			writel(REG_STATUS_COMPL | REG_STATUS_TXEMPTY | REG_STATUS_RXRDY,
+				spi->base + REG_STATUS);
+
+			if(timeout == 0) {
+				dev_err(&spid->dev, "transfer timed out with %d/%d remaining (of %d).\n",
+					spi->len - spi->tx_compl, spi->len - spi->rx_compl, spi->len);
+				status = -ETIMEDOUT;
+			}
+
+			m->actual_length += spi->len;
+
+			spin_unlock_irqrestore(&spi->lock, flags);
+
+			if(status)
+				break;
+		}
 
 		if(status)
 			break;
+
+		if(t->delay_usecs)
+			udelay(t->delay_usecs);
+		spi_delay_exec(&t->delay, t);
+
+		if(t->cs_change) {
+			apple_spimc_set_cs(spid, 0);
+			if(spi_delay_exec(&t->cs_change_delay, t) < 0)
+				udelay(50);
+			apple_spimc_set_cs(spid, 1);
+			cs_set = 1;
+		}
 	}
 
 	apple_spimc_set_cs(spid, 0);
+
+	writel(0, spi->base + REG_CLKCFG);
 
 msg_done:
 	m->status = status;
@@ -330,7 +367,7 @@ static int apple_spimc_probe(struct platform_device *pdev)
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*spi));
 	if(!master) {
-		dev_info(&pdev->dev, "master allocation failed.\n");
+		dev_err(&pdev->dev, "master allocation failed.\n");
 		return -ENOMEM;
 	}
 
@@ -345,6 +382,7 @@ static int apple_spimc_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, master);
 
 	spi = spi_controller_get_devdata(master);
+	spi->dev = &pdev->dev;
 	spi->base = base;
 	spi->clk = clk;
 	spi->master = master;
