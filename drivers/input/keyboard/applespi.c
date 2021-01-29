@@ -1686,10 +1686,6 @@ static int applespi_probe(struct spi_device *spi)
 	    !applespi->rx_buffer || !applespi->msg_buf)
 		return -ENOMEM;
 
-	/* set up our spi messages */
-	applespi_setup_read_txfrs(applespi);
-	applespi_setup_write_txfrs(applespi);
-
 	/* cache ACPI method handles */
 	acpi_sts = acpi_get_handle(spi_handle, "SIEN", &applespi->sien);
 	if (ACPI_FAILURE(acpi_sts)) {
@@ -1707,11 +1703,16 @@ static int applespi_probe(struct spi_device *spi)
 		return -ENODEV;
 	}
 
-	/* switch on the SPI interface */
+	/* prepare SPI settings and locks */
 	sts = applespi_setup_spi(applespi);
 	if (sts)
 		return sts;
 
+	/* set up our SPI messages */
+	applespi_setup_read_txfrs(applespi);
+	applespi_setup_write_txfrs(applespi);
+
+	/* switch on the SPI interface */
 	sts = applespi_enable_spi(applespi);
 	if (sts)
 		return sts;
