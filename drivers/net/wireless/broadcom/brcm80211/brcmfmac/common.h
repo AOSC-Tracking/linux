@@ -10,25 +10,12 @@
 #include "fwil_types.h"
 
 #define BRCMF_FW_ALTPATH_LEN			256
+#define BRCMF_OTP_VERSION_MAX			64
 
-/* Definitions for the module global and device specific settings are defined
- * here. Two structs are used for them. brcmf_mp_global_t and brcmf_mp_device.
- * The mp_global is instantiated once in a global struct and gets initialized
- * by the common_attach function which should be called before any other
- * (module) initiliazation takes place. The device specific settings is part
- * of the drvr struct and should be initialized on every brcmf_attach.
- */
-
-/**
- * struct brcmf_mp_global_t - Global module paramaters.
- *
- * @firmware_path: Alternative firmware path.
- */
-struct brcmf_mp_global_t {
-	char	firmware_path[BRCMF_FW_ALTPATH_LEN];
-};
-
-extern struct brcmf_mp_global_t brcmf_mp_global;
+extern char brcmf_firmware_path[BRCMF_FW_ALTPATH_LEN];
+extern char brcmf_mac_addr[18];
+extern char brcmf_otp_chip_id[BRCMF_OTP_VERSION_MAX];
+extern char brcmf_otp_nvram_id[BRCMF_OTP_VERSION_MAX];
 
 /**
  * struct brcmf_mp_device - Device module paramaters.

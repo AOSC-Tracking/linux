@@ -50,10 +50,23 @@ static int brcmf_feature_disable;
 module_param_named(feature_disable, brcmf_feature_disable, int, 0);
 MODULE_PARM_DESC(feature_disable, "Disable features");
 
-static char brcmf_firmware_path[BRCMF_FW_ALTPATH_LEN];
+char brcmf_firmware_path[BRCMF_FW_ALTPATH_LEN];
 module_param_string(alternative_fw_path, brcmf_firmware_path,
-		    BRCMF_FW_ALTPATH_LEN, 0400);
+		    BRCMF_FW_ALTPATH_LEN, 0600);
 MODULE_PARM_DESC(alternative_fw_path, "Alternative firmware path");
+
+char brcmf_mac_addr[18];
+module_param_string(nvram_mac_addr, brcmf_mac_addr,
+			18, 0600);
+MODULE_PARM_DESC(nvram_mac_addr, "Set MAC address in NVRAM");
+
+char brcmf_otp_chip_id[BRCMF_OTP_VERSION_MAX];
+module_param_string(otp_chip_id, brcmf_otp_chip_id, BRCMF_OTP_VERSION_MAX, 0400);
+MODULE_PARM_DESC(otp_chip_id, "Chip ID and revision from OTP");
+
+char brcmf_otp_nvram_id[BRCMF_OTP_VERSION_MAX];
+module_param_string(otp_nvram_id, brcmf_otp_nvram_id, BRCMF_OTP_VERSION_MAX, 0400);
+MODULE_PARM_DESC(otp_chip_id, "NVRAM variant from OTP");
 
 static int brcmf_fcmode;
 module_param_named(fcmode, brcmf_fcmode, int, 0);
@@ -75,7 +88,6 @@ MODULE_PARM_DESC(ignore_probe_fail, "always succeed probe for debugging");
 #endif
 
 static struct brcmfmac_platform_data *brcmfmac_pdata;
-struct brcmf_mp_global_t brcmf_mp_global;
 
 void brcmf_c_set_joinpref_default(struct brcmf_if *ifp)
 {
@@ -376,22 +388,6 @@ void __brcmf_dbg(u32 level, const char *func, const char *fmt, ...)
 }
 #endif
 
-static void brcmf_mp_attach(void)
-{
-	/* If module param firmware path is set then this will always be used,
-	 * if not set then if available use the platform data version. To make
-	 * sure it gets initialized at all, always copy the module param version
-	 */
-	strlcpy(brcmf_mp_global.firmware_path, brcmf_firmware_path,
-		BRCMF_FW_ALTPATH_LEN);
-	if ((brcmfmac_pdata) && (brcmfmac_pdata->fw_alternative_path) &&
-	    (brcmf_mp_global.firmware_path[0] == '\0')) {
-		strlcpy(brcmf_mp_global.firmware_path,
-			brcmfmac_pdata->fw_alternative_path,
-			BRCMF_FW_ALTPATH_LEN);
-	}
-}
-
 struct brcmf_mp_device *brcmf_get_module_param(struct device *dev,
 					       enum brcmf_bus_type bus_type,
 					       u32 chip, u32 chiprev)
@@ -491,9 +487,6 @@ static int __init brcmfmac_module_init(void)
 	err = platform_driver_probe(&brcmf_pd, brcmf_common_pd_probe);
 	if (err == -ENODEV)
 		brcmf_dbg(INFO, "No platform data available.\n");
-
-	/* Initialize global module paramaters */
-	brcmf_mp_attach();
 
 	/* Continue the initialization by registering the different busses */
 	err = brcmf_core_init();
