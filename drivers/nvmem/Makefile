@@ -7,6 +7,8 @@ obj-$(CONFIG_NVMEM)		+= nvmem_core.o
 nvmem_core-y			:= core.o
 
 # Devices
+obj-$(CONFIG_APPLE_SPMI_BBRAM)	+= nvmem-apple-spmi-bbram.o
+nvmem-apple-spmi-bbram-y	:= apple-spmi-bbram.o
 obj-$(CONFIG_NVMEM_BCM_OCOTP)	+= nvmem-bcm-ocotp.o
 nvmem-bcm-ocotp-y		:= bcm-ocotp.o
 obj-$(CONFIG_NVMEM_IMX_IIM)	+= nvmem-imx-iim.o

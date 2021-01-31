@@ -21,6 +21,13 @@ config NVMEM_SYSFS
 	 This interface is mostly used by userspace applications to
 	 read/write directly into nvmem.
 
+config APPLE_SPMI_BBRAM
+	bool "Apple SPMI PMU BBRAM driver"
+	depends on MFD_APPLE_SPMI_PMU
+	help
+	  If you say yes here you get support for the battery-backed RAM on the
+	  SPMI PMUs found in Apple SoC-based systems, including M1 Macs.
+
 config NVMEM_IMX_IIM
 	tristate "i.MX IC Identification Module support"
 	depends on ARCH_MXC || COMPILE_TEST
