@@ -11,6 +11,16 @@ menuconfig SPMI
 
 if SPMI
 
+config SPMI_APPLE_M1
+	tristate "Apple M1 SPMI Controller"
+	select IRQ_DOMAIN_HIERARCHY
+	depends on ARCH_APPLE
+	default ARCH_APPLE
+	help
+	  This option provides support for the SPMI controller found on
+	  Apple M1 SoCs.  The SPMI bus is used for communication with the
+	  PMU and its integrated RTC.
+
 config SPMI_MSM_PMIC_ARB
 	tristate "Qualcomm MSM SPMI Controller (PMIC Arbiter)"
 	select IRQ_DOMAIN_HIERARCHY
