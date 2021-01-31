@@ -214,6 +214,13 @@ config RTC_DRV_AC100
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-ac100.
 
+config RTC_DRV_APPLE_SPMI
+	tristate "Apple SPMI PMU"
+	depends on MFD_APPLE_SPMI_PMU
+	help
+	  This driver provides support for the RTC integrated in PMUs found
+	  on Apple SoC-based systems, such as Apple M1 Macs.
+
 config RTC_DRV_BRCMSTB
 	tristate "Broadcom STB wake-timer"
 	depends on ARCH_BRCMSTB || BMIPS_GENERIC || COMPILE_TEST
