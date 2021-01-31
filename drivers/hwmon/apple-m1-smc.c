@@ -13,6 +13,7 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/regmap.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/mailbox_client.h>
 
 #define MAX_GPIO		32
@@ -29,6 +30,8 @@
 #define SMC_MAX_KEYS		1024
 #define SMC_TIMEOUT_MSEC	250
 
+#define MAX_POWEROFF		4
+
 struct apple_m1_smc {
 	struct device *dev;
 	struct mbox_client mbox;
@@ -43,7 +46,14 @@ struct apple_m1_smc {
 	struct gpio_chip gpio;
 	u32 gpio_present_mask;
 	u32 gpio_bits[MAX_GPIO];
+
+	void (*old_pm_power_off)(void);
+	struct nvmem_device *nvmem;
+	u32 nvmem_poweroff[MAX_POWEROFF*3]; /* addr, mask, val */
+	unsigned num_poweroff;
 };
+
+static struct apple_m1_smc *apple_m1_smc_instance = NULL;
 
 struct apple_m1_smc_key_info {
 	u8 size;
@@ -240,6 +250,44 @@ static void apple_m1_smc_set(struct gpio_chip *chip, unsigned int offset, int va
 	apple_m1_smc_direction_output(chip, offset, value);
 }
 
+static void apple_m1_smc_power_off(void)
+{
+	struct apple_m1_smc *smc = apple_m1_smc_instance;
+	int ret, idx;
+	u32 data;
+
+	if(!smc)
+		return;
+
+	if(smc->nvmem)
+		for(idx=0; idx<smc->num_poweroff; idx++) {
+			ret = nvmem_device_read(smc->nvmem, smc->nvmem_poweroff[idx * 3], 1, &data);
+			if(ret != 1) {
+				pr_err("SMC: %d reading NVMEM %d.\n", ret, idx);
+				break;
+			}
+			data &= ~smc->nvmem_poweroff[idx * 3 + 1];
+			data |= smc->nvmem_poweroff[idx * 3 + 2];
+			ret = nvmem_device_write(smc->nvmem, smc->nvmem_poweroff[idx * 3], 1, &data);
+			if(ret != 1) {
+				pr_err("SMC: %d writing NVMEM %d.\n", ret, idx);
+				break;
+			}
+		}
+
+	mdelay(50);
+
+	data = 0x6f666631; /* 'off1' */
+	ret = apple_m1_smc_write_key(smc, 0x4d425345, &data, sizeof(data)); /* 'MBSE' */
+	if(ret < 0)
+		pr_err("Failed to write SMC power-off key: %d\n", ret);
+	mdelay(1000);
+
+	pm_power_off = smc->old_pm_power_off;
+	if(pm_power_off)
+		pm_power_off();
+}
+
 static int apple_m1_smc_enumerate(struct apple_m1_smc *smc)
 {
 	unsigned idx;
@@ -285,6 +333,7 @@ static void apple_m1_smc_free_channel(void *data)
 static int apple_m1_smc_probe(struct platform_device *pdev)
 {
 	struct apple_m1_smc *smc;
+	struct device_node *node = pdev->dev.of_node;
 	struct device *dev = &pdev->dev;
 	char name[16];
 	u64 msg[2];
@@ -329,6 +378,23 @@ static int apple_m1_smc_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	smc->nvmem = of_nvmem_device_get(node, NULL);
+	if(IS_ERR(smc->nvmem) || !smc->nvmem) {
+		if(PTR_ERR(smc->nvmem) == -EPROBE_DEFER)
+			return PTR_ERR(smc->nvmem);
+		dev_warn(&pdev->dev, "No 'nvmem' parameter, will not be able to power off: %ld.\n", PTR_ERR(smc->nvmem));
+		smc->nvmem = NULL;
+	}
+
+	if(smc->nvmem) {
+		ret = of_property_read_variable_u32_array(node, "nvmem-poweroff", smc->nvmem_poweroff, 3, MAX_POWEROFF * 3);
+		if(ret < 3 || (ret % 3)) {
+			dev_err(&pdev->dev, "'nvmem-poweroff' parameter must have triplets of elements: %d.\n", ret);
+			return ret;
+		}
+		smc->num_poweroff = ret / 3;
+	}
+
 	ret = apple_m1_smc_enumerate(smc);
 	if(ret < 0)
 		return ret;
@@ -347,7 +413,17 @@ static int apple_m1_smc_probe(struct platform_device *pdev)
 	smc->gpio.parent = &pdev->dev;
 	smc->gpio.owner = THIS_MODULE;
 
-	return devm_gpiochip_add_data(&pdev->dev, &smc->gpio, smc);
+	ret = devm_gpiochip_add_data(&pdev->dev, &smc->gpio, smc);
+	if(ret)
+		return ret;
+
+	if(!apple_m1_smc_instance) {
+		apple_m1_smc_instance = smc;
+		smc->old_pm_power_off = pm_power_off;
+		pm_power_off = apple_m1_smc_power_off;
+	}
+
+	return 0;
 }
 
 static const struct of_device_id apple_m1_smc_of_match[] = {
