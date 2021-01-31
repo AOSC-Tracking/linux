@@ -9,6 +9,12 @@ menuconfig POWER_RESET
 
 if POWER_RESET
 
+config POWER_RESET_APPLE
+	tristate "Apple SoCs reset driver"
+	depends on ARCH_APPLE
+	help
+	  Reboot support for Apple SoCs, in particular the M1.
+
 config POWER_RESET_AS3722
 	bool "ams AS3722 power-off driver"
 	depends on MFD_AS3722
