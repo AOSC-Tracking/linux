@@ -525,6 +525,9 @@
             gpio-13 = <0x800000>;
             gpio-15 = <0>;
             gpio-20 = <0>;
+
+            nvmem = <&sysctrl>;
+            nvmem-poweroff = <0x1 0xff 0x00   0x3 0xff 0x00   0xf 0x2f 0x08>;
         };
 
         pcie: pcie@690000000 {
@@ -669,6 +672,53 @@
             msi-parent = <&ans>;
             ranges = <0x02000000   0x0 0x7bc00000   0x2 0x7bc00000 0x0 0x00100000>;
             bus-range = <0x00 0x01>;
+        };
+
+        nub_spmi0_clk: nub_spmi0_clk@23d280060 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3d280060 0x0 0x8>;
+            clocks = <&refclk24mhz>;
+            clock-output-names = "nub_spmi0_clk";
+        };
+
+        nub_spmi0: spmi@23d0d8000 {
+            compatible = "apple,spmi-m1";
+            reg = <0x2 0x3d0d8000 0x0 0x2000>;
+            interrupts = <0 343 4>;
+            clocks = <&nub_spmi0_clk>;
+
+            #address-cells = <2>;
+            #size-cells = <0>;
+            interrupt-controller;
+            #interrupt-cells = <2>;
+
+            pmu@f {
+                compatible = "apple,spmi-pmu-sera", "apple,spmi-pmu";
+                reg = <0xf 0>;
+                interrupt-parent = <&nub_spmi0>;
+                interrupts = <2 0>;
+
+                pmu_rtc: rtc@d002 {
+                        compatible = "apple,spmi-rtc-v0";
+                        base = <0xd002 6   0xd100 6>;
+                };
+
+                sysctrl: sysctrl@9f00 {
+                        compatible = "apple,spmi-bbram-v0";
+                        base = <0x9f00 0x20>;
+                };
+
+                bbram: bbram@a000 {
+                        compatible = "apple,spmi-bbram-v0";
+                        base = <0xa000 0x1000>;
+                };
+            };
+        };
+
+        reboot: reboot@23d2b0000 {
+            compatible = "apple,reboot-v0";
+            reg = <0x2 0x3d2b0000 0x0 0x4000>;
         };
     };
 };
