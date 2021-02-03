@@ -381,7 +381,6 @@
                 interrupts = <0 777 4>;
                 iommus = <&usb_dart0 1>;
                 dr_mode = "host";
-                linux,dma_mask_bits = <64>;
             };
         };
 
@@ -436,7 +435,6 @@
                 interrupts = <0 857 4>;
                 iommus = <&usb_dart1 1>;
                 dr_mode = "host";
-                linux,dma_mask_bits = <64>;
             };
         };
 
