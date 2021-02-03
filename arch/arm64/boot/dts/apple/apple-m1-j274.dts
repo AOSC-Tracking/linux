@@ -785,7 +785,7 @@
             keyboard@0 {
                 compatible = "input,applespi-kbd-v1";
                 reg = <0>;
-                spi-max-frequency = <4000000>;
+                spi-max-frequency = <2000000>;
                 spien-gpios = <&gpio 195 0>;
                 irq-gpios = <&nub_gpio 13 0>;
                 interrupt-parent = <&nub_gpio>;
