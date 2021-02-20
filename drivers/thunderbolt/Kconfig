@@ -44,4 +44,11 @@ config USB4_DMA_TEST
 	  To compile this driver a module, choose M here. The module will be
 	  called thunderbolt_dma_test.
 
+config USB4_STANDARD_NHI
+	tristate "Standard NHI"
+	default USB4
+	help
+	  This driver provides support for the standard host interface
+	  used by Thunderbolt and USB4 controllers.
+
 endif # USB4

@@ -46,9 +46,61 @@ struct tb_nhi_ops {
 	int (*runtime_suspend)(struct tb_nhi *nhi);
 	int (*runtime_resume)(struct tb_nhi *nhi);
 	void (*shutdown)(struct tb_nhi *nhi);
+
+	int (*mailbox_cmd)(struct tb_nhi *nhi, enum nhi_mailbox_cmd cmd, u32 data);
+	enum nhi_fw_mode (*mailbox_mode)(struct tb_nhi *nhi);
+
+	void (*ring_start)(struct tb_ring *ring);
+	void (*ring_stop)(struct tb_ring *ring);
+	struct tb_ring *(*ring_alloc_tx)(struct tb_nhi *nhi, int hop, int size,
+				 unsigned int flags);
+	struct tb_ring *(*ring_alloc_rx)(struct tb_nhi *nhi, int hop, int size,
+				 unsigned int flags, int e2e_tx_hop,
+				 u16 sof_mask, u16 eof_mask,
+				 void (*start_poll)(void *), void *poll_data);
+	void (*ring_free)(struct tb_ring *ring);
+	int (*ring_enqueue)(struct tb_ring *ring, struct ring_frame *frame);
+
+	struct ring_frame *(*ring_poll)(struct tb_ring *ring);
+	void (*ring_poll_complete)(struct tb_ring *ring);
+
+	void (*notify_pci_tunnel)(struct tb_nhi *nhi, unsigned down_adapter);
+	int (*read_drom)(struct tb_nhi *nhi, unsigned offs, void *buf, unsigned size);
 };
 
+int pci_nhi_mailbox_cmd(struct tb_nhi *nhi, enum nhi_mailbox_cmd cmd, u32 data);
+enum nhi_fw_mode pci_nhi_mailbox_mode(struct tb_nhi *nhi);
+
+void pci_nhi_ring_start(struct tb_ring *ring);
+void pci_nhi_ring_stop(struct tb_ring *ring);
+struct tb_ring *pci_nhi_ring_alloc_tx(struct tb_nhi *nhi, int hop, int size,
+			 unsigned int flags);
+struct tb_ring *pci_nhi_ring_alloc_rx(struct tb_nhi *nhi, int hop, int size,
+			 unsigned int flags, int e2e_tx_hop,
+			 u16 sof_mask, u16 eof_mask,
+			 void (*start_poll)(void *), void *poll_data);
+void pci_nhi_ring_free(struct tb_ring *ring);
+int pci_nhi_ring_enqueue(struct tb_ring *ring, struct ring_frame *frame);
+
+struct ring_frame *pci_nhi_ring_poll(struct tb_ring *ring);
+void pci_nhi_ring_poll_complete(struct tb_ring *ring);
+
+extern const struct tb_nhi_ops pci_nhi_ops;
 extern const struct tb_nhi_ops icl_nhi_ops;
+
+/*
+ * Notify NHI infrastructure about a new PCI tunnel. This is used on
+ * systems where extra MMIO has to be done to finalize a tunnel.
+ */
+
+void nhi_notify_pci_tunnel(struct tb_nhi *nhi, unsigned down_adapter);
+
+/*
+ * Read root switch DROM. Returns number of bytes read or negative
+ * for failure. If buf == NULL, returns size of DROM.
+ */
+
+int nhi_read_drom(struct tb_nhi *nhi, unsigned offs, void *buf, unsigned size);
 
 /*
  * PCI IDs used in this driver from Win Ridge forward. There is no

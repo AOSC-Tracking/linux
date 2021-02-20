@@ -438,7 +438,8 @@ static inline struct tb_xdomain *tb_service_parent(struct tb_service *svc)
  * struct tb_nhi - thunderbolt native host interface
  * @lock: Must be held during ring creation/destruction. Is acquired by
  *	  interrupt_work when dispatching interrupts to individual rings.
- * @pdev: Pointer to the PCI device
+ * @pdev: Pointer to the PCI device (may be NULL for non-PCI based NHI)
+ * @dev: Pointer to device
  * @ops: NHI specific optional ops
  * @iobase: MMIO space of the NHI
  * @tx_rings: All Tx rings available on this host controller
@@ -453,6 +454,7 @@ static inline struct tb_xdomain *tb_service_parent(struct tb_service *svc)
 struct tb_nhi {
 	spinlock_t lock;
 	struct pci_dev *pdev;
+	struct device *dev;
 	const struct tb_nhi_ops *ops;
 	void __iomem *iobase;
 	struct tb_ring **tx_rings;
@@ -461,7 +463,13 @@ struct tb_nhi {
 	bool going_away;
 	struct work_struct interrupt_work;
 	u32 hop_count;
+	u32 quirks;
 };
+
+/* adapter 0 cannot be accessed on host router */
+#define NHI_QUIRK_NO_HOST_ADAPTER_0		BIT(0)
+/* host control responses do no have upstream bit set in route field */
+#define NHI_QUIRK_NO_HOST_ROUTE_UP_BIT		BIT(1)
 
 /**
  * struct tb_ring - thunderbolt TX or RX ring associated with a NHI

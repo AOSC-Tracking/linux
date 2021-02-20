@@ -18,6 +18,8 @@
 
 #define TB_ROUTE_SHIFT 8  /* number of bits in a port entry of a route */
 
+#define TB_VENDOR_ID_APPLE	0x05ac
+#define TB_DEVICE_ID_APPLE_M1	0x2000
 
 /*
  * TODO: should be 63? But we do not know how to receive frames larger than 256
@@ -31,6 +33,7 @@ enum tb_switch_cap {
 };
 
 enum tb_switch_vse_cap {
+	TB_VSE_CAP_VSC0			= 0x00,
 	TB_VSE_CAP_PLUG_EVENTS		= 0x01, /* also EEPROM */
 	TB_VSE_CAP_TIME2		= 0x03,
 	TB_VSE_CAP_IECS			= 0x04,

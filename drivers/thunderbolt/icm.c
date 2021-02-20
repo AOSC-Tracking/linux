@@ -2414,6 +2414,9 @@ struct tb *icm_probe(struct tb_nhi *nhi)
 	struct icm *icm;
 	struct tb *tb;
 
+	if (!nhi->pdev)
+		return NULL;
+
 	tb = tb_domain_alloc(nhi, sizeof(struct icm));
 	if (!tb)
 		return NULL;
@@ -2528,3 +2531,4 @@ struct tb *icm_probe(struct tb_nhi *nhi)
 
 	return tb;
 }
+EXPORT_SYMBOL_GPL(icm_probe);

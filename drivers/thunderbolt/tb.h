@@ -116,6 +116,7 @@ struct tb_switch_tmu {
  * @generation: Switch Thunderbolt generation
  * @cap_plug_events: Offset to the plug events capability (%0 if not found)
  * @cap_lc: Offset to the link controller capability (%0 if not found)
+ * @cap_vsc0: Offset to vendor capability 0 (%0 if not found)
  * @is_unplugged: The switch is going away
  * @drom: DROM of the switch (%NULL if not found)
  * @nvm: Pointer to the NVM if the switch has one (%NULL otherwise)
@@ -158,6 +159,7 @@ struct tb_switch {
 	unsigned int generation;
 	int cap_plug_events;
 	int cap_lc;
+	int cap_vsc0;
 	bool is_unplugged;
 	u8 *drom;
 	struct tb_nvm *nvm;
@@ -574,11 +576,11 @@ static inline int tb_port_write(struct tb_port *port, const void *buffer,
 			    length);
 }
 
-#define tb_err(tb, fmt, arg...) dev_err(&(tb)->nhi->pdev->dev, fmt, ## arg)
-#define tb_WARN(tb, fmt, arg...) dev_WARN(&(tb)->nhi->pdev->dev, fmt, ## arg)
-#define tb_warn(tb, fmt, arg...) dev_warn(&(tb)->nhi->pdev->dev, fmt, ## arg)
-#define tb_info(tb, fmt, arg...) dev_info(&(tb)->nhi->pdev->dev, fmt, ## arg)
-#define tb_dbg(tb, fmt, arg...) dev_dbg(&(tb)->nhi->pdev->dev, fmt, ## arg)
+#define tb_err(tb, fmt, arg...) dev_err((tb)->nhi->dev, fmt, ## arg)
+#define tb_WARN(tb, fmt, arg...) dev_WARN((tb)->nhi->dev, fmt, ## arg)
+#define tb_warn(tb, fmt, arg...) dev_warn((tb)->nhi->dev, fmt, ## arg)
+#define tb_info(tb, fmt, arg...) dev_info((tb)->nhi->dev, fmt, ## arg)
+#define tb_dbg(tb, fmt, arg...) dev_dbg((tb)->nhi->dev, fmt, ## arg)
 
 #define __TB_SW_PRINT(level, sw, fmt, arg...)           \
 	do {                                            \

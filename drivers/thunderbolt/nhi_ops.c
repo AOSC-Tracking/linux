@@ -182,4 +182,32 @@ const struct tb_nhi_ops icl_nhi_ops = {
 	.runtime_suspend = icl_nhi_suspend,
 	.runtime_resume = icl_nhi_resume,
 	.shutdown = icl_nhi_shutdown,
+
+	.mailbox_cmd = pci_nhi_mailbox_cmd,
+	.mailbox_mode = pci_nhi_mailbox_mode,
+
+	.ring_start = pci_nhi_ring_start,
+	.ring_stop = pci_nhi_ring_stop,
+	.ring_alloc_tx = pci_nhi_ring_alloc_tx,
+	.ring_alloc_rx = pci_nhi_ring_alloc_rx,
+	.ring_free = pci_nhi_ring_free,
+	.ring_enqueue = pci_nhi_ring_enqueue,
+
+	.ring_poll = pci_nhi_ring_poll,
+	.ring_poll_complete = pci_nhi_ring_poll_complete,
+};
+
+const struct tb_nhi_ops pci_nhi_ops = {
+	.mailbox_cmd = pci_nhi_mailbox_cmd,
+	.mailbox_mode = pci_nhi_mailbox_mode,
+
+	.ring_start = pci_nhi_ring_start,
+	.ring_stop = pci_nhi_ring_stop,
+	.ring_alloc_tx = pci_nhi_ring_alloc_tx,
+	.ring_alloc_rx = pci_nhi_ring_alloc_rx,
+	.ring_free = pci_nhi_ring_free,
+	.ring_enqueue = pci_nhi_ring_enqueue,
+
+	.ring_poll = pci_nhi_ring_poll,
+	.ring_poll_complete = pci_nhi_ring_poll_complete,
 };

@@ -290,10 +290,17 @@ int tb_drom_read_uid_only(struct tb_switch *sw, u64 *uid)
 	u8 crc;
 	int res;
 
-	/* read uid */
-	res = tb_eeprom_read_n(sw, 0, data, 9);
-	if (res)
-		return res;
+	if (tb_route(sw) == 0)
+		res = nhi_read_drom(sw->tb->nhi, 0, data, 9);
+	else
+		res = 0;
+
+	if(res < 9) {
+		/* read uid */
+		res = tb_eeprom_read_n(sw, 0, data, 9);
+		if (res)
+			return res;
+	}
 
 	crc = tb_crc8(data + 1, 8);
 	if (crc != data[0]) {
@@ -415,7 +422,7 @@ static int tb_drom_parse_entries(struct tb_switch *sw)
  */
 static int tb_drom_copy_efi(struct tb_switch *sw, u16 *size)
 {
-	struct device *dev = &sw->tb->nhi->pdev->dev;
+	struct device *dev = sw->tb->nhi->dev;
 	int len, res;
 
 	len = device_property_count_u8(dev, "ThunderboltDROM");
@@ -533,6 +540,17 @@ int tb_drom_read(struct tb_switch *sw)
 		return 0;
 
 	if (tb_route(sw) == 0) {
+		res = nhi_read_drom(sw->tb->nhi, 0, NULL, 0);
+		if (res > 0) {
+			sw->drom = kmalloc(res, GFP_KERNEL);
+			if (!sw->drom)
+				return -ENOMEM;
+			size = res;
+			res = nhi_read_drom(sw->tb->nhi, 0, sw->drom, size);
+			if(res < size)
+				return -EIO;
+		}
+
 		/*
 		 * Apple's NHI EFI driver supplies a DROM for the root switch
 		 * in a device property. Use it if available.

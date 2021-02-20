@@ -382,6 +382,12 @@ static int usb4_switch_drom_read_block(void *data,
 	u32 metadata;
 	int ret;
 
+	if (tb_route(sw) == 0) {
+		ret = nhi_read_drom(sw->tb->nhi, dwaddress * 4, buf, dwords * 4);
+		if(ret > 0)
+			return 0;
+	}
+
 	metadata = (dwords << USB4_DROM_SIZE_SHIFT) & USB4_DROM_SIZE_MASK;
 	metadata |= (dwaddress << USB4_DROM_ADDRESS_SHIFT) &
 		USB4_DROM_ADDRESS_MASK;

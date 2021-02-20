@@ -257,6 +257,9 @@ static void nvm_authenticate_start_dma_port(struct tb_switch *sw)
 {
 	struct pci_dev *root_port;
 
+	if(!sw->tb->nhi->pdev)
+		return;
+
 	/*
 	 * During host router NVM upgrade we should not allow root port to
 	 * go into D3cold because some root ports cannot trigger PME
@@ -271,6 +274,9 @@ static void nvm_authenticate_start_dma_port(struct tb_switch *sw)
 static void nvm_authenticate_complete_dma_port(struct tb_switch *sw)
 {
 	struct pci_dev *root_port;
+
+	if(!sw->tb->nhi->pdev)
+		return;
 
 	root_port = pcie_find_root_port(sw->tb->nhi->pdev);
 	if (root_port)
@@ -731,15 +737,21 @@ static int tb_init_port(struct tb_port *port)
 	int res;
 	int cap;
 
-	res = tb_port_read(port, &port->config, TB_CFG_PORT, 0, 8);
-	if (res) {
-		if (res == -ENODEV) {
-			tb_dbg(port->sw->tb, " Port %d: not implemented\n",
-			       port->port);
-			port->disabled = true;
-			return 0;
+	if (tb_route(port->sw) == 0 && port->port == 0 &&
+	    (port->sw->tb->nhi->quirks & NHI_QUIRK_NO_HOST_ADAPTER_0)) {
+		/* Host Control Adapter space is not readable on this device */
+		memset(&port->config, 0, 8);
+	} else {
+		res = tb_port_read(port, &port->config, TB_CFG_PORT, 0, 8);
+		if (res) {
+			if (res == -ENODEV) {
+				tb_dbg(port->sw->tb, " Port %d: not implemented\n",
+				       port->port);
+				port->disabled = true;
+				return 0;
+			}
+			return res;
 		}
-		return res;
 	}
 
 	/* Port 0 is the switch itself and has no PHY. */
@@ -1831,6 +1843,7 @@ struct device_type tb_switch_type = {
 	.release = tb_switch_release,
 	.pm = &tb_switch_pm_ops,
 };
+EXPORT_SYMBOL_GPL(tb_switch_type);
 
 static int tb_switch_get_generation(struct tb_switch *sw)
 {
@@ -1972,6 +1985,10 @@ struct tb_switch *tb_switch_alloc(struct tb *tb, struct device *parent,
 		}
 	}
 
+	ret = tb_switch_find_vse_cap(sw, TB_VSE_CAP_VSC0);
+	if (ret > 0)
+		sw->cap_vsc0 = ret;
+
 	ret = tb_switch_find_vse_cap(sw, TB_VSE_CAP_PLUG_EVENTS);
 	if (ret > 0)
 		sw->cap_plug_events = ret;
@@ -2095,6 +2112,20 @@ int tb_switch_configure(struct tb_switch *sw)
 	}
 	if (ret)
 		return ret;
+
+	if (sw->config.vendor_id == TB_VENDOR_ID_APPLE &&
+	    sw->config.device_id == TB_DEVICE_ID_APPLE_M1) {
+		u32 magic = 0x413; /* makes the switch discover ports */
+
+		if (!sw->cap_vsc0) {
+			tb_sw_warn(sw, "cannot find Apple TB_VSE_CAP_VSC0, aborting\n");
+			return -ENODEV;
+		}
+
+		ret = tb_sw_write(sw, &magic, TB_CFG_SWITCH, sw->cap_vsc0 + 1, 1);
+		if(ret)
+			return ret;
+	}
 
 	return tb_plug_events_active(sw, true);
 }
