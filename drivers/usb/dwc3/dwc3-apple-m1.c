@@ -37,22 +37,6 @@ static inline void dwc3_apple_m1_rmwl(u32 clr, u32 set, void __iomem *io)
 	writel((readl(io) & ~clr) | set, io);
 }
 
-static int dwc3_apple_m1_poll(u32 msk, u32 val, int neq, void __iomem *io, struct dwc3_apple *da,
-			      const char *name)
-{
-	int cnt = 100;
-	u32 rdv;
-	while(cnt --) {
-		rdv = readl(io);
-		if(((rdv & msk) == val) ^ neq)
-			return 0;
-		udelay(100);
-	}
-
-	pr_err("%pOFn: %s: [%s] timed out (0x%x).\n", da->dev->of_node, __func__, name, rdv);
-	return -ETIMEDOUT;
-}
-
 /* this plays back tunables passed from bootloader. those are somewhat hardware specific,
    and ultimately provided by the first-stage platform bootloader */
 static int dwc3_apple_m1_tunable(struct dwc3_apple *da, const char *name)
@@ -96,42 +80,7 @@ static int dwc3_apple_m1_tunable(struct dwc3_apple *da, const char *name)
 	return 0;
 }
 
-#define USBCORE_PIPEPHY_STATUS				0x200020
-#define   USBCORE_PIPEPHY_STATUS_READY			(1 << 30)
-#define USBCORE_FORCE_CLK_ON				0x2000F0
 #define USBCORE_DWC3					0x280000
-#define USBCORE_AUSBEVT_USB2CTL				0x800000
-#define   USBCORE_AUSBEVT_USB2CTL_EVT_EN		(1 << 0)
-#define   USBCORE_AUSBEVT_USB2CTL_LOAD_CNT		(1 << 3)
-#define USBCORE_AUSBEVT_UTMIACT_EVTCNT			0x800020
-#define USBCORE_PIPEHDLR_MUXSEL				0xA8400C
-#define   USBCORE_PIPEHDLR_MUXSEL_MODE_MASK		(3 << 0)
-#define     USBCORE_PIPEHDLR_MUXSEL_MODE_USB2		(2 << 0)
-#define   USBCORE_PIPEHDLR_MUXSEL_CLKEN_MASK		(3 << 3)
-#define USBCORE_PIPEHDLR_PIPE_IF_REQ			0xA84010
-#define USBCORE_PIPEHDLR_PIPE_IF_ACK			0xA84014
-#define USBCORE_PIPEHDLR_AON_GEN			0xA8401C
-#define   USBCORE_PIPEHDLR_AON_GEN_DRD_FORCE_CLAMP_EN	(1 << 4)
-#define   USBCORE_PIPEHDLR_AON_GEN_DRD_SW_VCC_RESET	(1 << 0)
-#define USBCORE_PIPEHDLR_NONSEL_OVRD			0xA84020
-#define   USBCORE_PIPEHDLR_NONSEL_OVRD_DUMMY_PHY_READY	(1 << 15)
-#define USBCORE_USB2PHY_USBCTL				0xA90000
-#define   USBCORE_USB2PHY_USBCTL_MODE_MASK		(7 << 0)
-#define     USBCORE_USB2PHY_USBCTL_MODE_USB2		(2 << 0)
-#define USBCORE_USB2PHY_CTL				0xA90004
-#define   USBCORE_USB2PHY_CTL_RESET			(1 << 0)
-#define   USBCORE_USB2PHY_CTL_PORT_RESET		(1 << 1)
-#define   USBCORE_USB2PHY_CTL_APB_RESETN		(1 << 2)
-#define   USBCORE_USB2PHY_CTL_SIDDQ			(1 << 3)
-#define USBCORE_USB2PHY_SIG				0xA90008
-#define   USBCORE_USB2PHY_SIG_VBUSDET_FORCE_VAL		(1 << 0)
-#define   USBCORE_USB2PHY_SIG_VBUSDET_FORCE_EN		(1 << 1)
-#define   USBCORE_USB2PHY_SIG_VBUSVLDEXT_FORCE_VAL	(1 << 2)
-#define   USBCORE_USB2PHY_SIG_VBUSVLDEXT_FORCE_EN	(1 << 3)
-#define   USBCORE_USB2PHY_SIG_MODE_HOST			(7 << 12)
-#define USBCORE_USB2PHY_MISCTUNE			0xA9001C
-#define   USBCORE_USB2PHY_MISCTUNE_APBCLK_GATE_OFF	(1 << 29)
-#define   USBCORE_USB2PHY_MISCTUNE_REFCLK_GATE_OFF	(1 << 30)
 
 #define DWC3_GUSB2PHYCFG0_SUSPENDUSB20			(1 << 6)
 #define DWC3_GUSB3PIPECTL0_SUSPENDENABLE		(1 << 17)
@@ -140,73 +89,9 @@ static int dwc3_apple_m1_start(struct dwc3_apple *da)
 {
 	int ret;
 
-	ret = dwc3_apple_m1_tunable(da, "tunable-ATC0AXI2AF");
-	if(ret < 0)
-		return ret;
-
-	dwc3_apple_m1_rmwl(0, USBCORE_USB2PHY_SIG_MODE_HOST,
-		da->usbcore + USBCORE_USB2PHY_SIG);
-
-	/* configure VBUS detection */
-	dwc3_apple_m1_rmwl(0, USBCORE_USB2PHY_SIG_VBUSDET_FORCE_VAL,
-		da->usbcore + USBCORE_USB2PHY_SIG);
-	dwc3_apple_m1_rmwl(0, USBCORE_USB2PHY_SIG_VBUSDET_FORCE_EN,
-		da->usbcore + USBCORE_USB2PHY_SIG);
-	dwc3_apple_m1_rmwl(0, USBCORE_USB2PHY_SIG_VBUSVLDEXT_FORCE_VAL,
-		da->usbcore + USBCORE_USB2PHY_SIG);
-	dwc3_apple_m1_rmwl(0, USBCORE_USB2PHY_SIG_VBUSVLDEXT_FORCE_EN,
-		da->usbcore + USBCORE_USB2PHY_SIG);
-
-	/* power on the PHY and take it out of reset */
-	dwc3_apple_m1_rmwl(USBCORE_USB2PHY_CTL_SIDDQ, 0, da->usbcore + USBCORE_USB2PHY_CTL);
-	udelay(10);
-	dwc3_apple_m1_rmwl(USBCORE_USB2PHY_CTL_RESET, 0, da->usbcore + USBCORE_USB2PHY_CTL);
-	dwc3_apple_m1_rmwl(USBCORE_USB2PHY_CTL_PORT_RESET, 0, da->usbcore + USBCORE_USB2PHY_CTL);
-
-	dwc3_apple_m1_rmwl(0, USBCORE_AUSBEVT_USB2CTL_LOAD_CNT,
-		da->usbcore + USBCORE_AUSBEVT_USB2CTL);
-	dwc3_apple_m1_rmwl(0, USBCORE_AUSBEVT_USB2CTL_LOAD_CNT,
-		da->usbcore + USBCORE_AUSBEVT_USB2CTL);
-
-	dwc3_apple_m1_rmwl(0, USBCORE_USB2PHY_CTL_APB_RESETN, da->usbcore + USBCORE_USB2PHY_CTL);
-
-	/* enable PHY clocks */
-	dwc3_apple_m1_rmwl(USBCORE_USB2PHY_MISCTUNE_APBCLK_GATE_OFF, 0,
-		da->usbcore + USBCORE_USB2PHY_MISCTUNE);
-	dwc3_apple_m1_rmwl(USBCORE_USB2PHY_MISCTUNE_REFCLK_GATE_OFF, 0,
-		da->usbcore + USBCORE_USB2PHY_MISCTUNE);
-	udelay(30);
-	ret = dwc3_apple_m1_poll(-1u, 0, 1, da->usbcore + USBCORE_AUSBEVT_UTMIACT_EVTCNT, da,
-		"UTMI clock active (1)");
-	if(ret < 0)
-		return ret;
-
-	/* set host mode on PHY */
-	dwc3_apple_m1_rmwl(USBCORE_USB2PHY_USBCTL_MODE_MASK, USBCORE_USB2PHY_USBCTL_MODE_USB2,
-		da->usbcore + USBCORE_USB2PHY_USBCTL);
-
-	/* power on the USB DRD core */
-	dwc3_apple_m1_rmwl(USBCORE_PIPEHDLR_AON_GEN_DRD_FORCE_CLAMP_EN, 0,
-		da->usbcore + USBCORE_PIPEHDLR_AON_GEN);
-	dwc3_apple_m1_rmwl(0, USBCORE_PIPEHDLR_AON_GEN_DRD_SW_VCC_RESET,
-		da->usbcore + USBCORE_PIPEHDLR_AON_GEN);
-
 	/* set core mode to host */
 	dwc3_apple_m1_rmwl(DWC3_GCTL_PRTCAPDIR(3), DWC3_GCTL_PRTCAPDIR(DWC3_GCTL_PRTCAP_HOST),
 		da->usbcore + USBCORE_DWC3 + DWC3_GCTL);
-
-	/* wait for fast PHY ready */
-	if((readl(da->usbcore + USBCORE_PIPEHDLR_MUXSEL) & USBCORE_PIPEHDLR_MUXSEL_MODE_MASK)
-	   != USBCORE_PIPEHDLR_MUXSEL_MODE_USB2) {
-		ret = dwc3_apple_m1_poll(USBCORE_PIPEPHY_STATUS_READY, USBCORE_PIPEPHY_STATUS_READY,
-			0, da->usbcore + USBCORE_PIPEPHY_STATUS, da, "PIPE PHY ready");
-		if(ret < 0)
-			return ret;
-	}
-	ret = dwc3_apple_m1_poll(-1u, 0, 1, da->usbcore + USBCORE_AUSBEVT_UTMIACT_EVTCNT, da,
-		"UTMI clock active (2)");
-	if(ret < 0)
-		return ret;
 
 	ret = dwc3_apple_m1_tunable(da, "tunable");
 	if(ret < 0)
