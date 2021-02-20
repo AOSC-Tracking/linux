@@ -13,3 +13,6 @@ obj-$(CONFIG_USB4_DMA_TEST) += thunderbolt_dma_test.o
 
 obj-${CONFIG_USB4_STANDARD_NHI} += thunderbolt-nhi.o
 thunderbolt-nhi-objs := nhi.o nhi_ops.o
+
+obj-${CONFIG_USB4_APPLE_M1_CIO} += apple-m1-cio.o
+apple-m1-cio-objs := apple-m1-nhi.o

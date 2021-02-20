@@ -51,4 +51,11 @@ config USB4_STANDARD_NHI
 	  This driver provides support for the standard host interface
 	  used by Thunderbolt and USB4 controllers.
 
+config USB4_APPLE_M1_CIO
+	tristate "Apple M1 SoC Converged-IO"
+	depends on ARCH_APPLE
+	help
+	  This driver provides support for the Converged-IO (Thunderbolt)
+	  hardware block on Apple M1 ARM SoCs.
+
 endif # USB4
