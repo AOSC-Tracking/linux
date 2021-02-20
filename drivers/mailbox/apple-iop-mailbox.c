@@ -44,6 +44,22 @@ enum apple_iop_mailbox_ep0_state {
 	EP0_SEND_PWRACK,
 };
 
+struct apple_iop_mailbox_data;
+
+struct apple_iop_mailbox_hwops {
+	void (*a2i_msg)(struct apple_iop_mailbox_data *, u64 *);
+	void (*i2a_msg)(struct apple_iop_mailbox_data *, u64 *);
+	u32 (*a2i_stat)(struct apple_iop_mailbox_data *);
+	u32 (*i2a_stat)(struct apple_iop_mailbox_data *);
+	bool (*a2i_full)(u32);
+	bool (*i2a_empty)(u32);
+	void (*a2i_ack)(struct apple_iop_mailbox_data *);
+	void (*i2a_ack)(struct apple_iop_mailbox_data *);
+	void (*try_boot)(struct apple_iop_mailbox_data *);
+	void (*mask_a2i_empty)(struct apple_iop_mailbox_data *);
+	void (*unmask_a2i_empty)(struct apple_iop_mailbox_data *);
+};
+
 struct apple_iop_mailbox_data {
 	struct device *dev;
 	void __iomem *base;
@@ -54,6 +70,7 @@ struct apple_iop_mailbox_data {
 	int num_clks;
 	spinlock_t lock;
 	int irq[NUM_IRQ];
+	const struct apple_iop_mailbox_hwops *hwops;
 	bool a2i_empty_masked;
 	/* memory mapper used by built-in endpoints for allocation */
 	apple_iop_mapper_func_t mapper_func;
@@ -92,21 +109,6 @@ struct apple_iop_mailbox_data {
 		void *ptr;
 	} builtin_ep[EP_IORPT-EP_CRASHLOG+1];
 };
-
-/* A2I -> AP to IOP, I2A -> IOP to AP */
-#define CPU_CTRL		0x0044
-#define   CPU_CTRL_RUN		BIT(4)
-#define A2I_STAT		0x8110
-#define   A2I_STAT_EMPTY	BIT(17)
-#define   A2I_STAT_FULL		BIT(16)
-#define I2A_STAT		0x8114
-#define   I2A_STAT_EMPTY	BIT(17)
-#define   I2A_STAT_FULL		BIT(16)
-#define   I2A_STAT_ENABLE	BIT(0)
-#define A2I_MSG0		0x8800
-#define A2I_MSG1		0x8808
-#define I2A_MSG0		0x8830
-#define I2A_MSG1		0x8838
 
 static unsigned apple_iop_mailbox_ep0_next_discovered_ep(struct apple_iop_mailbox_data *am,
 						     unsigned ep)
@@ -167,6 +169,10 @@ static void apple_iop_mailbox_ep0_push_i2a(struct apple_iop_mailbox_data *am, u6
 	unsigned idx, ep;
 
 	switch(am->ep0_state) {
+	case EP0_IDLE:
+		if(msgtype == 11)
+			return;
+		/* fallthru */
 	case EP0_WAIT_HELLO:
 		if(msgtype == 1) {
 			am->ep0_sub = msg[0] & 0xFFFFFFFFul;
@@ -197,10 +203,6 @@ static void apple_iop_mailbox_ep0_push_i2a(struct apple_iop_mailbox_data *am, u6
 			return;
 		}
 		break;
-	case EP0_IDLE:
-		if(msgtype == 11)
-			return;
-		break;
 	default:
 		;
 	}
@@ -211,6 +213,11 @@ static void apple_iop_mailbox_ep0_push_i2a(struct apple_iop_mailbox_data *am, u6
 
 static void apple_iop_mailbox_mask_a2i_empty(struct apple_iop_mailbox_data *am)
 {
+	if(am->hwops->mask_a2i_empty) {
+		am->hwops->mask_a2i_empty(am);
+		return;
+	}
+
 	if(am->a2i_empty_masked)
 		return;
 	disable_irq_nosync(am->irq[IRQ_A2I_EMPTY]);
@@ -219,6 +226,11 @@ static void apple_iop_mailbox_mask_a2i_empty(struct apple_iop_mailbox_data *am)
 
 static void apple_iop_mailbox_unmask_a2i_empty(struct apple_iop_mailbox_data *am)
 {
+	if(am->hwops->unmask_a2i_empty) {
+		am->hwops->unmask_a2i_empty(am);
+		return;
+	}
+
 	if(!am->a2i_empty_masked)
 		return;
 	enable_irq(am->irq[IRQ_A2I_EMPTY]);
@@ -245,8 +257,11 @@ static irqreturn_t apple_iop_mailbox_a2i_empty_isr(int irq, void *dev_id)
 
 	spin_lock_irqsave(&am->lock, flags);
 
-	stat = readl(am->base + A2I_STAT);
-	if(!(stat & A2I_STAT_FULL)) {
+	if(am->hwops->a2i_ack)
+		am->hwops->a2i_ack(am);
+
+	stat = am->hwops->a2i_stat(am);
+	while(!am->hwops->a2i_full(stat)) {
 		chan = am->a2i_cur_chan;
 		am->a2i_cur_chan = EP_INVALID;
 
@@ -254,8 +269,7 @@ static irqreturn_t apple_iop_mailbox_a2i_empty_isr(int irq, void *dev_id)
 		if(apple_iop_mailbox_ep0_next_a2i(am, msg)) {
 			if(am->trace)
 				dev_info(am->dev, "tx msg %016llx %16llx\n", msg[0], msg[1]);
-			writeq(msg[0], am->base + A2I_MSG0);
-			writeq(msg[1], am->base + A2I_MSG1);
+			am->hwops->a2i_msg(am, msg);
 			apple_iop_mailbox_unmask_a2i_empty(am);
 
 		} else if(!list_empty(&am->a2i_list_system) || !list_empty(&am->a2i_list)) {
@@ -271,17 +285,17 @@ static irqreturn_t apple_iop_mailbox_a2i_empty_isr(int irq, void *dev_id)
 				if(am->trace)
 					dev_info(am->dev, "tx msg %016llx %16llx [%d]\n",
 						 ep->a2i_msg[0], ep->a2i_msg[1], ep->epnum);
-				if(!MSG_INVALID(ep->a2i_msg)) {
-					writeq(ep->a2i_msg[0], am->base + A2I_MSG0);
-					writeq(ep->a2i_msg[1], am->base + A2I_MSG1);
-				}
+				if(!MSG_INVALID(ep->a2i_msg))
+					am->hwops->a2i_msg(am, ep->a2i_msg);
 				apple_iop_mailbox_unmask_a2i_empty(am);
 
 				am->a2i_cur_chan = ep - am->ep;
 			}
-		}
-	} else
-		dev_err(am->dev, "empty_isr called but a2i_stat is 0x%x - not empty.\n", stat);
+			break;
+		} else
+			break;
+		stat = am->hwops->a2i_stat(am);
+	}
 
 	if(chan != EP_INVALID && !am->ep[chan].i2a_live)
 		chan = EP_INVALID;
@@ -312,15 +326,14 @@ static irqreturn_t apple_iop_mailbox_i2a_full_isr(int irq, void *dev_id)
 
 	spin_lock_irqsave(&am->lock, flags);
 
-	stat = readl(am->base + I2A_STAT);
-	if(stat & I2A_STAT_EMPTY) {
-		dev_err(am->dev, "full_isr called but i2a_stat is 0x%x - not full.\n", stat);
+	stat = am->hwops->i2a_stat(am);
+	if(am->hwops->i2a_empty(stat)) {
+		dev_err(am->dev, "full_isr called but i2a_stat is 0x%x - empty.\n", stat);
 		spin_unlock_irqrestore(&am->lock, flags);
 		return IRQ_HANDLED;
 	}
 
-	msg[0] = readq(am->base + I2A_MSG0);
-	msg[1] = readq(am->base + I2A_MSG1);
+	am->hwops->i2a_msg(am, msg);
 	epnum = msg[1] & 0xFF;
 	if(am->trace)
 		dev_info(am->dev, "rx msg %016llx %16llx\n", msg[0], msg[1]);
@@ -332,13 +345,13 @@ static irqreturn_t apple_iop_mailbox_i2a_full_isr(int irq, void *dev_id)
 		apple_iop_mailbox_ep0_push_i2a(am, msg);
 
 		/* if empty, push the notification state machine */
-		stat = readl(am->base + A2I_STAT);
-		if(!(stat & A2I_STAT_FULL) && apple_iop_mailbox_ep0_next_a2i(am, msg)) {
+		stat = am->hwops->a2i_stat(am);
+		while(!am->hwops->a2i_full(stat) && apple_iop_mailbox_ep0_next_a2i(am, msg)) {
 			if(am->trace)
 				dev_info(am->dev, "tx msg %016llx %16llx\n", msg[0], msg[1]);
-			writeq(msg[0], am->base + A2I_MSG0);
-			writeq(msg[1], am->base + A2I_MSG1);
+			am->hwops->a2i_msg(am, msg);
 			apple_iop_mailbox_unmask_a2i_empty(am);
+			stat = am->hwops->a2i_stat(am);
 		}
 	}
 
@@ -348,6 +361,9 @@ static irqreturn_t apple_iop_mailbox_i2a_full_isr(int irq, void *dev_id)
 		am->ep[chan].i2a_msg[1] = msg[1];
 	} else if(chan != EP_INVALID && !am->ep[chan].i2a_live)
 		chan = EP_INVALID;
+
+	if(am->hwops->i2a_ack)
+		am->hwops->i2a_ack(am);
 
 	spin_unlock_irqrestore(&am->lock, flags);
 
@@ -361,38 +377,22 @@ static irqreturn_t apple_iop_mailbox_i2a_full_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void apple_iop_mailbox_try_boot(struct apple_iop_mailbox_data *am)
-{
-	u32 ctrl;
-
-	if(!am->wait_init && am->ep0_state == EP0_WAIT_HELLO) {
-		ctrl = readl(am->base + CPU_CTRL);
-		if(ctrl & CPU_CTRL_RUN) {
-			dev_info(am->dev, "waking coprocessor.\n");
-			writeq(0x0060000000000220, am->base + A2I_MSG0);
-			writeq(0, am->base + A2I_MSG1);
-			apple_iop_mailbox_unmask_a2i_empty(am);
-		} else {
-			dev_info(am->dev, "booting coprocessor.\n");
-			writel(ctrl | CPU_CTRL_RUN, am->base + CPU_CTRL);
-		}
-	}
-}
-
 static int apple_iop_mailbox_send_data(struct mbox_chan *chan, void *_msg)
 {
 	struct apple_iop_mailbox_ep *ep = chan->con_priv;
 	struct apple_iop_mailbox_data *am = ep->am;
 	unsigned long flags;
-	u64 *msg = _msg, msg1;
+	u64 *msg = _msg, msg1[2];
 	u32 stat;
 
 	spin_lock_irqsave(&am->lock, flags);
 
 	if(am->wait_init) {
 		am->wait_init = false;
-		am->ep0_state = EP0_WAIT_HELLO;
-		apple_iop_mailbox_try_boot(am);
+		if(am->ep0_state == EP0_IDLE)
+			am->ep0_state = EP0_WAIT_HELLO;
+		if(am->hwops->try_boot)
+			am->hwops->try_boot(am);
 	}
 
 	if(ep->a2i_busy) {
@@ -400,12 +400,13 @@ static int apple_iop_mailbox_send_data(struct mbox_chan *chan, void *_msg)
 		return -EBUSY;
 	}
 
-	msg1 = (msg[1] & ~0xFFul) | ep->epnum;
+	msg1[0] = msg[0];
+	msg1[1] = (msg[1] & ~0xFFul) | ep->epnum;
 
 	if(am->a2i_cur_chan != EP_INVALID || !apple_iop_mailbox_a2i_ok(am, ep->epnum) ||
 	   MSG_INVALID(msg)) {
-		ep->a2i_msg[0] = msg[0];
-		ep->a2i_msg[1] = msg1;
+		ep->a2i_msg[0] = msg1[0];
+		ep->a2i_msg[1] = msg1[1];
 		ep->a2i_busy = true;
 		if(ep->epnum < 32)
 			list_add(&ep->a2i_list, &am->a2i_list_system);
@@ -414,13 +415,12 @@ static int apple_iop_mailbox_send_data(struct mbox_chan *chan, void *_msg)
 		if(MSG_INVALID(msg))
 			apple_iop_mailbox_unmask_a2i_empty(am);
 	} else {
-		stat = readl(am->base + A2I_STAT);
-		if(!(stat & A2I_STAT_FULL)) {
+		stat = am->hwops->a2i_stat(am);
+		if(!am->hwops->a2i_full(stat)) {
 			if(am->trace)
 				dev_info(am->dev, "tx msg %016llx %16llx [%d]\n",
 					 msg[0], msg[1], ep->epnum);
-			writeq(msg[0], am->base + A2I_MSG0);
-			writeq(msg1, am->base + A2I_MSG1);
+			am->hwops->a2i_msg(am, msg1);
 			apple_iop_mailbox_unmask_a2i_empty(am);
 
 			am->a2i_cur_chan = ep - am->ep;
@@ -597,20 +597,188 @@ int apple_iop_set_mapper_func(void *iop_mbox_chan, apple_iop_mapper_func_t func,
 	return 0;
 }
 
+/* A2I -> AP to IOP, I2A -> IOP to AP */
+#define A7V4_CPU_CTRL		0x0044
+#define   A7V4_CPU_CTRL_RUN	BIT(4)
+#define A7V4_A2I_STAT		0x8110
+#define   A7V4_A2I_STAT_EMPTY	BIT(17)
+#define   A7V4_A2I_STAT_FULL	BIT(16)
+#define A7V4_I2A_STAT		0x8114
+#define   A7V4_I2A_STAT_EMPTY	BIT(17)
+#define   A7V4_I2A_STAT_FULL	BIT(16)
+#define A7V4_A2I_MSG0		0x8800
+#define A7V4_A2I_MSG1		0x8808
+#define A7V4_I2A_MSG0		0x8830
+#define A7V4_I2A_MSG1		0x8838
+
+static void apple_iop_mailbox_a7v4_a2i_msg(struct apple_iop_mailbox_data *am, u64 *msg)
+{
+	writeq(msg[0], am->base + A7V4_A2I_MSG0);
+	writeq(msg[1], am->base + A7V4_A2I_MSG1);
+}
+
+static void apple_iop_mailbox_a7v4_i2a_msg(struct apple_iop_mailbox_data *am, u64 *msg)
+{
+	msg[0] = readq(am->base + A7V4_I2A_MSG0);
+	msg[1] = readq(am->base + A7V4_I2A_MSG1);
+}
+
+static u32 apple_iop_mailbox_a7v4_a2i_stat(struct apple_iop_mailbox_data *am)
+{
+	return readl(am->base + A7V4_A2I_STAT);
+}
+
+static u32 apple_iop_mailbox_a7v4_i2a_stat(struct apple_iop_mailbox_data *am)
+{
+	return readl(am->base + A7V4_I2A_STAT);
+}
+
+static bool apple_iop_mailbox_a7v4_a2i_full(u32 stat)
+{
+	return !!(stat & A7V4_A2I_STAT_FULL);
+}
+
+static bool apple_iop_mailbox_a7v4_i2a_empty(u32 stat)
+{
+	return !!(stat & A7V4_I2A_STAT_EMPTY);
+}
+
+static void apple_iop_mailbox_a7v4_try_boot(struct apple_iop_mailbox_data *am)
+{
+	u32 ctrl;
+
+	if(!am->wait_init && am->ep0_state == EP0_WAIT_HELLO) {
+		ctrl = readl(am->base + A7V4_CPU_CTRL);
+		if(ctrl & A7V4_CPU_CTRL_RUN) {
+			dev_info(am->dev, "waking coprocessor.\n");
+			writeq(0x0060000000000220, am->base + A7V4_A2I_MSG0);
+			writeq(0, am->base + A7V4_A2I_MSG1);
+			apple_iop_mailbox_unmask_a2i_empty(am);
+		} else {
+			dev_info(am->dev, "booting coprocessor.\n");
+			writel(ctrl | A7V4_CPU_CTRL_RUN, am->base + A7V4_CPU_CTRL);
+		}
+	}
+}
+
+const struct apple_iop_mailbox_hwops apple_iop_mailbox_a7v4_hwops = {
+	.a2i_msg = apple_iop_mailbox_a7v4_a2i_msg,
+	.i2a_msg = apple_iop_mailbox_a7v4_i2a_msg,
+	.a2i_stat = apple_iop_mailbox_a7v4_a2i_stat,
+	.i2a_stat = apple_iop_mailbox_a7v4_i2a_stat,
+	.a2i_full = apple_iop_mailbox_a7v4_a2i_full,
+	.i2a_empty = apple_iop_mailbox_a7v4_i2a_empty,
+	.try_boot = apple_iop_mailbox_a7v4_try_boot,
+};
+
+#define M3V1_IRQEN		0x0048
+#define   M3V1_IRQEN_A2I	BIT(0)
+#define   M3V1_IRQEN_I2A	BIT(3)
+#define M3V1_IRQACK		0x004c
+#define   M3V1_IRQACK_A2I	BIT(0)
+#define   M3V1_IRQACK_I2A	BIT(3)
+#define M3V1_A2I_STAT		0x0050
+#define   M3V1_A2I_STAT_EMPTY	BIT(17)
+#define   M3V1_A2I_STAT_FULL	BIT(16)
+#define M3V1_A2I_MSG0		0x0060
+#define M3V1_A2I_MSG1		0x0068
+#define M3V1_I2A_STAT		0x0080
+#define   M3V1_I2A_STAT_EMPTY	BIT(17)
+#define   M3V1_I2A_STAT_FULL	BIT(16)
+#define M3V1_I2A_MSG0		0x00A0
+#define M3V1_I2A_MSG1		0x00A8
+
+static void apple_iop_mailbox_m3v1_a2i_msg(struct apple_iop_mailbox_data *am, u64 *msg)
+{
+	writeq(msg[0], am->base + M3V1_A2I_MSG0);
+	writeq(msg[1], am->base + M3V1_A2I_MSG1);
+}
+
+static void apple_iop_mailbox_m3v1_i2a_msg(struct apple_iop_mailbox_data *am, u64 *msg)
+{
+	msg[0] = readq(am->base + M3V1_I2A_MSG0);
+	msg[1] = readq(am->base + M3V1_I2A_MSG1);
+}
+
+static u32 apple_iop_mailbox_m3v1_a2i_stat(struct apple_iop_mailbox_data *am)
+{
+	return readl(am->base + M3V1_A2I_STAT);
+}
+
+static u32 apple_iop_mailbox_m3v1_i2a_stat(struct apple_iop_mailbox_data *am)
+{
+	return readl(am->base + M3V1_I2A_STAT);
+}
+
+static bool apple_iop_mailbox_m3v1_a2i_full(u32 stat)
+{
+	return !!(stat & M3V1_A2I_STAT_FULL);
+}
+
+static bool apple_iop_mailbox_m3v1_i2a_empty(u32 stat)
+{
+	return !!(stat & M3V1_I2A_STAT_EMPTY);
+}
+
+static void apple_iop_mailbox_m3v1_a2i_ack(struct apple_iop_mailbox_data *am)
+{
+	writel(M3V1_IRQACK_A2I, am->base + M3V1_IRQACK);
+}
+
+static void apple_iop_mailbox_m3v1_i2a_ack(struct apple_iop_mailbox_data *am)
+{
+	writel(M3V1_IRQACK_I2A, am->base + M3V1_IRQACK);
+}
+
+static void apple_iop_mailbox_m3v1_mask_a2i_empty(struct apple_iop_mailbox_data *am)
+{
+	writel(readl(am->base + M3V1_IRQEN) & ~M3V1_IRQEN_A2I, am->base + M3V1_IRQEN);
+}
+
+static void apple_iop_mailbox_m3v1_unmask_a2i_empty(struct apple_iop_mailbox_data *am)
+{
+	writel(readl(am->base + M3V1_IRQEN) | M3V1_IRQEN_A2I, am->base + M3V1_IRQEN);
+}
+
+const struct apple_iop_mailbox_hwops apple_iop_mailbox_m3v1_hwops = {
+	.a2i_msg = apple_iop_mailbox_m3v1_a2i_msg,
+	.i2a_msg = apple_iop_mailbox_m3v1_i2a_msg,
+	.a2i_stat = apple_iop_mailbox_m3v1_a2i_stat,
+	.i2a_stat = apple_iop_mailbox_m3v1_i2a_stat,
+	.a2i_full = apple_iop_mailbox_m3v1_a2i_full,
+	.i2a_empty = apple_iop_mailbox_m3v1_i2a_empty,
+	.a2i_ack = apple_iop_mailbox_m3v1_a2i_ack,
+	.i2a_ack = apple_iop_mailbox_m3v1_i2a_ack,
+	.mask_a2i_empty = apple_iop_mailbox_m3v1_mask_a2i_empty,
+	.unmask_a2i_empty = apple_iop_mailbox_m3v1_unmask_a2i_empty,
+};
+
+static const struct of_device_id apple_iop_mailbox_of_match[] = {
+	{ .compatible = "apple,iop-mailbox-m1",		&apple_iop_mailbox_a7v4_hwops },
+	{ .compatible = "apple,iop-mailbox-micro-m1",	&apple_iop_mailbox_m3v1_hwops },
+	{ }
+};
+
 static int apple_iop_mailbox_probe(struct platform_device *pdev)
 {
 	struct apple_iop_mailbox_data *am;
 	struct device_node *np = pdev->dev.of_node;
+	const struct of_device_id *match;
 	struct resource *res;
 	unsigned int i, irq, max_ep = 0, system_ep_mask = 0, num_system_ep;
 	unsigned long flags;
 	u32 epnum;
 	int err;
 
+	match = of_match_node(apple_iop_mailbox_of_match, pdev->dev.of_node);
+	if(!match)
+		return -EINVAL;
+
 	am = devm_kzalloc(&pdev->dev, sizeof(*am), GFP_KERNEL);
 	if(!am)
 		return -ENOMEM;
 	am->dev = &pdev->dev;
+	am->hwops = match->data;
 	spin_lock_init(&am->lock);
 	INIT_LIST_HEAD(&am->a2i_list);
 	INIT_LIST_HEAD(&am->a2i_list_system);
@@ -753,16 +921,13 @@ static int apple_iop_mailbox_probe(struct platform_device *pdev)
 	}
 
 	spin_lock_irqsave(&am->lock, flags);
-	apple_iop_mailbox_try_boot(am);
+	if(am->hwops->try_boot)
+		am->hwops->try_boot(am);
 	spin_unlock_irqrestore(&am->lock, flags);
 
 	return 0;
 }
 
-static const struct of_device_id apple_iop_mailbox_of_match[] = {
-	{ .compatible = "apple,iop-mailbox-m1" },
-	{ }
-};
 MODULE_DEVICE_TABLE(of, apple_iop_mailbox_of_match);
 
 static struct platform_driver apple_iop_mailbox_platform_driver = {
