@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Phy drivers for Apple SoCs
+#
+config PHY_APPLE_ATC_M1
+	tristate "Apple SoCs USB PHY Driver"
+	depends on ARCH_APPLE
+	depends on TYPEC
+	select GENERIC_PHY
+	help
+	  This driver provides support for universal type-C PHY (ATCPHY)
+	  found on Apple M1 SoC.
