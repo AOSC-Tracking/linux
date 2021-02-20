@@ -34,11 +34,17 @@ struct clk_apple_pmgr {
 
 static void clk_apple_pmgr_run_seq(struct clk_apple_pmgr *clk, const unsigned *seq, unsigned n)
 {
+	u32 val;
 	if(!n || !seq)
 		return;
 	while(n --) {
-		writel(seq[2], clk->bases[seq[0]] + seq[1]);
-		seq += 3;
+		if(seq[2] != -1) {
+			val = readl(clk->bases[seq[0]] + seq[1]) & ~seq[2];
+			val |= seq[3] & seq[2];
+		} else
+			val = seq[3];
+		writel(val, clk->bases[seq[0]] + seq[1]);
+		seq += 4;
 	}
 }
 
@@ -55,6 +61,7 @@ static int clk_apple_pmgr_gate_enable(struct clk_hw *hw)
 	val = readl(clk->bases[0]);
 
 	val |= 15;
+	val &= ~0x300;
 	writel(val, clk->bases[0]);
 
 	while(max --) {
@@ -62,6 +69,7 @@ static int clk_apple_pmgr_gate_enable(struct clk_hw *hw)
 		val = readl(clk->bases[0]);
 
 		if(((val >> 4) & 15) == 15) {
+			val &= ~0x300;
 			writel(val | 0x10000000, clk->bases[0]);
 			clk_apple_pmgr_run_seq(clk, clk->seq[3], clk->seqn[3]);
 			return 0;
@@ -174,7 +182,7 @@ static int clk_apple_pmgr_driver_probe(struct platform_device *pdev)
 			seq[i] = devm_kcalloc(&pdev->dev, n, sizeof(unsigned), GFP_KERNEL);
 			if(!seq[i])
 				return -ENOMEM;
-			seqn[i] = of_property_read_variable_u32_array(node, seqname[i], seq[i], 0, n) / 3;
+			seqn[i] = of_property_read_variable_u32_array(node, seqname[i], seq[i], 0, n) / 4;
 		}
 	}
 
