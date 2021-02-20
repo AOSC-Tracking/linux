@@ -169,6 +169,7 @@
         #address-cells = <2>;
         #size-cells = <2>;
         ranges;
+        dma-coherent;
 
         applestart: applestart@23b754004 {
             compatible = "apple,startcpu";
@@ -299,12 +300,12 @@
             #interrupt-cells = <2>;
 
             acio0_ls_pins: acio0_ls_pins {
-                pins = "gpio39";
+                pins = "aopgpio39";
                 function = "periph";
             };
 
             acio1_ls_pins: acio1_ls_pins {
-                pins = "gpio41";
+                pins = "aopgpio41";
                 function = "periph";
             };
         };
@@ -356,6 +357,23 @@
                     label = "USB-C A";
                     power-role = "source";
                     data-role = "host";
+
+                    ports {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        port@0 {
+                            reg = <0>;
+                            typec0_con_hs: endpoint {
+                                remote-endpoint = <&typec0_usb_hs>;
+                            };
+                        };
+                        port@1 {
+                            reg = <1>;
+                            typec0_con_ss: endpoint {
+                                remote-endpoint = <&typec0_phy_ss>;
+                            };
+                        };
+                    };
                 };
             };
 
@@ -372,6 +390,23 @@
                     label = "USB-C B";
                     power-role = "source";
                     data-role = "host";
+
+                    ports {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        port@0 {
+                            reg = <0>;
+                            typec1_con_hs: endpoint {
+                                remote-endpoint = <&typec1_usb_hs>;
+                            };
+                        };
+                        port@1 {
+                            reg = <1>;
+                            typec1_con_ss: endpoint {
+                                remote-endpoint = <&typec1_phy_ss>;
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -400,26 +435,34 @@
             clock-output-names = "atc0_usb";
         };
 
-        atc0_cio: atc0_cio@23d280430 {
+        atc0_pcie: atc0_pcie@23b700428 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
-            reg = <0x2 0x3d280430 0x0 0x8>;
+            reg = <0x2 0x3b700428 0x0 0x8>;
+            clocks = <&atc0_common>;
+            clock-output-names = "atc0_pcie";
+        };
+
+        atc0_cio: atc0_cio@23b700430 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b700430 0x0 0x8>;
             clocks = <&atc0_common>;
             clock-output-names = "atc0_cio";
         };
 
-        atc0_cio_pcie: atc0_cio_pcie@23d280438 {
+        atc0_cio_pcie: atc0_cio_pcie@23b700438 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
-            reg = <0x2 0x3d280438 0x0 0x8>;
+            reg = <0x2 0x3b700438 0x0 0x8>;
             clocks = <&atc0_cio>;
             clock-output-names = "atc0_cio_pcie";
         };
 
-        atc0_cio_usb: atc0_cio_usb@23d280440 {
+        atc0_cio_usb: atc0_cio_usb@23b700440 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
-            reg = <0x2 0x3d280440 0x0 0x8>;
+            reg = <0x2 0x3b700440 0x0 0x8>;
             clocks = <&atc0_cio>;
             clock-output-names = "atc0_cio_usb";
         };
@@ -429,35 +472,120 @@
             clocks = <&atc0_usb>;
             reg = <0x3 0x80000000 0x0 0x1000000
                    0x3 0x82000000 0x0 0x1080000>;
-            #phy-cells = <1>;
+            #phy-cells = <0>;
+            usb-role-switch;
+            orientation-switch;
+            mode-switch;
+            accessory;
+            #clock-cells = <0>;
+            clock-output-names = "utmi0clk";
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+                port@0 {
+                    reg = <0>;
+                    typec0_phy_ss: endpoint {
+                        remote-endpoint = <&typec0_con_ss>;
+                    };
+                };
+                port@1 {
+                    reg = <1>;
+                    typec0_pipe_ss: endpoint {
+                        remote-endpoint = <&typec0_usb_ss>;
+                    };
+                };
+            };
+        };
+
+        acio_mbox0: acio_mbox0@381100000 {
+            compatible = "apple,iop-mailbox-micro-m1";
+            reg = <0x3 0x81100000 0x0 0x4000>;
+            interrupts = <0 812 4   0 815 4>;
+            #mbox-cells = <1>;
+            endpoints = <32>;
+            wait-init;
+        };
+
+        acio_reconfig0: acio_reconfig0@23b784000 {
+            compatible = "apple,cio-reconfig-m1";
+            clocks = <&atc0_cio &atc0_cio_pcie &atc0_cio_usb>;
+            reg = <0x2 0x3b784000 0x0 0x4000>;
+            mboxes = <&acio_mbox0 32>;
+            #clock-cells = <0>;
+            clock-output-names = "acio0clk";
         };
 
         acio_dart0: acio_dart0@381a80000 {
             compatible = "apple,dart-m1";
-            clocks = <&atc0_cio>;
+            clocks = <&acio_reconfig0>;
             reg = <0x3 0x81a80000 0x0 0x4000>;
             interrupts = <0 810 4>;
             page-bits = <14>;
             sid-mask = <0x8003>;
+            sid-bypass-mask = <0x8000>;
             #iommu-cells = <1>;
         };
 
         acio0: acio0@381f00000 {
             compatible = "apple,cio-nhi-m1";
-            clocks = <&atc0_cio &atc0_cio_pcie &atc0_cio_usb>;
+            clocks = <&acio_reconfig0>;
             reg = <0x3 0x81f00000 0x0 0x100000
                    0x3 0x81ac0000 0x0 0x440000>;
-            interrupts = <0 795 1   0 796 1   0 797 1   0 798 1
-                          0 799 1   0 800 1   0 801 1   0 802 1
-                          0 803 1   0 804 1   0 805 1   0 806 1
-                          0 783 1   0 784 1   0 785 1   0 786 1
+            interrupts = <0 783 1   0 784 1   0 785 1   0 786 1
                           0 787 1   0 788 1   0 789 1   0 790 1
-                          0 791 1   0 792 1   0 793 1   0 794 1>;
+                          0 791 1   0 792 1   0 793 1   0 794 1
+                          0 795 1   0 796 1   0 797 1   0 798 1
+                          0 799 1   0 800 1   0 801 1   0 802 1
+                          0 803 1   0 804 1   0 805 1   0 806 1>;
             iommus = <&acio_dart0 1>;
-            phys = <&atcphy0 4>;
+            phys = <&atcphy0>;
             pinctrl-0 = <&acio0_ls_pins>;
             pinctrl-names = "default";
             num-rings = <12>;
+            pcie = <&pciec0>;
+        };
+
+        pciec0_dart: pciec0_dart@3a1008000 {
+            compatible = "apple,dart-m1-64";
+            clocks = <&atc0_pcie>;
+            reg = <0x3 0xa1008000 0x0 0x4000>;
+            interrupts = <0 771 4>;
+            pcie-dart;
+            aperture = <0x0 0x00004000 0x0 0x7ff00000>;
+            page-bits = <14>;
+            sid-mask = <65535>;
+            #iommu-cells = <1>;
+        };
+
+        pciec0: pciec0@3b0000000 {
+            compatible = "apple,pciec-m1";
+            reg = <0x3 0xb0000000 0x0 0x1000000                                                                 /* config */
+                   0x3 0xa0000000 0x0 0x100000  0x3 0xa0200000 0x0 0x100000                                     /* core and AXI bridge */
+                   0x3 0xa1000000 0x0 0x20000>;                                                                 /* ports */
+            interrupt-parent = <&aic>;
+            interrupts = <0 770 4                                                                               /* state */
+                          0 738 1   0 739 1   0 740 1   0 741 1   0 742 1   0 743 1   0 744 1   0 745 1         /* MSI */
+                          0 746 1   0 747 1   0 748 1   0 749 1   0 750 1   0 751 1   0 752 1   0 753 1
+                          0 754 1   0 755 1   0 756 1   0 757 1   0 758 1   0 759 1   0 760 1   0 761 1
+                          0 762 1   0 763 1   0 764 1   0 765 1   0 766 1   0 767 1   0 768 1   0 769 1>;
+            clocks = <&atc0_pcie &atc0_cio_pcie &refclk100mhz>;
+            clock-names = "core", "aux", "ref";
+            #address-cells = <3>;
+            #size-cells = <2>;
+            #interrupt-cells = <1>;
+            device_type = "pci";
+            msi-controller;
+            msi-parent = <&pciec0>;
+            msi-doorbell = <0x0 0xfffff000>;
+            ranges = <0x43000000   0x4 0x00000000   0x4 0x00000000   0x0 0x80000000
+                      0x02000000   0x0 0x80000000   0x4 0x80000000   0x0 0x40000000
+                      0x42000000   0x0 0xc0000000   0x4 0xc0000000   0x0 0x3ff00000>;
+            bus-range = <0x00 0x0f>;
+            iommu-map = <0x0000 &pciec0_dart 0x8000 0x0100>, /* fake, and should never be used as RC bridges don't DMA */
+                        <0x0100 &pciec0_dart 0x0100 0x7e00>;
+            iommu-map-mask = <0xff00>;
+            external-facing;
         };
 
         usb_dart0: usb_dart0@382f00000 {
@@ -473,8 +601,8 @@
 
         usb_drd0: usb_drd0@382280000 {
             compatible = "apple,dwc3-m1";
-            clocks = <&atc0_usb>;
-            clock-names = "usbclk";
+            clocks = <&atc0_usb &atcphy0>;
+            clock-names = "usbclk", "utmiclk";
             reg = <0x3 0x80000000 0x0 0x1000000   0x3 0x82000000 0x0 0x1000000>;
             reg-names = "atcphy", "usbcore";
             #address-cells = <2>;
@@ -486,7 +614,25 @@
                 reg = <0x3 0x82280000 0x0 0x100000>;
                 interrupts = <0 777 4>;
                 iommus = <&usb_dart0 1>;
+                #address-cells = <1>;
+                #size-cells = <0>;
                 dr_mode = "host";
+
+                phys = <&atcphy0>, <&atcphy0>;
+                phy-names = "usb2-phy", "usb3-phy";
+
+                port@0 {
+                    reg = <0>;
+                    typec0_usb_hs: endpoint {
+                        remote-endpoint = <&typec0_con_hs>;
+                    };
+                };
+                port@1 {
+                    reg = <1>;
+                    typec0_usb_ss: endpoint {
+                        remote-endpoint = <&typec0_pipe_ss>;
+                    };
+                };
             };
         };
 
@@ -514,26 +660,34 @@
             clock-output-names = "atc1_usb";
         };
 
-        atc1_cio: atc1_cio@23d280458 {
+        atc1_pcie: atc1_pcie@23b700450 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
-            reg = <0x2 0x3d280458 0x0 0x8>;
+            reg = <0x2 0x3b700450 0x0 0x8>;
+            clocks = <&atc1_common>;
+            clock-output-names = "atc1_pcie";
+        };
+
+        atc1_cio: atc1_cio@23b700458 {
+            compatible = "apple,pmgr-clk-gate";
+            #clock-cells = <0>;
+            reg = <0x2 0x3b700458 0x0 0x8>;
             clocks = <&atc1_common>;
             clock-output-names = "atc1_cio";
         };
 
-        atc1_cio_pcie: atc1_cio_pcie@23d280460 {
+        atc1_cio_pcie: atc1_cio_pcie@23b700460 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
-            reg = <0x2 0x3d280460 0x0 0x8>;
+            reg = <0x2 0x3b700460 0x0 0x8>;
             clocks = <&atc1_cio>;
             clock-output-names = "atc1_cio_pcie";
         };
 
-        atc1_cio_usb: atc1_cio_usb@23d280468 {
+        atc1_cio_usb: atc1_cio_usb@23b700468 {
             compatible = "apple,pmgr-clk-gate";
             #clock-cells = <0>;
-            reg = <0x2 0x3d280468 0x0 0x8>;
+            reg = <0x2 0x3b700468 0x0 0x8>;
             clocks = <&atc1_cio>;
             clock-output-names = "atc1_cio_usb";
         };
@@ -543,35 +697,120 @@
             clocks = <&atc1_usb>;
             reg = <0x5 0x00000000 0x0 0x1000000
                    0x5 0x02000000 0x0 0x1080000>;
-            #phy-cells = <1>;
+            #phy-cells = <0>;
+            usb-role-switch;
+            orientation-switch;
+            mode-switch;
+            accessory;
+            #clock-cells = <0>;
+            clock-output-names = "utmi1clk";
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+                port@0 {
+                    reg = <0>;
+                    typec1_phy_ss: endpoint {
+                        remote-endpoint = <&typec1_con_ss>;
+                    };
+                };
+                port@1 {
+                    reg = <1>;
+                    typec1_pipe_ss: endpoint {
+                        remote-endpoint = <&typec1_usb_ss>;
+                    };
+                };
+            };
+        };
+
+        acio_mbox1: acio_mbox1@501100000 {
+            compatible = "apple,iop-mailbox-micro-m1";
+            reg = <0x5 0x01100000 0x0 0x4000>;
+            interrupts = <0 892 4   0 895 4>;
+            #mbox-cells = <1>;
+            endpoints = <32>;
+            wait-init;
+        };
+
+        acio_reconfig1: acio_reconfig1@23b788000 {
+            compatible = "apple,cio-reconfig-m1";
+            clocks = <&atc1_cio &atc1_cio_pcie &atc1_cio_usb>;
+            reg = <0x2 0x3b788000 0x0 0x4000>;
+            mboxes = <&acio_mbox1 32>;
+            #clock-cells = <0>;
+            clock-output-names = "acio1clk";
         };
 
         acio_dart1: acio_dart1@501a80000 {
             compatible = "apple,dart-m1";
-            clocks = <&atc1_cio>;
+            clocks = <&acio_reconfig1>;
             reg = <0x5 0x01a80000 0x0 0x4000>;
             interrupts = <0 890 4>;
             page-bits = <14>;
             sid-mask = <0x8003>;
+            sid-bypass-mask = <0x8000>;
             #iommu-cells = <1>;
         };
 
         acio1: acio1@501f00000 {
             compatible = "apple,cio-nhi-m1";
-            clocks = <&atc1_cio &atc1_cio_pcie &atc1_cio_usb>;
+            clocks = <&acio_reconfig1>;
             reg = <0x5 0x01f00000 0x0 0x100000
                    0x5 0x01ac0000 0x0 0x440000>;
-            interrupts = <0 875 1   0 876 1   0 877 1   0 878 1
-                          0 879 1   0 880 1   0 881 1   0 882 1
-                          0 883 1   0 884 1   0 885 1   0 886 1
-                          0 863 1   0 864 1   0 865 1   0 866 1
+            interrupts = <0 863 1   0 864 1   0 865 1   0 866 1
                           0 867 1   0 868 1   0 869 1   0 870 1
-                          0 871 1   0 872 1   0 873 1   0 874 1>;
+                          0 871 1   0 872 1   0 873 1   0 874 1
+                          0 875 1   0 876 1   0 877 1   0 878 1
+                          0 879 1   0 880 1   0 881 1   0 882 1
+                          0 883 1   0 884 1   0 885 1   0 886 1>;
             iommus = <&acio_dart1 1>;
-            phys = <&atcphy1 4>;
+            phys = <&atcphy1>;
             pinctrl-0 = <&acio1_ls_pins>;
             pinctrl-names = "default";
             num-rings = <12>;
+            pcie = <&pciec1>;
+        };
+
+        pciec1_dart: pciec1_dart@521008000 {
+            compatible = "apple,dart-m1-64";
+            clocks = <&atc1_pcie>;
+            reg = <0x5 0x21008000 0x0 0x4000>;
+            interrupts = <0 851 4>;
+            pcie-dart;
+            aperture = <0x0 0x80000000 0x0 0xfff00000>;
+            page-bits = <14>;
+            sid-mask = <65535>;
+            #iommu-cells = <1>;
+        };
+
+        pciec1: pciec1@530000000 {
+            compatible = "apple,pciec-m1";
+            reg = <0x5 0x30000000 0x0 0x1000000                                                                 /* config */
+                   0x5 0x20000000 0x0 0x100000  0x5 0x20200000 0x0 0x100000                                     /* core and AXI bridge */
+                   0x5 0x21000000 0x0 0x20000>;                                                                 /* ports */
+            interrupt-parent = <&aic>;
+            interrupts = <0 850 4                                                                               /* state */
+                          0 818 1   0 819 1   0 820 1   0 821 1   0 822 1   0 823 1   0 824 1   0 825 1         /* MSI */
+                          0 826 1   0 827 1   0 828 1   0 829 1   0 830 1   0 831 1   0 832 1   0 833 1
+                          0 834 1   0 835 1   0 836 1   0 837 1   0 838 1   0 839 1   0 840 1   0 841 1
+                          0 842 1   0 843 1   0 844 1   0 845 1   0 846 1   0 847 1   0 848 1   0 849 1>;
+            clocks = <&atc1_pcie &atc1_cio_pcie &refclk100mhz>;
+            clock-names = "core", "aux", "ref";
+            #address-cells = <3>;
+            #size-cells = <2>;
+            #interrupt-cells = <1>;
+            device_type = "pci";
+            msi-controller;
+            msi-parent = <&pciec1>;
+            msi-doorbell = <0x0 0xfffff000>;
+            ranges = <0x43000000   0x5 0x80000000   0x5 0x80000000   0x0 0x80000000
+                      0x02000000   0x0 0x00100000   0x6 0x00100000   0x0 0x3ff00000
+                      0x42000000   0x0 0x40000000   0x6 0x40000000   0x0 0x40000000>;
+            bus-range = <0x00 0x0f>;
+            iommu-map = <0x0000 &pciec1_dart 0x8000 0x0100>, /* fake, and should never be used as RC bridges don't DMA */
+                        <0x0100 &pciec1_dart 0x0100 0x7e00>;
+            iommu-map-mask = <0xff00>;
+            external-facing;
         };
 
         usb_dart1: usb_dart1@502f00000 {
@@ -587,8 +826,8 @@
 
         usb_drd1: usb_drd1@502280000 {
             compatible = "apple,dwc3-m1";
-            clocks = <&atc1_usb>;
-            clock-names = "usbclk";
+            clocks = <&atc1_usb &atcphy1>;
+            clock-names = "usbclk", "utmiclk";
             reg = <0x5 0x00000000 0x0 0x1000000   0x5 0x02000000 0x0 0x1000000>;
             reg-names = "atcphy", "usbcore";
             #address-cells = <2>;
@@ -600,7 +839,25 @@
                 reg = <0x5 0x02280000 0x0 0x100000>;
                 interrupts = <0 857 4>;
                 iommus = <&usb_dart1 1>;
+                #address-cells = <1>;
+                #size-cells = <0>;
                 dr_mode = "host";
+
+                phys = <&atcphy1>, <&atcphy1>;
+                phy-names = "usb2-phy", "usb3-phy";
+
+                port@0 {
+                    reg = <0>;
+                    typec1_usb_hs: endpoint {
+                        remote-endpoint = <&typec1_con_hs>;
+                    };
+                };
+                port@1 {
+                    reg = <1>;
+                    typec1_usb_ss: endpoint {
+                        remote-endpoint = <&typec1_pipe_ss>;
+                    };
+                };
             };
         };
 
@@ -726,9 +983,10 @@
                       0x02000000   0x0 0xc0000000   0x6 0xc0000000 0x0 0x40000000>;
             bus-range = <0x00 0x0f>;
             iommu-map = <0x0000 &pcie_dart0 0x8000 0x0100>, /* fake, and should never be used as RC bridges don't DMA */
-                        <0x0100 &pcie_dart0 0x0000 0x0100>,
-                        <0x0200 &pcie_dart1 0x0000 0x0100>,
-                        <0x0300 &pcie_dart2 0x0000 0x0100>;
+                        <0x0100 &pcie_dart0 0x0100 0x0100>,
+                        <0x0200 &pcie_dart1 0x0200 0x0100>,
+                        <0x0300 &pcie_dart2 0x0300 0x0100>;
+            iommu-map-mask = <0xff00>;
             refclk-always-on-2;
             max-speed-2 = <1>; /* 2.5 GT/s */
         };
