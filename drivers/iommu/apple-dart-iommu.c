@@ -19,6 +19,7 @@
 #include <linux/of_iommu.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/delay.h>
 #include <linux/clk.h>
 
 #define DART_TLB_OP			0x0000
@@ -86,10 +87,12 @@
 #define DART1_SID_REMAP(sid4)		(0x0080 + 4 * (sid4))
 #define DART1_CONFIG(sid16)		(0x0100 + 4 * (sid16))
 #define   DART1_CONFIG_TXEN		(1 << 7)
+#define   DART1_CONFIG_BYPASS		(1 << 8)
 #define DART1_TTBR(sid16,l1idx4)	(0x0200 + 16 * (sid16) + 4 * (l1idx4))
 #define   DART1_TTBR_VALID		(1 << 31)
 #define   DART1_TTBR_MASK		0x0FFFFFFF
 #define   DART1_TTBR_SHIFT		12
+#define DART1W_TTBR(sid64,l1idx4)	(0x0400 + 16 * (sid64) + 4 * (l1idx4))
 
 #define DART_PTE_STATE_MASK		3
 #define   DART_PTE_STATE_INVALID	0
@@ -108,12 +111,14 @@ struct apple_dart_iommu {
 	struct iommu_device iommu;
 	const struct apple_dart_version *version;
 	void __iomem *base[DART_MAX_SUB];
-	int is_init;
-	int is_pcie;
+	bool is_init;
+	bool is_pcie;
 	u32 page_bits;
 	u32 sid_mask;
+	u32 sid_bypass_mask;
 	u8 remap[DART_MAX_SID];
 	u64 iova_offset;
+	u64 aperture[2];
 	u64 **l2dma[DART_MAX_SID];
 	u64 *l1dma[DART_MAX_SID];
 	spinlock_t dart_lock;
@@ -138,6 +143,7 @@ struct apple_dart_version {
 	u64 pcie_aperture[2];
 	u64 system_aperture[2];
 	u32 pte_next_flag;
+	u32 num_sid;
 };
 
 struct apple_dart_iommu_domain {
@@ -211,33 +217,45 @@ static void apple_dart_tlb_flush_v0(struct apple_dart_iommu *im, u32 sidmask,
 				    void __iomem *base, unsigned subdart)
 {
 	u32 status;
+	u32 max = 10000;
 
 	writel(DART_TLB_OP_FLUSH | (sidmask << DART_TLB_OP_SID_SHIFT), base + DART_TLB_OP);
 
-	while(1) {
+	while(max --) {
 		status = readl(base + DART_TLB_OP);
 
 		if(!(status & DART_TLB_OP_BUSY))
-			break;
+			return;
+
+		udelay(10);
 	}
+
+	dev_err(im->dev, "%s FLUSH TIMEOUT SID %04x STATUS %08x",
+		apple_dart_subname[subdart], sidmask, status);
 }
 
 static void apple_dart_tlb_flush_v1(struct apple_dart_iommu *im, u32 sidmask,
 				    void __iomem *base, unsigned subdart)
 {
 	u32 status;
+	u32 max = 10000;
 
 	writel(sidmask, base + DART1_TLB_OP_SIDMASK);
 	writel(DART1_TLB_OP_FLUSH, base + DART1_TLB_OP);
 
-	while(1) {
+	while(max --) {
 		status = readl(base + DART1_TLB_OP);
 
 		if(!(status & DART1_TLB_OP_OPMASK))
-			break;
+			return;
 		if(!(status & DART1_TLB_OP_BUSY))
-			break;
+			return;
+
+		udelay(10);
 	}
+
+	dev_err(im->dev, "%s FLUSH TIMEOUT SID %04x STATUS %08x",
+		apple_dart_subname[subdart], sidmask, status);
 }
 
 static void apple_dart_tlb_flush(struct apple_dart_iommu *im, u32 sidmask, int need_lock)
@@ -280,17 +298,31 @@ static void apple_dart_write_ttbr_v1(struct apple_dart_iommu *im, u32 sid, u64 p
 	}
 }
 
-static u64 *apple_dart_get_pte(struct apple_dart_iommu *im, u32 sid, u64 iova, int optional,
-			       unsigned long *flags, gfp_t gfp)
+static void apple_dart_write_ttbr_v1w(struct apple_dart_iommu *im, u32 sid, u64 phys,
+				      void __iomem *base, u32 subdart)
+{
+	unsigned i;
+
+	for(i=0; i<4; i++) {
+		writel(((phys >> DART1_TTBR_SHIFT) & DART1_TTBR_MASK) | DART1_TTBR_VALID,
+		       base + DART1W_TTBR(sid, i));
+		phys += DART_PAGE_SIZE(im);
+	}
+}
+
+static int apple_dart_pteop(struct apple_dart_iommu *im, u32 sid, u64 iova, int optional,
+			       unsigned long *flags, gfp_t gfp, u64 ptewr, u64 *pterd)
 {
 	unsigned i, l1idx, l1base, l2idx, npgs, npg;
 	u64 phys, **l1pt, *l1dma, *l2dma;
-	void *dmava, *ptva;
-	dma_addr_t dmah;
-	unsigned subdart;
+	void *dmava, *ptva, *dmavafree[2];
+	dma_addr_t dmah, dmahfree[2];
+	unsigned subdart, dmaszfree[2];
+	int ret = 0, ndmafree = 0;
 
-	if(im->is_pcie)
-		sid = 0;
+	if(sid >= DART_MAX_SID || sid >= im->version->num_sid)
+		return -EINVAL;
+
 	if(!im->l1dma[sid]) {
 		spin_unlock_irqrestore(&im->dart_lock, *flags);
 		ptva = (void *)__get_free_pages(gfp | __GFP_ZERO,
@@ -305,12 +337,15 @@ static u64 *apple_dart_get_pte(struct apple_dart_iommu *im, u32 sid, u64 iova, i
 						   DART_PAGE_SHIFT(im) + 2 - PAGE_SHIFT);
 				else
 					dev_err(im->dev, "failed to allocate shadow L1 pagetable.\n");
-				if(dmava)
-					dma_free_attrs(im->dev, DART_PAGE_SIZE(im) * 4, dmava, dmah,
-							DMA_ATTR_WRITE_COMBINE);
-				else
+				if(dmava) {
+					dmavafree[ndmafree] = dmava;
+					dmahfree[ndmafree] = dmah;
+					dmaszfree[ndmafree] = DART_PAGE_SIZE(im) * 4;
+					ndmafree ++;
+				} else
 					dev_err(im->dev, "failed to allocate uncached L1 pagetable.\n");
-				return NULL;
+				ret = -ENOMEM;
+				goto done;
 			}
 			im->l2dma[sid] = ptva;
 			im->l1dma[sid] = dmava;
@@ -323,9 +358,12 @@ static u64 *apple_dart_get_pte(struct apple_dart_iommu *im, u32 sid, u64 iova, i
 		} else {
 			if(ptva)
 				free_pages((unsigned long)ptva, DART_PAGE_SHIFT(im) + 2 - PAGE_SHIFT);
-			if(dmava)
-				dma_free_attrs(im->dev, DART_PAGE_SIZE(im) * 4, dmava, dmah,
-					       DMA_ATTR_WRITE_COMBINE);
+			if(dmava) {
+				dmavafree[ndmafree] = dmava;
+				dmahfree[ndmafree] = dmah;
+				dmaszfree[ndmafree] = DART_PAGE_SIZE(im) * 4;
+				ndmafree ++;
+			}
 		}
 	}
 
@@ -333,8 +371,10 @@ static u64 *apple_dart_get_pte(struct apple_dart_iommu *im, u32 sid, u64 iova, i
 	l1idx = (iova >> (2 * DART_PAGE_SHIFT(im) - 3)) & (DART_PAGE_MASK(im) >> 1);
 
 	if(!l1pt[l1idx]) {
-		if(optional)
-			return NULL;
+		if(optional) {
+			ret = -ENOENT;
+			goto done;
+		}
 		if(DART_PAGE_SHIFT(im) < PAGE_SHIFT)
 			npgs = PAGE_SHIFT - DART_PAGE_SHIFT(im);
 		else
@@ -346,7 +386,8 @@ static u64 *apple_dart_get_pte(struct apple_dart_iommu *im, u32 sid, u64 iova, i
 		if(!l1pt[l1idx]) {
 			if(!dmava) {
 				dev_err(im->dev, "failed to allocate uncached L2 pagetable.\n");
-				return NULL;
+				ret = -ENOMEM;
+				goto done;
 			}
 			npg = 1 << npgs;
 			phys = dmah;
@@ -359,14 +400,34 @@ static u64 *apple_dart_get_pte(struct apple_dart_iommu *im, u32 sid, u64 iova, i
 					im->version->pte_next_flag;
 			}
 		} else
-			if(dmava)
-				dma_free_attrs(im->dev, DART_PAGE_SIZE(im) << npgs, dmava, dmah,
-					       DMA_ATTR_WRITE_COMBINE);
+			if(dmava) {
+				dmavafree[ndmafree] = dmava;
+				dmahfree[ndmafree] = dmah;
+				dmaszfree[ndmafree] = DART_PAGE_SIZE(im) << npgs;
+				ndmafree ++;
+			}
 	}
 
 	l2dma = l1pt[l1idx];
 	l2idx = (iova >> DART_PAGE_SHIFT(im)) & (DART_PAGE_MASK(im) >> 3);
-	return &l2dma[l2idx];
+	if(!pterd) {
+		l2dma[l2idx] = ptewr;
+		wmb();
+	} else
+		*pterd = l2dma[l2idx];
+
+done:
+	if(ndmafree) {
+		spin_unlock_irqrestore(&im->dart_lock, *flags);
+		while(ndmafree) {
+			ndmafree --;
+			dma_free_attrs(im->dev, dmaszfree[ndmafree], dmavafree[ndmafree],
+				       dmahfree[ndmafree], DMA_ATTR_WRITE_COMBINE);
+		}
+		spin_lock_irqsave(&im->dart_lock, *flags);
+	}
+
+	return ret;
 }
 
 static void apple_dart_enable_v0(struct apple_dart_iommu *im, u32 sid,
@@ -496,7 +557,10 @@ static void apple_dart_init_v1(struct apple_dart_iommu *im, void __iomem *base, 
 	apple_dart_tlb_flush_v1(im, 0xffffffff, base, subdart);
 
 	for(sid=0; sid<DART_MAX_SID; sid++)
-		writel(DART1_CONFIG_TXEN, base + DART1_CONFIG(sid));
+		if(im->sid_bypass_mask & (1 << sid))
+			writel(DART1_CONFIG_BYPASS, base + DART1_CONFIG(sid));
+		else
+			writel(DART1_CONFIG_TXEN, base + DART1_CONFIG(sid));
 }
 
 static int apple_dart_iommu_attach_device(struct iommu_domain *domain, struct device *dev)
@@ -521,17 +585,16 @@ static int apple_dart_iommu_attach_device(struct iommu_domain *domain, struct de
 
 	if(!idom->iommu) {
 		idom->iommu = im;
-		if(im->is_pcie) {
-			idom->domain.geometry.aperture_start = im->version->pcie_aperture[0];
-			idom->domain.geometry.aperture_end   = im->version->pcie_aperture[1];
-		} else {
-			idom->domain.geometry.aperture_start = im->version->system_aperture[0];
-			idom->domain.geometry.aperture_end   = im->version->system_aperture[1];
-		}
+		idom->domain.geometry.aperture_start = im->aperture[0];
+		idom->domain.geometry.aperture_end   = im->aperture[1];
 		idom->domain.geometry.force_aperture = true;
 	}
 
-	sid = im->is_pcie ? 0 : idd->sid;
+	if(im->is_pcie)
+		sid = idd->sid >> 8;
+	else
+		sid = idd->sid;
+
 	if(idom->sid >= 0 && idom->sid != sid) {
 		dev_err(dev, "multiple SIDs mapped to the same IOMMU domain.\n");
 		return -EEXIST;
@@ -605,7 +668,6 @@ static int apple_dart_iommu_map(struct iommu_domain *domain, unsigned long iova,
 	struct apple_dart_iommu *im = idom->iommu;
 	unsigned i, npg = (size + DART_PAGE_MASK(im)) >> DART_PAGE_SHIFT(im);
 	unsigned long flags;
-	u64 *ptep;
 	int ret = 0;
 
 	if(idom->sid < 0)
@@ -617,12 +679,10 @@ static int apple_dart_iommu_map(struct iommu_domain *domain, unsigned long iova,
 
 	spin_lock_irqsave(&im->dart_lock, flags);
 	for(i=0; i<npg; i++) {
-		ptep = apple_dart_get_pte(im, idom->sid, iova, 0, &flags, gfp);
-		if(!ptep) {
-			ret = -ENOMEM;
+		ret = apple_dart_pteop(im, idom->sid, iova, 0, &flags, gfp,
+			(paddr & DART_PTE_ADDR_MASK) | DART_PTE_STATE_VALID, NULL);
+		if(ret)
 			break;
-		}
-		*ptep = (paddr & DART_PTE_ADDR_MASK) | DART_PTE_STATE_VALID;
 		iova += DART_PAGE_SIZE(im);
 		paddr += DART_PAGE_SIZE(im);
 	}
@@ -636,7 +696,7 @@ static phys_addr_t apple_dart_iommu_iova_to_phys(struct iommu_domain *domain, dm
 	struct apple_dart_iommu_domain *idom = to_apple_dart_iommu_domain(domain);
 	struct apple_dart_iommu *im = idom->iommu;
 	unsigned long flags;
-	u64 *ptep, result = 0;
+	u64 result = 0;
 
 	if(idom->sid < 0)
 		return 0;
@@ -646,9 +706,7 @@ static phys_addr_t apple_dart_iommu_iova_to_phys(struct iommu_domain *domain, dm
 	iova -= im->iova_offset;
 
 	spin_lock_irqsave(&im->dart_lock, flags);
-	ptep = apple_dart_get_pte(im, idom->sid, iova, 1, &flags, GFP_KERNEL);
-	if(ptep)
-		result = *ptep;
+	apple_dart_pteop(im, idom->sid, iova, 1, &flags, GFP_KERNEL, 0, &result);
 	spin_unlock_irqrestore(&im->dart_lock, flags);
 
 	if(result & DART_PTE_STATE_MASK)
@@ -663,7 +721,6 @@ static size_t apple_dart_iommu_unmap(struct iommu_domain *domain, unsigned long 
 	struct apple_dart_iommu *im = idom->iommu;
 	unsigned i, npg = (size + DART_PAGE_MASK(im)) >> DART_PAGE_SHIFT(im);
 	unsigned long flags;
-	u64 *ptep;
 
 	if(idom->sid < 0)
 		return 0;
@@ -674,9 +731,7 @@ static size_t apple_dart_iommu_unmap(struct iommu_domain *domain, unsigned long 
 
 	spin_lock_irqsave(&im->dart_lock, flags);
 	for(i=0; i<npg; i++) {
-		ptep = apple_dart_get_pte(im, idom->sid, iova, 1, &flags, GFP_KERNEL);
-		if(ptep)
-			*ptep = 0;
+		apple_dart_pteop(im, idom->sid, iova, 1, &flags, GFP_KERNEL, 0, NULL);
 		iova += DART_PAGE_SIZE(im);
 	}
 	spin_unlock_irqrestore(&im->dart_lock, flags);
@@ -697,17 +752,6 @@ static void apple_dart_iommu_flush_iotlb_all(struct iommu_domain *domain)
 
 static void apple_dart_iommu_iotlb_sync(struct iommu_domain *domain,
 					struct iommu_iotlb_gather *gather)
-{
-	struct apple_dart_iommu_domain *idom = to_apple_dart_iommu_domain(domain);
-
-	if(!idom->iommu)
-		return;
-
-	if(idom->sid >= 0)
-		apple_dart_tlb_flush(idom->iommu, 1u << idom->sid, 1);
-}
-
-static void apple_dart_iommu_iotlb_sync_map(struct iommu_domain *domain)
 {
 	struct apple_dart_iommu_domain *idom = to_apple_dart_iommu_domain(domain);
 
@@ -755,7 +799,6 @@ static const struct iommu_ops apple_dart_iommu_ops = {
 	.iova_to_phys = apple_dart_iommu_iova_to_phys,
 	.flush_iotlb_all = apple_dart_iommu_flush_iotlb_all,
 	.iotlb_sync = apple_dart_iommu_iotlb_sync,
-	.iotlb_sync_map = apple_dart_iommu_iotlb_sync_map,
 	.probe_device = apple_dart_iommu_probe_device,
 	.release_device = apple_dart_iommu_release_device,
 	.device_group = generic_device_group,
@@ -775,6 +818,7 @@ static const struct apple_dart_version apple_dart_version_a10 = {
 	.pcie_aperture =	{ 0x80000000, 0xBBFFFFFF },
 	.system_aperture =	{ 0x00004000, 0xFFFFFFFF },
 	.pte_next_flag =	DART_PTE_STATE_NEXT,
+	.num_sid = 		4,
 };
 
 static const struct apple_dart_version apple_dart_version_m1 = {
@@ -790,12 +834,30 @@ static const struct apple_dart_version apple_dart_version_m1 = {
 	.pcie_aperture =	{ 0x00100000, 0x3FEFFFFF },
 	.system_aperture =	{ 0x00004000, 0xFFFFFFFF },
 	.pte_next_flag =	DART1_PTE_STATE_NEXT,
+	.num_sid = 		16,
+};
+
+static const struct apple_dart_version apple_dart_version_m1w = {
+	.irq =			apple_dart_irq_v1,
+	.tlb_flush =		apple_dart_tlb_flush_v1,
+	.write_ttbr =		apple_dart_write_ttbr_v1w,
+	.iommu_enable =		apple_dart_enable_v1,
+	.init =			apple_dart_init_v1,
+
+	.min_sub =		1,
+	.max_sub =		2,
+	.pcie_iova_offset =	0,
+	.pcie_aperture =	{ 0x00100000, 0x3FEFFFFF },
+	.system_aperture =	{ 0x00004000, 0xFFFFFFFF },
+	.pte_next_flag =	DART1_PTE_STATE_NEXT,
+	.num_sid = 		64,
 };
 
 static const struct of_device_id apple_dart_iommu_match[] = {
-	{ .compatible = "apple,dart-a10", .data = &apple_dart_version_a10 },
-	{ .compatible = "apple,dart-m1",  .data = &apple_dart_version_m1  },
-	{ .compatible = "apple,dart",     .data = &apple_dart_version_m1  },
+	{ .compatible = "apple,dart-a10",   .data = &apple_dart_version_a10 },
+	{ .compatible = "apple,dart-m1",    .data = &apple_dart_version_m1  },
+	{ .compatible = "apple,dart-m1-64", .data = &apple_dart_version_m1w },
+	{ .compatible = "apple,dart",       .data = &apple_dart_version_m1  },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, apple_dart_iommu_match);
@@ -810,6 +872,7 @@ static int apple_dart_iommu_probe(struct platform_device *pdev)
 	struct resource *r;
 	int ret = 0, irq, idx, len;
 	u32 sid, tgt;
+	u64 tmp;
 
 	ofdev = of_match_device(apple_dart_iommu_match, dev);
 	if(!ofdev)
@@ -828,15 +891,31 @@ static int apple_dart_iommu_probe(struct platform_device *pdev)
 
 	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 
-	if(of_property_read_u32(pdev->dev.of_node, "page-bits", &im->page_bits) < 0)
-		im->page_bits = 12;
-	if(of_property_read_u32(pdev->dev.of_node, "sid-mask", &im->sid_mask) < 0)
-		im->sid_mask = 15;
-
 	if(of_property_read_bool(pdev->dev.of_node, "pcie-dart")) {
 		im->is_pcie = 1;
 		im->iova_offset = im->version->pcie_iova_offset;
 	}
+
+	if(im->is_pcie) {
+		im->aperture[0] = im->version->pcie_aperture[0];
+		im->aperture[1] = im->version->pcie_aperture[1];
+	} else {
+		im->aperture[0] = im->version->system_aperture[0];
+		im->aperture[1] = im->version->system_aperture[1];
+	}
+	if(of_property_read_u64_index(pdev->dev.of_node, "aperture", 0, &tmp) >= 0)
+		im->aperture[0] = tmp;
+	if(of_property_read_u64_index(pdev->dev.of_node, "aperture", 1, &tmp) >= 0)
+		im->aperture[1] = tmp;
+	if(of_property_read_u64_index(pdev->dev.of_node, "iova-offset", 0, &tmp) >= 0)
+		im->iova_offset = tmp;
+
+	if(of_property_read_u32(pdev->dev.of_node, "page-bits", &im->page_bits) < 0)
+		im->page_bits = 12;
+	if(of_property_read_u32(pdev->dev.of_node, "sid-mask", &im->sid_mask) < 0)
+		im->sid_mask = 15;
+	if(of_property_read_u32(pdev->dev.of_node, "sid-bypass-mask", &im->sid_bypass_mask) < 0)
+		im->sid_bypass_mask = 0;
 
 	memset(im->remap, 0xFF, sizeof(im->remap));
 	len = of_property_count_elems_of_size(pdev->dev.of_node, "sid-remap", sizeof(u32));
