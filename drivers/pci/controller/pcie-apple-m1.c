@@ -25,7 +25,7 @@
 
 #define NUM_MSI				32
 #define MAX_PORT			3
-#define NUM_RID2SID			16
+#define MAX_RID2SID			64
 
 #define CORE_RC_PHYIF_CTL		0x00024
 #define   CORE_RC_PHYIF_CTL_RUN		BIT(0)
@@ -155,8 +155,9 @@ struct pcie_apple_m1 {
 	struct work_struct hotplug_work;
 
 	spinlock_t used_rid_lock;
-	uint32_t rid2sid[MAX_PORT][NUM_RID2SID];
+	uint32_t rid2sid[MAX_PORT][MAX_RID2SID];
 	uint32_t used_rids[MAX_PORT];
+	uint32_t num_rid2sid;
 
 	DECLARE_BITMAP(used_msi[MAX_PORT], NUM_MSI);
 	u64 msi_doorbell;
@@ -417,14 +418,14 @@ static void pcie_apple_m1_setup_rid2sid(struct device *dev, unsigned int busdevf
 		return;
 
 	spin_lock_irqsave(&pcie->used_rid_lock, flags);
-	for(i=0; i<NUM_RID2SID; i++)
+	for(i=0; i<pcie->num_rid2sid; i++)
 		if((pcie->used_rids[port] & (1u << i)) && (pcie->rid2sid[port][i] & 0xFFFF) == busdevfn)
 			break;
-	if(i >= NUM_RID2SID) {
-		for(i=0; i<NUM_RID2SID; i++)
+	if(i >= pcie->num_rid2sid) {
+		for(i=0; i<pcie->num_rid2sid; i++)
 			if(!(pcie->used_rids[port] & (1u << i)))
 				break;
-		if(i < NUM_RID2SID) {
+		if(i < pcie->num_rid2sid) {
 			pcie->used_rids[port] |= 1u << i;
 			pcie->rid2sid[port][i] = busdevfn | (sid << PORT_RID2SID_SID_SHIFT) |
 						 PORT_RID2SID_VALID;
@@ -1037,8 +1038,8 @@ static int pcie_apple_m1_setup_pciec(struct pcie_apple_m1 *pcie)
 	writel(0x84aed00f, pcie->base_port[0] + PORT_INTSTAT);
 	writel(0x84aed00f, pcie->base_port[0] + PORT_INTMSKCLR);
 
-	/* allocate 15 subordinate buses */
-	writel(0x200f0100, pcie->base_config + 0x18);
+	/* allocate 63 subordinate buses */
+	writel(0x203f0100, pcie->base_config + 0x18);
 
 	pcie_apple_m1_setup_msi(pcie, 0);
 
@@ -1103,10 +1104,12 @@ static int pcie_apple_m1_probe(struct platform_device *pdev)
 	case TYPE_PCIE:
 		pcie->num_port = 3;
 		pcie->msi_per_port = 8;
+		pcie->num_rid2sid = 16;
 		break;
 	case TYPE_PCIEC:
 		pcie->num_port = 1;
 		pcie->msi_per_port = 32;
+		pcie->num_rid2sid = 64;
 		break;
 	}
 
