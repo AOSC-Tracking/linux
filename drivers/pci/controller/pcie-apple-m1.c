@@ -67,9 +67,11 @@
 #define   PORT_INT_LINK_BWMGMT		BIT(11)
 #define   PORT_INT_AER_MASK		(15 << 4)
 #define   PORT_INT_PORT_ERR		BIT(4)
-#define PORT_INTMSKSET			0x00104
-#define PORT_INTMSKCLR			0x00108
-#define PORT_INTMSK			0x0010c
+#define   PORT_INT_INTx(i)		BIT(i)
+#define   PORT_INT_INTxALL		15
+#define PORT_INTMSK			0x00104
+#define PORT_INTMSKSET			0x00108
+#define PORT_INTMSKCLR			0x0010c
 #define PORT_MSICFG			0x00124
 #define   PORT_MSICFG_EN		BIT(0)
 #define   PORT_MSICFG_L2MSINUM_SHIFT	4
@@ -159,7 +161,7 @@ struct pcie_apple_m1 {
 	DECLARE_BITMAP(used_msi[MAX_PORT], NUM_MSI);
 	u64 msi_doorbell;
 	spinlock_t used_msi_lock;
-	struct irq_domain *irq_dom;
+	struct irq_domain *irq_dom, *intx_dom;
 	struct pcie_apple_m1_msi {
 		struct pcie_apple_m1 *pcie;
 		int virq;
@@ -284,6 +286,54 @@ static struct msi_domain_info pcie_apple_m1_msi_dom_info = {
 	.chip = &pcie_apple_m1_irq_chip,
 };
 
+static void pcie_apple_m1_intx_mask(struct irq_data *data)
+{
+	struct pcie_apple_m1 *pcie = irq_data_get_irq_chip_data(data);
+	int port, line;
+
+	if(data->hwirq >= 4 * pcie->num_port)
+		return;
+	port = data->hwirq >> 2;
+	line = data->hwirq & 3;
+
+	writel(1 << line, pcie->base_port[port] + PORT_INTMSKSET);
+}
+
+static void pcie_apple_m1_intx_unmask(struct irq_data *data)
+{
+	struct pcie_apple_m1 *pcie = irq_data_get_irq_chip_data(data);
+	int port, line;
+
+	if(data->hwirq >= 4 * pcie->num_port)
+		return;
+	port = data->hwirq >> 2;
+	line = data->hwirq & 3;
+
+	writel(1 << line, pcie->base_port[port] + PORT_INTMSKCLR);
+}
+
+static struct irq_chip pcie_apple_m1_intx_chip = {
+	.name = "INTx",
+	.irq_enable = pcie_apple_m1_intx_unmask,
+	.irq_disable = pcie_apple_m1_intx_mask,
+	.irq_mask = pcie_apple_m1_intx_mask,
+	.irq_unmask = pcie_apple_m1_intx_unmask,
+};
+
+static int pcie_apple_m1_intx_map(struct irq_domain *domain, unsigned int irq, irq_hw_number_t hwirq)
+{
+	irq_set_chip_and_handler(irq, &pcie_apple_m1_intx_chip, handle_level_irq);
+	irq_set_chip_data(irq, domain->host_data);
+	irq_set_status_flags(irq, IRQ_LEVEL);
+
+	return 0;
+}
+
+static const struct irq_domain_ops pcie_apple_m1_intx_dom_ops = {
+	.map = pcie_apple_m1_intx_map,
+	.xlate = pci_irqd_intx_xlate,
+};
+
 static unsigned pcie_apple_m1_bus_to_port(struct pcie_apple_m1 *pcie, unsigned bus)
 {
 	unsigned port, bus0, bus1;
@@ -398,7 +448,7 @@ void pcie_apple_m1_start_pcic_tunnel(struct pcie_apple_m1 *pcie)
 
 	dev_info(&pcie->pdev->dev, "start PCI tunnel.\n");
 
-	writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR | PORT_INT_LINK_UP, pcie->base_port[0] + PORT_INTMSKCLR);
+	writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR | PORT_INT_LINK_UP, pcie->base_port[0] + PORT_INTMSKSET);
 
 	res = pcie_apple_m1_tunable(pcie, "tunable-port0-config");
 	if(res < 0)
@@ -428,7 +478,7 @@ void pcie_apple_m1_start_pcic_tunnel(struct pcie_apple_m1 *pcie)
 	writel(PORT_LTSSMCTL_START, pcie->base_port[0] + PORT_LTSSMCTL);
 	pcie->ltssm_restart[0] = 3;
 
-	writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR | PORT_INT_LINK_UP, pcie->base_port[0] + PORT_INTMSK);
+	writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR | PORT_INT_LINK_UP, pcie->base_port[0] + PORT_INTMSKCLR);
 }
 EXPORT_SYMBOL_GPL(pcie_apple_m1_start_pcic_tunnel);
 
@@ -485,10 +535,13 @@ static int pcie_apple_m1_config_read(struct pci_bus *bus, unsigned int devfn, in
 	if(bus->number == cfg->busr.start && PCI_SLOT(devfn) >= pcie->num_port)
 		return -ENODEV;
 	ret = pci_generic_config_read(bus, devfn, where, size, val);
-	if(where <= 0x3C && where + size > 0x3C) /* intercept reads from IRQ line */
-		*val |= 0xFFu << ((0x3C - where) << 3);
-	if(where <= 0x3D && where + size > 0x3D) /* intercept reads from IRQ pin */
-		*val &= ~(0xFFu << ((0x3D - where) << 3));
+
+	if(!pcie->intx_dom) {
+		if(where <= 0x3C && where + size > 0x3C) /* intercept reads from IRQ line */
+			*val |= 0xFFu << ((0x3C - where) << 3);
+		if(where <= 0x3D && where + size > 0x3D) /* intercept reads from IRQ pin */
+			*val &= ~(0xFFu << ((0x3D - where) << 3));
+	}
 
 	return ret;
 }
@@ -501,7 +554,7 @@ static int pcie_apple_m1_config_write(struct pci_bus *bus, unsigned int devfn, i
 
 	if(bus->number == cfg->busr.start && PCI_SLOT(devfn) >= pcie->num_port)
 		return -ENODEV;
-	if(where <= 0x3C && where + size > 0x3C) /* intercept writes to IRQ line */
+	if(!pcie->intx_dom && where <= 0x3C && where + size > 0x3C) /* intercept writes to IRQ line */
 		val |= 0xFFu << ((0x3C - where) << 3);
 	if(where == 0x04 && (val & 4)) /* writes to command register with bus master enable */
 		pcie_apple_m1_setup_rid2sid(cfg->parent, ((unsigned int)bus->number << 8) | devfn, bus->number);
@@ -523,15 +576,32 @@ static struct pci_ecam_ops pcie_apple_m1_ecam_ops = {
 	}
 };
 
-static irqreturn_t pcie_apple_m1_portirq_isr(int irq, void *dev_id)
+static void pcie_apple_m1_portirq_isr(struct irq_desc *desc)
 {
-	struct pcie_apple_m1_port *pcieport = dev_id;
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	struct pcie_apple_m1_port *pcieport = irq_desc_get_handler_data(desc);
 	struct pcie_apple_m1 *pcie = pcieport->pcie;
-	unsigned idx = pcieport - pcie->port;
+	unsigned idx = pcieport - pcie->port, line, virq;
 	uint32_t mask;
+
+	chained_irq_enter(chip, desc);
 
 	mask = readl(pcie->base_port[idx] + PORT_INTSTAT);
 	writel(mask, pcie->base_port[idx] + PORT_INTSTAT);
+
+	if(pcie->intx_dom)
+		while(mask & PORT_INT_INTxALL) {
+			line = ffs(mask & PORT_INT_INTxALL) - 1;
+			mask &= ~PORT_INT_INTx(line);
+
+			virq = irq_find_mapping(pcie->intx_dom, line + 4 * idx);
+			if(virq)
+				generic_handle_irq(virq);
+		}
+
+	if(!mask)
+		goto done;
+
 	dev_info(&pcie->pdev->dev, "got port %d irq 0x%x\n", idx, mask);
 
 	if(mask & (PORT_INT_LINK_UP | PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR)) {
@@ -548,13 +618,14 @@ static irqreturn_t pcie_apple_m1_portirq_isr(int irq, void *dev_id)
 				writel(PORT_LTSSMCTL_START, pcie->base_port[idx] + PORT_LTSSMCTL);
 			} else {
 				if(mask & (PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR))
-					writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR, pcie->base_port[idx] + PORT_INTMSKCLR);
+					writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR, pcie->base_port[idx] + PORT_INTMSKSET);
 				schedule_work(&pcie->hotplug_work);
 			}
 		}
 	}
 
-	return IRQ_HANDLED;
+done:
+	chained_irq_exit(chip, desc);
 }
 
 static void pcie_apple_m1_plug_port(struct pcie_apple_m1 *pcie, unsigned idx)
@@ -651,7 +722,7 @@ static void pcie_apple_m1_hotplug_work(struct work_struct *work)
 
 	skip:
 		writel(PORT_INT_LINK_DOWN | PORT_INT_TUNNEL_ERR | PORT_INT_LINK_UP,
-			pcie->base_port[0] + PORT_INTMSK);
+			pcie->base_port[0] + PORT_INTMSKCLR);
 	}
 }
 
@@ -702,7 +773,7 @@ static void pcie_apple_m1_init_port(struct pcie_apple_m1 *pcie, unsigned idx)
 	writel(-1, pcie->base_port[idx] + PORT_LINKCMDSTS);
 	writel(0, pcie->base_port[idx] + PORT_LTSSMCTL);
 	writel(0, pcie->base_port[idx] + 0x84);
-	writel(-1, pcie->base_port[idx] + PORT_INTMSKSET);
+	writel(-1, pcie->base_port[idx] + PORT_INTMSK);
 	writel(0, pcie->base_port[idx] + PORT_MSICFG);
 	writel(0, pcie->base_port[idx] + PORT_MSIBASE);
 	writel(0, pcie->base_port[idx] + PORT_MSIADDR);
@@ -838,7 +909,7 @@ static int pcie_apple_m1_setup_port(struct pcie_apple_m1 *pcie, unsigned idx)
 	if(pcie->max_speed[idx] > 2)
 		rmwl(0, 0x20000, pcie->base_config + (idx << 15) + 0x80c);
 
-	writel(0xfb512fff, pcie->base_port[idx] + PORT_INTMSKSET);
+	writel(0xfb512fff, pcie->base_port[idx] + PORT_INTMSK);
 	writel(0x04aed000, pcie->base_port[idx] + PORT_INTSTAT);
 
 	pcie_apple_m1_setup_msi(pcie, idx);
@@ -964,7 +1035,7 @@ static int pcie_apple_m1_setup_pciec(struct pcie_apple_m1 *pcie)
 		return res;
 
 	writel(0x84aed00f, pcie->base_port[0] + PORT_INTSTAT);
-	writel(0x84aed00f, pcie->base_port[0] + PORT_INTMSK);
+	writel(0x84aed00f, pcie->base_port[0] + PORT_INTMSKCLR);
 
 	/* allocate 15 subordinate buses */
 	writel(0x200f0100, pcie->base_config + 0x18);
@@ -1003,7 +1074,7 @@ static int pcie_apple_m1_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
 	struct device *dev = &pdev->dev;
-	struct device_node *node = dev->of_node;
+	struct device_node *node = dev->of_node, *intx_node;
 	struct fwnode_handle *fwnode = of_node_to_fwnode(node);
 	struct pci_host_bridge *bridge;
 	struct resource_entry *bus;
@@ -1118,10 +1189,6 @@ static int pcie_apple_m1_probe(struct platform_device *pdev)
 			return -EINVAL;
 		}
 		pcie->port[i].pcie = pcie;
-		if(devm_request_irq(dev, pirq, pcie_apple_m1_portirq_isr, 0, dev_name(dev), &pcie->port[i]) < 0) {
-			dev_err(dev, "failed to request port IRQ %d\n", i);
-			return -EINVAL;
-		}
 	}
 
 	for(i=0; i<NUM_MSI; i++) {
@@ -1155,6 +1222,19 @@ static int pcie_apple_m1_probe(struct platform_device *pdev)
 		irq_set_chained_handler_and_data(virq[i], pcie_apple_m1_msi_isr, &pcie->msi[i]);
 		disable_irq(virq[i]);
 	}
+
+	intx_node = of_get_next_child(node, NULL);
+	if(intx_node) {
+		pcie->intx_dom = irq_domain_add_linear(intx_node, PCI_NUM_INTX * pcie->num_port, &pcie_apple_m1_intx_dom_ops, pcie);
+		of_node_put(intx_node);
+		if(!pcie->intx_dom) {
+			dev_err(dev, "failed to create INTx domain\n");
+			return -ENOMEM;
+		}
+	}
+
+	for(i=0; i<pcie->num_port; i++)
+		irq_set_chained_handler_and_data(pirq, pcie_apple_m1_portirq_isr, &pcie->port[i]);
 
 	for(i=0; i<3; i++) {
 		ret = clk_prepare_enable(pcie->clk[i]);
