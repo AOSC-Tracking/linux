@@ -554,13 +554,13 @@
             pcie-dart;
             aperture = <0x0 0x00004000 0x0 0x7ff00000>;
             page-bits = <14>;
-            sid-mask = <65535>;
+            sid-mask = <0xffffffff 0xffffffff>;
             #iommu-cells = <1>;
         };
 
         pciec0: pciec0@3b0000000 {
             compatible = "apple,pciec-m1";
-            reg = <0x3 0xb0000000 0x0 0x1000000                                                                 /* config */
+            reg = <0x3 0xb0000000 0x0 0x4000000                                                                 /* config */
                    0x3 0xa0000000 0x0 0x100000  0x3 0xa0200000 0x0 0x100000                                     /* core and AXI bridge */
                    0x3 0xa1000000 0x0 0x20000>;                                                                 /* ports */
             interrupt-parent = <&aic>;
@@ -581,7 +581,7 @@
             ranges = <0x43000000   0x4 0x00000000   0x4 0x00000000   0x0 0x80000000
                       0x02000000   0x0 0x80000000   0x4 0x80000000   0x0 0x40000000
                       0x42000000   0x0 0xc0000000   0x4 0xc0000000   0x0 0x3ff00000>;
-            bus-range = <0x00 0x0f>;
+            bus-range = <0x00 0x3f>;
             iommu-map = <0x0000 &pciec0_dart 0x8000 0x0100>, /* fake, and should never be used as RC bridges don't DMA */
                         <0x0100 &pciec0_dart 0x0100 0x7e00>;
             iommu-map-mask = <0xff00>;
@@ -790,13 +790,13 @@
             pcie-dart;
             aperture = <0x0 0x80000000 0x0 0xfff00000>;
             page-bits = <14>;
-            sid-mask = <65535>;
+            sid-mask = <0xffffffff 0xffffffff>;
             #iommu-cells = <1>;
         };
 
         pciec1: pciec1@530000000 {
             compatible = "apple,pciec-m1";
-            reg = <0x5 0x30000000 0x0 0x1000000                                                                 /* config */
+            reg = <0x5 0x30000000 0x0 0x4000000                                                                 /* config */
                    0x5 0x20000000 0x0 0x100000  0x5 0x20200000 0x0 0x100000                                     /* core and AXI bridge */
                    0x5 0x21000000 0x0 0x20000>;                                                                 /* ports */
             interrupt-parent = <&aic>;
@@ -817,7 +817,7 @@
             ranges = <0x43000000   0x5 0x80000000   0x5 0x80000000   0x0 0x80000000
                       0x02000000   0x0 0x00100000   0x6 0x00100000   0x0 0x3ff00000
                       0x42000000   0x0 0x40000000   0x6 0x40000000   0x0 0x40000000>;
-            bus-range = <0x00 0x0f>;
+            bus-range = <0x00 0x3f>;
             iommu-map = <0x0000 &pciec1_dart 0x8000 0x0100>, /* fake, and should never be used as RC bridges don't DMA */
                         <0x0100 &pciec1_dart 0x0100 0x7e00>;
             iommu-map-mask = <0xff00>;
