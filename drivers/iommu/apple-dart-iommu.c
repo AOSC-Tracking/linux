@@ -19,6 +19,7 @@
 #include <linux/of_iommu.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/pci.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
 
@@ -790,6 +791,32 @@ static int apple_dart_iommu_of_xlate(struct device *dev, struct of_phandle_args 
 	return 0;
 }
 
+struct iommu_group *apple_dart_iommu_device_group(struct device *dev)
+{
+	struct pci_dev *pdev, *tmp = NULL;
+	struct iommu_group *group;
+
+	if(!dev_is_pci(dev))
+		return iommu_group_alloc();
+
+	pdev = to_pci_dev(dev);
+
+	group = iommu_group_get(&pdev->dev);
+	if(group)
+		return group;
+
+	for_each_pci_dev(tmp) {
+		if(tmp == pdev || tmp->bus != pdev->bus)
+			continue;
+
+		group = iommu_group_get(&tmp->dev);
+		if(group)
+			return group;
+	}
+
+	return iommu_group_alloc();
+}
+
 static const struct iommu_ops apple_dart_iommu_ops = {
 	.capable = apple_dart_iommu_capable,
 	.of_xlate = apple_dart_iommu_of_xlate,
@@ -804,7 +831,7 @@ static const struct iommu_ops apple_dart_iommu_ops = {
 	.iotlb_sync = apple_dart_iommu_iotlb_sync,
 	.probe_device = apple_dart_iommu_probe_device,
 	.release_device = apple_dart_iommu_release_device,
-	.device_group = generic_device_group,
+	.device_group = apple_dart_iommu_device_group,
 	.pgsize_bitmap = ~0x3FFFul,
 };
 
