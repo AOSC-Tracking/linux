@@ -68,6 +68,7 @@
 #define   DART1_TLB_OP_FLUSH		(1 << 20)
 #define   DART1_TLB_OP_BUSY		(1 << 2)
 #define DART1_TLB_OP_SIDMASK		0x0034
+#define DART1W_TLB_OP_SIDMASK2		0x0038
 #define DART1_ERROR_STATUS		0x0040
 #define   DART1_ERROR_FLAG		(1 << 31)
 #define   DART1_ERROR_SID_MASK		(15 << 24)
@@ -101,7 +102,7 @@
 #define   DART_PTE_STATE_VALID		3
 #define DART_PTE_ADDR_MASK		0xFFFFFF000ull
 
-#define DART_MAX_SID			16
+#define DART_MAX_SID			64
 #define DART_MAX_SUB			2
 
 struct apple_dart_iommu {
@@ -114,8 +115,8 @@ struct apple_dart_iommu {
 	bool is_init;
 	bool is_pcie;
 	u32 page_bits;
-	u32 sid_mask;
-	u32 sid_bypass_mask;
+	u64 sid_mask;
+	u64 sid_bypass_mask;
 	u8 remap[DART_MAX_SID];
 	u64 iova_offset;
 	u64 aperture[2];
@@ -130,7 +131,7 @@ struct apple_dart_iommu {
 
 struct apple_dart_version {
 	void (*irq)(struct apple_dart_iommu *im, void __iomem *base, unsigned subdart);
-	void (*tlb_flush)(struct apple_dart_iommu *im, u32 sidmask,
+	void (*tlb_flush)(struct apple_dart_iommu *im, u64 sidmask,
 			  void __iomem *base, unsigned subdart);
 	void (*write_ttbr)(struct apple_dart_iommu *im, u32 sid, u64 phys,
 			   void __iomem *base, unsigned subdart);
@@ -213,7 +214,7 @@ static irqreturn_t apple_dart_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void apple_dart_tlb_flush_v0(struct apple_dart_iommu *im, u32 sidmask,
+static void apple_dart_tlb_flush_v0(struct apple_dart_iommu *im, u64 sidmask,
 				    void __iomem *base, unsigned subdart)
 {
 	u32 status;
@@ -230,17 +231,19 @@ static void apple_dart_tlb_flush_v0(struct apple_dart_iommu *im, u32 sidmask,
 		udelay(10);
 	}
 
-	dev_err(im->dev, "%s FLUSH TIMEOUT SID %04x STATUS %08x",
+	dev_err(im->dev, "%s FLUSH TIMEOUT SID %04llx STATUS %08x",
 		apple_dart_subname[subdart], sidmask, status);
 }
 
-static void apple_dart_tlb_flush_v1(struct apple_dart_iommu *im, u32 sidmask,
+static void apple_dart_tlb_flush_v1(struct apple_dart_iommu *im, u64 sidmask,
 				    void __iomem *base, unsigned subdart)
 {
 	u32 status;
 	u32 max = 10000;
 
 	writel(sidmask, base + DART1_TLB_OP_SIDMASK);
+	if(im->version->num_sid > 32)
+		writel(sidmask >> 32, base + DART1W_TLB_OP_SIDMASK2);
 	writel(DART1_TLB_OP_FLUSH, base + DART1_TLB_OP);
 
 	while(max --) {
@@ -254,11 +257,11 @@ static void apple_dart_tlb_flush_v1(struct apple_dart_iommu *im, u32 sidmask,
 		udelay(10);
 	}
 
-	dev_err(im->dev, "%s FLUSH TIMEOUT SID %04x STATUS %08x",
+	dev_err(im->dev, "%s FLUSH TIMEOUT SID %04llx STATUS %08x",
 		apple_dart_subname[subdart], sidmask, status);
 }
 
-static void apple_dart_tlb_flush(struct apple_dart_iommu *im, u32 sidmask, int need_lock)
+static void apple_dart_tlb_flush(struct apple_dart_iommu *im, u64 sidmask, int need_lock)
 {
 	unsigned long flags;
 	unsigned subdart;
@@ -534,7 +537,7 @@ static void apple_dart_init_v0(struct apple_dart_iommu *im, void __iomem *base, 
 static void apple_dart_init_v1(struct apple_dart_iommu *im, void __iomem *base, unsigned subdart)
 {
 	u32 sid, i;
-	u32 remap[4];
+	u32 remap[DART_MAX_SID/4];
 
 	if(!subdart) {
 		for(sid=0; sid<DART_MAX_SID/4; sid++)
@@ -546,20 +549,20 @@ static void apple_dart_init_v1(struct apple_dart_iommu *im, void __iomem *base, 
 			}
 	}
 
-	for(sid=0; sid<DART_MAX_SID/4; sid++)
+	for(sid=0; sid<im->version->num_sid/4; sid++)
 		writel(remap[sid], base + DART1_SID_REMAP(sid));
 
 	for(sid=0; sid<DART_MAX_SID; sid++)
-		if(im->sid_mask & (1u << sid))
+		if(im->sid_mask & (1ull << sid))
 			for(i=0; i<4; i++)
 				writel(0x00000000, base + DART1_TTBR(sid, i));
 
-	apple_dart_tlb_flush_v1(im, 0xffffffff, base, subdart);
+	apple_dart_tlb_flush_v1(im, im->sid_mask, base, subdart);
 
 	for(sid=0; sid<DART_MAX_SID; sid++)
-		if(im->sid_bypass_mask & (1 << sid))
+		if(im->sid_bypass_mask & (1ull << sid))
 			writel(DART1_CONFIG_BYPASS, base + DART1_CONFIG(sid));
-		else
+		else if(im->sid_mask & (1ull << sid))
 			writel(DART1_CONFIG_TXEN, base + DART1_CONFIG(sid));
 }
 
@@ -871,7 +874,7 @@ static int apple_dart_iommu_probe(struct platform_device *pdev)
 	struct apple_dart_iommu *im;
 	struct resource *r;
 	int ret = 0, irq, idx, len;
-	u32 sid, tgt;
+	u32 sid, tgt, sid_mask[2] = { 15, 0 }, sid_bypass[2] = { 0, 0 };
 	u64 tmp;
 
 	ofdev = of_match_device(apple_dart_iommu_match, dev);
@@ -912,10 +915,12 @@ static int apple_dart_iommu_probe(struct platform_device *pdev)
 
 	if(of_property_read_u32(pdev->dev.of_node, "page-bits", &im->page_bits) < 0)
 		im->page_bits = 12;
-	if(of_property_read_u32(pdev->dev.of_node, "sid-mask", &im->sid_mask) < 0)
-		im->sid_mask = 15;
-	if(of_property_read_u32(pdev->dev.of_node, "sid-bypass-mask", &im->sid_bypass_mask) < 0)
-		im->sid_bypass_mask = 0;
+	of_property_read_u32_index(pdev->dev.of_node, "sid-mask", 0, &sid_mask[0]);
+	of_property_read_u32_index(pdev->dev.of_node, "sid-mask", 1, &sid_mask[1]);
+	im->sid_mask = sid_mask[0] | ((u64)sid_mask[1] << 32);
+	of_property_read_u32_index(pdev->dev.of_node, "sid-bypass-mask", 0, &sid_bypass[0]);
+	of_property_read_u32_index(pdev->dev.of_node, "sid-bypass-mask", 1, &sid_bypass[1]);
+	im->sid_bypass_mask = sid_bypass[0] | ((u64)sid_bypass[1] << 32);
 
 	memset(im->remap, 0xFF, sizeof(im->remap));
 	len = of_property_count_elems_of_size(pdev->dev.of_node, "sid-remap", sizeof(u32));
