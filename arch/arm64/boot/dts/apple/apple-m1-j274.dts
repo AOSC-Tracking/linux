@@ -586,6 +586,17 @@
                         <0x0100 &pciec0_dart 0x0100 0x7e00>;
             iommu-map-mask = <0xff00>;
             external-facing;
+
+            interrupt-map = <0x0 0x0 0x0 0x1 &pciec0_intx 1>,
+                            <0x0 0x0 0x0 0x2 &pciec0_intx 2>,
+                            <0x0 0x0 0x0 0x3 &pciec0_intx 3>,
+                            <0x0 0x0 0x0 0x4 &pciec0_intx 4>;
+            interrupt-map-mask = <0x0 0x0 0x0 0x7>;
+            pciec0_intx: legacy-interrupt-controller {
+                interrupt-controller;
+                #address-cells = <0>;
+                #interrupt-cells = <1>;
+            };
         };
 
         usb_dart0: usb_dart0@382f00000 {
@@ -811,6 +822,17 @@
                         <0x0100 &pciec1_dart 0x0100 0x7e00>;
             iommu-map-mask = <0xff00>;
             external-facing;
+
+            interrupt-map = <0x0 0x0 0x0 0x1 &pciec1_intx 1>,
+                            <0x0 0x0 0x0 0x2 &pciec1_intx 2>,
+                            <0x0 0x0 0x0 0x3 &pciec1_intx 3>,
+                            <0x0 0x0 0x0 0x4 &pciec1_intx 4>;
+            interrupt-map-mask = <0x0 0x0 0x0 0x7>;
+            pciec1_intx: legacy-interrupt-controller {
+                interrupt-controller;
+                #address-cells = <0>;
+                #interrupt-cells = <1>;
+            };
         };
 
         usb_dart1: usb_dart1@502f00000 {
