@@ -42,6 +42,7 @@ enum apple_iop_mailbox_ep0_state {
 	EP0_SEND_EPSTART,
 	EP0_WAIT_PWROK,
 	EP0_SEND_PWRACK,
+	EP0_DONE,
 };
 
 struct apple_iop_mailbox_data;
@@ -125,6 +126,7 @@ static int apple_iop_mailbox_ep0_next_a2i(struct apple_iop_mailbox_data *am, u64
 {
 	switch(am->ep0_state) {
 	case EP0_IDLE:
+	case EP0_DONE:
 	case EP0_WAIT_HELLO:
 	case EP0_WAIT_EPMAP:
 	case EP0_WAIT_PWROK:
@@ -157,7 +159,7 @@ static int apple_iop_mailbox_ep0_next_a2i(struct apple_iop_mailbox_data *am, u64
 	case EP0_SEND_PWRACK:
 		msg[0] = 0x00b0000000000000 | am->ep0_sub;
 		msg[1] = 0;
-		am->ep0_state = EP0_IDLE;
+		am->ep0_state = EP0_DONE;
 		dev_info(am->dev, "completed startup.\n");
 		return 1;
 	}
@@ -170,6 +172,7 @@ static void apple_iop_mailbox_ep0_push_i2a(struct apple_iop_mailbox_data *am, u6
 
 	switch(am->ep0_state) {
 	case EP0_IDLE:
+	case EP0_DONE:
 		if(msgtype == 11)
 			return;
 		/* fallthru */
@@ -239,7 +242,7 @@ static void apple_iop_mailbox_unmask_a2i_empty(struct apple_iop_mailbox_data *am
 
 static int apple_iop_mailbox_a2i_ok(struct apple_iop_mailbox_data *am, unsigned epnum)
 {
-	if(am->ep0_state == EP0_IDLE)
+	if(am->ep0_state == EP0_IDLE || am->ep0_state == EP0_DONE)
 		return 1;
 	if(am->ep0_state == EP0_WAIT_PWROK && epnum < 32)
 		return 1;
@@ -737,6 +740,7 @@ static void apple_iop_mailbox_m3v1_mask_a2i_empty(struct apple_iop_mailbox_data 
 
 static void apple_iop_mailbox_m3v1_unmask_a2i_empty(struct apple_iop_mailbox_data *am)
 {
+	writel(M3V1_IRQACK_A2I, am->base + M3V1_IRQACK);
 	writel(readl(am->base + M3V1_IRQEN) | M3V1_IRQEN_A2I, am->base + M3V1_IRQEN);
 }
 
