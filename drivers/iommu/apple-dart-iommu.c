@@ -124,6 +124,8 @@ struct apple_dart_iommu {
 	u64 **l2dma[DART_MAX_SID];
 	u64 *l1dma[DART_MAX_SID];
 	spinlock_t dart_lock;
+	u32 attach_ndevs;
+	struct mutex attach_mutex; /* must be a mutex because we wait in it */
 };
 
 #define DART_PAGE_SHIFT(im) ((im)->page_bits)
@@ -576,6 +578,7 @@ static int apple_dart_iommu_attach_device(struct iommu_domain *domain, struct de
 	unsigned long flags;
 	unsigned subdart;
 	u32 sid;
+	int ret;
 
 	idd = dev_iommu_priv_get(dev);
 	if(!idd)
@@ -605,6 +608,24 @@ static int apple_dart_iommu_attach_device(struct iommu_domain *domain, struct de
 	}
 	idom->sid = sid;
 
+	domain_device = kzalloc(sizeof(*domain_device), GFP_KERNEL);
+	if(!domain_device)
+		return -ENOMEM;
+
+	domain_device->dev = dev;
+
+	mutex_lock(&im->attach_mutex);
+	if(!im->attach_ndevs) {
+		ret = clk_bulk_enable(im->num_clks, im->clks);
+		if(ret) {
+			dev_err(dev, "clk_bulk_enable failed.\n");
+			kfree(domain_device);
+			return ret;
+		}
+	}
+	im->attach_ndevs ++;
+	mutex_unlock(&im->attach_mutex);
+
 	spin_lock_irqsave(&im->dart_lock, flags);
 
 	if(!im->is_init) {
@@ -617,12 +638,6 @@ static int apple_dart_iommu_attach_device(struct iommu_domain *domain, struct de
 	apple_dart_enable(im, sid);
 
 	spin_unlock_irqrestore(&im->dart_lock, flags);
-
-	domain_device = kzalloc(sizeof(*domain_device), GFP_KERNEL);
-	if(!domain_device)
-		return -ENOMEM;
-
-	domain_device->dev = dev;
 
 	spin_lock_irqsave(&idom->list_lock, flags);
 	list_add(&domain_device->list, &idom->devices);
@@ -637,7 +652,14 @@ static void apple_dart_iommu_detach_device(struct iommu_domain *domain, struct d
 {
 	struct apple_dart_iommu_domain *idom = to_apple_dart_iommu_domain(domain);
 	struct apple_dart_iommu_domain_device *domain_device, *tmp;
+	struct apple_dart_iommu_devdata *idd;
 	unsigned long flags;
+	struct apple_dart_iommu *im;
+
+	idd = dev_iommu_priv_get(dev);
+	if(!idd)
+		return;
+	im = idd->iommu;
 
 	spin_lock_irqsave(&idom->list_lock, flags);
 	list_for_each_entry_safe(domain_device, tmp, &idom->devices, list) {
@@ -648,6 +670,14 @@ static void apple_dart_iommu_detach_device(struct iommu_domain *domain, struct d
 		}
 	}
 	spin_unlock_irqrestore(&idom->list_lock, flags);
+
+	dev_err(dev, "detached from %s:0x%x\n", dev_name(im->dev), idd->sid);
+
+	mutex_lock(&im->attach_mutex);
+	im->attach_ndevs --;
+	if(!im->attach_ndevs)
+		clk_bulk_disable(im->num_clks, im->clks);
+	mutex_unlock(&im->attach_mutex);
 }
 
 static struct iommu_device *apple_dart_iommu_probe_device(struct device *dev)
@@ -918,6 +948,7 @@ static int apple_dart_iommu_probe(struct platform_device *pdev)
 	im->version = ofdev->data;
 
 	spin_lock_init(&im->dart_lock);
+	mutex_init(&im->attach_mutex);
 
 	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 
@@ -983,9 +1014,9 @@ static int apple_dart_iommu_probe(struct platform_device *pdev)
 	}
 	im->num_clks = ret;
 
-	ret = clk_bulk_prepare_enable(im->num_clks, im->clks);
+	ret = clk_bulk_prepare(im->num_clks, im->clks);
 	if(ret) {
-		dev_err(dev, "clk_bulk_prepare_enable failed.\n");
+		dev_err(dev, "clk_bulk_prepare failed.\n");
 		return ret;
 	}
 
