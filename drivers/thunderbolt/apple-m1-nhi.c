@@ -16,6 +16,7 @@
 #include <linux/of_platform.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/thunderbolt.h>
+#include <linux/apple_atc_phy.h>
 
 #include "nhi.h"
 #include "nhi_regs.h"
@@ -38,6 +39,7 @@ struct apple_m1_nhi {
 	struct pinctrl *pctrl;
 	u8 *drom;
 	unsigned drom_len;
+	struct apple_atc_phy_conn phy_conn;
 
 	struct apple_m1_nhi_ring {
 		struct apple_m1_nhi *nhi;
@@ -46,6 +48,8 @@ struct apple_m1_nhi {
 
 	struct tb_nhi tbnhi;
 	struct tb *tb;
+	struct tb_switch *hostsw;
+	struct mutex hostsw_mutex;
 };
 #define M1_RING(tbr) container_of((tbr), struct apple_m1_nhi_ring, tbring)
 #define M1_NHI(tbn) container_of((tbn), struct apple_m1_nhi, tbnhi)
@@ -98,6 +102,14 @@ struct apple_m1_nhi {
 #define NHI_IRQ_STAT_1			0xD0004
 #define NHI_IRQ_ENABLE			0xD0010
 #define NHI_IRQ_THROTTLE(r)		(0xD004C + 4 * (r))
+
+#define HOSTSW_CABLE_PRESENT		BIT(0)
+#define HOSTSW_CABLE_ORIENTATION	BIT(1)
+#define HOSTSW_CABLE_ACTIVE		BIT(2)
+#define HOSTSW_CABLE_LINK_TRAINING	BIT(3)
+#define HOSTSW_CABLE_20_GBPS		BIT(4)
+#define HOSTSW_CABLE_LEGACY_ADAPTER	BIT(9)
+#define HOSTSW_CABLE_TBT2_3		BIT(10)
 
 #define m3_writel(val,offs) writel(val, nhi->reg[RS_M3] + (offs))
 #define nhi_writel(val,offs) writel(val, nhi->reg[RS_NHI] + (offs))
@@ -574,6 +586,65 @@ int apple_m1_nhi_read_drom(struct tb_nhi *tbnhi, unsigned offs, void *buf, unsig
 	return size;
 }
 
+static void apple_m1_nhi_phy_notify(struct apple_atc_phy_conn *conn)
+{
+	struct apple_m1_nhi *nhi = conn->client;
+	struct tb_switch *sw;
+	u32 cable_info = 0;
+	int ret;
+
+	mutex_lock(&nhi->hostsw_mutex);
+	sw = nhi->hostsw;
+
+	if (sw && sw->cap_vsc0) {
+		if(conn->mode == TYPEC_MODE_USB4) {
+			cable_info = HOSTSW_CABLE_PRESENT;
+			if(conn->orientation == TYPEC_ORIENTATION_REVERSE)
+				cable_info |= HOSTSW_CABLE_ORIENTATION;
+			if(conn->cable.speed >= TYPEC_CABLE_SPEED_20_GBPS)
+				cable_info |= HOSTSW_CABLE_20_GBPS;
+			if(conn->cable.is_active) {
+				cable_info |= HOSTSW_CABLE_ACTIVE;
+				if(conn->cable.link_training)
+					cable_info |= HOSTSW_CABLE_LINK_TRAINING;
+			}
+			if(conn->cable.is_legacy_adapter)
+				cable_info |= HOSTSW_CABLE_LEGACY_ADAPTER;
+			cable_info |= HOSTSW_CABLE_TBT2_3;
+		}
+
+		if(cable_info)
+			msleep(250);
+
+		tb_sw_info(sw, "setting Apple cable info to 0x%x\n", cable_info);
+		ret = tb_sw_write(sw, &cable_info, TB_CFG_SWITCH, sw->cap_vsc0 + 1, 1);
+		if(ret)
+			tb_sw_warn(sw, "setting Apple cable info failed: %d\n", ret);
+
+		if(!cable_info)
+			msleep(250);
+	} else if(sw)
+		tb_sw_warn(sw, "cannot find Apple TB_VSE_CAP_VSC0\n");
+
+	mutex_unlock(&nhi->hostsw_mutex);
+}
+
+static void apple_m1_nhi_attach_host_switch(struct tb_switch *sw, int attach)
+{
+	struct apple_m1_nhi *nhi = M1_NHI(sw->tb->nhi);
+
+	mutex_lock(&nhi->hostsw_mutex);
+	if(attach) {
+		nhi->hostsw = sw;
+		mutex_unlock(&nhi->hostsw_mutex);
+
+		apple_atc_phy_conn_register(NULL, &nhi->phy_conn);
+	} else {
+		nhi->hostsw = NULL;
+		mutex_unlock(&nhi->hostsw_mutex);
+	}
+}
+
 static const struct tb_nhi_ops apple_m1_nhi_ops = {
 	.ring_start = apple_m1_nhi_ring_start,
 	.ring_stop = apple_m1_nhi_ring_stop,
@@ -587,6 +658,8 @@ static const struct tb_nhi_ops apple_m1_nhi_ops = {
 
 	.notify_pci_tunnel = apple_m1_nhi_notify_pci_tunnel,
 	.read_drom = apple_m1_nhi_read_drom,
+
+	.attach_host_switch = apple_m1_nhi_attach_host_switch,
 };
 
 static irqreturn_t apple_m1_nhi_irq(int irq, void *dev_id)
@@ -720,11 +793,16 @@ static int apple_m1_nhi_start(struct apple_m1_nhi *nhi)
 	return 0;
 }
 
+/* this lets us check that functions aren't grossly incompatible, should the arguments change */
+static void wrap_apple_atc_phy_conn_deregister(void *p) { apple_atc_phy_conn_deregister(p); }
+
 static int apple_m1_nhi_probe(struct platform_device *pdev)
 {
 	struct apple_m1_nhi *nhi;
 	struct resource *rsrc;
 	struct property *prop;
+	struct device_node *phynode;
+	struct platform_device *phypdev;
 	int err, i;
 
 	nhi = devm_kzalloc(&pdev->dev, sizeof(*nhi), GFP_KERNEL);
@@ -765,6 +843,7 @@ static int apple_m1_nhi_probe(struct platform_device *pdev)
 	}
 
 	spin_lock_init(&nhi->tbnhi.lock);
+	mutex_init(&nhi->hostsw_mutex);
 	nhi->tbnhi.dev = nhi->dev;
 	nhi->tbnhi.ops = &apple_m1_nhi_ops;
 
@@ -813,6 +892,24 @@ static int apple_m1_nhi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, nhi);
 
+	phynode = of_parse_phandle(pdev->dev.of_node, "phys", 0);
+	if(!phynode) {
+		dev_err(&pdev->dev, "missing 'phys' property.\n");
+		return -EINVAL;
+	}
+	phypdev = of_find_device_by_node(phynode);
+	if(!phypdev)
+		return -EPROBE_DEFER;
+
+	nhi->phy_conn.client = nhi;
+	nhi->phy_conn.notify = apple_m1_nhi_phy_notify;
+	err = apple_atc_phy_conn_register(&phypdev->dev, &nhi->phy_conn);
+	if(err < 0)
+		return err;
+	err = devm_add_action(nhi->dev, wrap_apple_atc_phy_conn_deregister, &nhi->phy_conn);
+	if(err)
+		return err;
+
 	nhi->pctrl = devm_pinctrl_get_select_default(nhi->dev);
 
 	nhi_writel(0, NHI_IRQ_ENABLE);
@@ -855,6 +952,8 @@ static int apple_m1_nhi_probe(struct platform_device *pdev)
 static int apple_m1_nhi_remove(struct platform_device *pdev)
 {
 	struct apple_m1_nhi *nhi = platform_get_drvdata(pdev);
+
+	apple_atc_phy_conn_deregister(&nhi->phy_conn);
 
 	if(nhi->tb)
 		tb_domain_remove(nhi->tb);
