@@ -65,9 +65,17 @@
 #define TPS_SYSCONF_PORTINFO(c)		((c) & 7)
 
 /* TPS_REG_DATA_STATUS bits */
+#define TPS_DATA_STATUS_CABLE_GEN_M	GENMASK(29,28)
+#define TPS_DATA_STATUS_CABLE_GEN_S	28
+#define TPS_DATA_STATUS_CABLE_SPEED_M	GENMASK(27,25)
+#define TPS_DATA_STATUS_CABLE_SPEED_S	25
+#define TPS_DATA_STATUS_CABLE_LINKTRN	BIT(20)
+#define TPS_DATA_STATUS_CABLE_OPTICAL	BIT(18)
+#define TPS_DATA_STATUS_CABLE_LEGACY	BIT(17)
 #define TPS_DATA_STATUS_TBT_CONNECTION	BIT(16)
 #define TPS_DATA_STATUS_USB3_CONNECTION	BIT(5)
 #define TPS_DATA_STATUS_USB2_CONNECTION	BIT(4)
+#define TPS_DATA_STATUS_CABLE_ACTIVE	BIT(2)
 
 enum {
 	TPS_PORTINFO_SINK,
@@ -130,6 +138,8 @@ struct tps6598x {
 	struct power_supply_desc psy_desc;
 	enum power_supply_usb_type usb_type;
 	u32 pwr_status, data_status;
+
+	struct typec_usb4_cable cable_info;
 
 	struct delayed_work cd321x_status_work;
 };
@@ -301,9 +311,21 @@ static int tps6598x_connect(struct tps6598x *tps, u32 status)
 		desc.identity = &tps->partner_identity;
 	}
 
-	if(tps->cd321x_support && (data_status & TPS_DATA_STATUS_TBT_CONNECTION))
+	if(tps->cd321x_support && (data_status & TPS_DATA_STATUS_TBT_CONNECTION)) {
 		data_mode = TYPEC_MODE_USB4;
-	else if(data_status & TPS_DATA_STATUS_USB3_CONNECTION)
+		tps->cable_info.gen = (data_status & TPS_DATA_STATUS_CABLE_GEN_M) >>
+				      TPS_DATA_STATUS_CABLE_GEN_S;
+		tps->cable_info.speed = (data_status & TPS_DATA_STATUS_CABLE_SPEED_M) >>
+					TPS_DATA_STATUS_CABLE_SPEED_S;
+		tps->cable_info.link_training =
+				!!(data_status & TPS_DATA_STATUS_CABLE_LINKTRN);
+		tps->cable_info.is_optical =
+				!!(data_status & TPS_DATA_STATUS_CABLE_OPTICAL);
+		tps->cable_info.is_active =
+				!!(data_status & TPS_DATA_STATUS_CABLE_ACTIVE);
+		tps->cable_info.is_legacy_adapter =
+				!!(data_status & TPS_DATA_STATUS_CABLE_LEGACY);
+	} else if(data_status & TPS_DATA_STATUS_USB3_CONNECTION)
 		data_mode = TYPEC_MODE_USB3;
 	else if(data_status & TPS_DATA_STATUS_USB2_CONNECTION)
 		data_mode = TYPEC_MODE_USB2;
@@ -316,7 +338,10 @@ static int tps6598x_connect(struct tps6598x *tps, u32 status)
 	typec_set_orientation(tps->port, TPS_STATUS_ORIENTATION(status) ?
 		TYPEC_ORIENTATION_REVERSE : TYPEC_ORIENTATION_NORMAL);
 	tps6598x_set_data_role(tps, TPS_STATUS_DATAROLE(status), true);
-	typec_set_mode(tps->port, data_mode);
+	if(data_mode == TYPEC_MODE_USB4)
+		typec_set_mode_data(tps->port, data_mode, &tps->cable_info);
+	else
+		typec_set_mode(tps->port, data_mode);
 
 	tps->partner = typec_register_partner(tps->port, &desc);
 	if (IS_ERR(tps->partner))
