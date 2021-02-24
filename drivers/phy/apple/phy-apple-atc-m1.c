@@ -21,6 +21,7 @@
 #include <linux/usb/typec_dp.h>
 #include <linux/usb/typec_tbt.h>
 #include <linux/usb/typec_altmode.h>
+#include <linux/apple_atc_phy.h>
 
 #define MAX_REG		8
 
@@ -42,6 +43,10 @@ struct apple_atcphy_m1 {
 
 	enum typec_orientation orientation;
 	enum usb_role role;
+	struct typec_usb4_cable cable;
+
+	struct apple_atc_phy_conn *notifier;
+	struct mutex notifier_mutex;
 
 	unsigned long mode;
 	unsigned usb2en;
@@ -709,6 +714,24 @@ static int apple_atcphy_m1_cio_disable(struct apple_atcphy_m1 *atc)
 	return ret;
 }
 
+static void apple_atc_phy_notifier_update(struct apple_atcphy_m1 *atc, unsigned long mode)
+{
+	mutex_lock(&atc->notifier_mutex);
+
+	if(!atc->notifier)
+		goto done;
+
+	atc->notifier->mode = mode;
+	atc->notifier->orientation = atc->orientation;
+	atc->notifier->cable = atc->cable;
+
+	if(atc->notifier->notify)
+		atc->notifier->notify(atc->notifier);
+
+done:
+	mutex_unlock(&atc->notifier_mutex);
+}
+
 static int apple_atcphy_m1_power_on(struct phy *phy)
 {
 	struct apple_atcphy_m1 *atc = phy_get_drvdata(phy);
@@ -751,7 +774,7 @@ static int apple_atcphy_m1_set_mux(struct typec_mux *mux, struct typec_mux_state
 {
 	struct apple_atcphy_m1 *atc = typec_mux_get_drvdata(mux);
 	unsigned long mode = state->mode;
-	int ret;
+	int ret = 0;
 
 	dev_info(atc->dev, "set_mux(%ld, 0x%x)\n", mode, state->alt ? state->alt->svid : 0);
 
@@ -759,16 +782,24 @@ static int apple_atcphy_m1_set_mux(struct typec_mux *mux, struct typec_mux_state
 		mode = 0;
 
 	if(mode) {
+		if(mode == TYPEC_MODE_USB4 && state->data)
+			memcpy(&atc->cable, state->data, sizeof(atc->cable));
 		ret = apple_atcphy_m1_cio_enable(atc, mode,
 					atc->orientation == TYPEC_ORIENTATION_REVERSE);
 		if(ret < 0) {
-			apple_atcphy_m1_cio_disable(atc);
-			return ret;
-		}
-	} else
-		apple_atcphy_m1_cio_disable(atc);
+			apple_atc_phy_notifier_update(atc, 0);
 
-	return 0;
+			apple_atcphy_m1_cio_disable(atc);
+			mode = 0;
+		} else
+			apple_atc_phy_notifier_update(atc, atc->mode);
+	} else {
+		apple_atc_phy_notifier_update(atc, 0);
+
+		apple_atcphy_m1_cio_disable(atc);
+	}
+
+	return ret;
 }
 
 static const struct phy_ops apple_atcphy_m1_ops = {
@@ -814,6 +845,41 @@ const struct clk_ops clk_apple_atcphy_m1_ops = {
 	.is_enabled = clk_apple_atcphy_m1_is_enabled,
 };
 
+int apple_atc_phy_conn_register(struct device *dev, struct apple_atc_phy_conn *conn)
+{
+	struct apple_atcphy_m1 *atc = dev ? dev_get_drvdata(dev) : conn->phy;
+
+	mutex_lock(&atc->notifier_mutex);
+
+	if(atc->notifier && atc->notifier != conn) {
+		mutex_unlock(&atc->notifier_mutex);
+		return -EBUSY;
+	}
+
+	conn->phy = atc;
+	atc->notifier = conn;
+
+	mutex_unlock(&atc->notifier_mutex);
+
+	apple_atc_phy_notifier_update(atc, atc->mode);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(apple_atc_phy_conn_register);
+
+void apple_atc_phy_conn_deregister(struct apple_atc_phy_conn *conn)
+{
+	struct apple_atcphy_m1 *atc = conn->phy;
+
+	mutex_lock(&atc->notifier_mutex);
+
+	if(atc->notifier == conn)
+		atc->notifier = NULL;
+
+	mutex_unlock(&atc->notifier_mutex);
+}
+EXPORT_SYMBOL_GPL(apple_atc_phy_conn_deregister);
+
 /* this lets us check that functions aren't grossly incompatible, should the arguments change */
 static void wrap_typec_switch_unregister(void *p) { typec_switch_unregister(p); }
 static void wrap_typec_mux_unregister(void *p) { typec_mux_unregister(p); }
@@ -833,6 +899,8 @@ static int apple_atcphy_m1_probe(struct platform_device *pdev)
 	if(!atc)
 		return -ENOMEM;
 	atc->dev = &pdev->dev;
+
+	mutex_init(&atc->notifier_mutex);
 
 	err = clk_bulk_get_all(atc->dev, &atc->clks);
 	if(err < 0) {
