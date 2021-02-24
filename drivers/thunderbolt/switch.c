@@ -963,6 +963,23 @@ int tb_port_get_link_width(struct tb_port *port)
 		LANE_ADP_CS_1_CURRENT_WIDTH_SHIFT;
 }
 
+int tb_port_get_link_bond(struct tb_port *port)
+{
+	u32 val;
+	int ret;
+
+	if (!port->cap_phy)
+		return -EINVAL;
+
+	ret = tb_port_read(port, &val, TB_CFG_PORT,
+			   port->cap_phy + LANE_ADP_CS_1, 1);
+	if (ret)
+		return ret;
+
+	return (val & LANE_ADP_CS_1_TARGET_WIDTH_MASK) ==
+		(LANE_ADP_CS_1_TARGET_WIDTH_DUAL << LANE_ADP_CS_1_TARGET_WIDTH_SHIFT);
+}
+
 static bool tb_port_is_width_supported(struct tb_port *port, int width)
 {
 	u32 phy, widths;
@@ -1026,21 +1043,23 @@ static int tb_port_set_link_width(struct tb_port *port, unsigned int width)
  */
 int tb_port_lane_bonding_enable(struct tb_port *port)
 {
-	int ret;
+	int ret, ret2;
 
 	/*
 	 * Enable lane bonding for both links if not already enabled by
 	 * for example the boot firmware.
 	 */
 	ret = tb_port_get_link_width(port);
-	if (ret == 1) {
+	ret2 = tb_port_get_link_bond(port);
+	if (ret == 1 || ret2 == 0) {
 		ret = tb_port_set_link_width(port, 2);
 		if (ret)
 			return ret;
 	}
 
 	ret = tb_port_get_link_width(port->dual_link_port);
-	if (ret == 1) {
+	ret2 = tb_port_get_link_bond(port);
+	if (ret == 1 || ret2 == 0) {
 		ret = tb_port_set_link_width(port->dual_link_port, 2);
 		if (ret) {
 			tb_port_set_link_width(port, 1);
