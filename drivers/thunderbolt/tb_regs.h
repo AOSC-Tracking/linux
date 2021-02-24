@@ -18,9 +18,6 @@
 
 #define TB_ROUTE_SHIFT 8  /* number of bits in a port entry of a route */
 
-#define TB_VENDOR_ID_APPLE	0x05ac
-#define TB_DEVICE_ID_APPLE_M1	0x2000
-
 /*
  * TODO: should be 63? But we do not know how to receive frames larger than 256
  * bytes at the frame level. (header + checksum = 16, 60*4 = 240)

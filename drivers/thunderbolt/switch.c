@@ -2113,18 +2113,10 @@ int tb_switch_configure(struct tb_switch *sw)
 	if (ret)
 		return ret;
 
-	if (sw->config.vendor_id == TB_VENDOR_ID_APPLE &&
-	    sw->config.device_id == TB_DEVICE_ID_APPLE_M1) {
-		u32 magic = 0x413; /* makes the switch discover ports */
-
-		if (!sw->cap_vsc0) {
-			tb_sw_warn(sw, "cannot find Apple TB_VSE_CAP_VSC0, aborting\n");
-			return -ENODEV;
-		}
-
-		ret = tb_sw_write(sw, &magic, TB_CFG_SWITCH, sw->cap_vsc0 + 1, 1);
-		if(ret)
-			return ret;
+	if (tb_route(sw) == 0) {
+		struct tb_nhi *nhi = sw->tb->nhi;
+		if (nhi->ops && nhi->ops->attach_host_switch)
+			nhi->ops->attach_host_switch(sw, 1);
 	}
 
 	return tb_plug_events_active(sw, true);

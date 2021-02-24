@@ -66,6 +66,8 @@ struct tb_nhi_ops {
 
 	void (*notify_pci_tunnel)(struct tb_nhi *nhi, unsigned down_adapter);
 	int (*read_drom)(struct tb_nhi *nhi, unsigned offs, void *buf, unsigned size);
+
+	void (*attach_host_switch)(struct tb_switch *sw, int attach);
 };
 
 int pci_nhi_mailbox_cmd(struct tb_nhi *nhi, enum nhi_mailbox_cmd cmd, u32 data);
