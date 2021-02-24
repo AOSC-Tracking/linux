@@ -1845,6 +1845,17 @@ int typec_set_mode(struct typec_port *port, int mode)
 }
 EXPORT_SYMBOL_GPL(typec_set_mode);
 
+int typec_set_mode_data(struct typec_port *port, int mode, void *data)
+{
+	struct typec_mux_state state = { };
+
+	state.mode = mode;
+	state.data = data;
+
+	return typec_mux_set(port->mux, &state);
+}
+EXPORT_SYMBOL_GPL(typec_set_mode_data);
+
 /* --------------------------------------- */
 
 /**

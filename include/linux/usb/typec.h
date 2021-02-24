@@ -267,6 +267,7 @@ int typec_set_orientation(struct typec_port *port,
 			  enum typec_orientation orientation);
 enum typec_orientation typec_get_orientation(struct typec_port *port);
 int typec_set_mode(struct typec_port *port, int mode);
+int typec_set_mode_data(struct typec_port *port, int mode, void *data);
 
 void *typec_get_drvdata(struct typec_port *port);
 

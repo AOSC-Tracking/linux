@@ -122,6 +122,28 @@ void typec_altmode_put_plug(struct typec_altmode *plug);
 struct typec_altmode *typec_match_altmode(struct typec_altmode **altmodes,
 					  size_t n, u16 svid, u8 mode);
 
+/*
+ * For muxes that support USB4, the mode can be accompanied by a cable
+ * description structure.
+ */
+enum typec_usb_cable_gen {
+	TYPEC_CABLE_GEN_3 = 0,
+	TYPEC_CABLE_GEN_4 = 1,
+};
+enum typec_usb_cable_speed {
+	TYPEC_CABLE_SPEED_USB3 = 1,
+	TYPEC_CABLE_SPEED_10_GBPS = 2,
+	TYPEC_CABLE_SPEED_20_GBPS = 3,
+};
+struct typec_usb4_cable {
+	enum typec_usb_cable_gen gen;
+	enum typec_usb_cable_speed speed;
+	bool link_training;
+	bool is_optical;
+	bool is_active;
+	bool is_legacy_adapter;
+};
+
 /**
  * typec_altmode_get_orientation - Get cable plug orientation
  * altmode: Handle to the alternate mode
