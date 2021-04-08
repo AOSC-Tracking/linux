@@ -676,13 +676,12 @@ static void build_huge_tlb_write_entry(u32 **p, struct uasm_label **l,
  */
 static void
 build_is_huge_pte(u32 **p, struct uasm_reloc **r, unsigned int tmp,
-		  unsigned int pmd, int lid)
+		  unsigned int pmde, int lid)
 {
-	UASM_i_LW(p, tmp, 0, pmd);
 	if (use_bbit_insns()) {
-		uasm_il_bbit1(p, r, tmp, ilog2(_PAGE_HUGE), lid);
+		uasm_il_bbit1(p, r, pmde, ilog2(_PAGE_HUGE), lid);
 	} else {
-		uasm_i_andi(p, tmp, tmp, _PAGE_HUGE);
+		uasm_i_andi(p, tmp, pmde, _PAGE_HUGE);
 		uasm_il_bnez(p, r, tmp, lid);
 	}
 }
@@ -1042,7 +1041,6 @@ EXPORT_SYMBOL_GPL(build_update_entries);
 struct mips_huge_tlb_info {
 	int huge_pte;
 	int restore_scratch;
-	bool need_reload_pte;
 };
 
 static struct mips_huge_tlb_info
@@ -1057,7 +1055,6 @@ build_fast_tlb_refill_handler (u32 **p, struct uasm_label **l,
 
 	rv.huge_pte = scratch;
 	rv.restore_scratch = 0;
-	rv.need_reload_pte = false;
 
 	if (check_for_high_segbits) {
 		UASM_i_MFC0(p, tmp, C0_BADVADDR);
@@ -1263,7 +1260,6 @@ static void build_r4000_tlb_refill_handler(void)
 	} else {
 		htlb_info.huge_pte = GPR_K0;
 		htlb_info.restore_scratch = 0;
-		htlb_info.need_reload_pte = true;
 		vmalloc_mode = refill_noscratch;
 		/*
 		 * create the plain linear handler
@@ -1288,11 +1284,14 @@ static void build_r4000_tlb_refill_handler(void)
 		build_get_pgde32(&p, GPR_K0, GPR_K1); /* get pgd in GPR_K1 */
 #endif
 
+		UASM_i_LW(&p, GPR_K0, 0, GPR_K1); /* get pmd entry in GPR_K0 */
 #ifdef CONFIG_MIPS_HUGE_TLB_SUPPORT
-		build_is_huge_pte(&p, &r, GPR_K0, GPR_K1, label_tlb_huge_update);
+		build_is_huge_pte(&p, &r, GPR_K1, GPR_K0, label_tlb_huge_update);
 #endif
 
-		build_get_ptep(&p, GPR_K0, GPR_K1);
+		GET_CONTEXT(&p, GPR_K1); /* get context reg */
+		build_adjust_context(&p, GPR_K1);
+		UASM_i_ADDU(&p, GPR_K1, GPR_K0, GPR_K1); /* add in offset */
 		build_update_entries(&p, GPR_K0, GPR_K1);
 		build_tlb_write_entry(&p, &l, &r, tlb_random);
 		uasm_l_leave(&l, p);
@@ -1300,8 +1299,6 @@ static void build_r4000_tlb_refill_handler(void)
 	}
 #ifdef CONFIG_MIPS_HUGE_TLB_SUPPORT
 	uasm_l_tlb_huge_update(&l, p);
-	if (htlb_info.need_reload_pte)
-		UASM_i_LW(&p, htlb_info.huge_pte, 0, GPR_K1);
 	build_huge_update_entries(&p, htlb_info.huge_pte, GPR_K1);
 	build_huge_tlb_write_entry(&p, &l, &r, GPR_K0, tlb_random,
 				   htlb_info.restore_scratch);
@@ -2001,20 +1998,20 @@ build_r4000_tlbchange_handler_head(u32 **p, struct uasm_label **l,
 	build_get_pgde32(p, wr.r1, wr.r2); /* get pgd in ptr */
 #endif
 
+	UASM_i_LW(p, wr.r3, 0, wr.r2); /* get pmd entry in wr.r3 */
 #ifdef CONFIG_MIPS_HUGE_TLB_SUPPORT
 	/*
-	 * For huge tlb entries, pmd doesn't contain an address but
+	 * For huge tlb entries, pmde doesn't contain an address but
 	 * instead contains the tlb pte. Check the PAGE_HUGE bit and
 	 * see if we need to jump to huge tlb processing.
 	 */
-	build_is_huge_pte(p, r, wr.r1, wr.r2, label_tlb_huge_update);
+	build_is_huge_pte(p, r, wr.r1, wr.r3, label_tlb_huge_update);
 #endif
 
 	UASM_i_MFC0(p, wr.r1, C0_BADVADDR);
-	UASM_i_LW(p, wr.r2, 0, wr.r2);
 	UASM_i_SRL(p, wr.r1, wr.r1, PAGE_SHIFT - PTE_T_LOG2);
 	uasm_i_andi(p, wr.r1, wr.r1, (PTRS_PER_PTE - 1) << PTE_T_LOG2);
-	UASM_i_ADDU(p, wr.r2, wr.r2, wr.r1);
+	UASM_i_ADDU(p, wr.r2, wr.r3, wr.r1);
 
 #ifdef CONFIG_SMP
 	uasm_l_smp_pgtable_change(l, *p);
