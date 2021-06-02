@@ -21,7 +21,7 @@
 #include <linux/workqueue.h>
 #include <asm/io.h>
 
-#include <../pci.h>
+#include "../pci.h"
 
 #define NUM_MSI				32
 #define MAX_PORT			3
