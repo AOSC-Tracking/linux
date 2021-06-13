@@ -37,6 +37,36 @@ void arch_stack_walk(stack_trace_consume_fn consume_entry, void *cookie,
 	}
 }
 
+int arch_stack_walk_reliable(stack_trace_consume_fn consume_entry,
+			     void *cookie, struct task_struct *task)
+{
+	unsigned long addr;
+	struct unwind_state state;
+	struct pt_regs dummyregs;
+	struct pt_regs *regs = &dummyregs;
+
+	if (task == current) {
+		regs->regs[3] = (unsigned long)__builtin_frame_address(0);
+		regs->csr_era = (unsigned long)__builtin_return_address(0);
+	} else {
+		regs->regs[3] = thread_saved_fp(task);
+		regs->csr_era = thread_saved_ra(task);
+	}
+
+	for (unwind_start(&state, task, regs);
+	     !unwind_done(&state); unwind_next_frame(&state)) {
+		/* Check for stack corruption */
+		if (unwind_error(&state))
+			return -EINVAL;
+
+		addr = unwind_get_return_address(&state);
+		if (!addr || !consume_entry(cookie, addr))
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int
 copy_stack_frame(unsigned long fp, struct stack_frame *frame)
 {

@@ -7,6 +7,7 @@
 
 #include <asm/inst.h>
 #include <asm-generic/module.h>
+#include <asm/orc_types.h>
 
 #define RELA_STACK_DEPTH 16
 
@@ -20,6 +21,11 @@ struct mod_arch_specific {
 	struct mod_section got;
 	struct mod_section plt;
 	struct mod_section plt_idx;
+#ifdef CONFIG_UNWINDER_ORC
+	unsigned int num_orcs;
+	int *orc_unwind_ip;
+	struct orc_entry *orc_unwind;
+#endif
 
 	/* For CONFIG_DYNAMIC_FTRACE */
 	struct plt_entry *ftrace_trampolines;

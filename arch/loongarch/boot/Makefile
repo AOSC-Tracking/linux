@@ -3,6 +3,7 @@
 #
 # Copyright (C) 2020-2022 Loongson Technology Corporation Limited
 #
+OBJECT_FILES_NON_STANDARD	:= y
 
 drop-sections := .comment .note .options .note.gnu.build-id
 strip-flags   := $(addprefix --remove-section=,$(drop-sections)) -S

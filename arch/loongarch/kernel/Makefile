@@ -3,6 +3,9 @@
 # Makefile for the Linux/LoongArch kernel.
 #
 
+OBJECT_FILES_NON_STANDARD_head.o		:=y
+OBJECT_FILES_NON_STANDARD_relocate_kernel.o	:=y
+
 extra-y		:= vmlinux.lds
 
 obj-y		+= head.o cpu-probe.o cacheinfo.o env.o setup.o entry.o genex.o \
@@ -56,6 +59,7 @@ obj-$(CONFIG_CRASH_DUMP)	+= crash_dump.o
 
 obj-$(CONFIG_UNWINDER_GUESS)	+= unwind_guess.o
 obj-$(CONFIG_UNWINDER_PROLOGUE) += unwind_prologue.o
+obj-$(CONFIG_UNWINDER_ORC)		+= unwind_orc.o
 
 obj-$(CONFIG_PERF_EVENTS)	+= perf_event.o perf_regs.o
 obj-$(CONFIG_HAVE_HW_BREAKPOINT)	+= hw_breakpoint.o

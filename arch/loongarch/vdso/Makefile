@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 # Objects to go into the VDSO.
+OBJECT_FILES_NON_STANDARD		:= y
 
 ifdef CONFIG_KASAN
 KASAN_SANITIZE := n

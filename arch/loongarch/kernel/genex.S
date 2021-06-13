@@ -15,6 +15,7 @@
 #include <asm/fpregdef.h>
 #include <asm/stackframe.h>
 #include <asm/thread_info.h>
+#include <asm/unwind_hints.h>
 
 	.align	5
 SYM_FUNC_START(__arch_cpu_idle)
@@ -34,6 +35,7 @@ SYM_FUNC_END(__arch_cpu_idle)
 SYM_FUNC_START(handle_vint)
 	BACKUP_T0T1
 	SAVE_ALL
+	UNWIND_HINT_REGS
 	la_abs	t1, __arch_cpu_idle
 	LONG_L	t0, sp, PT_ERA
 	/* 32 byte rollback region */
@@ -45,6 +47,7 @@ SYM_FUNC_START(handle_vint)
 	move	a1, sp
 	la_abs	t0, do_vint
 	jirl	ra, t0, 0
+	UNWIND_HINT_REGS
 	RESTORE_ALL_AND_RET
 SYM_FUNC_END(handle_vint)
 
@@ -75,6 +78,7 @@ SYM_FUNC_END(except_vec_cex)
 	la_abs	t0, do_\handler
 	jirl	ra, t0, 0
 	668:
+	UNWIND_HINT_REGS
 	RESTORE_ALL_AND_RET
 	SYM_FUNC_END(handle_\exception)
 	SYM_DATA(unwind_hint_\exception, .word 668b - 666b)

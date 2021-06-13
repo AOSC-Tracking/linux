@@ -8,6 +8,7 @@
 #define _ASM_UNWIND_H
 
 #include <linux/sched.h>
+#include <linux/module.h>
 #include <linux/ftrace.h>
 
 #include <asm/ptrace.h>
@@ -16,6 +17,7 @@
 enum unwinder_type {
 	UNWINDER_GUESS,
 	UNWINDER_PROLOGUE,
+	UNWINDER_ORC,
 };
 
 struct unwind_state {
@@ -24,7 +26,7 @@ struct unwind_state {
 	struct task_struct *task;
 	bool first, error, reset;
 	int graph_idx;
-	unsigned long sp, pc, ra;
+	unsigned long sp, pc, fp, ra;
 };
 
 bool default_next_frame(struct unwind_state *state);
@@ -79,4 +81,14 @@ static __always_inline unsigned long __unwind_get_return_address(struct unwind_s
 {
 	return unwind_done(state) ? 0 : state->pc;
 }
+
+#ifdef CONFIG_UNWINDER_ORC
+void unwind_init(void);
+void unwind_module_init(struct module *mod, void *orc_ip, size_t orc_ip_size,
+			void *orc, size_t orc_size);
+#else
+static inline void unwind_init(void) {}
+static inline void unwind_module_init(struct module *mod, void *orc_ip,
+			size_t orc_ip_size, void *orc, size_t orc_size) {}
+#endif /* CONFIG_UNWINDER_ORC */
 #endif /* _ASM_UNWIND_H */

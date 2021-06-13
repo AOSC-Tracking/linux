@@ -14,6 +14,7 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/thread_info.h>
+#include <asm/unwind_hints.h>
 
 	.text
 	.cfi_sections	.debug_frame
@@ -58,6 +59,8 @@ SYM_FUNC_START(handle_syscall)
 
 	SAVE_STATIC
 
+	UNWIND_HINT_REGS
+
 	move		u0, t0
 	li.d		tp, ~_THREAD_MASK
 	and		tp, tp, sp
@@ -70,6 +73,7 @@ SYM_FUNC_END(handle_syscall)
 _ASM_NOKPROBE(handle_syscall)
 
 SYM_CODE_START(ret_from_fork)
+	UNWIND_HINT_REGS
 	bl		schedule_tail		# a0 = struct task_struct *prev
 	move		a0, sp
 	bl 		syscall_exit_to_user_mode
@@ -79,6 +83,7 @@ SYM_CODE_START(ret_from_fork)
 SYM_CODE_END(ret_from_fork)
 
 SYM_CODE_START(ret_from_kernel_thread)
+	UNWIND_HINT_REGS
 	bl		schedule_tail		# a0 = struct task_struct *prev
 	move		a0, s1
 	jirl		ra, s0, 0

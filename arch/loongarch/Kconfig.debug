@@ -26,4 +26,19 @@ config UNWINDER_PROLOGUE
 	  Some of the addresses it reports may be incorrect (but better than the
 	  Guess unwinder).
 
+config UNWINDER_ORC
+	bool "ORC unwinder"
+	select OBJTOOL
+	help
+	  This option enables the ORC (Oops Rewind Capability) unwinder for
+	  unwinding kernel stack traces.  It uses a custom data format which is
+	  a simplified version of the DWARF Call Frame Information standard.
+
+	  This unwinder is more accurate across interrupt entry frames than the
+	  frame pointer unwinder.  It also enables a 5-10% performance
+	  improvement across the entire kernel compared to frame pointers.
+
+	  Enabling this option will increase the kernel's runtime memory usage
+	  by roughly 3-5MB, depending on your kernel config.
+
 endchoice
