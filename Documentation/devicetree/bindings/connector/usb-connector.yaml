@@ -192,6 +192,34 @@ properties:
     required:
       - port@0
 
+  altmodes:
+    description: Optional subnode to describe what alternate modes are
+      to be supported.
+
+    properties:
+      "#address-cells":
+        const: 1
+
+      "#size-cells":
+        const: 0
+
+      "^[a-zA-Z][a-zA-Z0-9,+\\-._]{0,63}@[0-9a-fA-F]+$":
+        type: object
+        properties:
+          reg:
+            maxItems: 1
+            description: The index of the alternate mode, starting at 1.
+
+          svid:
+            $ref: /schemas/types.yaml#/definitions/uint32
+            description: The SVID of the alternate mode.
+
+          vdo:
+            $ref: /schemas/types.yaml#/definitions/uint32
+            description: The VDO of the alternate mode.
+
+          additionalProperties: false
+
   new-source-frs-typec-current:
     description: Initial current capability of the new source when vSafe5V
       is applied during PD3.0 Fast Role Swap. "Table 6-14 Fixed Supply PDO - Sink"
