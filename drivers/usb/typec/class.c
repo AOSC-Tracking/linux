@@ -1933,7 +1933,7 @@ void typec_port_register_altmodes(struct typec_port *port,
 	struct typec_altmode_desc desc;
 	struct typec_altmode *alt;
 	size_t index = 0;
-	u32 svid, vdo;
+	u32 svid, vdo, mode;
 	int ret;
 
 	altmodes_node = device_get_named_child_node(&port->dev, "altmodes");
@@ -1955,6 +1955,10 @@ void typec_port_register_altmodes(struct typec_port *port,
 			continue;
 		}
 
+		ret = fwnode_property_read_u32(child, "reg", &mode);
+		if (ret)
+			mode = (u32)index + 1;
+
 		if (index >= n) {
 			dev_err(&port->dev, "Error not enough space for altmode %s\n",
 				fwnode_get_name(child));
@@ -1963,7 +1967,7 @@ void typec_port_register_altmodes(struct typec_port *port,
 
 		desc.svid = svid;
 		desc.vdo = vdo;
-		desc.mode = index + 1;
+		desc.mode = mode;
 		alt = typec_port_register_altmode(port, &desc);
 		if (IS_ERR(alt)) {
 			dev_err(&port->dev, "Error registering altmode %s\n",
