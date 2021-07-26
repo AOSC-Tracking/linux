@@ -8,6 +8,7 @@
 #include <linux/completion.h>
 #include <linux/debugfs.h>
 #include <linux/device.h>
+#include <linux/extcon-provider.h>
 #include <linux/hrtimer.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
@@ -306,6 +307,8 @@ struct tcpm_port {
 	struct tcpc_dev	*tcpc;
 	struct usb_role_switch *role_sw;
 
+	struct extcon_dev *edev;
+
 	enum typec_role vconn_role;
 	enum typec_role pwr_role;
 	enum typec_data_role data_role;
@@ -327,6 +330,8 @@ struct tcpm_port {
 	bool registered;
 	bool pd_supported;
 	enum typec_port_type port_type;
+
+	bool has_dp;
 
 	/*
 	 * Set to true when vbus is greater than VSAFE5V min.
@@ -494,6 +499,20 @@ static const char * const pd_rev[] = {
 	[PD_REV10]		= "rev1",
 	[PD_REV20]		= "rev2",
 	[PD_REV30]		= "rev3",
+};
+
+static const unsigned int extcon_cables_dp[] = {
+	EXTCON_USB,
+	EXTCON_USB_HOST,
+	EXTCON_DISP_DP,
+	EXTCON_NONE,
+};
+
+static const unsigned int extcon_cables_nodp[] = {
+	EXTCON_USB,
+	EXTCON_USB_HOST,
+	EXTCON_DISP_DP,
+	EXTCON_NONE,
 };
 
 #define tcpm_cc_is_sink(cc) \
@@ -929,6 +948,7 @@ static int tcpm_mux_set(struct tcpm_port *port, int state,
 			enum typec_orientation orientation)
 {
 	int ret;
+	union extcon_property_value propval;
 
 	tcpm_log(port, "Requesting mux state %d, usb-role %d, orientation %d",
 		 state, usb_role, orientation);
@@ -943,7 +963,66 @@ static int tcpm_mux_set(struct tcpm_port *port, int state,
 			return ret;
 	}
 
-	return typec_set_mode(port->typec_port, state);
+	switch(usb_role) {
+	case USB_ROLE_NONE:
+		extcon_set_state_sync(port->edev, EXTCON_USB, false);
+		extcon_set_state_sync(port->edev, EXTCON_USB_HOST, false);
+		break;
+	case USB_ROLE_HOST:
+		extcon_set_state_sync(port->edev, EXTCON_USB, false);
+		extcon_set_state_sync(port->edev, EXTCON_USB_HOST, true);
+		break;
+	case USB_ROLE_DEVICE:
+		extcon_set_state_sync(port->edev, EXTCON_USB, true);
+		extcon_set_state_sync(port->edev, EXTCON_USB_HOST, false);
+		break;
+	}
+
+	switch (orientation) {
+	case TYPEC_ORIENTATION_NONE:
+	case TYPEC_ORIENTATION_NORMAL:
+		propval.intval = 0;
+		break;
+	case TYPEC_ORIENTATION_REVERSE:
+		propval.intval = 1;
+		break;
+	}
+
+	extcon_set_property_sync(port->edev, EXTCON_USB,
+				 EXTCON_PROP_USB_TYPEC_POLARITY,
+				 propval);
+	extcon_set_property_sync(port->edev, EXTCON_USB_HOST,
+				 EXTCON_PROP_USB_TYPEC_POLARITY,
+				 propval);
+	extcon_set_property_sync(port->edev, EXTCON_DISP_DP,
+				 EXTCON_PROP_USB_TYPEC_POLARITY,
+				 propval);
+
+	ret = typec_set_mode(port->typec_port, state);
+	if (ret)
+		return ret;
+
+	switch(state) {
+	case TYPEC_STATE_USB:
+		propval.intval = 1;
+		extcon_set_property_sync(port->edev, EXTCON_USB,
+					 EXTCON_PROP_USB_SS, propval);
+		extcon_set_property_sync(port->edev, EXTCON_USB_HOST,
+					 EXTCON_PROP_USB_SS, propval);
+		break;
+	case TYPEC_STATE_SAFE:
+	default:
+		propval.intval = 0;
+		extcon_set_property_sync(port->edev, EXTCON_USB,
+					 EXTCON_PROP_USB_SS, propval);
+		extcon_set_property_sync(port->edev, EXTCON_USB_HOST,
+					 EXTCON_PROP_USB_SS, propval);
+		if (port->has_dp)
+			extcon_set_state_sync(port->edev, EXTCON_DISP_DP, false);
+		break;
+	}
+
+	return 0;
 }
 
 static int tcpm_set_polarity(struct tcpm_port *port,
@@ -6310,7 +6389,7 @@ static enum hrtimer_restart send_discover_timer_handler(struct hrtimer *timer)
 struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 {
 	struct tcpm_port *port;
-	int err;
+	int i, err;
 
 	if (!dev || !tcpc ||
 	    !tcpc->get_vbus || !tcpc->set_cc || !tcpc->get_cc ||
@@ -6393,6 +6472,47 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 				     port->port_altmode, ALTMODE_DISCOVERY_MAX);
 	port->registered = true;
 
+	for (i = 0; i < ALTMODE_DISCOVERY_MAX; i++) {
+		if (!port->port_altmode[i])
+			break;
+		if (port->port_altmode[i]->svid == USB_SID_DISPLAYPORT) {
+			port->has_dp = true;
+			break;
+		}
+	}
+
+#ifdef CONFIG_EXTCON
+	if (port->has_dp)
+		port->edev = devm_extcon_dev_allocate(dev, extcon_cables_dp);
+	else
+		port->edev = devm_extcon_dev_allocate(dev, extcon_cables_nodp);
+
+	if (IS_ERR(port->edev)) {
+		err = PTR_ERR(port->edev);
+		goto out_altmode_deregister;
+	}
+
+	err = devm_extcon_dev_register(dev, port->edev);
+	if (err < 0)
+		goto out_altmode_deregister;
+
+	extcon_set_property_capability(port->edev, EXTCON_USB,
+				       EXTCON_PROP_USB_TYPEC_POLARITY);
+	extcon_set_property_capability(port->edev, EXTCON_USB_HOST,
+				       EXTCON_PROP_USB_TYPEC_POLARITY);
+	if (port->has_dp)
+		extcon_set_property_capability(port->edev, EXTCON_DISP_DP,
+					       EXTCON_PROP_USB_TYPEC_POLARITY);
+
+	extcon_set_property_capability(port->edev, EXTCON_USB,
+				       EXTCON_PROP_USB_SS);
+	extcon_set_property_capability(port->edev, EXTCON_USB_HOST,
+				       EXTCON_PROP_USB_SS);
+	if (port->has_dp)
+		extcon_set_property_capability(port->edev, EXTCON_DISP_DP,
+					       EXTCON_PROP_USB_SS);
+#endif
+
 	mutex_lock(&port->lock);
 	tcpm_init(port);
 	mutex_unlock(&port->lock);
@@ -6400,6 +6520,10 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 	tcpm_log(port, "%s: registered", dev_name(dev));
 	return port;
 
+out_altmode_deregister:
+	for (i = 0; i < ARRAY_SIZE(port->port_altmode); i++)
+		typec_unregister_altmode(port->port_altmode[i]);
+	typec_unregister_port(port->typec_port);
 out_role_sw_put:
 	usb_role_switch_put(port->role_sw);
 out_destroy_wq:
