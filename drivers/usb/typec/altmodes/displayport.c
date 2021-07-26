@@ -9,6 +9,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/extcon-provider.h>
 #include <linux/mutex.h>
 #include <linux/module.h>
 #include <linux/property.h>
@@ -68,6 +69,56 @@ struct dp_altmode {
 	struct fwnode_handle *connector_fwnode;
 };
 
+static void dp_altmode_update_extcon(struct dp_altmode *dp, bool disconnect)
+{
+#ifdef CONFIG_EXTCON
+	const struct device *dev = dp->port->dev.parent->parent;
+	struct extcon_dev* edev = NULL;
+
+	edev = extcon_find_edev_by_node(dev->of_node);
+	if (IS_ERR_OR_NULL(edev))
+		return;
+
+	if (disconnect || !dp->data.conf) {
+		extcon_set_state_sync(edev, EXTCON_DISP_DP, false);
+	} else {
+		union extcon_property_value propval;
+		struct typec_port *tcport = typec_altmode2port(dp->alt);
+		extcon_set_state(edev, EXTCON_DISP_DP, true);
+
+		switch (typec_get_orientation(tcport)) {
+		case TYPEC_ORIENTATION_NONE:
+		case TYPEC_ORIENTATION_NORMAL:
+			propval.intval = 0;
+			break;
+		case TYPEC_ORIENTATION_REVERSE:
+			propval.intval = 1;
+			break;
+		}
+
+		extcon_set_property(edev, EXTCON_DISP_DP,
+				    EXTCON_PROP_USB_TYPEC_POLARITY,
+				    propval);
+
+		if (!(DP_CONF_GET_PIN_ASSIGN(dp->data.conf) &
+		      DP_PIN_ASSIGN_MULTI_FUNC_MASK))
+			propval.intval = 0;
+		else
+			propval.intval = 1;
+
+		extcon_set_property_sync(edev, EXTCON_USB,
+					 EXTCON_PROP_USB_SS,
+					 propval);
+		extcon_set_property_sync(edev, EXTCON_USB_HOST,
+					 EXTCON_PROP_USB_SS,
+					 propval);
+		extcon_set_property_sync(edev, EXTCON_DISP_DP,
+					 EXTCON_PROP_USB_SS,
+					 propval);
+	}
+#endif
+}
+
 static int dp_altmode_notify(struct dp_altmode *dp)
 {
 	unsigned long conf;
@@ -76,8 +127,10 @@ static int dp_altmode_notify(struct dp_altmode *dp)
 	if (dp->data.conf) {
 		state = get_count_order(DP_CONF_GET_PIN_ASSIGN(dp->data.conf));
 		conf = TYPEC_MODAL_STATE(state);
+		dp_altmode_update_extcon(dp, false);
 	} else {
 		conf = TYPEC_STATE_USB;
+		dp_altmode_update_extcon(dp, true);
 	}
 
 	return typec_altmode_notify(dp->alt, conf, &dp->data);
@@ -221,6 +274,7 @@ static void dp_altmode_work(struct work_struct *work)
 	case DP_STATE_EXIT:
 		if (typec_altmode_exit(dp->alt))
 			dev_err(&dp->alt->dev, "Exit Mode Failed!\n");
+		dp_altmode_update_extcon(dp, true);
 		break;
 	default:
 		break;
