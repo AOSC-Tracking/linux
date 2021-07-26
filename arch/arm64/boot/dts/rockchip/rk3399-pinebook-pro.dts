@@ -383,6 +383,11 @@
 	};
 };
 
+&cdn_dp {
+	extcon = <&fusb0>;
+	status = "okay";
+};
+
 &cpu_b0 {
 	cpu-supply = <&vdd_cpu_b>;
 };
@@ -713,6 +718,17 @@
 				<PDO_FIXED(5000, 1400, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
 			try-power-role = "source";
 
+			altmodes {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				displayport@1 {
+					reg = <1>;
+					svid = <0xff01>;
+					vdo = <0x001c0000>;
+				};
+			};
+
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -996,6 +1012,7 @@
 
 &tcphy0 {
 	status = "okay";
+	extcon = <&fusb0>;
 };
 
 &tcphy0_dp {
@@ -1101,6 +1118,7 @@
 
 &usbdrd3_0 {
 	status = "okay";
+	extcon = <&fusb0>;
 };
 
 &usbdrd_dwc3_0 {
