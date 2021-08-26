@@ -3809,7 +3809,6 @@ static int tcpm_snk_attach(struct tcpm_port *port)
 	port->partner = NULL;
 
 	port->attached = true;
-	port->send_discover = true;
 
 	return 0;
 }
