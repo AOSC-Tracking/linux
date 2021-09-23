@@ -14,7 +14,7 @@ menuconfig VFIO
 if VFIO
 config VFIO_CONTAINER
 	bool "Support for the VFIO container /dev/vfio/vfio"
-	select VFIO_IOMMU_TYPE1 if MMU && (X86 || S390 || ARM || ARM64)
+	select VFIO_IOMMU_TYPE1 if MMU && (X86 || S390 || ARM || ARM64 || LOONGARCH)
 	default y
 	help
 	  The VFIO container is the classic interface to VFIO for establishing
