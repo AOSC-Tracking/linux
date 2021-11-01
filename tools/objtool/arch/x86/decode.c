@@ -8,6 +8,8 @@
 
 #define unlikely(cond) (cond)
 #include <asm/insn.h>
+#include <linux/static_call_types.h>
+
 #include "../../../arch/x86/lib/inat.c"
 #include "../../../arch/x86/lib/insn.c"
 
@@ -15,6 +17,8 @@
 #include <asm/nops.h>
 
 #include <asm/orc_types.h>
+#include <linux/objtool_types.h>
+#include <objtool/builtin.h>
 #include <objtool/check.h>
 #include <objtool/elf.h>
 #include <objtool/arch.h>
@@ -39,6 +43,497 @@ static int is_x86_64(const struct elf *elf)
 		WARN("unexpected ELF machine type %d", elf->ehdr.e_machine);
 		return -1;
 	}
+}
+
+static bool check_reg_frame_pos(const struct cfi_reg *reg,
+				int expected_offset)
+{
+	return reg->base == CFI_CFA &&
+	       reg->offset == expected_offset;
+}
+
+static int update_cfi_state_regs(struct instruction *insn,
+				  struct cfi_state *cfi,
+				  struct stack_op *op)
+{
+	struct cfi_reg *cfa = &cfi->cfa;
+
+	if (cfa->base != CFI_SP && cfa->base != CFI_SP_INDIRECT)
+		return 0;
+
+	/* push */
+	if (op->dest.type == OP_DEST_PUSH || op->dest.type == OP_DEST_PUSHF)
+		cfa->offset += 8;
+
+	/* pop */
+	if (op->src.type == OP_SRC_POP || op->src.type == OP_SRC_POPF)
+		cfa->offset -= 8;
+
+	/* add immediate to sp */
+	if (op->dest.type == OP_DEST_REG && op->src.type == OP_SRC_ADD &&
+	    op->dest.reg == CFI_SP && op->src.reg == CFI_SP)
+		cfa->offset -= op->src.offset;
+
+	return 0;
+}
+
+/*
+ * A note about DRAP stack alignment:
+ *
+ * GCC has the concept of a DRAP register, which is used to help keep track of
+ * the stack pointer when aligning the stack.  r10 or r13 is used as the DRAP
+ * register.  The typical DRAP pattern is:
+ *
+ *   4c 8d 54 24 08		lea    0x8(%rsp),%r10
+ *   48 83 e4 c0		and    $0xffffffffffffffc0,%rsp
+ *   41 ff 72 f8		pushq  -0x8(%r10)
+ *   55				push   %rbp
+ *   48 89 e5			mov    %rsp,%rbp
+ *				(more pushes)
+ *   41 52			push   %r10
+ *				...
+ *   41 5a			pop    %r10
+ *				(more pops)
+ *   5d				pop    %rbp
+ *   49 8d 62 f8		lea    -0x8(%r10),%rsp
+ *   c3				retq
+ *
+ * There are some variations in the epilogues, like:
+ *
+ *   5b				pop    %rbx
+ *   41 5a			pop    %r10
+ *   41 5c			pop    %r12
+ *   41 5d			pop    %r13
+ *   41 5e			pop    %r14
+ *   c9				leaveq
+ *   49 8d 62 f8		lea    -0x8(%r10),%rsp
+ *   c3				retq
+ *
+ * and:
+ *
+ *   4c 8b 55 e8		mov    -0x18(%rbp),%r10
+ *   48 8b 5d e0		mov    -0x20(%rbp),%rbx
+ *   4c 8b 65 f0		mov    -0x10(%rbp),%r12
+ *   4c 8b 6d f8		mov    -0x8(%rbp),%r13
+ *   c9				leaveq
+ *   49 8d 62 f8		lea    -0x8(%r10),%rsp
+ *   c3				retq
+ *
+ * Sometimes r13 is used as the DRAP register, in which case it's saved and
+ * restored beforehand:
+ *
+ *   41 55			push   %r13
+ *   4c 8d 6c 24 10		lea    0x10(%rsp),%r13
+ *   48 83 e4 f0		and    $0xfffffffffffffff0,%rsp
+ *				...
+ *   49 8d 65 f0		lea    -0x10(%r13),%rsp
+ *   41 5d			pop    %r13
+ *   c3				retq
+ */
+static int update_cfi_state(struct instruction *insn,
+			    struct instruction *next_insn,
+			    struct cfi_state *cfi, struct stack_op *op)
+{
+	struct cfi_reg *cfa = &cfi->cfa;
+	struct cfi_reg *regs = cfi->regs;
+
+	/* stack operations don't make sense with an undefined CFA */
+	if (cfa->base == CFI_UNDEFINED) {
+		if (insn_func(insn)) {
+			WARN_INSN(insn, "undefined stack state");
+			return -1;
+		}
+		return 0;
+	}
+
+	if (cfi->type == UNWIND_HINT_TYPE_REGS ||
+	    cfi->type == UNWIND_HINT_TYPE_REGS_PARTIAL)
+		return update_cfi_state_regs(insn, cfi, op);
+
+	switch (op->dest.type) {
+
+	case OP_DEST_REG:
+		switch (op->src.type) {
+
+		case OP_SRC_REG:
+			if (op->src.reg == CFI_SP && op->dest.reg == CFI_BP &&
+			    cfa->base == CFI_SP &&
+			    check_reg_frame_pos(&regs[CFI_BP], -cfa->offset)) {
+
+				/* mov %rsp, %rbp */
+				cfa->base = op->dest.reg;
+				cfi->bp_scratch = false;
+			}
+
+			else if (op->src.reg == CFI_SP &&
+				 op->dest.reg == CFI_BP && cfi->drap) {
+
+				/* drap: mov %rsp, %rbp */
+				regs[CFI_BP].base = CFI_BP;
+				regs[CFI_BP].offset = -cfi->stack_size;
+				cfi->bp_scratch = false;
+			}
+
+			else if (op->src.reg == CFI_SP && cfa->base == CFI_SP) {
+
+				/*
+				 * mov %rsp, %reg
+				 *
+				 * This is needed for the rare case where GCC
+				 * does:
+				 *
+				 *   mov    %rsp, %rax
+				 *   ...
+				 *   mov    %rax, %rsp
+				 */
+				cfi->vals[op->dest.reg].base = CFI_CFA;
+				cfi->vals[op->dest.reg].offset = -cfi->stack_size;
+			}
+
+			else if (op->src.reg == CFI_BP && op->dest.reg == CFI_SP &&
+				 (cfa->base == CFI_BP || cfa->base == cfi->drap_reg)) {
+
+				/*
+				 * mov %rbp, %rsp
+				 *
+				 * Restore the original stack pointer (Clang).
+				 */
+				cfi->stack_size = -cfi->regs[CFI_BP].offset;
+			}
+
+			else if (op->dest.reg == cfa->base) {
+
+				/* mov %reg, %rsp */
+				if (cfa->base == CFI_SP &&
+				    cfi->vals[op->src.reg].base == CFI_CFA) {
+
+					/*
+					 * This is needed for the rare case
+					 * where GCC does something dumb like:
+					 *
+					 *   lea    0x8(%rsp), %rcx
+					 *   ...
+					 *   mov    %rcx, %rsp
+					 */
+					cfa->offset = -cfi->vals[op->src.reg].offset;
+					cfi->stack_size = cfa->offset;
+
+				} else if (cfa->base == CFI_SP &&
+					   cfi->vals[op->src.reg].base == CFI_SP_INDIRECT &&
+					   cfi->vals[op->src.reg].offset == cfa->offset) {
+
+					/*
+					 * Stack swizzle:
+					 *
+					 * 1: mov %rsp, (%[tos])
+					 * 2: mov %[tos], %rsp
+					 *    ...
+					 * 3: pop %rsp
+					 *
+					 * Where:
+					 *
+					 * 1 - places a pointer to the previous
+					 *     stack at the Top-of-Stack of the
+					 *     new stack.
+					 *
+					 * 2 - switches to the new stack.
+					 *
+					 * 3 - pops the Top-of-Stack to restore
+					 *     the original stack.
+					 *
+					 * Note: we set base to SP_INDIRECT
+					 * here and preserve offset. Therefore
+					 * when the unwinder reaches ToS it
+					 * will dereference SP and then add the
+					 * offset to find the next frame, IOW:
+					 * (%rsp) + offset.
+					 */
+					cfa->base = CFI_SP_INDIRECT;
+
+				} else {
+					cfa->base = CFI_UNDEFINED;
+					cfa->offset = 0;
+				}
+			}
+
+			else if (op->dest.reg == CFI_SP &&
+				 cfi->vals[op->src.reg].base == CFI_SP_INDIRECT &&
+				 cfi->vals[op->src.reg].offset == cfa->offset) {
+
+				/*
+				 * The same stack swizzle case 2) as above. But
+				 * because we can't change cfa->base, case 3)
+				 * will become a regular POP. Pretend we're a
+				 * PUSH so things don't go unbalanced.
+				 */
+				cfi->stack_size += 8;
+			}
+
+
+			break;
+
+		case OP_SRC_ADD:
+			if (op->dest.reg == CFI_SP && op->src.reg == CFI_SP) {
+
+				/* add imm, %rsp */
+				cfi->stack_size -= op->src.offset;
+				if (cfa->base == CFI_SP)
+					cfa->offset -= op->src.offset;
+				break;
+			}
+
+			if (op->dest.reg == CFI_SP && op->src.reg == CFI_BP) {
+
+				/* lea disp(%rbp), %rsp */
+				cfi->stack_size = -(op->src.offset + regs[CFI_BP].offset);
+				break;
+			}
+
+			if (op->src.reg == CFI_SP && cfa->base == CFI_SP) {
+
+				/* drap: lea disp(%rsp), %drap */
+				cfi->drap_reg = op->dest.reg;
+
+				/*
+				 * lea disp(%rsp), %reg
+				 *
+				 * This is needed for the rare case where GCC
+				 * does something dumb like:
+				 *
+				 *   lea    0x8(%rsp), %rcx
+				 *   ...
+				 *   mov    %rcx, %rsp
+				 */
+				cfi->vals[op->dest.reg].base = CFI_CFA;
+				cfi->vals[op->dest.reg].offset = \
+					-cfi->stack_size + op->src.offset;
+
+				break;
+			}
+
+			if (cfi->drap && op->dest.reg == CFI_SP &&
+			    op->src.reg == cfi->drap_reg) {
+
+				 /* drap: lea disp(%drap), %rsp */
+				cfa->base = CFI_SP;
+				cfa->offset = cfi->stack_size = -op->src.offset;
+				cfi->drap_reg = CFI_UNDEFINED;
+				cfi->drap = false;
+				break;
+			}
+
+			if (op->dest.reg == cfi->cfa.base && !(next_insn && next_insn->hint)) {
+				WARN_INSN(insn, "unsupported stack register modification");
+				return -1;
+			}
+
+			break;
+
+		case OP_SRC_AND:
+			if (op->dest.reg != CFI_SP ||
+			    (cfi->drap_reg != CFI_UNDEFINED && cfa->base != CFI_SP) ||
+			    (cfi->drap_reg == CFI_UNDEFINED && cfa->base != CFI_BP)) {
+				WARN_INSN(insn, "unsupported stack pointer realignment");
+				return -1;
+			}
+
+			if (cfi->drap_reg != CFI_UNDEFINED) {
+				/* drap: and imm, %rsp */
+				cfa->base = cfi->drap_reg;
+				cfa->offset = cfi->stack_size = 0;
+				cfi->drap = true;
+			}
+
+			/*
+			 * Older versions of GCC (4.8ish) realign the stack
+			 * without DRAP, with a frame pointer.
+			 */
+
+			break;
+
+		case OP_SRC_POP:
+		case OP_SRC_POPF:
+			if (op->dest.reg == CFI_SP && cfa->base == CFI_SP_INDIRECT) {
+
+				/* pop %rsp; # restore from a stack swizzle */
+				cfa->base = CFI_SP;
+				break;
+			}
+
+			if (!cfi->drap && op->dest.reg == cfa->base) {
+
+				/* pop %rbp */
+				cfa->base = CFI_SP;
+			}
+
+			if (cfi->drap && cfa->base == CFI_BP_INDIRECT &&
+			    op->dest.reg == cfi->drap_reg &&
+			    cfi->drap_offset == -cfi->stack_size) {
+
+				/* drap: pop %drap */
+				cfa->base = cfi->drap_reg;
+				cfa->offset = 0;
+				cfi->drap_offset = -1;
+
+			} else if (cfi->stack_size == -regs[op->dest.reg].offset) {
+
+				/* pop %reg */
+				restore_reg(cfi, op->dest.reg);
+			}
+
+			cfi->stack_size -= 8;
+			if (cfa->base == CFI_SP)
+				cfa->offset -= 8;
+
+			break;
+
+		case OP_SRC_REG_INDIRECT:
+			if (!cfi->drap && op->dest.reg == cfa->base &&
+			    op->dest.reg == CFI_BP) {
+
+				/* mov disp(%rsp), %rbp */
+				cfa->base = CFI_SP;
+				cfa->offset = cfi->stack_size;
+			}
+
+			if (cfi->drap && op->src.reg == CFI_BP &&
+			    op->src.offset == cfi->drap_offset) {
+
+				/* drap: mov disp(%rbp), %drap */
+				cfa->base = cfi->drap_reg;
+				cfa->offset = 0;
+				cfi->drap_offset = -1;
+			}
+
+			if (cfi->drap && op->src.reg == CFI_BP &&
+			    op->src.offset == regs[op->dest.reg].offset) {
+
+				/* drap: mov disp(%rbp), %reg */
+				restore_reg(cfi, op->dest.reg);
+
+			} else if (op->src.reg == cfa->base &&
+			    op->src.offset == regs[op->dest.reg].offset + cfa->offset) {
+
+				/* mov disp(%rbp), %reg */
+				/* mov disp(%rsp), %reg */
+				restore_reg(cfi, op->dest.reg);
+
+			} else if (op->src.reg == CFI_SP &&
+				   op->src.offset == regs[op->dest.reg].offset + cfi->stack_size) {
+
+				/* mov disp(%rsp), %reg */
+				restore_reg(cfi, op->dest.reg);
+			}
+
+			break;
+
+		default:
+			WARN_INSN(insn, "unknown stack-related instruction");
+			return -1;
+		}
+
+		break;
+
+	case OP_DEST_PUSH:
+	case OP_DEST_PUSHF:
+		cfi->stack_size += 8;
+		if (cfa->base == CFI_SP)
+			cfa->offset += 8;
+
+		if (op->src.type != OP_SRC_REG)
+			break;
+
+		if (cfi->drap) {
+			if (op->src.reg == cfa->base && op->src.reg == cfi->drap_reg) {
+
+				/* drap: push %drap */
+				cfa->base = CFI_BP_INDIRECT;
+				cfa->offset = -cfi->stack_size;
+
+				/* save drap so we know when to restore it */
+				cfi->drap_offset = -cfi->stack_size;
+
+			} else if (op->src.reg == CFI_BP && cfa->base == cfi->drap_reg) {
+
+				/* drap: push %rbp */
+				cfi->stack_size = 0;
+
+			} else {
+
+				/* drap: push %reg */
+				save_reg(cfi, op->src.reg, CFI_BP, -cfi->stack_size);
+			}
+
+		} else {
+
+			/* push %reg */
+			save_reg(cfi, op->src.reg, CFI_CFA, -cfi->stack_size);
+		}
+
+		/* detect when asm code uses rbp as a scratch register */
+		if (opts.stackval && insn_func(insn) && op->src.reg == CFI_BP &&
+		    cfa->base != CFI_BP)
+			cfi->bp_scratch = true;
+		break;
+
+	case OP_DEST_REG_INDIRECT:
+
+		if (cfi->drap) {
+			if (op->src.reg == cfa->base && op->src.reg == cfi->drap_reg) {
+
+				/* drap: mov %drap, disp(%rbp) */
+				cfa->base = CFI_BP_INDIRECT;
+				cfa->offset = op->dest.offset;
+
+				/* save drap offset so we know when to restore it */
+				cfi->drap_offset = op->dest.offset;
+			} else {
+
+				/* drap: mov reg, disp(%rbp) */
+				save_reg(cfi, op->src.reg, CFI_BP, op->dest.offset);
+			}
+
+		} else if (op->dest.reg == cfa->base) {
+
+			/* mov reg, disp(%rbp) */
+			/* mov reg, disp(%rsp) */
+			save_reg(cfi, op->src.reg, CFI_CFA,
+				 op->dest.offset - cfi->cfa.offset);
+
+		} else if (op->dest.reg == CFI_SP) {
+
+			/* mov reg, disp(%rsp) */
+			save_reg(cfi, op->src.reg, CFI_CFA,
+				 op->dest.offset - cfi->stack_size);
+
+		} else if (op->src.reg == CFI_SP && op->dest.offset == 0) {
+
+			/* mov %rsp, (%reg); # setup a stack swizzle. */
+			cfi->vals[op->dest.reg].base = CFI_SP_INDIRECT;
+			cfi->vals[op->dest.reg].offset = cfa->offset;
+		}
+
+		break;
+
+	case OP_DEST_MEM:
+		if (op->src.type != OP_SRC_POP && op->src.type != OP_SRC_POPF) {
+			WARN_INSN(insn, "unknown stack-related memory operation");
+			return -1;
+		}
+
+		/* pop mem */
+		cfi->stack_size -= 8;
+		if (cfa->base == CFI_SP)
+			cfa->offset -= 8;
+
+		break;
+
+	default:
+		WARN_INSN(insn, "unknown stack-related instruction");
+		return -1;
+	}
+
+	return 0;
 }
 
 bool arch_callee_saved_reg(unsigned char reg)
@@ -745,6 +1240,203 @@ void arch_initial_func_cfi_state(struct cfi_init_state *state)
 	state->regs[CFI_RA].offset = -8;
 }
 
+bool arch_has_valid_stack_frame(struct insn_state *state)
+{
+	struct cfi_state *cfi = &state->cfi;
+
+	if (cfi->cfa.base == CFI_BP &&
+	    check_reg_frame_pos(&cfi->regs[CFI_BP], -cfi->cfa.offset) &&
+	    check_reg_frame_pos(&cfi->regs[CFI_RA], -cfi->cfa.offset + 8))
+		return true;
+
+	if (cfi->drap && cfi->regs[CFI_BP].base == CFI_BP)
+		return true;
+
+	return false;
+}
+
+int arch_handle_insn_ops(struct instruction *insn,
+			   struct instruction *next_insn,
+			   struct insn_state *state)
+{
+	struct stack_op *op;
+
+	for (op = insn->stack_ops; op; op = op->next) {
+
+		if (update_cfi_state(insn, next_insn, &state->cfi, op))
+			return 1;
+
+		if (!insn->alt_group)
+			continue;
+
+		if (op->dest.type == OP_DEST_PUSHF) {
+			if (!state->uaccess_stack) {
+				state->uaccess_stack = 1;
+			} else if (state->uaccess_stack >> 31) {
+				WARN_FUNC("PUSHF stack exhausted",
+					  insn->sec, insn->offset);
+				return 1;
+			}
+			state->uaccess_stack <<= 1;
+			state->uaccess_stack  |= state->uaccess;
+		}
+
+		if (op->src.type == OP_SRC_POPF) {
+			if (state->uaccess_stack) {
+				state->uaccess = state->uaccess_stack & 1;
+				state->uaccess_stack >>= 1;
+				if (state->uaccess_stack == 1)
+					state->uaccess_stack = 0;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int arch_create_static_call_sections(struct objtool_file *file)
+{
+	struct section *sec;
+	struct static_call_site *site;
+	struct instruction *insn;
+	struct symbol *key_sym;
+	char *key_name, *tmp;
+	int idx;
+
+	sec = find_section_by_name(file->elf, ".static_call_sites");
+	if (sec) {
+		INIT_LIST_HEAD(&file->static_call_list);
+		WARN("file already has .static_call_sites section, skipping");
+		return 0;
+	}
+
+	if (list_empty(&file->static_call_list))
+		return 0;
+
+	idx = 0;
+	list_for_each_entry(insn, &file->static_call_list, call_node)
+		idx++;
+
+	sec = elf_create_section(file->elf, ".static_call_sites", SHF_WRITE,
+				 sizeof(struct static_call_site), idx);
+	if (!sec)
+		return -1;
+
+	idx = 0;
+	list_for_each_entry(insn, &file->static_call_list, call_node) {
+
+		site = (struct static_call_site *)sec->data->d_buf + idx;
+		memset(site, 0, sizeof(struct static_call_site));
+
+		/* populate reloc for 'addr' */
+		if (!elf_add_reloc_to_insn(file->elf, sec,
+					   idx * sizeof(struct static_call_site),
+					   R_X86_64_PC32,
+					   insn->sec, insn->offset, NULL))
+			return -1;
+
+		/* find key symbol */
+		key_name = strdup(insn->_call_dest->name);
+		if (!key_name) {
+			perror("strdup");
+			return -1;
+		}
+		if (strncmp(key_name, STATIC_CALL_TRAMP_PREFIX_STR,
+			    STATIC_CALL_TRAMP_PREFIX_LEN)) {
+			WARN("static_call: trampoline name malformed: %s", key_name);
+			free(key_name);
+			return -1;
+		}
+		tmp = key_name + STATIC_CALL_TRAMP_PREFIX_LEN - STATIC_CALL_KEY_PREFIX_LEN;
+		memcpy(tmp, STATIC_CALL_KEY_PREFIX_STR, STATIC_CALL_KEY_PREFIX_LEN);
+
+		key_sym = find_symbol_by_name(file->elf, tmp);
+		if (!key_sym) {
+			if (!opts.module) {
+				WARN("static_call: can't find static_call_key symbol: %s", tmp);
+				free(key_name);
+				return -1;
+			}
+
+			/*
+			 * For modules(), the key might not be exported, which
+			 * means the module can make static calls but isn't
+			 * allowed to change them.
+			 *
+			 * In that case we temporarily set the key to be the
+			 * trampoline address.  This is fixed up in
+			 * static_call_add_module().
+			 */
+			key_sym = insn->_call_dest;
+		}
+		free(key_name);
+
+		/* populate reloc for 'key' */
+		if (!elf_add_reloc(file->elf, sec,
+				   idx * sizeof(struct static_call_site) + 4,
+				   R_X86_64_PC32, key_sym,
+				   is_sibling_call(insn) * STATIC_CALL_SITE_TAIL, NULL))
+			return -1;
+
+		idx++;
+	}
+
+	return 0;
+}
+
+/*
+ * Return true if name matches an instrumentation function, where calls to that
+ * function from noinstr code can safely be removed, but compilers won't do so.
+ */
+static bool is_profiling_func(const char *name)
+{
+	/*
+	 * Many compilers cannot disable KCOV with a function attribute.
+	 */
+	if (!strncmp(name, "__sanitizer_cov_", 16))
+		return true;
+
+	/*
+	 * Some compilers currently do not remove __tsan_func_entry/exit nor
+	 * __tsan_atomic_signal_fence (used for barrier instrumentation) with
+	 * the __no_sanitize_thread attribute, remove them. Once the kernel's
+	 * minimum Clang version is 14.0, this can be removed.
+	 */
+	if (!strncmp(name, "__tsan_func_", 12) ||
+	    !strcmp(name, "__tsan_atomic_signal_fence"))
+		return true;
+
+	return false;
+}
+
+int arch_classify_symbols(struct objtool_file *file)
+{
+	struct symbol *func;
+
+	for_each_sym(file, func) {
+		if (func->bind != STB_GLOBAL)
+			continue;
+
+		if (!strncmp(func->name, STATIC_CALL_TRAMP_PREFIX_STR,
+			     strlen(STATIC_CALL_TRAMP_PREFIX_STR)))
+			func->static_call_tramp = true;
+
+		if (arch_is_retpoline(func))
+			func->retpoline_thunk = true;
+
+		if (arch_is_rethunk(func))
+			func->return_thunk = true;
+
+		if (arch_ftrace_match(func->name))
+			func->fentry = true;
+
+		if (is_profiling_func(func->name))
+			func->profiling_func = true;
+	}
+
+	return 0;
+}
+
 const char *arch_nop_insn(int len)
 {
 	static const char nops[5][5] = {
@@ -828,4 +1520,9 @@ bool arch_is_rethunk(struct symbol *sym)
 	       !strcmp(sym->name, "srso_untrain_ret") ||
 	       !strcmp(sym->name, "srso_safe_ret") ||
 	       !strcmp(sym->name, "__ret");
+}
+
+void arch_try_find_call(struct list_head *p_orbit_list, struct objtool_file *file,
+			struct symbol *func, struct instruction *insn)
+{
 }

@@ -24,7 +24,7 @@ LIBELF_LIBS  := $(shell $(HOSTPKG_CONFIG) libelf --libs 2>/dev/null || echo -lel
 all: $(OBJTOOL)
 
 INCLUDES := -I$(srctree)/tools/include \
-	    -I$(srctree)/tools/arch/$(HOSTARCH)/include/uapi \
+	    -I$(srctree)/tools/arch/$(SRCARCH)/include/uapi \
 	    -I$(srctree)/tools/arch/$(SRCARCH)/include	\
 	    -I$(srctree)/tools/objtool/include \
 	    -I$(srctree)/tools/objtool/arch/$(SRCARCH)/include \
@@ -54,6 +54,11 @@ endif
 BUILD_ORC := n
 
 ifeq ($(SRCARCH),x86)
+	BUILD_ORC := y
+endif
+
+ifeq ($(SRCARCH),loongarch)
+	CFLAGS += -D__loongarch__
 	BUILD_ORC := y
 endif
 

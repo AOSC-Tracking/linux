@@ -39,6 +39,11 @@ struct objtool_file {
 	struct pv_state *pv_ops;
 };
 
+struct cfi_state;
+struct orc_entry;
+struct instruction;
+extern struct orc_entry arch_null;
+
 struct objtool_file *objtool_open_read(const char *_objname);
 
 void objtool_pv_add(struct objtool_file *file, int idx, struct symbol *func);
@@ -46,5 +51,6 @@ void objtool_pv_add(struct objtool_file *file, int idx, struct symbol *func);
 int check(struct objtool_file *file);
 int orc_dump(const char *objname);
 int orc_create(struct objtool_file *file);
+int arch_init_orc_entry(struct orc_entry *orc, struct cfi_state *cfi, struct instruction *insn);
 
 #endif /* _OBJTOOL_H */

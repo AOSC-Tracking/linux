@@ -91,7 +91,7 @@ bool arch_support_alt_relocation(struct special_alt *special_alt,
  *
  *    NOTE: RETPOLINE made it harder still to decode dynamic jumps.
  */
-struct reloc *arch_find_switch_table(struct objtool_file *file,
+static struct reloc *find_switch_table(struct objtool_file *file,
 				    struct instruction *insn)
 {
 	struct reloc  *text_reloc, *rodata_reloc;
@@ -142,4 +142,149 @@ struct reloc *arch_find_switch_table(struct objtool_file *file,
 		file->ignore_unreachables = true;
 
 	return rodata_reloc;
+}
+
+int arch_dynamic_add_jump_table_alts(struct list_head *p_orbit_list, struct objtool_file *file,
+			struct symbol *func, struct instruction *insn)
+{
+	return 0;
+}
+
+/*
+ * find_jump_table() - Given a dynamic jump, find the switch jump table
+ * associated with it.
+ */
+static struct reloc *find_jump_table(struct objtool_file *file,
+				struct symbol *func,
+				struct instruction *insn)
+{
+	struct reloc *table_reloc;
+	struct instruction *dest_insn, *orig_insn = insn;
+
+	/*
+	 * Backward search using the @first_jump_src links, these help avoid
+	 * much of the 'in between' code. Which avoids us getting confused by
+	 * it.
+	 */
+	for (;
+	     insn && insn_func(insn) && insn_func(insn)->pfunc == func;
+	     insn = insn->first_jump_src ?: prev_insn_same_sym(file, insn)) {
+
+		if (insn != orig_insn && insn->type == INSN_JUMP_DYNAMIC)
+			break;
+
+		/* allow small jumps within the range */
+		if (insn->type == INSN_JUMP_UNCONDITIONAL &&
+		    insn->jump_dest &&
+		    (insn->jump_dest->offset <= insn->offset ||
+		    insn->jump_dest->offset > orig_insn->offset))
+			break;
+
+		table_reloc = find_switch_table(file, insn);
+		if (!table_reloc)
+			continue;
+		dest_insn = find_insn(file, table_reloc->sym->sec, table_reloc->addend);
+		if (!dest_insn || !insn_func(dest_insn) || insn_func(dest_insn)->pfunc != func)
+			continue;
+
+		return table_reloc;
+	}
+
+	return NULL;
+}
+
+/*
+ * First pass: Mark the head of each jump table so that in the next pass,
+ * we know when a given jump table ends and the next one starts.
+ */
+void arch_mark_func_jump_tables(struct objtool_file *file,
+				struct symbol *func)
+{
+	struct instruction *insn, *last = NULL;
+	struct reloc *reloc;
+
+	func_for_each_insn(file, func, insn) {
+		if (!last)
+			last = insn;
+
+		/*
+		 * Store back-pointers for unconditional forward jumps such
+		 * that find_jump_table() can back-track using those and
+		 * avoid some potentially confusing code.
+		 */
+		if (insn->type == INSN_JUMP_UNCONDITIONAL && insn->jump_dest &&
+				insn->offset > last->offset &&
+				insn->jump_dest->offset > insn->offset &&
+				!insn->jump_dest->first_jump_src) {
+
+			insn->jump_dest->first_jump_src = insn;
+			last = insn->jump_dest;
+		}
+
+		if (insn->type != INSN_JUMP_DYNAMIC)
+			continue;
+
+		reloc = find_jump_table(file, func, insn);
+		if (reloc) {
+			reloc->jump_table_start = true;
+			insn->_jump_table = reloc;
+		}
+	}
+}
+
+/*
+ * Unfortunately these have to be hard coded because the noreturn
+ * attribute isn't provided in ELF data. Keep 'em sorted.
+ */
+bool arch_is_noreturn(struct symbol *func)
+{
+	int i;
+
+	static const char * const arch_noreturns[] = {
+		"__invalid_creds",
+		"__module_put_and_kthread_exit",
+		"__reiserfs_panic",
+		"__stack_chk_fail",
+		"__ubsan_handle_builtin_unreachable",
+		"arch_call_rest_init",
+		"arch_cpu_idle_dead",
+		"btrfs_assertfail",
+		"cpu_bringup_and_idle",
+		"cpu_startup_entry",
+		"do_exit",
+		"do_group_exit",
+		"do_task_dead",
+		"ex_handler_msr_mce",
+		"fortify_panic",
+		"hlt_play_dead",
+		"hv_ghcb_terminate",
+		"kthread_complete_and_exit",
+		"kthread_exit",
+		"kunit_try_catch_throw",
+		"lbug_with_loc",
+		"machine_real_restart",
+		"make_task_dead",
+		"mpt_halt_firmware",
+		"nmi_panic_self_stop",
+		"panic",
+		"panic_smp_self_stop",
+		"rest_init",
+		"resume_play_dead",
+		"rewind_stack_and_make_dead",
+		"sev_es_terminate",
+		"snp_abort",
+		"start_kernel",
+		"stop_this_cpu",
+		"usercopy_abort",
+		"x86_64_start_kernel",
+		"x86_64_start_reservations",
+		"xen_cpu_bringup_again",
+		"xen_start_kernel",
+	};
+
+	for (i = 0; i < ARRAY_SIZE(arch_noreturns); i++)
+		if (!strcmp(func->name, arch_noreturns[i]))
+			return true;
+
+	return false;
 }

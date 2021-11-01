@@ -9,121 +9,10 @@
 #include <linux/objtool_types.h>
 #include <asm/orc_types.h>
 
+#include <objtool/orc.h>
 #include <objtool/check.h>
 #include <objtool/warn.h>
 #include <objtool/endianness.h>
-
-static int init_orc_entry(struct orc_entry *orc, struct cfi_state *cfi,
-			  struct instruction *insn)
-{
-	struct cfi_reg *bp = &cfi->regs[CFI_BP];
-
-	memset(orc, 0, sizeof(*orc));
-
-	if (!cfi) {
-		/*
-		 * This is usually either unreachable nops/traps (which don't
-		 * trigger unreachable instruction warnings), or
-		 * STACK_FRAME_NON_STANDARD functions.
-		 */
-		orc->type = ORC_TYPE_UNDEFINED;
-		return 0;
-	}
-
-	switch (cfi->type) {
-	case UNWIND_HINT_TYPE_UNDEFINED:
-		orc->type = ORC_TYPE_UNDEFINED;
-		return 0;
-	case UNWIND_HINT_TYPE_END_OF_STACK:
-		orc->type = ORC_TYPE_END_OF_STACK;
-		return 0;
-	case UNWIND_HINT_TYPE_CALL:
-		orc->type = ORC_TYPE_CALL;
-		break;
-	case UNWIND_HINT_TYPE_REGS:
-		orc->type = ORC_TYPE_REGS;
-		break;
-	case UNWIND_HINT_TYPE_REGS_PARTIAL:
-		orc->type = ORC_TYPE_REGS_PARTIAL;
-		break;
-	default:
-		WARN_INSN(insn, "unknown unwind hint type %d", cfi->type);
-		return -1;
-	}
-
-	orc->signal = cfi->signal;
-
-	switch (cfi->cfa.base) {
-	case CFI_SP:
-		orc->sp_reg = ORC_REG_SP;
-		break;
-	case CFI_SP_INDIRECT:
-		orc->sp_reg = ORC_REG_SP_INDIRECT;
-		break;
-	case CFI_BP:
-		orc->sp_reg = ORC_REG_BP;
-		break;
-	case CFI_BP_INDIRECT:
-		orc->sp_reg = ORC_REG_BP_INDIRECT;
-		break;
-	case CFI_R10:
-		orc->sp_reg = ORC_REG_R10;
-		break;
-	case CFI_R13:
-		orc->sp_reg = ORC_REG_R13;
-		break;
-	case CFI_DI:
-		orc->sp_reg = ORC_REG_DI;
-		break;
-	case CFI_DX:
-		orc->sp_reg = ORC_REG_DX;
-		break;
-	default:
-		WARN_INSN(insn, "unknown CFA base reg %d", cfi->cfa.base);
-		return -1;
-	}
-
-	switch (bp->base) {
-	case CFI_UNDEFINED:
-		orc->bp_reg = ORC_REG_UNDEFINED;
-		break;
-	case CFI_CFA:
-		orc->bp_reg = ORC_REG_PREV_SP;
-		break;
-	case CFI_BP:
-		orc->bp_reg = ORC_REG_BP;
-		break;
-	default:
-		WARN_INSN(insn, "unknown BP base reg %d", bp->base);
-		return -1;
-	}
-
-	orc->sp_offset = cfi->cfa.offset;
-	orc->bp_offset = bp->offset;
-
-	return 0;
-}
-
-static int write_orc_entry(struct elf *elf, struct section *orc_sec,
-			   struct section *ip_sec, unsigned int idx,
-			   struct section *insn_sec, unsigned long insn_off,
-			   struct orc_entry *o)
-{
-	struct orc_entry *orc;
-
-	/* populate ORC data */
-	orc = (struct orc_entry *)orc_sec->data->d_buf + idx;
-	memcpy(orc, o, sizeof(*orc));
-	orc->sp_offset = bswap_if_needed(elf, orc->sp_offset);
-	orc->bp_offset = bswap_if_needed(elf, orc->bp_offset);
-
-	/* populate reloc for ip */
-	if (elf_add_reloc_to_insn(elf, ip_sec, idx * sizeof(int), R_X86_64_PC32,
-				  insn_sec, insn_off))
-		return -1;
-
-	return 0;
-}
 
 struct orc_list_entry {
 	struct list_head list;
@@ -164,8 +53,6 @@ int orc_create(struct objtool_file *file)
 	struct orc_list_entry *entry;
 	struct list_head orc_list;
 
-	struct orc_entry null = { .type = ORC_TYPE_UNDEFINED };
-
 	/* Build a deduplicated list of ORC entries: */
 	INIT_LIST_HEAD(&orc_list);
 	for_each_sec(file, sec) {
@@ -181,7 +68,7 @@ int orc_create(struct objtool_file *file)
 			int i;
 
 			if (!alt_group) {
-				if (init_orc_entry(&orc, insn->cfi, insn))
+				if (arch_init_orc_entry(&orc, insn->cfi, insn))
 					return -1;
 				if (!memcmp(&prev_orc, &orc, sizeof(orc)))
 					continue;
@@ -206,7 +93,7 @@ int orc_create(struct objtool_file *file)
 				if (!cfi)
 					continue;
 				/* errors are reported on the original insn */
-				if (init_orc_entry(&orc, cfi, insn))
+				if (arch_init_orc_entry(&orc, cfi, insn))
 					return -1;
 				if (!memcmp(&prev_orc, &orc, sizeof(orc)))
 					continue;
@@ -224,7 +111,7 @@ int orc_create(struct objtool_file *file)
 
 		/* Add a section terminator */
 		if (!empty) {
-			orc_list_add(&orc_list, &null, sec, sec->sh.sh_size);
+			orc_list_add(&orc_list, &arch_null, sec, sec->sh.sh_size);
 			nr++;
 		}
 	}
@@ -248,7 +135,7 @@ int orc_create(struct objtool_file *file)
 
 	/* Write ORC entries to sections: */
 	list_for_each_entry(entry, &orc_list, list) {
-		if (write_orc_entry(file->elf, orc_sec, sec, idx++,
+		if (arch_write_orc_entry(file->elf, orc_sec, sec, idx++,
 				    entry->insn_sec, entry->insn_off,
 				    &entry->orc))
 			return -1;

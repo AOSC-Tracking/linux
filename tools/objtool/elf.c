@@ -24,6 +24,12 @@
 
 #define MAX_NAME_LEN 128
 
+static int first_nonlocal_sym;
+static int nr_add_syms;
+/* Now for .orc_unwind and .orc_unwind_ip */
+#define MAX_NUM_ORC_ADD_SYMS 2
+static struct symbol *add_syms[MAX_NUM_ORC_ADD_SYMS];
+
 static inline u32 str_hash(const char *str)
 {
 	return jhash(str, strlen(str), 0);
@@ -407,6 +413,7 @@ static int read_symbols(struct elf *elf)
 		if (symtab_shndx)
 			shndx_data = symtab_shndx->data;
 
+		first_nonlocal_sym = symtab->sh.sh_info;
 		symbols_nr = symtab->sh.sh_size / symtab->sh.sh_entsize;
 	} else {
 		/*
@@ -537,35 +544,44 @@ static struct section *elf_create_reloc_section(struct elf *elf,
 						struct section *base,
 						int reltype);
 
-int elf_add_reloc(struct elf *elf, struct section *sec, unsigned long offset,
-		  unsigned int type, struct symbol *sym, s64 addend)
+struct reloc *elf_add_reloc(struct elf *elf, struct section *sec, unsigned long offset,
+			    unsigned int type, struct symbol *sym, s64 addend, struct reloc *prev)
 {
 	struct reloc *reloc;
 
 	if (!sec->reloc && !elf_create_reloc_section(elf, sec, SHT_RELA))
-		return -1;
+		return NULL;
 
 	reloc = malloc(sizeof(*reloc));
 	if (!reloc) {
 		perror("malloc");
-		return -1;
+		return NULL;
 	}
 	memset(reloc, 0, sizeof(*reloc));
 
 	reloc->sec = sec->reloc;
 	reloc->offset = offset;
 	reloc->type = type;
-	reloc->sym = sym;
+
+	if (!sym && !strncmp(sec->sym->name, ".orc_unwind_ip", 14))
+		reloc->sym = sec->sym;
+	else
+		reloc->sym = sym;
+
 	reloc->addend = addend;
 
-	list_add_tail(&reloc->sym_reloc_entry, &sym->reloc_list);
-	list_add_tail(&reloc->list, &sec->reloc->reloc_list);
-	elf_hash_add(reloc, &reloc->hash, reloc_hash(reloc));
+	if (prev) {
+		prev->next = reloc;
+	} else {
+		list_add_tail(&reloc->sym_reloc_entry, &sym->reloc_list);
+		list_add_tail(&reloc->list, &sec->reloc->reloc_list);
+		elf_hash_add(reloc, &reloc->hash, reloc_hash(reloc));
+	}
 
 	sec->reloc->sh.sh_size += sec->reloc->sh.sh_entsize;
 	sec->reloc->changed = true;
 
-	return 0;
+	return reloc;
 }
 
 /*
@@ -841,14 +857,17 @@ elf_create_prefix_symbol(struct elf *elf, struct symbol *orig, long size)
 	return sym;
 }
 
-int elf_add_reloc_to_insn(struct elf *elf, struct section *sec,
-			  unsigned long offset, unsigned int type,
-			  struct section *insn_sec, unsigned long insn_off)
+struct reloc *elf_add_reloc_to_insn(struct elf *elf, struct section *sec,
+				    unsigned long offset, unsigned int type,
+				    struct section *insn_sec, unsigned long insn_off,
+				    struct reloc *prev)
 {
 	struct symbol *sym = insn_sec->sym;
 	int addend = insn_off;
 
-	if (!sym) {
+	if (prev) {
+		sym = NULL;
+	} else if (!sym) {
 		/*
 		 * Due to how weak functions work, we must use section based
 		 * relocations. Symbol based relocations would result in the
@@ -857,12 +876,12 @@ int elf_add_reloc_to_insn(struct elf *elf, struct section *sec,
 		 */
 		sym = elf_create_section_symbol(elf, insn_sec);
 		if (!sym)
-			return -1;
+			return NULL;
 
 		insn_sec->sym = sym;
 	}
 
-	return elf_add_reloc(elf, sec, offset, type, sym, addend);
+	return elf_add_reloc(elf, sec, offset, type, sym, addend, prev);
 }
 
 static int read_rel_reloc(struct section *sec, int i, struct reloc *reloc, unsigned int *symndx)
@@ -895,7 +914,7 @@ static int read_relocs(struct elf *elf)
 {
 	unsigned long nr_reloc, max_reloc = 0, tot_reloc = 0;
 	struct section *sec;
-	struct reloc *reloc;
+	struct reloc *reloc, *last_reloc;
 	unsigned int symndx;
 	struct symbol *sym;
 	int i;
@@ -916,6 +935,7 @@ static int read_relocs(struct elf *elf)
 		}
 
 		sec->base->reloc = sec;
+		last_reloc = NULL;
 
 		nr_reloc = 0;
 		sec->reloc_data = calloc(sec->sh.sh_size / sec->sh.sh_entsize, sizeof(*reloc));
@@ -945,6 +965,14 @@ static int read_relocs(struct elf *elf)
 				     symndx, sec->name);
 				return -1;
 			}
+
+			if (last_reloc && reloc->offset == last_reloc->offset) {
+				last_reloc->next = reloc;
+				last_reloc = reloc;
+				continue;
+			}
+
+			last_reloc = reloc;
 
 			list_add_tail(&reloc->sym_reloc_entry, &sym->reloc_list);
 			list_add_tail(&reloc->list, &sec->reloc_list);
@@ -1062,6 +1090,8 @@ struct section *elf_create_section(struct elf *elf, const char *name,
 				   unsigned int sh_flags, size_t entsize, int nr)
 {
 	struct section *sec, *shstrtab;
+	struct section *symtab;
+	struct symbol *sym;
 	size_t size = entsize * nr;
 	Elf_Scn *s;
 
@@ -1119,6 +1149,42 @@ struct section *elf_create_section(struct elf *elf, const char *name,
 	sec->sh.sh_addralign = 1;
 	sec->sh.sh_flags = SHF_ALLOC | sh_flags;
 
+	/*
+	 * Prepare add section symtab information to .symtab.
+	 * Only extra ".orc_unwind" and ".orc_unwind_ip" symbols are added.
+	 * Do not modify .symtab until we really want to write elf.
+	 */
+	if (strncmp(sec->name, ".orc_unwind", 11))
+		goto skip;
+
+	if (nr_add_syms >= MAX_NUM_ORC_ADD_SYMS) {
+		WARN("can't create symtab info");
+		return NULL;
+	}
+
+	symtab = find_section_by_name(elf, ".symtab");
+	if (!symtab) {
+		WARN("can't find .symtab section");
+		return NULL;
+	}
+	sym = malloc(sizeof(*sym));
+	if (!sym) {
+		perror("malloc");
+		return NULL;
+	}
+	memset(sym, 0, sizeof(*sym));
+	add_syms[nr_add_syms] = sym;
+	sym->idx = first_nonlocal_sym + nr_add_syms;
+	nr_add_syms++;
+	sym->name = sec->name;
+	sym->sym.st_info = GELF_ST_INFO(STB_LOCAL, STT_SECTION);
+	sym->sym.st_shndx = sec->idx;
+	sec->sym = sym;
+	symtab->sh.sh_size += symtab->sh.sh_entsize;
+	symtab->sh.sh_info++;
+	symtab->changed = true;
+
+skip:
 	/* Add section name to .shstrtab (or .strtab for Clang) */
 	shstrtab = find_section_by_name(elf, ".shstrtab");
 	if (!shstrtab)
@@ -1248,7 +1314,7 @@ static int elf_rebuild_rel_reloc_section(struct section *sec)
 
 static int elf_rebuild_rela_reloc_section(struct section *sec)
 {
-	struct reloc *reloc;
+	struct reloc *reloc, *p;
 	int idx = 0;
 	void *buf;
 
@@ -1265,14 +1331,16 @@ static int elf_rebuild_rela_reloc_section(struct section *sec)
 
 	idx = 0;
 	list_for_each_entry(reloc, &sec->reloc_list, list) {
-		reloc->rela.r_offset = reloc->offset;
-		reloc->rela.r_addend = reloc->addend;
-		reloc->rela.r_info = GELF_R_INFO(reloc->sym->idx, reloc->type);
-		if (!gelf_update_rela(sec->data, idx, &reloc->rela)) {
-			WARN_ELF("gelf_update_rela");
-			return -1;
+		for (p = reloc; p; p = p->next) {
+			p->rela.r_offset = p->offset;
+			p->rela.r_addend = p->addend;
+			p->rela.r_info = GELF_R_INFO(p->sym ? p->sym->idx : 0, p->type);
+			if (!gelf_update_rela(sec->data, idx, &p->rela)) {
+				WARN_ELF("gelf_update_rela");
+				return -1;
+			}
+			idx++;
 		}
-		idx++;
 	}
 
 	return 0;
@@ -1388,6 +1456,114 @@ static int elf_truncate_section(struct elf *elf, struct section *sec)
 	}
 }
 
+
+static int elf_adjust_nonlocal_symbol(struct elf *elf)
+{
+	struct section *sec, *symtab;
+	Elf_Scn *s;
+	Elf_Data *data;
+	GElf_Sym *sym;
+	char *buf;
+	int i, nr_symbols, special = 0;
+
+	/* Adjust symtab first */
+	symtab = find_section_by_name(elf, ".symtab");
+	if (!symtab) {
+		WARN("can't find .symtab section");
+		return -1;
+	}
+
+	if (!symtab->changed)
+		return 0;
+
+	nr_symbols = symtab->sh.sh_size / symtab->sh.sh_entsize - nr_add_syms;
+	sym = symtab->data->d_buf;
+	assert(nr_symbols * sizeof(*sym) == symtab->data->d_size);
+
+	/* There may be not enough nonlocal symbol. */
+	if (nr_symbols < first_nonlocal_sym + nr_add_syms)
+		special = first_nonlocal_sym + nr_add_syms - nr_symbols;
+
+	buf = malloc(nr_add_syms * sizeof(*sym));
+	if (!buf) {
+		perror("malloc");
+		return -1;
+	}
+
+	memcpy(buf + special * sizeof(*sym),
+	       &sym[nr_symbols - nr_add_syms + special],
+	       (nr_add_syms - special) * sizeof(*sym));
+	for (i = 0; i < special; i++)
+		memcpy(buf + i * sizeof(*sym),
+		       &add_syms[nr_add_syms - special + i]->sym,
+		       sizeof(*sym));
+
+	s = elf_getscn(elf->elf, symtab->idx);
+	if (!s) {
+		WARN_ELF("elf_getscn");
+		return -1;
+	}
+	data = elf_newdata(s);
+	if (!data) {
+		WARN_ELF("elf_newdata");
+		return -1;
+	}
+	data->d_buf = buf;
+	data->d_size = nr_add_syms * sizeof(*sym);
+	data->d_align = 8;
+
+	for (i = nr_symbols - nr_add_syms - 1; !special && i >= first_nonlocal_sym; i--)
+		memcpy(&sym[i + nr_add_syms], &sym[i], sizeof(*sym));
+
+	for (i = 0; i < nr_add_syms - special; i++)
+		memcpy(&sym[first_nonlocal_sym + i], &add_syms[i]->sym, sizeof(*sym));
+
+	/* Then adjust ".rela" sections */
+	list_for_each_entry(sec, &elf->sections, list) {
+		GElf_Rela *rela;
+		struct reloc *reloc,*p;
+		int nr_relas, type, symndx;
+
+		if (sec->sh.sh_type != SHT_RELA)
+			continue;
+
+		/* No need to adjust .rela.orc_unwind_ip */
+		if (!strcmp(sec->name, ".rela.orc_unwind_ip"))
+			continue;
+
+		/* Update the symbol index data in the r_info member in the GElf_Rela structure */
+		nr_relas = sec->sh.sh_size / sec->sh.sh_entsize;
+		rela = (GElf_Rela *)sec->data->d_buf;
+		assert(sec->data->d_size == nr_relas * sizeof(*rela));
+		for (i = 0; i < nr_relas; i++) {
+			type = GELF_R_TYPE(rela[i].r_info);
+			symndx = GELF_R_SYM(rela[i].r_info);
+			if (symndx < first_nonlocal_sym)
+				continue;
+			symndx += nr_add_syms;
+			rela[i].r_info = GELF_R_INFO(symndx, type);
+			sec->changed = true;
+		}
+
+		/* Update the idx member data in the symbol structure */
+		list_for_each_entry(reloc, &sec->reloc_list, list) {
+			for (p = reloc; p; p = p->next) {
+				if (!p->sym)
+					continue;
+				if (p->sym->idx < first_nonlocal_sym)
+					continue;
+				sec->changed = true;
+				if (p->sym->changed)
+					continue;
+				p->sym->idx += nr_add_syms;
+				p->sym->changed = true;
+			}
+		}
+	}
+
+	return 0;
+}
+
 int elf_write(struct elf *elf)
 {
 	struct section *sec;
@@ -1395,6 +1571,9 @@ int elf_write(struct elf *elf)
 
 	if (opts.dryrun)
 		return 0;
+
+	if (elf_adjust_nonlocal_symbol(elf))
+		return -1;
 
 	/* Update changed relocation sections and section headers: */
 	list_for_each_entry(sec, &elf->sections, list) {

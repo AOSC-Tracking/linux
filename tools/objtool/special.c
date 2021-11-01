@@ -62,7 +62,13 @@ static void reloc_to_sec_off(struct reloc *reloc, struct section **sec,
 			     unsigned long *off)
 {
 	*sec = reloc->sym->sec;
-	*off = reloc->sym->offset + reloc->addend;
+#ifdef __loongarch__
+	if (!strncmp(reloc->sym->name, ".L", 2)
+	    || !strncmp(reloc->sym->name, ".ex", 3))
+		*off = reloc->sym->offset;
+	else
+#endif
+		*off = reloc->sym->offset + reloc->addend;
 }
 
 static int get_alt_entry(struct elf *elf, const struct special_entry *entry,

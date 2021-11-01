@@ -11,6 +11,26 @@
 #include <objtool/objtool.h>
 #include <objtool/cfi.h>
 
+#ifndef R_LARCH_NONE
+#define R_LARCH_NONE	0
+#endif
+
+#ifndef R_LARCH_32
+#define R_LARCH_32				1
+#endif
+
+#ifndef R_LARCH_64
+#define R_LARCH_64				2
+#endif
+
+#ifndef R_LARCH_ADD32
+#define R_LARCH_ADD32	50
+#endif
+
+#ifndef R_LARCH_SUB32
+#define R_LARCH_SUB32	55
+#endif
+
 enum insn_type {
 	INSN_JUMP_CONDITIONAL,
 	INSN_JUMP_UNCONDITIONAL,
@@ -94,5 +114,8 @@ bool arch_is_rethunk(struct symbol *sym);
 int arch_rewrite_retpolines(struct objtool_file *file);
 
 bool arch_pc_relative_reloc(struct reloc *reloc);
+
+void arch_try_find_call(struct list_head *p_orbit_list, struct objtool_file *file,
+			struct symbol *func, struct instruction *insn);
 
 #endif /* _ARCH_H */

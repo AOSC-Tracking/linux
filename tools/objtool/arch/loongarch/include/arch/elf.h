@@ -1,0 +1,8 @@
+#ifndef _OBJTOOL_ARCH_ELF
+#define _OBJTOOL_ARCH_ELF
+
+#define R_NONE R_LARCH_NONE
+#define R_ABS32 R_LARCH_32
+#define R_ABS64 R_LARCH_64
+
+#endif /* _OBJTOOL_ARCH_ELF */

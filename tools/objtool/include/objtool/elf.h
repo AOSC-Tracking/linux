@@ -61,6 +61,7 @@ struct symbol {
 	u8 return_thunk      : 1;
 	u8 fentry            : 1;
 	u8 profiling_func    : 1;
+	u8 changed           : 1;
 	struct list_head pv_target;
 	struct list_head reloc_list;
 };
@@ -68,6 +69,7 @@ struct symbol {
 struct reloc {
 	struct list_head list;
 	struct hlist_node hash;
+	struct reloc *next;
 	union {
 		GElf_Rela rela;
 		GElf_Rel  rel;
@@ -161,11 +163,12 @@ struct section *elf_create_section(struct elf *elf, const char *name, unsigned i
 
 struct symbol *elf_create_prefix_symbol(struct elf *elf, struct symbol *orig, long size);
 
-int elf_add_reloc(struct elf *elf, struct section *sec, unsigned long offset,
-		  unsigned int type, struct symbol *sym, s64 addend);
-int elf_add_reloc_to_insn(struct elf *elf, struct section *sec,
-			  unsigned long offset, unsigned int type,
-			  struct section *insn_sec, unsigned long insn_off);
+struct reloc *elf_add_reloc(struct elf *elf, struct section *sec, unsigned long offset,
+			    unsigned int type, struct symbol *sym, s64 addend, struct reloc *prev);
+struct reloc *elf_add_reloc_to_insn(struct elf *elf, struct section *sec,
+				    unsigned long offset, unsigned int type,
+				    struct section *insn_sec, unsigned long insn_off,
+				    struct reloc *prev);
 
 int elf_write_insn(struct elf *elf, struct section *sec,
 		   unsigned long offset, unsigned int len,
