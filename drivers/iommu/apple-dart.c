@@ -81,10 +81,15 @@
 #define DART_TTBR_VALID BIT(31)
 #define DART_TTBR_SHIFT 12
 
+struct apple_dart_hw {
+	u32 oas;
+};
+
 /*
  * Private structure associated with each DART device.
  *
  * @dev: device struct
+ * @hw: SoC-specific hardware data
  * @regs: mapped MMIO region
  * @irq: interrupt number, can be shared with other DARTs
  * @clks: clocks associated with this DART
@@ -98,6 +103,7 @@
  */
 struct apple_dart {
 	struct device *dev;
+	const struct apple_dart_hw *hw;
 
 	void __iomem *regs;
 
@@ -421,7 +427,7 @@ static int apple_dart_finalize_domain(struct iommu_domain *domain,
 	pgtbl_cfg = (struct io_pgtable_cfg){
 		.pgsize_bitmap = dart->pgsize,
 		.ias = 32,
-		.oas = 36,
+		.oas = dart->hw->oas,
 		.coherent_walk = 1,
 		.iommu_dev = dart->dev,
 	};
@@ -845,12 +851,15 @@ static int apple_dart_set_bus_ops(const struct iommu_ops *ops)
 	return 0;
 }
 
+static const struct of_device_id apple_dart_of_match[];
+
 static int apple_dart_probe(struct platform_device *pdev)
 {
 	int ret;
 	u32 dart_params[2];
 	struct resource *res;
 	struct apple_dart *dart;
+	const struct of_device_id *match;
 	struct device *dev = &pdev->dev;
 
 	dart = devm_kzalloc(dev, sizeof(*dart), GFP_KERNEL);
@@ -859,6 +868,13 @@ static int apple_dart_probe(struct platform_device *pdev)
 
 	dart->dev = dev;
 	spin_lock_init(&dart->lock);
+
+	match = of_match_device(apple_dart_of_match, dev);
+	if (!match)
+		return -ENODEV;
+	dart->hw = match->data;
+	if (!dart->hw)
+		return -ENODEV;
 
 	dart->regs = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(dart->regs))
@@ -946,8 +962,16 @@ static int apple_dart_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct apple_dart_hw apple_dart_hw_t8103 = {
+	.oas = 36,
+};
+static const struct apple_dart_hw apple_dart_hw_t6000 = {
+	.oas = 42,
+};
+
 static const struct of_device_id apple_dart_of_match[] = {
-	{ .compatible = "apple,t8103-dart", .data = NULL },
+	{ .compatible = "apple,t8103-dart", .data = &apple_dart_hw_t8103 },
+	{ .compatible = "apple,t6000-dart", .data = &apple_dart_hw_t6000 },
 	{},
 };
 MODULE_DEVICE_TABLE(of, apple_dart_of_match);
