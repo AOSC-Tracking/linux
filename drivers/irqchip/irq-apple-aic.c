@@ -309,6 +309,10 @@ struct aic_irq_chip {
 	int max_die;
 
 	struct aic_info info;
+	struct {
+		cpumask_t aff;
+	} *fiq_aff[AIC_NR_FIQ];
+	int nr_hw;
 };
 
 static DEFINE_PER_CPU(uint32_t, aic_fiq_unmasked);
@@ -1014,7 +1018,7 @@ static void build_fiq_affinity(struct aic_irq_chip *ic, struct device_node *aff)
 	if (WARN_ON(n < 0))
 		return;
 
-	ic->fiq_aff[fiq] = kzalloc(sizeof(*ic->fiq_aff[fiq]), GFP_KERNEL);
+	ic->fiq_aff[fiq] = kzalloc(sizeof(ic->fiq_aff[fiq]), GFP_KERNEL);
 	if (!ic->fiq_aff[fiq])
 		return;
 
@@ -1045,6 +1049,7 @@ static int __init aic_of_ic_init(struct device_node *node, struct device_node *p
 	void __iomem *regs;
 	struct aic_irq_chip *irqc;
 	const struct of_device_id *match;
+	struct device_node *affs;
 
 	regs = of_iomap(node, 0);
 	if (WARN_ON(!regs))
@@ -1130,6 +1135,14 @@ static int __init aic_of_ic_init(struct device_node *node, struct device_node *p
 
 	if (aic_init_smp(irqc, node))
 		goto err_remove_domain;
+
+	affs = of_get_child_by_name(node, "affinities");
+	if (affs) {
+		struct device_node *chld;
+
+		for_each_child_of_node(affs, chld)
+			build_fiq_affinity(irqc, chld);
+	}
 
 	set_handle_irq(aic_handle_irq);
 	set_handle_fiq(aic_handle_fiq);
