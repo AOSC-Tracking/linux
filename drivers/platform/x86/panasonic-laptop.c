@@ -189,6 +189,7 @@ static const struct acpi_device_id pcc_device_ids[] = {
 	{ "MAT0013", 0},
 	{ "MAT0018", 0},
 	{ "MAT0019", 0},
+	{ "MAT0028", 0},
 	{ "", 0},
 };
 MODULE_DEVICE_TABLE(acpi, pcc_device_ids);
