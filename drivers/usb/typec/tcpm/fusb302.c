@@ -635,6 +635,14 @@ static int tcpm_set_cc(struct tcpc_dev *dev, enum typec_cc_status cc)
 		goto done;
 	}
 
+	/* adjust current for SRC */
+	ret = fusb302_set_src_current(chip, cc_src_current[cc]);
+	if (ret < 0) {
+		fusb302_log(chip, "cannot set src current %s, ret=%d",
+			    typec_cc_status_name[cc], ret);
+		goto done;
+	}
+
 	ret = fusb302_i2c_mask_write(chip, FUSB_REG_SWITCHES0,
 				     switches0_mask, switches0_data);
 	if (ret < 0) {
@@ -644,14 +652,6 @@ static int tcpm_set_cc(struct tcpc_dev *dev, enum typec_cc_status cc)
 	/* reset the cc status */
 	chip->cc1 = TYPEC_CC_OPEN;
 	chip->cc2 = TYPEC_CC_OPEN;
-
-	/* adjust current for SRC */
-	ret = fusb302_set_src_current(chip, cc_src_current[cc]);
-	if (ret < 0) {
-		fusb302_log(chip, "cannot set src current %s, ret=%d",
-			    typec_cc_status_name[cc], ret);
-		goto done;
-	}
 
 	/* enable/disable interrupts, BC_LVL for SNK and COMP_CHNG for SRC */
 	switch (cc) {
