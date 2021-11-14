@@ -518,6 +518,16 @@ static int tcpm_get_current_limit(struct tcpc_dev *dev)
 	int current_limit = 0;
 	unsigned long timeout;
 
+	/*
+	 * To avoid cycles in OF dependencies, we get extcon when necessary
+	 * outside of probe function.
+	 */
+	if (of_property_read_bool(chip->dev->of_node, "extcon") && !chip->extcon) {
+		chip->extcon = extcon_get_edev_by_phandle(chip->dev, 0);
+		if (IS_ERR(chip->extcon))
+			chip->extcon = NULL;
+	}
+
 	if (!chip->extcon)
 		return 0;
 
