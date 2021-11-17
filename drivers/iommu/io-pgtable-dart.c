@@ -14,6 +14,7 @@
 #define pr_fmt(fmt)	"dart io-pgtable: " fmt
 
 #include <linux/atomic.h>
+#include <linux/bitfield.h>
 #include <linux/bitops.h>
 #include <linux/io-pgtable.h>
 #include <linux/kernel.h>
@@ -62,6 +63,9 @@
 
 /* Calculate the block/page mapping size at level l for pagetable in d. */
 #define DART_BLOCK_SIZE(l, d)	(1ULL << DART_LVL_SHIFT(l, d))
+
+#define APPLE_DART_PTE_SUBPAGE_START   GENMASK_ULL(63, 52)
+#define APPLE_DART_PTE_SUBPAGE_END     GENMASK_ULL(51, 40)
 
 #define APPLE_DART1_PADDR_MASK	GENMASK_ULL(35, 12)
 
@@ -139,6 +143,10 @@ static void __dart_init_pte(struct dart_io_pgtable *data,
 		pte |= APPLE_DART1_PTE_PROT_SP_DIS;
 
 	pte |= APPLE_DART_PTE_VALID;
+
+	/* subpage protection: always allow access to the entire page */
+	pte |= FIELD_PREP(APPLE_DART_PTE_SUBPAGE_START, 0);
+	pte |= FIELD_PREP(APPLE_DART_PTE_SUBPAGE_END, 0xfff);
 
 	for (i = 0; i < num_entries; i++)
 		ptep[i] = pte | paddr_to_iopte(paddr + i * sz, data);
