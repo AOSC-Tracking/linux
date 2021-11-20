@@ -586,6 +586,7 @@ static int fusb302_set_toggling(struct fusb302_chip *chip,
 				enum toggling_mode mode)
 {
 	int ret = 0;
+	u8 reg;
 
 	/* first disable toggling */
 	ret = fusb302_i2c_clear_bits(chip, FUSB_REG_CONTROL2,
@@ -644,6 +645,12 @@ static int fusb302_set_toggling(struct fusb302_chip *chip,
 	} else {
 		/* Datasheet says vconn MUST be off when toggling */
 		WARN(chip->vconn_on, "Vconn is on during toggle start");
+
+		/* clear interrupts */
+                ret = fusb302_i2c_read(chip, FUSB_REG_INTERRUPT, &reg);
+		if (ret < 0)
+			return ret;
+
 		/* unmask TOGDONE interrupt */
 		ret = fusb302_i2c_clear_bits(chip, FUSB_REG_MASKA,
 					     FUSB_REG_MASKA_TOGDONE);
