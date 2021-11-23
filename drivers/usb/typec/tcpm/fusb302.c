@@ -1317,6 +1317,36 @@ static int fusb302_handle_togdone_snk(struct fusb302_chip *chip,
 	return ret;
 }
 
+static int fusb302_get_status0_stable(struct fusb302_chip *chip, u8 *status0)
+{
+	int ret, tries = 0;
+	u8 reg;
+
+try_again:
+	ret = fusb302_i2c_read(chip, FUSB_REG_STATUS0, &reg);
+	if (ret < 0)
+		return ret;
+
+	if (reg & FUSB_REG_STATUS0_ACTIVITY) {
+		fusb302_log(chip, "activity reading CC status");
+		if (++tries == 5) {
+			fusb302_log(chip, "failed to read stable status0 value");
+
+			/*
+			 * The best we can do is to return at least something.
+			 */
+			*status0 = reg;
+			return 0;
+		}
+
+		usleep_range(50, 100);
+		goto try_again;
+	}
+
+	*status0 = reg;
+	return 0;
+}
+
 /* On error returns < 0, otherwise a typec_cc_status value */
 static int fusb302_get_src_cc_status(struct fusb302_chip *chip,
 				     enum typec_cc_polarity cc_polarity,
@@ -1344,7 +1374,7 @@ static int fusb302_get_src_cc_status(struct fusb302_chip *chip,
 		return ret;
 
 	usleep_range(50, 100);
-	ret = fusb302_i2c_read(chip, FUSB_REG_STATUS0, &status0);
+	ret = fusb302_get_status0_stable(chip, &status0);
 	if (ret < 0)
 		return ret;
 
@@ -1360,7 +1390,7 @@ static int fusb302_get_src_cc_status(struct fusb302_chip *chip,
 		return ret;
 
 	usleep_range(50, 100);
-	ret = fusb302_i2c_read(chip, FUSB_REG_STATUS0, &status0);
+	ret = fusb302_get_status0_stable(chip, &status0);
 	if (ret < 0)
 		return ret;
 
