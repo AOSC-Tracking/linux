@@ -1395,4 +1395,6 @@ endif # HID
 
 source "drivers/hid/usbhid/Kconfig"
 
+source "drivers/hid/spi-hid/Kconfig"
+
 endif # HID_SUPPORT
