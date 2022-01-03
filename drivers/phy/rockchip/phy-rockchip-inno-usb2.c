@@ -1525,9 +1525,9 @@ static const struct rockchip_usb2phy_cfg rk3568_phy_cfgs[] = {
 		.port_cfgs	= {
 			[USB2PHY_PORT_OTG] = {
 				.phy_sus	= { 0x0000, 8, 0, 0, 0x1d1 },
-				.bvalid_det_en	= { 0x0080, 2, 2, 0, 1 },
-				.bvalid_det_st	= { 0x0084, 2, 2, 0, 1 },
-				.bvalid_det_clr = { 0x0088, 2, 2, 0, 1 },
+				.bvalid_det_en	= { 0x0080, 3, 2, 0, 0x3 },
+				.bvalid_det_st	= { 0x0084, 3, 2, 0, 0x3 },
+				.bvalid_det_clr = { 0x0088, 3, 2, 0, 0x3 },
 				.utmi_avalid	= { 0x00c0, 10, 10, 0, 1 },
 				.utmi_bvalid	= { 0x00c0, 9, 9, 0, 1 },
 			},
