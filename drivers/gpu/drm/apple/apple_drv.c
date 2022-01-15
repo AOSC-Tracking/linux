@@ -210,24 +210,6 @@ static void apple_crtc_atomic_begin(struct drm_crtc *crtc,
 	}
 }
 
-void apple_crtc_vblank(struct apple_crtc *crtc)
-{
-	unsigned long flags;
-
-	if (crtc->vsync_disabled)
-		return;
-
-	drm_crtc_handle_vblank(&crtc->base);
-
-	spin_lock_irqsave(&crtc->base.dev->event_lock, flags);
-	if (crtc->event) {
-		drm_crtc_send_vblank_event(&crtc->base, crtc->event);
-		drm_crtc_vblank_put(&crtc->base);
-		crtc->event = NULL;
-	}
-	spin_unlock_irqrestore(&crtc->base.dev->event_lock, flags);
-}
-
 static const struct drm_crtc_funcs apple_crtc_funcs = {
 	.atomic_destroy_state	= drm_atomic_helper_crtc_destroy_state,
 	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
