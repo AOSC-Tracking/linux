@@ -533,9 +533,9 @@ static int tcpm_get_current_limit(struct tcpc_dev *dev)
 
 	/*
 	 * USB2 Charger detection may still be in progress when we get here,
-	 * this can take upto 600ms, wait 800ms max.
+	 * this can take upto 600ms, wait 1000ms max.
 	 */
-	timeout = jiffies + msecs_to_jiffies(800);
+	timeout = jiffies + msecs_to_jiffies(1000);
 	do {
 		if (extcon_get_state(chip->extcon, EXTCON_CHG_USB_SDP) == 1)
 			current_limit = 500;
