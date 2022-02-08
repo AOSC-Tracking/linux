@@ -246,6 +246,15 @@ static const struct apple_key_translation swapped_fn_leftctrl_keys[] = {
 	{ }
 };
 
+static inline void apple_setup_key_translation(struct input_dev *input,
+		const struct apple_key_translation *table)
+{
+	const struct apple_key_translation *trans;
+
+	for (trans = table; trans->from; trans++)
+		set_bit(trans->to, input->keybit);
+}
+
 static const struct apple_key_translation *apple_find_translation(
 		const struct apple_key_translation *table, u16 from)
 {
@@ -501,8 +510,6 @@ static __u8 *apple_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 
 static void apple_setup_input(struct input_dev *input)
 {
-	const struct apple_key_translation *trans;
-
 	set_bit(KEY_NUMLOCK, input->keybit);
 
 	/* Enable all needed keys */
