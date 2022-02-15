@@ -6,6 +6,10 @@
  * Copyright The Asahi Linux Contributors
  */
 
+	cpufreq_hw: cpufreq@210e20000 {
+		compatible = "apple,t6000-soc-cpufreq", "apple,soc-cpufreq";
+		#freq-domain-cells = <1>;
+	};
 
 	aic: interrupt-controller@28e100000 {
 		compatible = "apple,t6000-aic", "apple,aic2";
