@@ -23,12 +23,56 @@
 	#size-cells = <2>;
 
 	cpus {
+		cpu-map {
+			cluster3 {
+				core0 {
+					cpu = <&cpu_e10>;
+				};
+				core1 {
+					cpu = <&cpu_e11>;
+				};
+			};
+
+			cluster4 {
+				core0 {
+					cpu = <&cpu_p20>;
+				};
+				core1 {
+					cpu = <&cpu_p21>;
+				};
+				core2 {
+					cpu = <&cpu_p22>;
+				};
+				core3 {
+					cpu = <&cpu_p23>;
+				};
+			};
+
+			cluster5 {
+				core0 {
+					cpu = <&cpu_p30>;
+				};
+				core1 {
+					cpu = <&cpu_p31>;
+				};
+				core2 {
+					cpu = <&cpu_p32>;
+				};
+				core3 {
+					cpu = <&cpu_p33>;
+				};
+			};
+		};
+
 		cpu_e10: cpu@800 {
 			compatible = "apple,icestorm";
 			device_type = "cpu";
 			reg = <0x0 0x800>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&icestorm_opp>;
+			capacity-dmips-mhz = <714>;
+			apple,freq-domain = <&cpufreq_hw 3>;
 		};
 
 		cpu_e11: cpu@801 {
@@ -37,6 +81,9 @@
 			reg = <0x0 0x801>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&icestorm_opp>;
+			capacity-dmips-mhz = <714>;
+			apple,freq-domain = <&cpufreq_hw 3>;
 		};
 
 		cpu_p20: cpu@10900 {
@@ -45,6 +92,9 @@
 			reg = <0x0 0x10900>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 4>;
 		};
 
 		cpu_p21: cpu@10901 {
@@ -53,6 +103,9 @@
 			reg = <0x0 0x10901>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 4>;
 		};
 
 		cpu_p22: cpu@10902 {
@@ -61,6 +114,9 @@
 			reg = <0x0 0x10902>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 4>;
 		};
 
 		cpu_p23: cpu@10903 {
@@ -69,6 +125,9 @@
 			reg = <0x0 0x10903>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 4>;
 		};
 
 		cpu_p30: cpu@10a00 {
@@ -77,6 +136,9 @@
 			reg = <0x0 0x10a00>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 5>;
 		};
 
 		cpu_p31: cpu@10a01 {
@@ -85,6 +147,9 @@
 			reg = <0x0 0x10a01>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 5>;
 		};
 
 		cpu_p32: cpu@10a02 {
@@ -93,6 +158,9 @@
 			reg = <0x0 0x10a02>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 5>;
 		};
 
 		cpu_p33: cpu@10a03 {
@@ -101,6 +169,9 @@
 			reg = <0x0 0x10a03>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0>; /* To be filled by loader */
+			operating-points-v2 = <&firestorm_opp>;
+			capacity-dmips-mhz = <1024>;
+			apple,freq-domain = <&cpufreq_hw 5>;
 		};
         };
 
@@ -162,6 +233,16 @@
 #undef DIE
 #undef DIE_NO
 
+&cpufreq_hw {
+	reg = <0x2 0x10e20000 0 0x1000>,
+		<0x2 0x11e20000 0 0x1000>,
+		<0x2 0x12e20000 0 0x1000>,
+		<0x22 0x10e20000 0 0x1000>,
+		<0x22 0x11e20000 0 0x1000>,
+		<0x22 0x12e20000 0 0x1000>;
+	reg-names = "cluster0", "cluster1", "cluster2",
+		    "cluster3", "cluster4", "cluster5";
+};
 
 &aic {
 	affinities {
