@@ -47,6 +47,13 @@
 #undef DIE_NO
 
 
+&cpufreq_hw {
+	reg = <0x2 0x10e20000 0 0x1000>,
+		<0x2 0x11e20000 0 0x1000>,
+		<0x2 0x12e20000 0 0x1000>;
+	reg-names = "cluster0", "cluster1", "cluster2";
+};
+
 &aic {
 	affinities {
 		e-core-pmu-affinity {
