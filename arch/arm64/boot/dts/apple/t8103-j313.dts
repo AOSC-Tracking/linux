@@ -68,11 +68,72 @@
 /delete-node/ &port01;
 /delete-node/ &port02;
 
+&i2c1 {
+	speaker_left: codec@31 {
+		compatible = "ti,tas5770l", "ti,tas2770";
+		reg = <0x31>;
+		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Left";
+	
+	};
+};
+
+&i2c3 {
+	speaker_right: codec@34 {
+		compatible = "ti,tas5770l", "ti,tas2770";
+		reg = <0x34>;
+		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Right";
+	};
+
+	jack_codec: codec@48 {
+		compatible = "cirrus,cs42l83", "cirrus,cs42l42";
+		reg = <0x48>;
+		reset-gpios = <&pinctrl_nub 11 GPIO_ACTIVE_HIGH>;
+		interrupt-parent = <&pinctrl_ap>;
+		interrupts = <183 IRQ_TYPE_LEVEL_LOW>;
+		#sound-dai-cells = <0>;
+		cirrus,ts-inv = <1>;
+		sound-name-prefix = "Jack";
+	};
+};
+
 / {
 	backlight: gpio-bl {
 		compatible = "gpio-backlight";
 		gpios = <&smc_gpio 18 GPIO_ACTIVE_HIGH>;
 		default-on;
+	};
+
+	sound {
+		compatible = "apple,j313-macaudio", "apple,macaudio";
+		model = "MacBook Air J313 integrated audio";
+
+		dai-link@0 {
+			link-name = "Speakers";
+			mclk-fs = <64>;
+
+			cpu {
+				sound-dai = <&mca 0>, <&mca 1>;
+			};
+			codec {
+				sound-dai = <&speaker_left>, <&speaker_right>;
+			};
+		};
+
+		dai-link@1 {
+			link-name = "Headphone Jack";
+			mclk-fs = <64>;
+
+			cpu {
+				sound-dai = <&mca 2>;
+			};
+			codec {
+				sound-dai = <&jack_codec>;
+			};
+		};
 	};
 };
 
