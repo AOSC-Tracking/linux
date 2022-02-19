@@ -73,3 +73,34 @@
 		local-mac-address = [00 10 18 00 00 00];
 	};
 };
+
+&i2c1 {
+	jack_codec: codec@48 {
+		compatible = "cirrus,cs42l83", "cirrus,cs42l42";
+		reg = <0x48>;
+		reset-gpios = <&pinctrl_nub 11 GPIO_ACTIVE_HIGH>;
+		interrupt-parent = <&pinctrl_ap>;
+		interrupts = <183 IRQ_TYPE_LEVEL_LOW>;
+		#sound-dai-cells = <0>;
+		cirrus,ts-inv = <1>;
+	};
+};
+
+/ {
+	sound {
+		compatible = "apple,j456-macaudio", "apple,macaudio";
+		model = "iMac J456 integrated audio";
+
+		dai-link@0 {
+			link-name = "Headphone Jack";
+			mclk-fs = <64>;
+
+			cpu {
+				sound-dai = <&mca 2>;
+			};
+			codec {
+				sound-dai = <&jack_codec>;
+			};
+		};
+	};
+};
