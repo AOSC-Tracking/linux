@@ -897,6 +897,9 @@ struct snd_soc_card {
 	int (*late_probe)(struct snd_soc_card *card);
 	int (*remove)(struct snd_soc_card *card);
 
+	int (*filter_controls)(struct snd_soc_card *card,
+			struct snd_kcontrol *kcontrol);
+
 	/* the pre and post PM functions are used to do any PM work before and
 	 * after the codec and DAI's do any PM work. */
 	int (*suspend_pre)(struct snd_soc_card *card);

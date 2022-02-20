@@ -873,7 +873,7 @@ static int dapm_create_or_share_kcontrol(struct snd_soc_dapm_widget *w,
 	int kci)
 {
 	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_card *card = dapm->card->snd_card;
+	struct snd_soc_card *card = dapm->card;
 	const char *prefix;
 	size_t prefix_len;
 	int shared;
@@ -957,7 +957,19 @@ static int dapm_create_or_share_kcontrol(struct snd_soc_dapm_widget *w,
 			goto exit_free;
 		}
 
-		ret = snd_ctl_add(card, kcontrol);
+		if (card->filter_controls) {
+			ret = card->filter_controls(card, kcontrol);
+			if (ret < 0) {
+				snd_ctl_free_one(kcontrol);
+				goto exit_free;
+			}
+
+			if (!ret)
+				ret = snd_ctl_add(card->snd_card, kcontrol);
+		} else {
+			ret = snd_ctl_add(card->snd_card, kcontrol);	
+		}
+
 		if (ret < 0) {
 			dev_err(dapm->dev,
 				"ASoC: failed to add widget %s dapm kcontrol %s: %d\n",
@@ -1074,7 +1086,7 @@ static int dapm_new_pga(struct snd_soc_dapm_widget *w)
 /* create new dapm dai link control */
 static int dapm_new_dai_link(struct snd_soc_dapm_widget *w)
 {
-	int i;
+	int i, ret;
 	struct snd_soc_pcm_runtime *rtd = w->priv;
 
 	/* create control for links with > 1 config */
@@ -1084,10 +1096,22 @@ static int dapm_new_dai_link(struct snd_soc_dapm_widget *w)
 	/* add kcontrol */
 	for (i = 0; i < w->num_kcontrols; i++) {
 		struct snd_soc_dapm_context *dapm = w->dapm;
-		struct snd_card *card = dapm->card->snd_card;
+		struct snd_soc_card *card = dapm->card;
 		struct snd_kcontrol *kcontrol = snd_soc_cnew(&w->kcontrol_news[i],
 							     w, w->name, NULL);
-		int ret = snd_ctl_add(card, kcontrol);
+
+		if (card->filter_controls) {
+			ret = card->filter_controls(card, kcontrol);
+			if (ret < 0) {
+				snd_ctl_free_one(kcontrol);
+				return ret;
+			}
+
+			if (!ret)
+				ret = snd_ctl_add(card->snd_card, kcontrol);
+		} else {
+			ret = snd_ctl_add(card->snd_card, kcontrol);
+		}
 
 		if (ret < 0) {
 			dev_err(dapm->dev,
