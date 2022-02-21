@@ -75,3 +75,15 @@
 &i2c4 {
 	status = "okay";
 };
+
+/ {
+	backlight: gpio-bl {
+		compatible = "gpio-backlight";
+		gpios = <&smc_gpio 18 GPIO_ACTIVE_HIGH>;
+		default-on;
+	};
+};
+
+&framebuffer0 {
+	backlight = <&backlight>;
+};
