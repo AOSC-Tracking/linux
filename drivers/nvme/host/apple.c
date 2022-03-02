@@ -29,6 +29,7 @@
 #include <linux/of_platform.h>
 #include <linux/once.h>
 #include <linux/platform_device.h>
+#include <linux/pm_domain.h>
 #include <linux/soc/apple/rtkit.h>
 #include <linux/soc/apple/sart.h>
 #include <linux/reset.h>
@@ -177,6 +178,10 @@ struct apple_nvme {
 
 	void __iomem *mmio_coproc;
 	void __iomem *mmio_nvme;
+
+	struct device **pd_dev;
+	struct device_link **pd_link;
+	int pd_count;
 
 	struct apple_sart *sart;
 	struct apple_rtkit *rtk;
@@ -1364,6 +1369,62 @@ static void apple_nvme_flush_work(struct work_struct *work)
 	}
 }
 
+static void apple_nvme_detach_genpd(struct apple_nvme *anv)
+{
+	int i;
+
+	if (anv->pd_count <= 1)
+		return;
+
+	for (i = anv->pd_count - 1; i >= 0; i--) {
+		if (anv->pd_link[i])
+			device_link_del(anv->pd_link[i]);
+		if (!IS_ERR_OR_NULL(anv->pd_dev[i]))
+			dev_pm_domain_detach(anv->pd_dev[i], true);
+	}
+}
+
+static int apple_nvme_attach_genpd(struct apple_nvme *anv)
+{
+	struct device *dev = anv->dev;
+	int i;
+
+	anv->pd_count = of_count_phandle_with_args(dev->of_node,
+						   "power-domains",
+						   "#power-domain-cells");
+	if (anv->pd_count <= 1)
+		return 0;
+
+	anv->pd_dev = devm_kcalloc(dev, anv->pd_count, sizeof(*anv->pd_dev),
+				   GFP_KERNEL);
+	if (!anv->pd_dev)
+		return -ENOMEM;
+
+	anv->pd_link = devm_kcalloc(dev, anv->pd_count, sizeof(*anv->pd_link),
+				    GFP_KERNEL);
+	if (!anv->pd_link)
+		return -ENOMEM;
+
+	for (i = 0; i < anv->pd_count; i++) {
+		anv->pd_dev[i] = dev_pm_domain_attach_by_id(dev, i);
+		if (IS_ERR(anv->pd_dev[i])) {
+			apple_nvme_detach_genpd(anv);
+			return PTR_ERR(anv->pd_dev[i]);
+		}
+
+		anv->pd_link[i] = device_link_add(dev, anv->pd_dev[i],
+						  DL_FLAG_STATELESS |
+						  DL_FLAG_PM_RUNTIME |
+						  DL_FLAG_RPM_ACTIVE);
+		if (!anv->pd_link[i]) {
+			apple_nvme_detach_genpd(anv);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static int apple_nvme_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1377,6 +1438,10 @@ static int apple_nvme_probe(struct platform_device *pdev)
 	anv->dev = dev;
 	anv->adminq.is_adminq = true;
 	platform_set_drvdata(pdev, anv);
+
+	ret = apple_nvme_attach_genpd(anv);
+	if (ret < 0)
+		return dev_err_probe(dev, ret, "Failed to attach power domains");
 
 	if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64)))
 		return -ENXIO;
@@ -1492,6 +1557,8 @@ static int apple_nvme_remove(struct platform_device *pdev)
 
 	if (apple_rtkit_is_running(anv->rtk))
 		apple_rtkit_shutdown(anv->rtk);
+
+	apple_nvme_detach_genpd(anv);
 
 	return 0;
 }
