@@ -506,10 +506,12 @@ static const struct of_device_id apple_gpio_pinctrl_of_match[] = {
 	{ .compatible = "apple,pinctrl", },
 	{ }
 };
+MODULE_DEVICE_TABLE(of, apple_gpio_pinctrl_of_match);
 
 static struct platform_driver apple_gpio_pinctrl_driver = {
 	.driver = {
 		.name = "apple-gpio-pinctrl",
+		.owner = THIS_MODULE,
 		.of_match_table = apple_gpio_pinctrl_of_match,
 		.suppress_bind_attrs = true,
 	},
