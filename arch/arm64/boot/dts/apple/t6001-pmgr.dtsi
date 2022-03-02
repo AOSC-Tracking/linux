@@ -1893,6 +1893,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = "atc0_usb_aon";
+		apple,always-on; /* Needs to stay on for dwc3 to work */
 	};
 
 	ps_atc1_usb_aon: power-controller@90 {
@@ -1901,6 +1902,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = "atc1_usb_aon";
+		apple,always-on; /* Needs to stay on for dwc3 to work */
 	};
 
 	ps_atc2_usb_aon: power-controller@98 {
@@ -1909,6 +1911,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = "atc2_usb_aon";
+		apple,always-on; /* Needs to stay on for dwc3 to work */
 	};
 
 	ps_atc3_usb_aon: power-controller@a0 {
@@ -1917,6 +1920,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = "atc3_usb_aon";
+		apple,always-on; /* Needs to stay on for dwc3 to work */
 	};
 
 	ps_gp_usb_aon: power-controller@a8 {
