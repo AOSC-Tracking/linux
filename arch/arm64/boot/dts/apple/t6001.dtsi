@@ -580,7 +580,8 @@
 			interrupts = <AIC_IRQ 0 1613 IRQ_TYPE_LEVEL_HIGH>;
 			mboxes = <&ans_mbox>;
 			apple,sart = <&sart>;
-			power-domains = <&ps_ans2>;
+			power-domains = <&ps_ans2>, <&ps_apcie_st_sys>, <&ps_apcie_st1_sys>;
+			power-domain-names = "ans", "apcie0", "apcie1";
 			resets = <&ps_ans2>;
 		};
 

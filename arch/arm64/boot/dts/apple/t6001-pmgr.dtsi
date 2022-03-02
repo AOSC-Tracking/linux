@@ -438,7 +438,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = "apcie_st_sys";
-		power-domains = <&ps_apcie_st>;
+		power-domains = <&ps_apcie_st>, <&ps_ans2>;
 	};
 
 	ps_apcie_st1_sys: power-controller@2f0 {
@@ -447,7 +447,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = "apcie_st1_sys";
-		power-domains = <&ps_apcie_st>;
+		power-domains = <&ps_apcie_st>, <&ps_ans2>;
 	};
 
 	ps_atc2_common: power-controller@2f8 {
@@ -1386,7 +1386,7 @@
 		 * device to depend on, so use this node as the child.
 		 * This makes more sense anyway (since ANS2 uses APCIE_ST).
 		 */
-		power-domains = <&ps_afnc2_lw0>, <&ps_apcie_st_sys>, <&ps_apcie_st1_sys>;
+		power-domains = <&ps_afnc2_lw0>;
 	};
 
 	ps_gfx: power-controller@3c0 {
