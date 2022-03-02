@@ -788,6 +788,7 @@ static const struct iommu_ops apple_dart_iommu_ops = {
 	.get_resv_regions = apple_dart_get_resv_regions,
 	.put_resv_regions = generic_iommu_put_resv_regions,
 	.pgsize_bitmap = -1UL, /* Restricted during dart probe */
+	.owner = THIS_MODULE,
 };
 
 static irqreturn_t apple_dart_irq(int irq, void *dev)
@@ -977,6 +978,7 @@ MODULE_DEVICE_TABLE(of, apple_dart_of_match);
 static struct platform_driver apple_dart_driver = {
 	.driver	= {
 		.name			= "apple-dart",
+		.owner			= THIS_MODULE,
 		.of_match_table		= apple_dart_of_match,
 		.suppress_bind_attrs    = true,
 	},
