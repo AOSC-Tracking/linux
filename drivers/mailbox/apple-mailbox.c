@@ -369,8 +369,8 @@ static int apple_mbox_probe(struct platform_device *pdev)
 
 	ret = devm_request_threaded_irq(dev, mbox->irq_recv_not_empty, NULL,
 					apple_mbox_recv_irq,
-					IRQF_NO_AUTOEN | IRQF_ONESHOT, irqname,
-					mbox);
+					IRQF_NO_AUTOEN | IRQF_ONESHOT | IRQF_NO_SUSPEND,
+					irqname, mbox);
 	if (ret)
 		return ret;
 
@@ -378,9 +378,8 @@ static int apple_mbox_probe(struct platform_device *pdev)
 	if (!irqname)
 		return -ENOMEM;
 
-	ret = devm_request_irq(dev, mbox->irq_send_empty,
-			       apple_mbox_send_empty_irq, IRQF_NO_AUTOEN,
-			       irqname, mbox);
+	ret = devm_request_irq(dev, mbox->irq_send_empty, apple_mbox_send_empty_irq,
+			       IRQF_NO_AUTOEN | IRQF_NO_SUSPEND, irqname, mbox);
 	if (ret)
 		return ret;
 
