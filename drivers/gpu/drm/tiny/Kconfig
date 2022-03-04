@@ -71,6 +71,7 @@ config DRM_SIMPLEDRM
 	depends on DRM && MMU
 	select DRM_GEM_SHMEM_HELPER
 	select DRM_KMS_HELPER
+	select BACKLIGHT_CLASS_DEVICE
 	help
 	  DRM driver for simple platform-provided framebuffers.
 
