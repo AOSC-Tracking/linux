@@ -72,6 +72,7 @@ config DRM_SIMPLEDRM
 	select APERTURE_HELPERS
 	select DRM_GEM_SHMEM_HELPER
 	select DRM_KMS_HELPER
+	select BACKLIGHT_CLASS_DEVICE
 	help
 	  DRM driver for simple platform-provided framebuffers.
 

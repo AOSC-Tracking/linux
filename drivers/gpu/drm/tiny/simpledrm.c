@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
+#include <linux/backlight.h>
 #include <linux/clk.h>
 #include <linux/of_clk.h>
 #include <linux/minmax.h>
@@ -225,6 +226,9 @@ struct simpledrm_device {
 	size_t nformats;
 	struct drm_connector connector;
 	struct drm_simple_display_pipe pipe;
+
+	/* backlight */
+	struct backlight_device *backlight;
 };
 
 static struct simpledrm_device *simpledrm_device_of_dev(struct drm_device *dev)
@@ -673,6 +677,9 @@ simpledrm_simple_display_pipe_enable(struct drm_simple_display_pipe *pipe,
 	dst += drm_fb_clip_offset(sdev->pitch, sdev->format, &dst_clip);
 	drm_fb_blit_toio(dst, sdev->pitch, sdev->format->format, vmap, fb, &src_clip);
 
+	if (sdev->backlight)
+		backlight_enable(sdev->backlight);
+
 	drm_dev_exit(idx);
 }
 
@@ -685,6 +692,9 @@ simpledrm_simple_display_pipe_disable(struct drm_simple_display_pipe *pipe)
 
 	if (!drm_dev_enter(dev, &idx))
 		return;
+
+	if (sdev->backlight)
+		backlight_disable(sdev->backlight);
 
 	/* Clear screen to black if disabled */
 	memset_io(sdev->screen_base, 0, sdev->pitch * sdev->mode.vdisplay);
@@ -844,6 +854,10 @@ simpledrm_device_create(struct drm_driver *drv, struct platform_device *pdev)
 		return ERR_CAST(sdev);
 	sdev->pdev = pdev;
 	platform_set_drvdata(pdev, sdev);
+
+	sdev->backlight = devm_of_find_backlight(&pdev->dev);
+	if (IS_ERR(sdev->backlight))
+		sdev->backlight = NULL;
 
 	ret = simpledrm_device_init_clocks(sdev);
 	if (ret)
