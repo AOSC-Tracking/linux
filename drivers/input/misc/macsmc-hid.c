@@ -18,6 +18,7 @@ struct macsmc_hid {
 	struct apple_smc *smc;
 	struct input_dev *input;
 	struct notifier_block nb;
+	bool wakeup_mode;
 };
 
 #define SMC_EV_BTN 0x7201
@@ -38,8 +39,15 @@ static int macsmc_hid_event(struct notifier_block *nb, unsigned long event, void
 	case SMC_EV_BTN:
 		switch (d1) {
 		case BTN_POWER:
-			input_report_key(smchid->input, KEY_POWER, d2);
-			input_sync(smchid->input);
+			if (smchid->wakeup_mode) {
+				if (d2) {
+					dev_info(smchid->dev, "Button wakeup\n");
+					pm_wakeup_hard_event(smchid->dev);
+				}
+			} else {
+				input_report_key(smchid->input, KEY_POWER, d2);
+				input_sync(smchid->input);
+			}
 			break;
 		case BTN_POWER_HELD1:
 			/*
@@ -68,6 +76,10 @@ static int macsmc_hid_event(struct notifier_block *nb, unsigned long event, void
 		}
 		return NOTIFY_OK;
 	case SMC_EV_LID:
+		if (smchid->wakeup_mode && !d1) {
+			dev_info(smchid->dev, "Lid wakeup\n");
+			pm_wakeup_hard_event(smchid->dev);
+		}
 		input_report_switch(smchid->input, SW_LID, d1);
 		input_sync(smchid->input);
 		return NOTIFY_OK;
@@ -95,6 +107,7 @@ static int macsmc_hid_probe(struct platform_device *pdev)
 
 	smchid->dev = &pdev->dev;
 	smchid->smc = smc;
+	platform_set_drvdata(pdev, smchid);
 
 	smchid->input = devm_input_allocate_device(&pdev->dev);
 	if (!smchid->input)
@@ -140,12 +153,35 @@ static int macsmc_hid_probe(struct platform_device *pdev)
 	smchid->nb.notifier_call = macsmc_hid_event;
 	apple_smc_register_notifier(smc, &smchid->nb);
 
+	device_init_wakeup(&pdev->dev, 1);
+
 	return 0;
 }
+
+static int macsmc_hid_pm_prepare(struct device *dev)
+{
+	struct macsmc_hid *smchid = dev_get_drvdata(dev);
+
+	smchid->wakeup_mode = true;
+	return 0;
+}
+
+static void macsmc_hid_pm_complete(struct device *dev)
+{
+	struct macsmc_hid *smchid = dev_get_drvdata(dev);
+
+	smchid->wakeup_mode = false;
+}
+
+static const struct dev_pm_ops macsmc_hid_pm_ops = {
+	.prepare = macsmc_hid_pm_prepare,
+	.complete = macsmc_hid_pm_complete,
+};
 
 static struct platform_driver macsmc_hid_driver = {
 	.driver = {
 		.name = "macsmc-hid",
+		.pm = &macsmc_hid_pm_ops,
 	},
 	.probe = macsmc_hid_probe,
 };
