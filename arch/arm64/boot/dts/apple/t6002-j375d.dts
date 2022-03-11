@@ -206,6 +206,18 @@
 	};
 };
 
+/* Audio */
+&i2c1 {
+	status = "okay";
+
+	speaker: codec@38 {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x38>;
+		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+	};
+};
+
 /* PCIe devices */
 &port00 {
 	/* WLAN */
@@ -322,3 +334,31 @@
 
 /delete-node/ &ps_disp0_cpu0_die1;
 /delete-node/ &ps_disp0_fe_die1;
+
+/ {
+	sound {
+		compatible = "apple,j375-macaudio", "apple,macaudio";
+		model = "Mac Studio J375 integrated audio";
+
+		/*
+		 * DANGER ZONE: You can blow your speakers!
+		 *
+		 * The drivers are not ready, and unless you are careful
+		 * to attenuate the audio stream, you run the risk of
+		 * blowing your speakers.
+		 */
+		status = "disabled";
+
+		dai-link@0 {
+			link-name = "Speaker";
+			mclk-fs = <64>;
+
+			cpu {
+				sound-dai = <&mca 0>;
+			};
+			codec {
+				sound-dai = <&speaker>;
+			};
+		};
+	};
+};
