@@ -24,3 +24,8 @@
 &bluetooth0 {
 	brcm,board-type = "apple,okinawa";
 };
+
+&sound {
+	compatible = "apple,j375-macaudio", "apple,macaudio";
+	model = "Mac Studio J375";
+};
