@@ -14,6 +14,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regmap.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/slab.h>
 #include <sound/soc.h>
 #include <sound/pcm.h>
@@ -23,6 +24,11 @@
 
 #include "tas2764.h"
 
+enum tas2764_devid {
+	DEVID_TAS2764  = 0,
+	DEVID_SN012776 = 1
+};
+
 struct tas2764_priv {
 	struct snd_soc_component *component;
 	struct gpio_desc *reset_gpio;
@@ -30,7 +36,8 @@ struct tas2764_priv {
 	struct regmap *regmap;
 	struct device *dev;
 	int irq;
-	
+	enum tas2764_devid devid;
+
 	int v_sense_slot;
 	int i_sense_slot;
 
@@ -534,10 +541,16 @@ static struct snd_soc_dai_driver tas2764_dai_driver[] = {
 	},
 };
 
+static uint8_t sn012776_bop_presets[] = {
+	0x01, 0x32, 0x02, 0x22, 0x83, 0x2d, 0x80, 0x02, 0x06,
+	0x32, 0x46, 0x30, 0x02, 0x06, 0x38, 0x40, 0x30, 0x02,
+	0x06, 0x3e, 0x37, 0x30, 0xff, 0xe6
+};
+
 static int tas2764_codec_probe(struct snd_soc_component *component)
 {
 	struct tas2764_priv *tas2764 = snd_soc_component_get_drvdata(component);
-	int ret;
+	int ret, i;
 
 	tas2764->component = component;
 
@@ -585,6 +598,23 @@ static int tas2764_codec_probe(struct snd_soc_component *component)
 					    TAS2764_TDM_CFG6_ISNS_ENABLE, 0);
 	if (ret < 0)
 		return ret;
+
+	if (tas2764->devid == DEVID_SN012776) {
+		ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
+					TAS2764_PWR_CTRL_BOP_SRC,
+					TAS2764_PWR_CTRL_BOP_SRC);
+		if (ret < 0)
+			return ret;
+
+		for (i = 0; i < ARRAY_SIZE(sn012776_bop_presets); i++) {
+			ret = snd_soc_component_write(component,
+						TAS2764_BOP_CFG0 + i,
+						sn012776_bop_presets[i]);
+
+			if (ret < 0)
+				return ret;
+		}
+	}
 
 	return 0;
 }
@@ -705,6 +735,8 @@ static int tas2764_parse_dt(struct device *dev, struct tas2764_priv *tas2764)
 	return 0;
 }
 
+static const struct of_device_id tas2764_of_match[];
+
 static int tas2764_i2c_probe(struct i2c_client *client)
 {
 	struct tas2764_priv *tas2764;
@@ -714,6 +746,11 @@ static int tas2764_i2c_probe(struct i2c_client *client)
 			       GFP_KERNEL);
 	if (!tas2764)
 		return -ENOMEM;
+
+	if (device_is_compatible(&client->dev, "ti,sn012776"))
+		tas2764->devid = DEVID_SN012776;
+	else
+		tas2764->devid = DEVID_TAS2764;
 
 	tas2764->dev = &client->dev;
 	tas2764->irq = client->irq;
@@ -749,13 +786,12 @@ static const struct i2c_device_id tas2764_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, tas2764_i2c_id);
 
-#if defined(CONFIG_OF)
 static const struct of_device_id tas2764_of_match[] = {
-	{ .compatible = "ti,tas2764" },
+	{ .compatible = "ti,tas2764",  },
+	{ .compatible = "ti,sn012776", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, tas2764_of_match);
-#endif
 
 static struct i2c_driver tas2764_i2c_driver = {
 	.driver = {
