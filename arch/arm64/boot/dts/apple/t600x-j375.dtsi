@@ -12,6 +12,9 @@
 / {
 	aliases {
 		bluetooth0 = &bluetooth0;
+		dcp = &dcp;
+		disp0 = &display;
+		disp0_piodma = &disp0_piodma;
 		serial0 = &serial0;
 		wifi0 = &wifi0;
 	};
@@ -29,6 +32,13 @@
 			/* Format properties will be added by loader */
 			status = "disabled";
 		};
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		/* To be filled by loader */
 	};
 
 	memory@10000000000 {
