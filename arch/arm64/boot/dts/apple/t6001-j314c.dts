@@ -24,3 +24,7 @@
 &bluetooth0 {
 	brcm,board-type = "apple,maldives";
 };
+
+&sound {
+	model = "MacBook Pro J314 integrated audio";
+};

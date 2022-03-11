@@ -181,8 +181,68 @@
 	};
 };
 
+/* Audio */
+&i2c1 {
+	status = "okay";
+
+	speaker: codec@38 {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x38>;
+		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+
+	jack_codec: codec@4b {
+		compatible = "cirrus,cs42l84";
+		reg = <0x4b>;
+		reset-gpios = <&pinctrl_nub 4 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+		interrupts-extended = <&pinctrl_ap 180 IRQ_TYPE_LEVEL_LOW>;
+		sound-name-prefix = "Jack";
+	};
+};
+
 &nco_clkref {
 	clock-frequency = <1068000000>;
+};
+
+/ {
+	sound: sound {
+		/* compatible is set per machine */
+
+		dai-link@0 {
+			link-name = "Speaker";
+			/*
+			* DANGER ZONE: You can blow your speakers!
+			*
+			* The drivers are not ready, and unless you are careful
+			* to attenuate the audio stream, you run the risk of
+			* blowing your speakers.
+			*/
+			status = "disabled";
+			cpu {
+				sound-dai = <&mca 0>;
+			};
+			codec {
+				sound-dai = <&speaker>;
+			};
+		};
+
+		dai-link@1 {
+			link-name = "Headphone Jack";
+
+			cpu {
+				sound-dai = <&mca 2>;
+			};
+			codec {
+				sound-dai = <&jack_codec>;
+			};
+		};
+	};
 };
 
 /* PCIe devices */
