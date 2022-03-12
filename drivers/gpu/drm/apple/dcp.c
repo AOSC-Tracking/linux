@@ -891,6 +891,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, void *, void *
 	[211] = trampoline_nop, /* update_backlight_factor_prop */
 	[300] = trampoline_nop, /* pr_publish */
 	[401] = trampoline_get_uint_prop,
+	[404] = trampoline_nop, /* sr_set_uint_prop */
 	[406] = trampoline_nop, /* set_fx_prop */
 	[408] = trampoline_get_frequency,
 	[411] = trampoline_map_reg,
