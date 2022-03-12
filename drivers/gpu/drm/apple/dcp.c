@@ -76,6 +76,9 @@ struct apple_dcp {
 	/* clock rate request by dcp in */
 	struct clk *clk;
 
+	/* mask for DCP IO virtual addresses shared over rtkit */
+	u64 asc_dram_mask;
+
 	/* DCP shared memory */
 	void *shmem;
 
@@ -481,6 +484,7 @@ dcpep_cb_allocate_buffer(struct apple_dcp *dcp, struct dcp_allocate_buffer_req *
 
 	dma_get_sgtable(dcp->dev, &dcp->mappings[resp.mem_desc_id], buf,
 			resp.dva, resp.dva_size);
+	resp.dva |= dcp->asc_dram_mask;
 	return resp;
 }
 
@@ -520,7 +524,7 @@ dcpep_cb_map_physical(struct apple_dcp *dcp, struct dcp_map_physical_req *req)
 		.dva_size = size,
 		.mem_desc_id = ++dcp->nr_mappings,
 		.dva = dma_map_resource(dcp->dev, req->paddr, size,
-					DMA_BIDIRECTIONAL, 0),
+					DMA_BIDIRECTIONAL, 0) | dcp->asc_dram_mask,
 	};
 }
 
@@ -1324,7 +1328,7 @@ static int dcp_rtk_shmem_setup(void *cookie, struct apple_rtkit_shmem *bfr)
 			return -ENOMEM;
 
 		// TODO: get map from device-tree
-		phy_addr = iommu_iova_to_phys(domain, bfr->iova & 0xFFFFFFFF);
+		phy_addr = iommu_iova_to_phys(domain, bfr->iova & ~dcp->asc_dram_mask);
 		if (!phy_addr)
 			return -ENOMEM;
 
@@ -1341,6 +1345,8 @@ static int dcp_rtk_shmem_setup(void *cookie, struct apple_rtkit_shmem *bfr)
 		if (!bfr->buffer)
 			return -ENOMEM;
 
+		bfr->iova |= dcp->asc_dram_mask;
+
 		dev_info(dcp->dev, "shmem_setup: iova: %lx, buffer: %lx",
 			 (uintptr_t)bfr->iova, (uintptr_t)bfr->buffer);
 	}
@@ -1355,7 +1361,7 @@ static void dcp_rtk_shmem_destroy(void *cookie, struct apple_rtkit_shmem *bfr)
 	if (bfr->is_mapped)
 		memunmap(bfr->buffer);
 	else
-		dma_free_coherent(dcp->dev, bfr->size, bfr->buffer, bfr->iova);
+		dma_free_coherent(dcp->dev, bfr->size, bfr->buffer, bfr->iova & ~dcp->asc_dram_mask);
 }
 
 static struct apple_rtkit_ops rtkit_ops = {
@@ -1447,6 +1453,12 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(dcp->clk))
 		return dev_err_probe(dev, PTR_ERR(dcp->clk), "Unable to find clock\n");
 
+	ret = of_property_read_u64(dev->of_node, "apple,asc-dram-mask",
+				   &dcp->asc_dram_mask);
+	if (ret)
+		dev_warn(dev, "failed read 'apple,asc-dram-mask': %d\n", ret);
+	dev_dbg(dev, "'apple,asc-dram-mask': 0x%011llx\n", dcp->asc_dram_mask);
+
 	INIT_WORK(&dcp->vblank_wq, dcp_delayed_vblank);
 
 	dcp->swapped_out_fbs = (struct list_head)LIST_HEAD_INIT(dcp->swapped_out_fbs);
@@ -1470,6 +1482,7 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	dcp->shmem = dma_alloc_coherent(dev, DCP_SHMEM_SIZE, &shmem_iova,
 					GFP_KERNEL);
 
+	shmem_iova |= dcp->asc_dram_mask;
 	apple_rtkit_send_message(dcp->rtk, DCP_ENDPOINT,
 				 dcpep_set_shmem(shmem_iova), NULL, false);
 
