@@ -112,6 +112,15 @@
 		model = "MacBook Air J313 integrated audio";
 
 		dai-link@0 {
+			/*
+			 * DANGER ZONE: You can blow your speakers!
+			 *
+			 * The drivers are not ready, and unless you are careful
+			 * to attenuate the audio stream, you run the risk of
+			 * blowing your speakers.
+			 */
+			status = "disabled";
+
 			link-name = "Speakers";
 			mclk-fs = <64>;
 
