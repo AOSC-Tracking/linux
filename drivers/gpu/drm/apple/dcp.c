@@ -117,6 +117,16 @@ struct apple_dcp {
 
 	/* Workqueue for sending vblank events when a dcp swap is not possible */
 	struct work_struct vblank_wq;
+
+	/* List of referenced drm_framebuffers which can be unreferenced
+	 * on the next successfully completed swap.
+	 */
+	struct list_head swapped_out_fbs;
+};
+
+struct dcp_fb_reference {
+	struct list_head head;
+	struct drm_framebuffer *fb;
 };
 
 /*
@@ -1001,6 +1011,17 @@ static void dcp_swapped(struct apple_dcp *dcp, void *data, void *cookie)
 	if (resp->ret) {
 		dev_err(dcp->dev, "swap failed! status %u\n", resp->ret);
 		dcp_drm_crtc_vblank(dcp->crtc);
+		return;
+	}
+
+	while (!list_empty(&dcp->swapped_out_fbs)) {
+		struct dcp_fb_reference *entry;
+		entry = list_first_entry(&dcp->swapped_out_fbs,
+					 struct dcp_fb_reference, head);
+		if (entry->fb)
+			drm_framebuffer_put(entry->fb);
+		list_del(&entry->head);
+		kfree(entry);
 	}
 }
 
@@ -1144,6 +1165,24 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 		req->swap.swap_enabled |= BIT(l);
 
+		if (old_state->fb && fb != old_state->fb) {
+			/*
+			 * Race condition between a framebuffer unbind getting
+			 * swapped out and GEM unreferencing a framebuffer. If
+			 * we lose the race, the display gets IOVA faults and
+			 * the DCP crashes. We need to extend the lifetime of
+			 * the drm_framebuffer (and hence the GEM object) until
+			 * after we get a swap complete for the swap unbinding
+			 * it.
+			 */
+			struct dcp_fb_reference *entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+			if (entry) {
+				entry->fb = old_state->fb;
+				list_add_tail(&entry->head, &dcp->swapped_out_fbs);
+			}
+			drm_framebuffer_get(old_state->fb);
+		}
+
 		if (!new_state->fb) {
 			if (old_state->fb)
 				req->swap.swap_enabled |= DCP_REMOVE_LAYERS;
@@ -1153,13 +1192,6 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		req->surf_null[l] = false;
 		has_surface = 1;
 
-		// XXX: awful hack! race condition between a framebuffer unbind
-		// getting swapped out and GEM unreferencing a framebuffer. If
-		// we lose the race, the display gets IOVA faults and the DCP
-		// crashes. We need to extend the lifetime of the
-		// drm_framebuffer (and hence the GEM object) until after we
-		// get a swap complete for the swap unbinding it.
-		drm_framebuffer_get(fb);
 
 		drm_rect_fp_to_int(&src_rect, &new_state->src);
 
@@ -1416,6 +1448,8 @@ static int dcp_platform_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(dcp->clk), "Unable to find clock\n");
 
 	INIT_WORK(&dcp->vblank_wq, dcp_delayed_vblank);
+
+	dcp->swapped_out_fbs = (struct list_head)LIST_HEAD_INIT(dcp->swapped_out_fbs);
 
 	cpu_ctrl = readl_relaxed(dcp->coproc_reg + APPLE_DCP_COPROC_CPU_CONTROL);
 	writel_relaxed(cpu_ctrl | APPLE_DCP_COPROC_CPU_CONTROL_RUN,
