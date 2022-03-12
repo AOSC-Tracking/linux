@@ -58,27 +58,47 @@ static void tas2764_reset(struct tas2764_priv *tas2764)
 	usleep_range(1000, 2000);
 }
 
+static int tas2764_set_power(struct tas2764_priv *tas2764, u8 mode)
+{
+	int ret;
+
+	// TODO: Does this only affect the SN012776 variant?
+	if (tas2764->devid == DEVID_SN012776 && mode == TAS2764_PWR_CTRL_MUTE) {
+		ret = snd_soc_component_update_bits(tas2764->component,
+						    TAS2764_PWR_CTRL,
+						    TAS2764_PWR_CTRL_MASK,
+						    TAS2764_PWR_CTRL_ACTIVE);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = snd_soc_component_update_bits(tas2764->component,
+					    TAS2764_PWR_CTRL,
+					    TAS2764_PWR_CTRL_MASK,
+					    mode);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+
 static int tas2764_set_bias_level(struct snd_soc_component *component,
 				 enum snd_soc_bias_level level)
 {
 	struct tas2764_priv *tas2764 = snd_soc_component_get_drvdata(component);
+	u8 mode;
 
 	switch (level) {
 	case SND_SOC_BIAS_ON:
-		snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-					      TAS2764_PWR_CTRL_MASK,
-					      TAS2764_PWR_CTRL_ACTIVE);
+		mode = TAS2764_PWR_CTRL_ACTIVE;
 		break;
 	case SND_SOC_BIAS_STANDBY:
 	case SND_SOC_BIAS_PREPARE:
-		snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-					      TAS2764_PWR_CTRL_MASK,
-					      TAS2764_PWR_CTRL_MUTE);
+		mode = TAS2764_PWR_CTRL_MUTE;
 		break;
 	case SND_SOC_BIAS_OFF:
-		snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-					      TAS2764_PWR_CTRL_MASK,
-					      TAS2764_PWR_CTRL_SHUTDOWN);
+		mode = TAS2764_PWR_CTRL_SHUTDOWN;
 		break;
 
 	default:
@@ -87,7 +107,7 @@ static int tas2764_set_bias_level(struct snd_soc_component *component,
 		return -EINVAL;
 	}
 
-	return 0;
+	return tas2764_set_power(tas2764, mode);
 }
 
 #ifdef CONFIG_PM
@@ -96,10 +116,7 @@ static int tas2764_codec_suspend(struct snd_soc_component *component)
 	struct tas2764_priv *tas2764 = snd_soc_component_get_drvdata(component);
 	int ret;
 
-	ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-					    TAS2764_PWR_CTRL_MASK,
-					    TAS2764_PWR_CTRL_SHUTDOWN);
-
+	ret = tas2764_set_power(tas2764, TAS2764_PWR_CTRL_SHUTDOWN);
 	if (ret < 0)
 		return ret;
 
@@ -122,10 +139,7 @@ static int tas2764_codec_resume(struct snd_soc_component *component)
 		usleep_range(1000, 2000);
 	}
 
-	ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-					    TAS2764_PWR_CTRL_MASK,
-					    TAS2764_PWR_CTRL_ACTIVE);
-
+	ret = tas2764_set_power(tas2764, TAS2764_PWR_CTRL_ACTIVE);
 	if (ret < 0)
 		return ret;
 
@@ -154,28 +168,21 @@ static int tas2764_dac_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
 	struct tas2764_priv *tas2764 = snd_soc_component_get_drvdata(component);
-	int ret;
+	u8 mode;
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
-		ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-						    TAS2764_PWR_CTRL_MASK,
-						    TAS2764_PWR_CTRL_MUTE);
+		mode = TAS2764_PWR_CTRL_MUTE;
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
-		ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
-						    TAS2764_PWR_CTRL_MASK,
-						    TAS2764_PWR_CTRL_SHUTDOWN);
+		mode = TAS2764_PWR_CTRL_SHUTDOWN;
 		break;
 	default:
 		dev_err(tas2764->dev, "Unsupported event\n");
 		return -EINVAL;
 	}
 
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return tas2764_set_power(tas2764, mode);
 }
 
 static const struct snd_kcontrol_new isense_switch =
