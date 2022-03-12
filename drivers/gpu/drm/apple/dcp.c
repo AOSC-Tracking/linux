@@ -28,6 +28,7 @@ struct apple_dcp;
 
 /* Register defines used in bandwidth setup structure */
 #define REG_SCRATCH (0x14)
+#define REG_SCRATCH_T600X (0x988)
 #define REG_DOORBELL (0x0)
 #define REG_DOORBELL_BIT (2)
 
@@ -700,13 +701,26 @@ static bool dcpep_cb_boot_1(struct apple_dcp *dcp, void *out, void *in)
 
 static struct dcp_rt_bandwidth dcpep_cb_rt_bandwidth(struct apple_dcp *dcp)
 {
-	return (struct dcp_rt_bandwidth) {
-		.reg_scratch = dcp->disp_registers[5]->start + REG_SCRATCH,
-		.reg_doorbell = dcp->disp_registers[6]->start + REG_DOORBELL,
-		.doorbell_bit = REG_DOORBELL_BIT,
+	if (dcp->disp_registers[5] && dcp->disp_registers[6])
+		return (struct dcp_rt_bandwidth) {
+			.reg_scratch = dcp->disp_registers[5]->start + REG_SCRATCH,
+			.reg_doorbell = dcp->disp_registers[6]->start + REG_DOORBELL,
+			.doorbell_bit = REG_DOORBELL_BIT,
 
-		.padding[3] = 0x4, // XXX: required by 11.x firmware
-	};
+			.padding[3] = 0x4, // XXX: required by 11.x firmware
+		};
+	else if (dcp->disp_registers[4])
+		return (struct dcp_rt_bandwidth) {
+			.reg_scratch = dcp->disp_registers[4]->start + REG_SCRATCH_T600X,
+			.reg_doorbell = 0,
+			.doorbell_bit = 0,
+		};
+	else
+		return (struct dcp_rt_bandwidth) {
+			.reg_scratch = 0,
+			.reg_doorbell = 0,
+			.doorbell_bit = 0,
+		};
 }
 
 /* Callback to get the current time as milliseconds since the UNIX epoch */
