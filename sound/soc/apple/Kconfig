@@ -3,6 +3,7 @@ config SND_SOC_APPLE_SILICON
 	tristate "ASoC machine driver for Apple Silicon Macs"
 	depends on ARCH_APPLE || COMPILE_TEST
 	select SND_SOC_APPLE_MCA
+	select SND_SIMPLE_CARD_UTILS
 	default ARCH_APPLE
 	help
 	  This option enables an ASoC machine driver for Apple Silicon Macs.
