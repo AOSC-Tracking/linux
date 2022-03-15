@@ -871,8 +871,7 @@ static void apple_nvme_disable(struct apple_nvme *anv, bool shutdown)
 
 		if (shutdown)
 			nvme_shutdown_ctrl(&anv->ctrl);
-		else
-			nvme_disable_ctrl(&anv->ctrl);
+		nvme_disable_ctrl(&anv->ctrl);
 	}
 
 	WRITE_ONCE(anv->ioq.enabled, false);
@@ -900,7 +899,6 @@ static void apple_nvme_disable(struct apple_nvme *anv, bool shutdown)
 	if (shutdown) {
 		nvme_start_queues(&anv->ctrl);
 		nvme_start_admin_queue(&anv->ctrl);
-		blk_cleanup_queue(anv->ctrl.admin_q);
 	}
 }
 
@@ -1573,6 +1571,37 @@ static void apple_nvme_shutdown(struct platform_device *pdev)
 		apple_rtkit_shutdown(anv->rtk);
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int apple_nvme_resume(struct device *dev)
+{
+	struct apple_nvme *anv = dev_get_drvdata(dev);
+
+	return  nvme_reset_ctrl(&anv->ctrl);
+}
+
+static int apple_nvme_suspend(struct device *dev)
+{
+	struct apple_nvme *anv = dev_get_drvdata(dev);
+	int ret = 0;
+
+	flush_delayed_work(&anv->flush_dwork);
+	apple_nvme_disable(anv, true);
+
+	if (apple_rtkit_is_running(anv->rtk))
+		ret = apple_rtkit_shutdown(anv->rtk);
+
+	writel_relaxed(0, anv->mmio_coproc + APPLE_ANS_COPROC_CPU_CONTROL);
+	(void)readl_relaxed(anv->mmio_coproc + APPLE_ANS_COPROC_CPU_CONTROL);
+
+	return ret;
+}
+
+static const struct dev_pm_ops apple_nvme_pm_ops = {
+	.suspend	= apple_nvme_suspend,
+	.resume		= apple_nvme_resume,
+};
+#endif
+
 static const struct of_device_id apple_nvme_of_match[] = {
 	{ .compatible = "apple,nvme-ans2" },
 	{},
@@ -1583,6 +1612,9 @@ static struct platform_driver apple_nvme_driver = {
  	.driver = {
  		.name = "nvme-apple",
  		.of_match_table = apple_nvme_of_match,
+#ifdef CONFIG_PM_SLEEP
+		.pm = &apple_nvme_pm_ops,
+#endif
  	},
  	.probe = apple_nvme_probe,
 	.remove = apple_nvme_remove,
