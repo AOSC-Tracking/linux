@@ -252,7 +252,7 @@ static void apple_nvme_rtkit_recv(void *cookie, u8 endpoint, u64 message)
 {
 	struct apple_nvme *anv = cookie;
 
-	dev_warn(anv->dev, "Recevied unexpected message to EP%02d: %llx",
+	dev_warn(anv->dev, "Received unexpected message to EP%02d: %llx",
 		 endpoint, message);
 }
 
