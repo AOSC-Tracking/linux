@@ -1533,8 +1533,9 @@ static int apple_nvme_probe(struct platform_device *pdev)
 		anv->flush_interval = msecs_to_jiffies(flush_interval);
 		anv->flush_ns = NULL;
 		anv->last_flush = jiffies - anv->flush_interval;
-		INIT_DELAYED_WORK(&anv->flush_dwork, apple_nvme_flush_work);
 	}
+
+	INIT_DELAYED_WORK(&anv->flush_dwork, apple_nvme_flush_work);
 
 	nvme_reset_ctrl(&anv->ctrl);
 	async_schedule(apple_nvme_async_probe, anv);
