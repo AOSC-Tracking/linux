@@ -305,7 +305,6 @@ struct fixed_kctl {
 	{"Left VSENSE Switch", "Off"},
 	{"Right ISENSE Switch", "Off"},
 	{"Right VSENSE Switch", "Off"},
-	{"Jack Mixer Volume", "63"},
 	{ }
 };
 
