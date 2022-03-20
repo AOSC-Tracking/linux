@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-2.0-only
+# SPDX-License-Identifier: GPL-2.0-only OR MIT
 config DRM_APPLE
 	tristate "DRM Support for Apple display controllers"
 	depends on DRM && OF && ARM64
