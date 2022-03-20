@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-2.0-only
+# SPDX-License-Identifier: GPL-2.0-only OR MIT
 
 appledrm-y := apple_drv.o
 apple_dcp-y := dcp.o parser.o
