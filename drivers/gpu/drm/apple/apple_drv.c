@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright 2021 Alyssa Rosenzweig <alyssa@rosenzweig.io> */
 /* Based on meson driver which is
  * Copyright (C) 2016 BayLibre, SAS
@@ -439,4 +439,4 @@ module_platform_driver(apple_platform_driver);
 
 MODULE_AUTHOR("Alyssa Rosenzweig <alyssa@rosenzweig.io>");
 MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("Dual MIT/GPL");
