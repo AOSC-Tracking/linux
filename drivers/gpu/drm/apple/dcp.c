@@ -1501,6 +1501,10 @@ static void dcp_platform_shutdown(struct platform_device *pdev)
 		/* defaults are ok */
 	};
 
+	/* We're going down */
+	dcp->active = false;
+	dcp->valid_mode = false;
+
 	dcp_set_power_state(dcp, false, &req, NULL, NULL);
 }
 
@@ -1510,12 +1514,41 @@ static const struct of_device_id of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, of_match);
 
+#ifdef CONFIG_PM_SLEEP
+/*
+ * We don't hold any useful persistent state, so for suspend/resume it suffices
+ * to power off/on the entire DCP. The firmware will sort out the details for
+ * us.
+ */
+static int dcp_suspend(struct device *dev)
+{
+	dcp_platform_shutdown(to_platform_device(dev));
+	return 0;
+}
+
+static int dcp_resume(struct device *dev)
+{
+	struct apple_dcp *dcp = platform_get_drvdata(to_platform_device(dev));
+
+	dcp_start_signal(dcp, false, dcp_started, NULL);
+	return 0;
+}
+
+static const struct dev_pm_ops dcp_pm_ops = {
+	.suspend	= dcp_suspend,
+	.resume		= dcp_resume,
+};
+#endif
+
 static struct platform_driver apple_platform_driver = {
 	.probe		= dcp_platform_probe,
 	.shutdown	= dcp_platform_shutdown,
 	.driver	= {
 		.name = "apple-dcp",
 		.of_match_table	= of_match,
+#ifdef CONFIG_PM_SLEEP
+		.pm = &dcp_pm_ops,
+#endif
 	},
 };
 
