@@ -116,6 +116,11 @@
 	status = "okay";
 };
 
+&combphy2 {
+	/* used for SATA */
+	status = "okay";
+};
+
 &gmac0 {
 	assigned-clocks = <&cru SCLK_GMAC0_RX_TX>, <&cru SCLK_GMAC0>;
 	assigned-clock-parents = <&cru SCLK_GMAC0_RGMII_SPEED>, <&cru CLK_MAC0_2TOP>;
@@ -449,6 +454,10 @@
 
 &saradc {
 	vref-supply = <&vcca_1v8>;
+	status = "okay";
+};
+
+&sata2 {
 	status = "okay";
 };
 
