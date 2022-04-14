@@ -817,11 +817,11 @@ static void dcp_delayed_vblank(struct work_struct *work)
 	}
 
 #define TRAMPOLINE_IN(func, handler, T_in)                                     \
-	typedef void (*callback_##name)(struct apple_dcp *, T_in *);           \
+	typedef void (*callback_##handler)(struct apple_dcp *, T_in *);        \
                                                                                \
 	static bool func(struct apple_dcp *dcp, void *out, void *in)           \
 	{                                                                      \
-		callback_##name cb = handler;                                  \
+		callback_##handler cb = handler;                               \
                                                                                \
 		dev_dbg(dcp->dev, "received callback %s\n", #handler);         \
 		cb(dcp, in);                                                   \
