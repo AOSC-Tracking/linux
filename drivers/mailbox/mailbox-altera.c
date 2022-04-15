@@ -238,13 +238,6 @@ static bool altera_mbox_last_tx_done(struct mbox_chan *chan)
 	return altera_mbox_full(mbox) ? false : true;
 }
 
-static bool altera_mbox_peek_data(struct mbox_chan *chan)
-{
-	struct altera_mbox *mbox = mbox_chan_to_altera_mbox(chan);
-
-	return altera_mbox_pending(mbox) ? true : false;
-}
-
 static int altera_mbox_startup(struct mbox_chan *chan)
 {
 	struct altera_mbox *mbox = mbox_chan_to_altera_mbox(chan);
@@ -279,7 +272,6 @@ static const struct mbox_chan_ops altera_mbox_ops = {
 	.startup = altera_mbox_startup,
 	.shutdown = altera_mbox_shutdown,
 	.last_tx_done = altera_mbox_last_tx_done,
-	.peek_data = altera_mbox_peek_data,
 };
 
 static int altera_mbox_probe(struct platform_device *pdev)
