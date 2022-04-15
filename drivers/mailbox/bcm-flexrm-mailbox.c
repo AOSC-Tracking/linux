@@ -1223,7 +1223,7 @@ static int flexrm_send_data(struct mbox_chan *chan, void *data)
 	return flexrm_new_request(ring, NULL, data);
 }
 
-static bool flexrm_peek_data(struct mbox_chan *chan)
+static bool flexrm_poll_data(struct mbox_chan *chan)
 {
 	int cnt = flexrm_process_completions(chan->con_priv);
 
@@ -1449,7 +1449,7 @@ static const struct mbox_chan_ops flexrm_mbox_chan_ops = {
 	.send_data	= flexrm_send_data,
 	.startup	= flexrm_startup,
 	.shutdown	= flexrm_shutdown,
-	.peek_data	= flexrm_peek_data,
+	.poll_data	= flexrm_poll_data,
 };
 
 static struct mbox_chan *flexrm_mbox_of_xlate(struct mbox_controller *cntlr,

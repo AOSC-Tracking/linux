@@ -200,28 +200,25 @@ void mbox_client_txdone(struct mbox_chan *chan, int r)
 EXPORT_SYMBOL_GPL(mbox_client_txdone);
 
 /**
- * mbox_client_peek_data - A way for client driver to pull data
- *			received from remote by the controller.
+ * mbox_client_poll_data - Poll for pending messages from the remote.
  * @chan: Mailbox channel assigned to this client.
  *
- * A poke to controller driver for any received data.
- * The data is actually passed onto client via the
- * mbox_chan_received_data()
- * The call can be made from atomic context, so the controller's
- * implementation of peek_data() must not sleep.
+ * Asks the controller driver to poll for any available data from the remote.
+ * The data will be synchronously delivered via mbox_chan_received_data().
+ * This call can be made from atomic context, so the controller's
+ * implementation of poll_data() must not sleep.
  *
- * Return: True, if controller has, and is going to push after this,
- *          some data.
- *         False, if controller doesn't have any data to be read.
+ * Return: True if the controller received and has processed some data.
+ *         False if controller didn't have any pending data to read.
  */
-bool mbox_client_peek_data(struct mbox_chan *chan)
+bool mbox_client_poll_data(struct mbox_chan *chan)
 {
-	if (chan->mbox->ops->peek_data)
-		return chan->mbox->ops->peek_data(chan);
+	if (chan->mbox->ops->poll_data)
+		return chan->mbox->ops->poll_data(chan);
 
 	return false;
 }
-EXPORT_SYMBOL_GPL(mbox_client_peek_data);
+EXPORT_SYMBOL_GPL(mbox_client_poll_data);
 
 /**
  * mbox_send_message -	For client to submit a message to be

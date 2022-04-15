@@ -223,7 +223,7 @@ static struct sba_request *sba_alloc_request(struct sba_device *sba)
 		 * would have completed which will create more
 		 * room for new requests.
 		 */
-		mbox_client_peek_data(sba->mchan);
+		mbox_client_poll_data(sba->mchan);
 		return NULL;
 	}
 
@@ -555,7 +555,7 @@ static enum dma_status sba_tx_status(struct dma_chan *dchan,
 	if (ret == DMA_COMPLETE)
 		return ret;
 
-	mbox_client_peek_data(sba->mchan);
+	mbox_client_poll_data(sba->mchan);
 
 	return dma_cookie_status(dchan, cookie, txstate);
 }

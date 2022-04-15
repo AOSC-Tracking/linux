@@ -40,8 +40,8 @@ struct mbox_chan;
  *		  mode 'send_data' is expected to return -EBUSY.
  *		  The controller may do stuff that need to sleep/block.
  *		  Used only if txdone_poll:=true && txdone_irq:=false
- * @peek_data: Atomic check for any received data. Return true if controller
- *		  has some data to push to the client. False otherwise.
+ * @poll_data:  Poll atomically for received data. Return true if there
+ *		was data available that has been processed. False otherwise.
  */
 struct mbox_chan_ops {
 	int (*send_data)(struct mbox_chan *chan, void *data);
@@ -49,7 +49,7 @@ struct mbox_chan_ops {
 	int (*startup)(struct mbox_chan *chan);
 	void (*shutdown)(struct mbox_chan *chan);
 	bool (*last_tx_done)(struct mbox_chan *chan);
-	bool (*peek_data)(struct mbox_chan *chan);
+	bool (*poll_data)(struct mbox_chan *chan);
 };
 
 /**
