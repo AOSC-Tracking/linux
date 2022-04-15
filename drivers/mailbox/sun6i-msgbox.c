@@ -189,7 +189,6 @@ static const struct mbox_chan_ops sun6i_msgbox_chan_ops = {
 	.startup      = sun6i_msgbox_startup,
 	.shutdown     = sun6i_msgbox_shutdown,
 	.last_tx_done = sun6i_msgbox_last_tx_done,
-	.peek_data    = sun6i_msgbox_peek_data,
 };
 
 static int sun6i_msgbox_probe(struct platform_device *pdev)
