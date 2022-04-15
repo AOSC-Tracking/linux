@@ -178,46 +178,6 @@ static irqreturn_t zynqmp_ipi_interrupt(int irq, void *data)
 }
 
 /**
- * zynqmp_ipi_peek_data - Peek to see if there are any rx messages.
- *
- * @chan: Channel Pointer
- *
- * Return: 'true' if there is pending rx data, 'false' if there is none.
- */
-static bool zynqmp_ipi_peek_data(struct mbox_chan *chan)
-{
-	struct device *dev = chan->mbox->dev;
-	struct zynqmp_ipi_mbox *ipi_mbox = dev_get_drvdata(dev);
-	struct zynqmp_ipi_mchan *mchan = chan->con_priv;
-	int ret;
-	u64 arg0;
-	struct arm_smccc_res res;
-
-	if (WARN_ON(!ipi_mbox)) {
-		dev_err(dev, "no platform drv data??\n");
-		return false;
-	}
-
-	arg0 = SMC_IPI_MAILBOX_STATUS_ENQUIRY;
-	zynqmp_ipi_fw_call(ipi_mbox, arg0, 0, &res);
-	ret = (int)(res.a0 & 0xFFFFFFFF);
-
-	if (mchan->chan_type == IPI_MB_CHNL_TX) {
-		/* TX channel, check if the message has been acked
-		 * by the remote, if yes, response is available.
-		 */
-		if (ret < 0 || ret & IPI_MB_STATUS_SEND_PENDING)
-			return false;
-		else
-			return true;
-	} else if (ret > 0 && ret & IPI_MB_STATUS_RECV_PENDING) {
-		/* RX channel, check if there is message arrived. */
-		return true;
-	}
-	return false;
-}
-
-/**
  * zynqmp_ipi_last_tx_done - See if the last tx message is sent
  *
  * @chan: Channel pointer
@@ -387,7 +347,6 @@ static void zynqmp_ipi_shutdown(struct mbox_chan *chan)
 static const struct mbox_chan_ops zynqmp_ipi_chan_ops = {
 	.startup = zynqmp_ipi_startup,
 	.shutdown = zynqmp_ipi_shutdown,
-	.peek_data = zynqmp_ipi_peek_data,
 	.last_tx_done = zynqmp_ipi_last_tx_done,
 	.send_data = zynqmp_ipi_send_data,
 };
