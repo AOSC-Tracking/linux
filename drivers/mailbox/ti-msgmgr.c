@@ -310,33 +310,6 @@ static irqreturn_t ti_msgmgr_queue_rx_interrupt(int irq, void *p)
 }
 
 /**
- * ti_msgmgr_queue_peek_data() - Peek to see if there are any rx messages.
- * @chan:	Channel Pointer
- *
- * Return: 'true' if there is pending rx data, 'false' if there is none.
- */
-static bool ti_msgmgr_queue_peek_data(struct mbox_chan *chan)
-{
-	struct ti_queue_inst *qinst = chan->con_priv;
-	struct device *dev = chan->mbox->dev;
-	struct ti_msgmgr_inst *inst = dev_get_drvdata(dev);
-	const struct ti_msgmgr_desc *desc = inst->desc;
-	int msg_count;
-
-	if (qinst->is_tx)
-		return false;
-
-	if (ti_msgmgr_queue_is_error(desc, qinst)) {
-		dev_err(dev, "Error on channel %s\n", qinst->name);
-		return false;
-	}
-
-	msg_count = ti_msgmgr_queue_get_num_messages(desc, qinst);
-
-	return msg_count ? true : false;
-}
-
-/**
  * ti_msgmgr_last_tx_done() - See if all the tx messages are sent
  * @chan:	Channel pointer
  *
@@ -744,7 +717,6 @@ static DEFINE_SIMPLE_DEV_PM_OPS(ti_msgmgr_pm_ops, ti_msgmgr_suspend, ti_msgmgr_r
 static const struct mbox_chan_ops ti_msgmgr_chan_ops = {
 	.startup = ti_msgmgr_queue_startup,
 	.shutdown = ti_msgmgr_queue_shutdown,
-	.peek_data = ti_msgmgr_queue_peek_data,
 	.last_tx_done = ti_msgmgr_last_tx_done,
 	.send_data = ti_msgmgr_send_data,
 };
