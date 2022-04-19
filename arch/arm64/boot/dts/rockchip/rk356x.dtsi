@@ -598,6 +598,7 @@
 		compatible = "rockchip,rk3568-vpu";
 		reg = <0x0 0xfdea0000 0x0 0x800>;
 		interrupts = <GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vdpu";
 		clocks = <&cru ACLK_VPU>, <&cru HCLK_VPU>;
 		clock-names = "aclk", "hclk";
 		iommus = <&vdpu_mmu>;
@@ -608,6 +609,7 @@
 		compatible = "rockchip,rk3568-iommu";
 		reg = <0x0 0xfdea0800 0x0 0x40>;
 		interrupts = <GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vdpu_mmu";
 		clock-names = "aclk", "iface";
 		clocks = <&cru ACLK_VPU>, <&cru HCLK_VPU>;
 		power-domains = <&power RK3568_PD_VPU>;
