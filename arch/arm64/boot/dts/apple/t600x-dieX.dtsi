@@ -336,6 +336,7 @@
 		iommus = <&DIE_NODE(dwc3_0_dart_0) 0>,
 			<&DIE_NODE(dwc3_0_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc0_usb)>;
+		dma-coherent;
 		resets = <&DIE_NODE(atcphy0)>;
 		phys = <&DIE_NODE(atcphy0) PHY_TYPE_USB2>, <&DIE_NODE(atcphy0) PHY_TYPE_USB3>;
 		phy-names = "usb2-phy", "usb3-phy";
@@ -408,6 +409,7 @@
 		iommus = <&DIE_NODE(dwc3_1_dart_0) 0>,
 			<&DIE_NODE(dwc3_1_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc1_usb)>;
+		dma-coherent;
 		resets = <&DIE_NODE(atcphy1)>;
 		phys = <&DIE_NODE(atcphy1) PHY_TYPE_USB2>, <&DIE_NODE(atcphy1) PHY_TYPE_USB3>;
 		phy-names = "usb2-phy", "usb3-phy";
@@ -480,6 +482,7 @@
 		iommus = <&DIE_NODE(dwc3_2_dart_0) 0>,
 			<&DIE_NODE(dwc3_2_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc2_usb)>;
+		dma-coherent;
 		resets = <&DIE_NODE(atcphy2)>;
 		phys = <&DIE_NODE(atcphy2) PHY_TYPE_USB2>, <&DIE_NODE(atcphy2) PHY_TYPE_USB3>;
 		phy-names = "usb2-phy", "usb3-phy";
@@ -552,6 +555,7 @@
 		iommus = <&DIE_NODE(dwc3_3_dart_0) 0>,
 			<&DIE_NODE(dwc3_3_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc3_usb)>;
+		dma-coherent;
 		resets = <&DIE_NODE(atcphy3)>;
 		phys = <&DIE_NODE(atcphy3) PHY_TYPE_USB2>, <&DIE_NODE(atcphy3) PHY_TYPE_USB3>;
 		phy-names = "usb2-phy", "usb3-phy";
