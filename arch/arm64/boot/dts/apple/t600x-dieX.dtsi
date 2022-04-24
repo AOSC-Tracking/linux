@@ -149,6 +149,7 @@
 		iommus = <&DIE_NODE(dwc3_0_dart_0) 0>,
 			<&DIE_NODE(dwc3_0_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc0_usb)>;
+		dma-coherent;
 	};
 
 	DIE_NODE(dwc3_1_dart_0): iommu@b02f00000 {
@@ -180,6 +181,7 @@
 		iommus = <&DIE_NODE(dwc3_1_dart_0) 0>,
 			<&DIE_NODE(dwc3_1_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc1_usb)>;
+		dma-coherent;
 	};
 
 	DIE_NODE(dwc3_2_dart_0): iommu@f02f00000 {
@@ -211,6 +213,7 @@
 		iommus = <&DIE_NODE(dwc3_2_dart_0) 0>,
 			<&DIE_NODE(dwc3_2_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc2_usb)>;
+		dma-coherent;
 	};
 
 	DIE_NODE(dwc3_3_dart_0): iommu@1302f00000 {
@@ -242,4 +245,5 @@
 		iommus = <&DIE_NODE(dwc3_3_dart_0) 0>,
 			<&DIE_NODE(dwc3_3_dart_1) 1>;
 		power-domains = <&DIE_NODE(ps_atc3_usb)>;
+		dma-coherent;
 	};
