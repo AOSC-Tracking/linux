@@ -2091,6 +2091,15 @@ static struct sdhci_pci_slot *sdhci_pci_probe_slot(
 			dev_warn(&pdev->dev, "failed to setup card detect gpio\n");
 			slot->cd_idx = -1;
 		}
+	} else if (is_of_node(pdev->dev.fwnode)) {
+		/* Allow all OF systems to use a CD GPIO if provided */
+
+		ret = mmc_gpiod_request_cd(host->mmc, "cd", 0,
+					   slot->cd_override_level, 0);
+		if (ret == -EPROBE_DEFER)
+			goto remove;
+		else if (ret == 0)
+			slot->cd_idx = 0;
 	}
 
 	if (chip->fixes && chip->fixes->add_host)
