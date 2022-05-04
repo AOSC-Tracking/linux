@@ -310,7 +310,7 @@ int mbox_flush(struct mbox_chan *chan, unsigned long timeout)
 		return -ENOTSUPP;
 
 	ret = chan->mbox->ops->flush(chan, timeout);
-	if (ret < 0)
+	if (ret >= 0)
 		tx_tick(chan, ret);
 
 	return ret;
