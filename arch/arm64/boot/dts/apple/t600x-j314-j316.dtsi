@@ -13,6 +13,10 @@
 
 / {
 	aliases {
+		atcphy0 = &atcphy0;
+		atcphy1 = &atcphy1;
+		atcphy2 = &atcphy2;
+		atcphy3 = &atcphy3;
 		bluetooth0 = &bluetooth0;
 		serial0 = &serial0;
 		wifi0 = &wifi0;
@@ -63,6 +67,30 @@
 		interrupt-parent = <&pinctrl_ap>;
 		interrupts = <174 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "irq";
+
+		typec0: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C Left Rear";
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					typec0_con_hs: endpoint {
+						remote-endpoint = <&typec0_usb_hs>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					typec0_con_ss: endpoint {
+						remote-endpoint = <&typec0_usb_ss>;
+					};
+				};
+			};
+		};
 	};
 
 	hpm1: usb-pd@3f {
@@ -71,6 +99,30 @@
 		interrupt-parent = <&pinctrl_ap>;
 		interrupts = <174 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "irq";
+
+		typec1: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C Left Front";
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					typec1_con_hs: endpoint {
+						remote-endpoint = <&typec1_usb_hs>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					typec1_con_ss: endpoint {
+						remote-endpoint = <&typec1_usb_ss>;
+					};
+				};
+			};
+		};
 	};
 
 	hpm2: usb-pd@3b {
@@ -79,6 +131,30 @@
 		interrupt-parent = <&pinctrl_ap>;
 		interrupts = <174 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "irq";
+
+		typec2: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C Right";
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					typec2_con_hs: endpoint {
+						remote-endpoint = <&typec2_usb_hs>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					typec2_con_ss: endpoint {
+						remote-endpoint = <&typec2_usb_ss>;
+					};
+				};
+			};
+		};
 	};
 
 	/* MagSafe port */
@@ -128,6 +204,77 @@
 
 &fpwm0 {
 	status = "okay";
+};
+
+/* USB controllers */
+&dwc3_0 {
+	port {
+		typec0_usb_hs: endpoint {
+			remote-endpoint = <&typec0_con_hs>;
+		};
+	};
+};
+
+&dwc3_1 {
+	port {
+		typec1_usb_hs: endpoint {
+			remote-endpoint = <&typec1_con_hs>;
+		};
+	};
+};
+
+&dwc3_2 {
+	port {
+		typec2_usb_hs: endpoint {
+			remote-endpoint = <&typec2_con_hs>;
+		};
+	};
+};
+
+/* Type-C PHYs */
+&atcphy0 {
+	port {
+		typec0_usb_ss: endpoint {
+			remote-endpoint = <&typec0_con_ss>;
+		};
+	};
+};
+
+&atcphy1 {
+	port {
+		typec1_usb_ss: endpoint {
+			remote-endpoint = <&typec1_con_ss>;
+		};
+	};
+};
+
+&atcphy2 {
+	port {
+		typec2_usb_ss: endpoint {
+			remote-endpoint = <&typec2_con_ss>;
+		};
+	};
+};
+
+/*
+ * ps_atc3_usb_aon power-domain is always-on to keep dwc3 working over suspend.
+ * atc3 is used exclusively for the DP-to-HDMI so do not keep this always on.
+ */
+&ps_atc3_usb_aon {
+	/delete-property/ apple,always-on;
+};
+
+/* ATC3 is used for DisplayPort -> HDMI only */
+&dwc3_3_dart_0 {
+	status = "disabled";
+};
+
+&dwc3_3_dart_1 {
+	status = "disabled";
+};
+
+&dwc3_3 {
+	status = "disabled";
 };
 
 #include "spi1-nvram.dtsi"
