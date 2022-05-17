@@ -26,6 +26,24 @@
 		interrupt-parent = <&pinctrl_ap>;
 		interrupts = <174 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "irq";
+
+		typec4: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C Front Right";
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					typec4_con_hs: endpoint {
+						remote-endpoint = <&typec4_usb_hs>;
+					};
+				};
+			};
+		};
 	};
 
 	/* front-left */
@@ -35,8 +53,54 @@
 		interrupt-parent = <&pinctrl_ap>;
 		interrupts = <174 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "irq";
+
+		typec5: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C Front Left";
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					typec5_con_hs: endpoint {
+						remote-endpoint = <&typec5_usb_hs>;
+					};
+				};
+			};
+		};
 	};
 };
+
+/* USB controllers on die 1 */
+&dwc3_0_die1 {
+	port {
+		typec4_usb_hs: endpoint {
+			remote-endpoint = <&typec4_con_hs>;
+		};
+	};
+};
+
+&dwc3_1_die1 {
+	port {
+		typec5_usb_hs: endpoint {
+			remote-endpoint = <&typec5_con_hs>;
+		};
+	};
+};
+
+/* delete unused USB nodes on die 1 */
+
+/delete-node/ &dwc3_2_dart_0_die1;
+/delete-node/ &dwc3_2_dart_1_die1;
+/delete-node/ &dwc3_2_die1;
+
+/delete-node/ &dwc3_3_dart_0_die1;
+/delete-node/ &dwc3_3_dart_1_die1;
+/delete-node/ &dwc3_3_die1;
+
 
 /* delete unused always-on power-domains on die 1 */
 
