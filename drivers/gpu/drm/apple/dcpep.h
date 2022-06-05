@@ -429,4 +429,15 @@ struct dcp_swap_complete_intent_gated {
 	u32 height;
 } __packed;
 
+struct dcp_read_edt_data_req {
+	char key[0x40];
+	u32 count;
+	u32 value[8];
+} __packed;
+
+struct dcp_read_edt_data_resp {
+	u32 value[8];
+	u8 ret;
+} __packed;
+
 #endif

@@ -581,6 +581,15 @@ dcpep_cb_map_reg(struct apple_dcp *dcp, struct dcp_map_reg_req *req)
 	}
 }
 
+static struct dcp_read_edt_data_resp
+dcpep_cb_read_edt_data(struct apple_dcp *dcp, struct dcp_read_edt_data_req *req)
+{
+	return (struct dcp_read_edt_data_resp) {
+		.value[0] = req->value[0],
+		.ret = 0,
+	};
+}
+
 /* Chunked data transfer for property dictionaries */
 static u8 dcpep_cb_prop_start(struct apple_dcp *dcp, u32 *length)
 {
@@ -1101,6 +1110,8 @@ TRAMPOLINE_INOUT(trampoline_map_physical, dcpep_cb_map_physical,
 		 struct dcp_map_physical_req, struct dcp_map_physical_resp);
 TRAMPOLINE_INOUT(trampoline_map_reg, dcpep_cb_map_reg, struct dcp_map_reg_req,
 		 struct dcp_map_reg_resp);
+TRAMPOLINE_INOUT(trampoline_read_edt_data, dcpep_cb_read_edt_data,
+		 struct dcp_read_edt_data_req, struct dcp_read_edt_data_resp);
 TRAMPOLINE_INOUT(trampoline_prop_start, dcpep_cb_prop_start, u32, u8);
 TRAMPOLINE_INOUT(trampoline_prop_chunk, dcpep_cb_prop_chunk,
 		 struct dcp_set_dcpav_prop_chunk_req, u8);
@@ -1132,7 +1143,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, v
 	[116] = dcpep_cb_boot_1,
 	[117] = trampoline_false, /* is_dark_boot */
 	[118] = trampoline_false, /* is_dark_boot / is_waking_from_hibernate*/
-	[120] = trampoline_false, /* read_edt_data */
+	[120] = trampoline_read_edt_data,
 	[122] = trampoline_prop_start,
 	[123] = trampoline_prop_chunk,
 	[124] = trampoline_prop_end,
