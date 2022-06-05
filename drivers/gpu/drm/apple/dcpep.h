@@ -273,6 +273,14 @@ struct dcp_map_buf_resp {
 	u32 ret;
 } __packed;
 
+struct dcp_unmap_buf_resp {
+	u64 buffer;
+	u64 vaddr;
+	u64 dva;
+	u8 unk;
+	u8 buf_null;
+} __packed;
+
 struct dcp_allocate_buffer_req {
 	u32 unk0;
 	u64 size;
