@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright 2021 Alyssa Rosenzweig <alyssa@rosenzweig.io> */
 
+#include <linux/bitmap.h>
 #include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -64,6 +65,14 @@ struct dcp_chunks {
 #define DCP_MAX_MAPPINGS (128) /* should be enough */
 #define MAX_DISP_REGISTERS (7)
 
+struct dcp_mem_descriptor {
+	size_t size;
+	void *buf;
+	dma_addr_t dva;
+	struct sg_table map;
+	u64 reg;
+};
+
 struct apple_dcp {
 	struct device *dev;
 	struct platform_device *piodma;
@@ -90,11 +99,11 @@ struct apple_dcp {
 	struct resource *disp_registers[MAX_DISP_REGISTERS];
 	unsigned int nr_disp_registers;
 
-	/* Number of memory mappings made by the DCP, used as an ID */
-	u32 nr_mappings;
+	/* Bitmap of memory descriptors used for mappings made by the DCP */
+	DECLARE_BITMAP(memdesc_map, DCP_MAX_MAPPINGS);
 
-	/* Indexed table of mappings */
-	struct sg_table mappings[DCP_MAX_MAPPINGS];
+	/* Indexed table of memory descriptors */
+	struct dcp_mem_descriptor memdesc[DCP_MAX_MAPPINGS];
 
 	struct dcp_call_channel ch_cmd, ch_oobcmd;
 	struct dcp_cb_channel ch_cb, ch_oobcb, ch_async;
@@ -462,10 +471,10 @@ dcpep_cb_map_piodma(struct apple_dcp *dcp, struct dcp_map_buf_req *req)
 	struct sg_table *map;
 	int ret;
 
-	if (req->buffer >= ARRAY_SIZE(dcp->mappings))
+	if (req->buffer >= ARRAY_SIZE(dcp->memdesc))
 		goto reject;
 
-	map = &dcp->mappings[req->buffer];
+	map = &dcp->memdesc[req->buffer].map;
 
 	if (!map->sgl)
 		goto reject;
@@ -488,6 +497,37 @@ reject:
 	};
 }
 
+static void
+dcpep_cb_unmap_piodma(struct apple_dcp *dcp, struct dcp_unmap_buf_resp *resp)
+{
+	struct sg_table *map;
+	dma_addr_t dma_addr;
+
+	if (resp->buffer >= ARRAY_SIZE(dcp->memdesc)) {
+		dev_warn(dcp->dev, "unmap request for out of range buffer %llu",
+			 resp->buffer);
+		return;
+	}
+
+	map = &dcp->memdesc[resp->buffer].map;
+
+	if (!map->sgl) {
+		dev_warn(dcp->dev, "unmap for non-mapped buffer %llu iova:0x%08llx",
+			 resp->buffer, resp->dva);
+		return;
+	}
+
+	dma_addr = sg_dma_address(map->sgl);
+	if (dma_addr != resp->dva) {
+		dev_warn(dcp->dev, "unmap buffer %llu address mismatch dma_addr:%llx dva:%llx",
+			 resp->buffer, dma_addr, resp->dva);
+		return;
+	}
+
+	/* Use PIODMA device instead of DCP to unmap from the right IOMMU. */
+	dma_unmap_sgtable(&dcp->piodma->dev, map, DMA_BIDIRECTIONAL, 0);
+}
+
 /*
  * Allocate an IOVA contiguous buffer mapped to the DCP. The buffer need not be
  * physically contigiuous, however we should save the sgtable in case the
@@ -497,23 +537,66 @@ static struct dcp_allocate_buffer_resp
 dcpep_cb_allocate_buffer(struct apple_dcp *dcp, struct dcp_allocate_buffer_req *req)
 {
 	struct dcp_allocate_buffer_resp resp = { 0 };
-	void *buf;
+	struct dcp_mem_descriptor *memdesc;
+	u32 id;
 
 	resp.dva_size = ALIGN(req->size, 4096);
-	resp.mem_desc_id = ++dcp->nr_mappings;
+	resp.mem_desc_id = find_first_zero_bit(dcp->memdesc_map, DCP_MAX_MAPPINGS);
 
-	if (resp.mem_desc_id >= ARRAY_SIZE(dcp->mappings)) {
+	if (resp.mem_desc_id >= DCP_MAX_MAPPINGS) {
 		dev_warn(dcp->dev, "DCP overflowed mapping table, ignoring");
+		resp.dva_size = 0;
+		resp.mem_desc_id = 0;
 		return resp;
 	}
+	id = resp.mem_desc_id;
+	set_bit(id, dcp->memdesc_map);
 
-	buf = dma_alloc_coherent(dcp->dev, resp.dva_size, &resp.dva,
+	memdesc = &dcp->memdesc[id];
+
+	memdesc->size = resp.dva_size;
+	memdesc->buf = dma_alloc_coherent(dcp->dev, memdesc->size, &memdesc->dva,
 				 GFP_KERNEL);
 
-	dma_get_sgtable(dcp->dev, &dcp->mappings[resp.mem_desc_id], buf,
-			resp.dva, resp.dva_size);
-	resp.dva |= dcp->asc_dram_mask;
+	dma_get_sgtable(dcp->dev, &memdesc->map, memdesc->buf,
+			memdesc->dva, memdesc->size);
+	resp.dva = memdesc->dva;
+
 	return resp;
+}
+
+static u8 dcpep_cb_release_mem_desc(struct apple_dcp *dcp, u32 *mem_desc_id)
+{
+	struct dcp_mem_descriptor *memdesc;
+	u32 id = *mem_desc_id;
+
+	if (id >= DCP_MAX_MAPPINGS) {
+		dev_warn(dcp->dev, "unmap request for out of range mem_desc_id %u",
+				id);
+		return 0;
+	}
+
+	if (!test_and_clear_bit(id, dcp->memdesc_map)) {
+		dev_warn(dcp->dev, "unmap request for unused mem_desc_id %u",
+				id);
+		return 0;
+	}
+
+	memdesc = &dcp->memdesc[id];
+	if (memdesc->buf) {
+
+		dma_free_coherent(dcp->dev, memdesc->size, memdesc->buf,
+				 memdesc->dva);
+
+		memdesc->buf = NULL;
+		memset(&memdesc->map, 0, sizeof(memdesc->map));
+	} else {
+		memdesc->reg = 0;
+	}
+
+	memdesc->size = 0;
+
+	return 1;
 }
 
 /* Validate that the specified region is a display register */
@@ -541,6 +624,7 @@ static struct dcp_map_physical_resp
 dcpep_cb_map_physical(struct apple_dcp *dcp, struct dcp_map_physical_req *req)
 {
 	int size = ALIGN(req->size, 4096);
+	u32 id;
 
 	if (!is_disp_register(dcp, req->paddr, req->paddr + size - 1)) {
 		dev_err(dcp->dev, "refusing to map phys address %llx size %llx",
@@ -548,11 +632,16 @@ dcpep_cb_map_physical(struct apple_dcp *dcp, struct dcp_map_physical_req *req)
 		return (struct dcp_map_physical_resp) { };
 	}
 
+	id = find_first_zero_bit(dcp->memdesc_map, DCP_MAX_MAPPINGS);
+	set_bit(id, dcp->memdesc_map);
+	dcp->memdesc[id].size = size;
+	dcp->memdesc[id].reg = req->paddr;
+
 	return (struct dcp_map_physical_resp) {
 		.dva_size = size,
-		.mem_desc_id = ++dcp->nr_mappings,
+		.mem_desc_id = id,
 		.dva = dma_map_resource(dcp->dev, req->paddr, size,
-					DMA_BIDIRECTIONAL, 0) | dcp->asc_dram_mask,
+					DMA_BIDIRECTIONAL, 0),
 	};
 }
 
@@ -1103,11 +1192,15 @@ TRAMPOLINE_INOUT(trampoline_get_uint_prop, dcpep_cb_get_uint_prop,
 		 struct dcp_get_uint_prop_req, struct dcp_get_uint_prop_resp);
 TRAMPOLINE_INOUT(trampoline_map_piodma, dcpep_cb_map_piodma,
 		 struct dcp_map_buf_req, struct dcp_map_buf_resp);
+TRAMPOLINE_IN(trampoline_unmap_piodma, dcpep_cb_unmap_piodma,
+	      struct dcp_unmap_buf_resp);
 TRAMPOLINE_INOUT(trampoline_allocate_buffer, dcpep_cb_allocate_buffer,
 		 struct dcp_allocate_buffer_req,
 		 struct dcp_allocate_buffer_resp);
 TRAMPOLINE_INOUT(trampoline_map_physical, dcpep_cb_map_physical,
 		 struct dcp_map_physical_req, struct dcp_map_physical_resp);
+TRAMPOLINE_INOUT(trampoline_release_mem_desc, dcpep_cb_release_mem_desc,
+		 u32, u8);
 TRAMPOLINE_INOUT(trampoline_map_reg, dcpep_cb_map_reg, struct dcp_map_reg_req,
 		 struct dcp_map_reg_resp);
 TRAMPOLINE_INOUT(trampoline_read_edt_data, dcpep_cb_read_edt_data,
@@ -1148,6 +1241,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, v
 	[123] = trampoline_prop_chunk,
 	[124] = trampoline_prop_end,
 	[201] = trampoline_map_piodma,
+	[202] = trampoline_unmap_piodma,
 	[206] = trampoline_true, /* match_pmu_service_2 */
 	[207] = trampoline_true, /* match_backlight_service */
 	[208] = trampoline_get_time,
@@ -1163,6 +1257,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, v
 	[415] = trampoline_true, /* sr_set_property_bool */
 	[451] = trampoline_allocate_buffer,
 	[452] = trampoline_map_physical,
+	[456] = trampoline_release_mem_desc,
 	[552] = trampoline_true, /* set_property_dict_0 */
 	[561] = trampoline_true, /* set_property_dict */
 	[563] = trampoline_true, /* set_property_int */
@@ -1767,6 +1862,10 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	if (ret)
 		dev_warn(dev, "failed read 'apple,asc-dram-mask': %d\n", ret);
 	dev_dbg(dev, "'apple,asc-dram-mask': 0x%011llx\n", dcp->asc_dram_mask);
+
+	bitmap_zero(dcp->memdesc_map, DCP_MAX_MAPPINGS);
+	// TDOD: mem_desc IDs start at 1, for simplicity just skip '0' entry
+	set_bit(0, dcp->memdesc_map);
 
 	INIT_WORK(&dcp->vblank_wq, dcp_delayed_vblank);
 
