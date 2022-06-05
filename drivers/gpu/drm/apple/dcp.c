@@ -1197,6 +1197,11 @@ static void dcpep_handle_cb(struct apple_dcp *dcp, enum dcp_context_id context,
 	in = data + sizeof(*hdr);
 	out = in + hdr->in_len;
 
+	// TODO: verify that in_len and out_len match our prototypes
+	// for now just clear the out data to have at least consistant results
+	if (hdr->out_len)
+		memset(out, 0, hdr->out_len);
+
 	depth = dcp_push_depth(&ch->depth);
 	ch->output[depth] = out;
 
