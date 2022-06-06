@@ -177,17 +177,32 @@ apple_connector_detect(struct drm_connector *connector, bool force)
 static void apple_crtc_atomic_enable(struct drm_crtc *crtc,
 				     struct drm_atomic_state *state)
 {
-	struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
-	dcp_poweron(apple_crtc->dcp);
+	struct drm_crtc_state *crtc_state;
+	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+
+	if (crtc_state->active_changed && crtc_state->active) {
+		struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
+		dev_dbg(&apple_crtc->dcp->dev, "%s", __func__);
+		dcp_poweron(apple_crtc->dcp);
+		dev_dbg(&apple_crtc->dcp->dev, "%s finished", __func__);
+	}
 	drm_crtc_vblank_on(crtc);
 }
 
 static void apple_crtc_atomic_disable(struct drm_crtc *crtc,
 				      struct drm_atomic_state *state)
 {
-	struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
+	struct drm_crtc_state *crtc_state;
+	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+
 	drm_crtc_vblank_off(crtc);
-	dcp_poweroff(apple_crtc->dcp);
+
+	if (crtc_state->active_changed && !crtc_state->active) {
+		struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
+		dev_dbg(&apple_crtc->dcp->dev, "%s", __func__);
+		dcp_poweroff(apple_crtc->dcp);
+		dev_dbg(&apple_crtc->dcp->dev, "%s finished", __func__);
+	}
 
 	if (crtc->state->event && !crtc->state->active) {
 		spin_lock_irq(&crtc->dev->event_lock);
