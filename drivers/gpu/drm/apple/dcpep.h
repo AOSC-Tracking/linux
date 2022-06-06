@@ -348,7 +348,7 @@ struct dcp_swap_submit_req {
 	u64 surf_iova[SWAP_SURFACES];
 	u8 unkbool;
 	u64 unkdouble;
-	u32 unkint;
+	u32 clear; // or maybe switch to default fb?
 	u8 swap_null;
 	u8 surf_null[SWAP_SURFACES];
 	u8 unkoutbool_null;
