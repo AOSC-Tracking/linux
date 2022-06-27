@@ -1587,6 +1587,7 @@ static int apple_nvme_probe(struct platform_device *pdev)
 	return 0;
 
 put_dev:
+	apple_nvme_detach_genpd(anv);
 	put_device(anv->dev);
 	return ret;
 }
