@@ -23,19 +23,28 @@
 #include <linux/pm_opp.h>
 #include <linux/slab.h>
 
+#define APPLE_DVFS_PSTATE_BITS_T8103	4
+#define APPLE_DVFS_PSTATE_BITS_T8112	5
+
 #define APPLE_DVFS_CMD			0x20
 #define APPLE_DVFS_CMD_BUSY		BIT(31)
 #define APPLE_DVFS_CMD_SET		BIT(25)
-#define APPLE_DVFS_CMD_PS2		GENMASK(15, 12)
-#define APPLE_DVFS_CMD_PS1		GENMASK(3, 0)
+#define APPLE_DVFS_CMD_PS2		GENMASK(16, 12)
+#define APPLE_DVFS_CMD_PS1		GENMASK(4, 0)
 
 /* Same timebase as CPU counter (24MHz) */
 #define APPLE_DVFS_LAST_CHG_TIME	0x38
 
-#define APPLE_DVFS_STATUS		0x50
-#define APPLE_DVFS_STATUS_CUR_PS	GENMASK(7, 4)
-#define APPLE_DVFS_STATUS_TGT_PS	GENMASK(3, 0)
-
+/*
+ * Apple ran out of bits and had to shift this in T8112...
+ */
+#define APPLE_DVFS_STATUS			0x50
+#define APPLE_DVFS_STATUS_CUR_PS_T8103		GENMASK(7, 4)
+#define APPLE_DVFS_STATUS_CUR_PS_SHIFT_T8103	4
+#define APPLE_DVFS_STATUS_TGT_PS_T8103		GENMASK(3, 0)
+#define APPLE_DVFS_STATUS_CUR_PS_T8112		GENMASK(9, 5)
+#define APPLE_DVFS_STATUS_CUR_PS_SHIFT_T8112	5
+#define APPLE_DVFS_STATUS_TGT_PS_T8112		GENMASK(4, 0)
 /*
  * Div is +1, base clock is 12MHz on existing SoCs.
  * For documentation purposes. We use the OPP table to
@@ -46,14 +55,16 @@
 #define APPLE_DVFS_PLL_FACTOR_MULT	GENMASK(31, 16)
 #define APPLE_DVFS_PLL_FACTOR_DIV	GENMASK(15, 0)
 
+struct apple_soc_cpufreq_info {
+	u64 max_pstate;
+	u64 cur_pstate_mask;
+	u64 cur_pstate_shift;
+};
+
 struct apple_cpu_priv {
 	struct device *cpu_dev;
 	void __iomem *reg_base;
-};
-
-struct apple_soc_cpufreq_priv {
-	struct device *dev;
-	void __iomem *reg_base;
+	const struct apple_soc_cpufreq_info *info;
 };
 
 #define APPLE_DVFS_TRANSITION_TIMEOUT 100
@@ -64,9 +75,20 @@ static unsigned int apple_soc_cpufreq_get_rate(unsigned int cpu)
 {
 	struct cpufreq_policy *policy = cpufreq_cpu_get_raw(cpu);
 	struct apple_cpu_priv *priv = policy->driver_data;
-	u64 reg = readq_relaxed(priv->reg_base + APPLE_DVFS_STATUS);
-	unsigned int pstate = FIELD_GET(APPLE_DVFS_STATUS_CUR_PS, reg);
+	unsigned int pstate;
 	unsigned int i;
+
+	if (priv->info->cur_pstate_mask) {
+		u64 reg = readq_relaxed(priv->reg_base + APPLE_DVFS_STATUS);
+		pstate = (reg & priv->info->cur_pstate_mask) >>  priv->info->cur_pstate_shift;
+	} else {
+		/*
+		 * For the fallback case we might not know the layout of DVFS_STATUS,
+		 * so just use the command register value (which ignores boost limitations).
+		 */
+		u64 reg = readq_relaxed(priv->reg_base + APPLE_DVFS_CMD);
+		pstate = FIELD_GET(APPLE_DVFS_CMD_PS1, reg);
+	}
 
 	for (i = 0; policy->freq_table[i].frequency != CPUFREQ_TABLE_END; i++)
 		if (policy->freq_table[i].driver_data == pstate)
@@ -83,6 +105,10 @@ static int apple_soc_cpufreq_set_target(struct cpufreq_policy *policy,
 	struct apple_cpu_priv *priv = policy->driver_data;
 	unsigned int pstate = policy->freq_table[index].driver_data;
 	u64 reg;
+
+	/* Fallback for newer SoCs */
+	if (index > priv->info->max_pstate)
+		index = priv->info->max_pstate;
 
 	if (readq_poll_timeout_atomic(priv->reg_base + APPLE_DVFS_CMD, reg,
 				      !(reg & APPLE_DVFS_CMD_BUSY), 2,
@@ -171,6 +197,7 @@ static int apple_soc_cpufreq_init(struct cpufreq_policy *policy)
 	struct device *cpu_dev;
 	struct apple_cpu_priv *priv;
 	struct cpufreq_frequency_table *freq_table;
+	struct platform_device *pdev = cpufreq_get_driver_data();
 
 	cpu_dev = get_cpu_device(policy->cpu);
 	if (!cpu_dev) {
@@ -206,6 +233,12 @@ static int apple_soc_cpufreq_init(struct cpufreq_policy *policy)
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
 		ret = -ENOMEM;
+		goto out_free_opp;
+	}
+
+	priv->info = of_device_get_match_data(&pdev->dev);
+	if (!priv->info) {
+		ret = -ENODEV;
 		goto out_free_opp;
 	}
 
@@ -295,6 +328,8 @@ static int apple_soc_cpufreq_probe(struct platform_device *pdev)
 {
 	int ret;
 
+	apple_soc_cpufreq_driver.driver_data = pdev;
+
 	ret = cpufreq_register_driver(&apple_soc_cpufreq_driver);
 	if (ret)
 		return dev_err_probe(&pdev->dev, ret, "registering cpufreq failed\n");
@@ -309,8 +344,36 @@ static int apple_soc_cpufreq_remove(struct platform_device *pdev)
 	return 0;
 }
 
+const struct apple_soc_cpufreq_info soc_t8103_info = {
+	.max_pstate = 15,
+	.cur_pstate_mask = APPLE_DVFS_STATUS_CUR_PS_T8103,
+	.cur_pstate_shift = APPLE_DVFS_STATUS_CUR_PS_SHIFT_T8103,
+};
+
+const struct apple_soc_cpufreq_info soc_t8112_info = {
+	.max_pstate = 31,
+	.cur_pstate_mask = APPLE_DVFS_STATUS_CUR_PS_T8112,
+	.cur_pstate_shift = APPLE_DVFS_STATUS_CUR_PS_SHIFT_T8112,
+};
+
+const struct apple_soc_cpufreq_info soc_default_info = {
+	.max_pstate = 15,
+	.cur_pstate_mask = 0, /* fallback */
+};
+
 static const struct of_device_id apple_soc_cpufreq_of_match[] = {
-	{ .compatible = "apple,soc-cpufreq" },
+	{
+		.compatible = "apple,t8103-soc-cpufreq",
+		.data = &soc_t8103_info,
+	},
+	{
+		.compatible = "apple,t8112-cpufreq",
+		.data = &soc_t8112_info,
+	},
+	{
+		.compatible = "apple,soc-cpufreq",
+		.data = &soc_default_info,
+	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, apple_soc_cpufreq_of_match);
