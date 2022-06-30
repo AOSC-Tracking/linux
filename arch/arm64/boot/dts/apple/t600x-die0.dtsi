@@ -7,7 +7,7 @@
  */
 
 	cpufreq_hw: cpufreq@210e20000 {
-		compatible = "apple,t6000-soc-cpufreq", "apple,soc-cpufreq";
+		compatible = "apple,t6000-soc-cpufreq", "apple,t8103-soc-cpufreq", "apple,soc-cpufreq";
 		#freq-domain-cells = <1>;
 	};
 
