@@ -96,6 +96,7 @@ static int spmi_write_cmd(struct spmi_controller *ctrl,
     struct apple_spmi *spmi;
 	u32 spmi_cmd = opc|slave_id<<8|slave_addr<<16|(bc-1)|(1<<15);
 	volatile u32 rsp;
+	volatile u32 status;
 	size_t i=0,j;
 
 	spmi = spmi_controller_get_drvdata(ctrl);
@@ -111,12 +112,21 @@ static int spmi_write_cmd(struct spmi_controller *ctrl,
 		write_reg(spmi_cmd, spmi, SPMI_CMD_REG);
 	}
 
-	/* Read SPMI reply status */
-	/* do we need this while loop ?
-		if yes what for ? */
+	/* Wait for Rx FIFO to have something */
+	/* Quite ugly msleep, need to find a better way to do it */
+	i=0;
 	do {
-		rsp=read_reg(spmi, SPMI_RSP_REG);
-	} while (rsp==0);
+		status=read_reg(spmi, SPMI_STATUS_REG);
+		msleep(10);
+		i+=1;
+	} while ((status & SPMI_RX_FIFO_EMPTY) && i<5);
+
+	if(i>=5){
+		dev_err(&ctrl->dev,"spmi_write_cmd:took to long to get the status");
+		return -1;
+	}
+
+	rsp = read_reg(spmi, SPMI_RSP_REG);
 
 	return 0;
 }
