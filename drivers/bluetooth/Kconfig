@@ -274,6 +274,18 @@ config BT_HCIBCM203X
 	  Say Y here to compile support for HCI BCM203x devices into the
 	  kernel or say M to compile it as module (bcm203x).
 
+
+config BT_HCIBCM43XX
+	tristate "HCI BCM43xx PCI driver"
+	depends on PCI
+	default ARCH_APPLE
+	help
+	  Support for Broadcom BCM43xx bluetooth chipsets attached over PCI,
+	  which are usually found in Apple machines.
+
+	  Say Y here to compile support for HCI BCM43xx devices into the
+	  kernel or say M to compile it as module (bcm43xx).
+
 config BT_HCIBPA10X
 	tristate "HCI BPA10x USB driver"
 	depends on USB
