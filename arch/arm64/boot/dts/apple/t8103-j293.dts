@@ -21,6 +21,10 @@
 	brcm,board-type = "apple,honshu";
 };
 
+&bluetooth0 {
+	brcm,board-type = "apple,honshu";
+};
+
 /*
  * Provide labels for the USB type C ports.
  */

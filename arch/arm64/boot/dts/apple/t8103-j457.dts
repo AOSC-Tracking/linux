@@ -25,6 +25,10 @@
 	brcm,board-type = "apple,santorini";
 };
 
+&bluetooth0 {
+	brcm,board-type = "apple,santorini";
+};
+
 /*
  * Provide labels for the USB type C ports.
  */
