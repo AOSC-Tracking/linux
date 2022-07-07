@@ -834,7 +834,7 @@ static int apple_probe(struct hid_device *hdev,
 	struct apple_sc *asc;
 	int ret;
 
-	if (id->bus == BUS_SPI && id->vendor == SPI_VENDOR_ID_APPLE &&
+	if ((id->bus == BUS_SPI || id->bus == BUS_HOST) && id->vendor == SPI_VENDOR_ID_APPLE &&
 	    hdev->type != HID_TYPE_SPI_KEYBOARD)
 		return -ENODEV;
 
@@ -1081,6 +1081,8 @@ static const struct hid_device_id apple_devices[] = {
 		.driver_data = APPLE_HAS_FN | APPLE_ISO_TILDE_QUIRK },
 	{ HID_SPI_DEVICE(SPI_VENDOR_ID_APPLE, HID_ANY_ID),
 		.driver_data = APPLE_HAS_FN },
+	{ HID_DEVICE(BUS_HOST, HID_GROUP_ANY, HOST_VENDOR_ID_APPLE,
+                     HID_ANY_ID), .driver_data = 0 },
 
 	{ }
 };
