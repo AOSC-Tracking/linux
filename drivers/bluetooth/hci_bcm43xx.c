@@ -1413,7 +1413,7 @@ static int bcm43xx_prepare_rings(struct bcm43xx_data *bcm43xx)
 	 * mapped_payload_size because the largest ACL packet doesn't
 	 * fit inside the largest possible footer
 	 */
-	bcm43xx->acl_h2d_ring.mapped_payload_size = HCI_MAX_FRAME_SIZE;
+	bcm43xx->acl_h2d_ring.mapped_payload_size = HCI_MAX_FRAME_SIZE + 4;
 	bcm43xx->acl_h2d_ring.completion_ring = BCM43XX_ACK_RING_HCI_ACL;
 	bcm43xx->acl_h2d_ring.n_entries = 128;
 
@@ -1421,7 +1421,7 @@ static int bcm43xx_prepare_rings(struct bcm43xx_data *bcm43xx)
 	bcm43xx->acl_d2h_ring.doorbell = BCM43XX_DOORBELL_ACL_D2H;
 	bcm43xx->acl_d2h_ring.completion_ring = BCM43XX_EVENT_RING_HCI_ACL;
 	bcm43xx->acl_d2h_ring.d2h_buffers_only = true;
-	bcm43xx->acl_d2h_ring.mapped_payload_size = HCI_MAX_FRAME_SIZE;
+	bcm43xx->acl_d2h_ring.mapped_payload_size = HCI_MAX_FRAME_SIZE + 4;
 	bcm43xx->acl_d2h_ring.n_entries = 128;
 
 	/*
