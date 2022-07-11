@@ -80,8 +80,7 @@ enum bcm43xx_chip {
 #define BCM43XX_PCIECFG_UNK_CTRL 0x88
 
 /* BAR0 */
-#define BCM43XX_BAR0_OTP_OFFSET 0x4120
-#define BCM43XX_OTP_SIZE 0xe0
+#define BCM43XX_MAX_OTP_SIZE 0x100
 #define BCM43XX_OTP_SYS_VENDOR 0x15
 #define BCM43XX_OTP_CIS 0x80
 #define BCM43XX_OTP_VENDOR_HDR 0x00000008
@@ -356,6 +355,9 @@ struct bcm43xx_hw {
 	u32 bar0_window0;
 	u32 bar0_window1;
 	u32 bar0_window5;
+
+	u32 otp_offset;
+	u32 otp_size;
 
 	bool has_bar0_window5;
 	bool m2m_reset_on_ss_reset_disabled;
@@ -1706,22 +1708,22 @@ static int bcm43xx_parse_otp_sys_vendor(struct bcm43xx_data *bcm43xx, u8 *otp,
 
 static int bcm43xx_read_otp(struct bcm43xx_data *bcm43xx)
 {
-	u8 otp[BCM43XX_OTP_SIZE];
+	u8 otp[BCM43XX_MAX_OTP_SIZE];
 	int i;
 	int ret = -ENOENT;
 
-	for (i = 0; i < BCM43XX_OTP_SIZE; ++i)
-		otp[i] = ioread8(bcm43xx->bar0 + BCM43XX_BAR0_OTP_OFFSET + i);
+	for (i = 0; i < bcm43xx->hw->otp_size; ++i)
+		otp[i] = ioread8(bcm43xx->bar0 + bcm43xx->hw->otp_offset + i);
 
 	i = 0;
-	while (i < (BCM43XX_OTP_SIZE - 1)) {
+	while (i < (bcm43xx->hw->otp_size - 1)) {
 		u8 type = otp[i];
 		u8 length = otp[i + 1];
 
 		if (type == 0)
 			break;
 
-		if ((i + 2 + length) > BCM43XX_OTP_SIZE)
+		if ((i + 2 + length) > bcm43xx->hw->otp_size)
 			break;
 
 		switch (type) {
@@ -1956,6 +1958,8 @@ static const struct bcm43xx_hw bcm43xx_hw_variants[] = {
 		.name = "4377",
 		.bar0_window0 = 0x1800b000,
 		.bar0_window1 = 0x1810c000,
+		.otp_offset = 0x4120,
+		.otp_size = 0xe0,
 		.default_board_type = "formosa",
 	},
 
@@ -1964,6 +1968,8 @@ static const struct bcm43xx_hw bcm43xx_hw_variants[] = {
 		.bar0_window0 = 0x18002000,
 		.bar0_window1 = 0x1810a000,
 		.bar0_window5 = 0x18107000,
+		.otp_offset = 0x4120,
+		.otp_size = 0xe0,
 		.has_bar0_window5 = true,
 		.send_calibration = bcm4378_send_calibration,
 	},
@@ -1973,6 +1979,8 @@ static const struct bcm43xx_hw bcm43xx_hw_variants[] = {
 		.bar0_window0 = 0x18002000,
 		.bar0_window1 = 0x18109000,
 		.bar0_window5 = 0x18106000,
+		.otp_offset = 0x413c,
+		.otp_size = 0xe0,
 		.has_bar0_window5 = true,
 		.m2m_reset_on_ss_reset_disabled = true,
 		.send_calibration = bcm4387_send_calibration,
