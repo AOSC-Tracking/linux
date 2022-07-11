@@ -308,7 +308,7 @@ struct bcm43xx_ring_state {
 struct bcm43xx_transfer_ring {
 	enum bcm43xx_transfer_ring_id ring_id;
 	enum bcm43xx_doorbell doorbell;
-	u16 payload_size;
+	size_t payload_size;
 	size_t mapped_payload_size;
 	u8 completion_ring;
 	u16 n_entries;
@@ -642,8 +642,14 @@ static int bcm43xx_enqueue(struct bcm43xx_data *bcm43xx,
 	int ret, msgid;
 	DECLARE_COMPLETION_ONSTACK(event);
 
-	if (len > ring->payload_size && len > ring->mapped_payload_size)
+	if (len > ring->payload_size && len > ring->mapped_payload_size) {
+		dev_warn(
+			&bcm43xx->pdev->dev,
+			"payload len %zu is too large for ring %d (max is %zu or %zu)\n",
+			len, ring->ring_id, ring->payload_size,
+			ring->mapped_payload_size);
 		return -EINVAL;
+	}
 	if (wait && !ring->allow_wait)
 		return -EINVAL;
 	if (ring->virtual)
@@ -660,12 +666,17 @@ static int bcm43xx_enqueue(struct bcm43xx_data *bcm43xx,
 	new_head = (head + 1) % ring->n_entries;
 
 	if (new_head == tail) {
+		dev_warn(&bcm43xx->pdev->dev,
+			 "can't send message because ring %d is full\n",
+			 ring->ring_id);
 		ret = -EINVAL;
 		goto out;
 	}
 
 	msgid = bitmap_find_free_region(ring->msgids, ring->n_entries, 0);
 	if (msgid < 0) {
+		dev_warn(&bcm43xx->pdev->dev,
+			 "can't find message id for ring %d\n", ring->ring_id);
 		ret = -EINVAL;
 		goto out;
 	}
