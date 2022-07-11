@@ -51,7 +51,7 @@ static int ac_power_mode_map[] = {
 struct macsmc_reboot {
 	struct device *dev;
 	struct apple_smc *smc;
-	struct sys_off_handler sys_off;
+	struct notifier_block reboot_notify;
 
 	union {
 		struct macsmc_reboot_nvmem nvm;
@@ -139,7 +139,7 @@ static DEVICE_ATTR(ac_power_mode, 0644, macsmc_ac_power_mode_show,
  * 'pane' - panic end
  */
 
-static void macsmc_power_off(struct power_off_data *data)
+static int macsmc_power_off(struct sys_off_data *data)
 {
 	struct macsmc_reboot *reboot = data->cb_data;
 
@@ -151,9 +151,11 @@ static void macsmc_power_off(struct power_off_data *data)
 		mdelay(100);
 		WARN_ON(1);
 	}
+
+	return NOTIFY_OK;
 }
 
-static void macsmc_restart(struct restart_data *data)
+static int macsmc_restart(struct sys_off_data *data)
 {
 	struct macsmc_reboot *reboot = data->cb_data;
 
@@ -165,15 +167,17 @@ static void macsmc_restart(struct restart_data *data)
 		mdelay(100);
 		WARN_ON(1);
 	}
+
+	return NOTIFY_OK;
 }
 
-static void macsmc_reboot_prepare(struct reboot_prep_data *data)
+static int macsmc_reboot_notify(struct notifier_block *this, unsigned long action, void *data)
 {
-	struct macsmc_reboot *reboot = data->cb_data;
+	struct macsmc_reboot *reboot = container_of(this, struct macsmc_reboot, reboot_notify);
 	u32 val;
 	u8 shutdown_flag;
 
-	switch (data->mode) {
+	switch (action) {
 		case SYS_RESTART:
 			val = SMC_KEY(rest);
 			shutdown_flag = 0;
@@ -183,7 +187,7 @@ static void macsmc_reboot_prepare(struct reboot_prep_data *data)
 			shutdown_flag = 1;
 			break;
 		default:
-			return;
+			return NOTIFY_DONE;
 	}
 
 	dev_info(reboot->dev, "Preparing for reboot (%p4ch)\n", &val);
@@ -206,6 +210,7 @@ static void macsmc_reboot_prepare(struct reboot_prep_data *data)
 	    nvmem_cell_set_u8(reboot->nvm.shutdown_flag, shutdown_flag) < 0)
 		dev_err(reboot->dev, "Failed to write shutdown_flag\n");
 
+	return NOTIFY_OK;
 }
 
 static void macsmc_power_init_error_counts(struct macsmc_reboot *reboot)
@@ -283,15 +288,21 @@ static int macsmc_reboot_probe(struct platform_device *pdev)
 	/* Display and clear the error counts */
 	macsmc_power_init_error_counts(reboot);
 
-	reboot->sys_off.reboot_prepare_cb = macsmc_reboot_prepare;
-	reboot->sys_off.restart_cb = macsmc_restart;
-	reboot->sys_off.power_off_cb = macsmc_power_off;
-	reboot->sys_off.restart_priority = RESTART_PRIO_HIGH;
-	reboot->sys_off.cb_data = reboot;
+	reboot->reboot_notify.notifier_call = macsmc_reboot_notify;
 
-	ret = devm_register_sys_off_handler(&pdev->dev, &reboot->sys_off);
+	ret = devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_POWER_OFF, SYS_OFF_PRIO_HIGH,
+					    macsmc_power_off, reboot);
 	if (ret)
-		return dev_err_probe(&pdev->dev, ret, "Failed to register sys-off handler\n");
+		return dev_err_probe(&pdev->dev, ret, "Failed to register power-off handler\n");
+
+	ret = devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_RESTART, SYS_OFF_PRIO_HIGH,
+					    macsmc_restart, reboot);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "Failed to register restart handler\n");
+
+	ret = devm_register_reboot_notifier(&pdev->dev, &reboot->reboot_notify);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "Failed to register reboot notifier\n");
 
 	dev_info(&pdev->dev, "Handling reboot and poweroff requests via SMC\n");
 
