@@ -328,7 +328,7 @@ static int macaudio_probe(struct snd_soc_card *card)
 
 	ma->pin.pin = "Headphones";
 	ma->pin.mask = SND_JACK_HEADSET | SND_JACK_HEADPHONE;
-	ret = snd_soc_card_jack_new(card, ma->pin.pin,
+	ret = snd_soc_card_jack_new_pins(card, ma->pin.pin,
 			SND_JACK_HEADSET |
 			SND_JACK_HEADPHONE |
 			SND_JACK_BTN_0 | SND_JACK_BTN_1 |
