@@ -117,6 +117,275 @@
 	.endif
 	.endm
 
+	.macro	parse_vr var vr
+	\var	= -1
+	.ifc	\vr, $vr0
+	\var	= 0
+	.endif
+	.ifc	\vr, $vr1
+	\var	= 1
+	.endif
+	.ifc	\vr, $vr2
+	\var	= 2
+	.endif
+	.ifc	\vr, $vr3
+	\var	= 3
+	.endif
+	.ifc	\vr, $vr4
+	\var	= 4
+	.endif
+	.ifc	\vr, $vr5
+	\var	= 5
+	.endif
+	.ifc	\vr, $vr6
+	\var	= 6
+	.endif
+	.ifc	\vr, $vr7
+	\var	= 7
+	.endif
+	.ifc	\vr, $vr8
+	\var	= 8
+	.endif
+	.ifc	\vr, $vr9
+	\var	= 9
+	.endif
+	.ifc	\vr, $vr10
+	\var	= 10
+	.endif
+	.ifc	\vr, $vr11
+	\var	= 11
+	.endif
+	.ifc	\vr, $vr12
+	\var	= 12
+	.endif
+	.ifc	\vr, $vr13
+	\var	= 13
+	.endif
+	.ifc	\vr, $vr14
+	\var	= 14
+	.endif
+	.ifc	\vr, $vr15
+	\var	= 15
+	.endif
+	.ifc	\vr, $vr16
+	\var	= 16
+	.endif
+	.ifc	\vr, $vr17
+	\var	= 17
+	.endif
+	.ifc	\vr, $vr18
+	\var	= 18
+	.endif
+	.ifc	\vr, $vr19
+	\var	= 19
+	.endif
+	.ifc	\vr, $vr20
+	\var	= 20
+	.endif
+	.ifc	\vr, $vr21
+	\var	= 21
+	.endif
+	.ifc	\vr, $vr22
+	\var	= 22
+	.endif
+	.ifc	\vr, $vr23
+	\var	= 23
+	.endif
+	.ifc	\vr, $vr24
+	\var	= 24
+	.endif
+	.ifc	\vr, $vr25
+	\var	= 25
+	.endif
+	.ifc	\vr, $vr26
+	\var	= 26
+	.endif
+	.ifc	\vr, $vr27
+	\var	= 27
+	.endif
+	.ifc	\vr, $vr28
+	\var	= 28
+	.endif
+	.ifc	\vr, $vr29
+	\var	= 29
+	.endif
+	.ifc	\vr, $vr30
+	\var	= 30
+	.endif
+	.ifc	\vr, $vr31
+	\var	= 31
+	.endif
+	.endm
+
+	.macro	parse_scr var r
+	\var	= -1
+	.ifc	\r, $scr0
+	\var	= 0
+	.endif
+	.ifc	\r, $scr1
+	\var	= 1
+	.endif
+	.ifc	\r, $scr2
+	\var	= 2
+	.endif
+	.ifc	\r, $scr3
+	\var	= 3
+	.endif
+	.iflt	\var
+	.error	"Unable to parse register name \r"
+	.endif
+	.endm
+
+	.macro	parse_xr var xr
+	\var	= -1
+	.ifc	\xr, $xr0
+	\var	= 0
+	.endif
+	.ifc	\xr, $xr1
+	\var	= 1
+	.endif
+	.ifc	\xr, $xr2
+	\var	= 2
+	.endif
+	.ifc	\xr, $xr3
+	\var	= 3
+	.endif
+	.ifc	\xr, $xr4
+	\var	= 4
+	.endif
+	.ifc	\xr, $xr5
+	\var	= 5
+	.endif
+	.ifc	\xr, $xr6
+	\var	= 6
+	.endif
+	.ifc	\xr, $xr7
+	\var	= 7
+	.endif
+	.ifc	\xr, $xr8
+	\var	= 8
+	.endif
+	.ifc	\xr, $xr9
+	\var	= 9
+	.endif
+	.ifc	\xr, $xr10
+	\var	= 10
+	.endif
+	.ifc	\xr, $xr11
+	\var	= 11
+	.endif
+	.ifc	\xr, $xr12
+	\var	= 12
+	.endif
+	.ifc	\xr, $xr13
+	\var	= 13
+	.endif
+	.ifc	\xr, $xr14
+	\var	= 14
+	.endif
+	.ifc	\xr, $xr15
+	\var	= 15
+	.endif
+	.ifc	\xr, $xr16
+	\var	= 16
+	.endif
+	.ifc	\xr, $xr17
+	\var	= 17
+	.endif
+	.ifc	\xr, $xr18
+	\var	= 18
+	.endif
+	.ifc	\xr, $xr19
+	\var	= 19
+	.endif
+	.ifc	\xr, $xr20
+	\var	= 20
+	.endif
+	.ifc	\xr, $xr21
+	\var	= 21
+	.endif
+	.ifc	\xr, $xr22
+	\var	= 22
+	.endif
+	.ifc	\xr, $xr23
+	\var	= 23
+	.endif
+	.ifc	\xr, $xr24
+	\var	= 24
+	.endif
+	.ifc	\xr, $xr25
+	\var	= 25
+	.endif
+	.ifc	\xr, $xr26
+	\var	= 26
+	.endif
+	.ifc	\xr, $xr27
+	\var	= 27
+	.endif
+	.ifc	\xr, $xr28
+	\var	= 28
+	.endif
+	.ifc	\xr, $xr29
+	\var	= 29
+	.endif
+	.ifc	\xr, $xr30
+	\var	= 30
+	.endif
+	.ifc	\xr, $xr31
+	\var	= 31
+	.endif
+	.iflt	\var
+	.error	"Unable to parse register name \r"
+	.endif
+	.endm
+
+	/* FTOP <- ptr(imm) */
+	.macro	x86mttop ptr
+	.word ((0x70 << 8) | (\ptr << 5))
+	.endm
+
+	/* GPR <- FTOP */
+	.macro	x86mftop gpr
+	parse_r __gpr, \gpr
+	.word ((0x3a0 << 5) | __gpr)
+	.endm
+
+	/* open top mode */
+	.macro	x86settm
+	.word (0x8008)
+	.endm
+
+	/* close top mode */
+	.macro	x86clrtm
+	.word (0x8028)
+	.endm
+
+	/* FLAGS <- GPR & mask(imm) */
+	.macro	x86mtflag gpr mask
+	parse_r __gpr, \gpr
+	.word ((0x17 << 18) | (\mask << 10) | (1 << 5) | __gpr)
+	.endm
+
+	/* GPR <- FLAGS & mask(imm) */
+	.macro	x86mfflag gpr mask
+	parse_r __gpr, \gpr
+	.word ((0x17 << 18) | (\mask << 10) | (0 << 5) | __gpr)
+	.endm
+
+	/* SCR <- GPR */
+	.macro	movgr2scr scr gpr
+	parse_scr __scr, \scr
+	parse_r   __gpr, \gpr
+	.word ((0x2 << 10) | (__gpr << 5) | __scr)
+	.endm
+
+	/* GPR <- SCR */
+	.macro	movscr2gr gpr scr
+	parse_r	  __gpr, \gpr
+	parse_scr __scr, \scr
+	.word ((0x3 << 10) | (__scr << 5) | __gpr)
+	.endm
+
 	.macro	cpu_save_nonscratch thread
 	stptr.d	s0, \thread, THREAD_REG23
 	stptr.d	s1, \thread, THREAD_REG24
@@ -149,11 +418,52 @@
 	.macro fpu_save_csr thread tmp
 	movfcsr2gr	\tmp, fcsr0
 	stptr.w	\tmp, \thread, THREAD_FCSR
+#ifdef CONFIG_CPU_HAS_LBT
+	andi	\tmp, \tmp, FPU_CSR_TM
+	beqz	\tmp, 1f
+	/* save ftop */
+	x86mftop	\tmp
+	st.b	\tmp, \thread, THREAD_FTOP
+	/* Since LSX/LASX is not controlled by TM, we need
+	 * to turn off TM before each context switch to ensure
+	 * that the order of FPR in memory is independent of TM.
+	 */
+	x86clrtm
+	1:
+#endif
 	.endm
 
-	.macro fpu_restore_csr thread tmp
-	ldptr.w	\tmp, \thread, THREAD_FCSR
-	movgr2fcsr	fcsr0, \tmp
+	.macro fpu_restore_csr thread tmp0 tmp1
+	ldptr.w	\tmp0, \thread, THREAD_FCSR
+	movgr2fcsr	fcsr0, \tmp0
+#ifdef CONFIG_CPU_HAS_LBT
+	/* TM bit is always 0 if LBT not supported */
+	andi	\tmp0, \tmp0, FPU_CSR_TM
+	beqz	\tmp0, 1f
+	/* restore ftop */
+	ld.b	\tmp0, \thread, THREAD_FTOP
+	andi	\tmp0, \tmp0, 0x7
+	la.pcrel	\tmp1, 2f
+	alsl.d	\tmp1, \tmp0, \tmp1, 3
+	jr	\tmp1
+	2:
+	x86mttop	0
+	b	1f
+	x86mttop	1
+	b	1f
+	x86mttop	2
+	b	1f
+	x86mttop	3
+	b	1f
+	x86mttop	4
+	b	1f
+	x86mttop	5
+	b	1f
+	x86mttop	6
+	b	1f
+	x86mttop	7
+	1 :
+#endif
 	.endm
 
 	.macro fpu_save_cc thread tmp0 tmp1
@@ -353,7 +663,7 @@
 	.macro	lsx_restore_all	thread tmp0 tmp1
 	lsx_restore_data	\thread, \tmp0
 	fpu_restore_cc		\thread, \tmp0, \tmp1
-	fpu_restore_csr		\thread, \tmp0
+	fpu_restore_csr		\thread, \tmp0, \tmp1
 	.endm
 
 	.macro	lsx_save_upper vd base tmp off
@@ -563,7 +873,7 @@
 	.macro	lasx_restore_all thread tmp0 tmp1
 	lasx_restore_data	\thread, \tmp0
 	fpu_restore_cc		\thread, \tmp0, \tmp1
-	fpu_restore_csr		\thread, \tmp0
+	fpu_restore_csr		\thread, \tmp0, \tmp1
 	.endm
 
 	.macro	lasx_save_upper xd base tmp off
@@ -661,6 +971,38 @@
 	lasx_init_upper	$xr29 \tmp
 	lasx_init_upper	$xr30 \tmp
 	lasx_init_upper	$xr31 \tmp
+	.endm
+
+	.macro	lbt_save_scr thread tmp
+	movscr2gr	\tmp, $scr0
+	stptr.d	\tmp, \thread, THREAD_SCR0
+	movscr2gr	\tmp, $scr1
+	stptr.d	\tmp, \thread, THREAD_SCR1
+	movscr2gr	\tmp, $scr2
+	stptr.d	\tmp, \thread, THREAD_SCR2
+	movscr2gr	\tmp, $scr3
+	stptr.d	\tmp, \thread, THREAD_SCR3
+	.endm
+
+	.macro	lbt_restore_scr thread tmp
+	ldptr.d	\tmp, \thread, THREAD_SCR0
+	movgr2scr	$scr0, \tmp
+	ldptr.d	\tmp, \thread, THREAD_SCR1
+	movgr2scr	$scr1, \tmp
+	ldptr.d	\tmp, \thread, THREAD_SCR2
+	movgr2scr	$scr2, \tmp
+	ldptr.d	\tmp, \thread, THREAD_SCR3
+	movgr2scr	$scr3, \tmp
+	.endm
+
+	.macro	lbt_save_eflag thread tmp
+	x86mfflag	\tmp, 0x3f
+	stptr.d	\tmp, \thread, THREAD_EFLAGS
+	.endm
+
+	.macro	lbt_restore_eflag thread tmp
+	ldptr.d	\tmp, \thread, THREAD_EFLAGS
+	x86mtflag	\tmp, 0x3f
 	.endm
 
 .macro not dst src

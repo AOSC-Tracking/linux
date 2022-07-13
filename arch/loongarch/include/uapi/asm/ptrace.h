@@ -44,6 +44,12 @@ struct user_fp_state {
 	uint64_t fpr[32];
 	uint64_t fcc;
 	uint32_t fcsr;
+	uint8_t  ftop;
+};
+
+struct user_lbt_state {
+	uint64_t scr[4];
+	uint32_t eflags;
 };
 
 struct user_lsx_state {

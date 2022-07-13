@@ -555,6 +555,15 @@ config CPU_HAS_LASX
 
 	  If unsure, say Y.
 
+config CPU_HAS_LBT
+	bool "Support for Loongson Binary Translation"
+	help
+	  Loongson Binary Translation (LBT) introduces 4 sketch registers (SCR0 to SCR3),
+	  x86/ARM eflags (eflags) and x87 fpu stack pointer (ftop).
+	  When this option is enabled, the kernel will support allocation and switching
+	  LBT related registers.
+	  If you want to use this feature or Loongson Architecture Translator (LAT), say Y.
+
 config CPU_HAS_PREFETCH
 	bool
 	default y
