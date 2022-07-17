@@ -17,7 +17,8 @@
 #include <linux/of.h>
 #include "../hid-ids.h"
 
-#define COMMAND_TIMEOUT 1000
+#define COMMAND_TIMEOUT_MS 1000
+#define START_TIMEOUT_MS 2000
 
 #define MAX_INTERFACES 16
 
@@ -146,6 +147,10 @@ struct dchid_work {
 struct dchid_iface {
 	struct dockchannel_hid *dchid;
 	struct hid_device *hid;
+	struct workqueue_struct *wq;
+
+	bool creating;
+	struct work_struct create_work;
 
 	int index;
 	const char *name;
@@ -153,7 +158,9 @@ struct dchid_iface {
 
 	uint8_t tx_seq;
 	bool deferred;
+	bool starting;
 	bool open;
+	struct completion ready;
 
 	void *hid_desc;
 	size_t hid_desc_len;
@@ -183,7 +190,8 @@ struct dockchannel_hid {
 
 	u8 pkt_buf[MAX_PKT_SIZE];
 
-	struct workqueue_struct *wq;
+	/* Workqueue to asynchronously create HID devices */
+	struct workqueue_struct *new_iface_wq;
 };
 
 static struct dchid_iface *
@@ -208,9 +216,11 @@ dchid_get_interface(struct dockchannel_hid *dchid, int index, const char *name)
 	iface->dchid = dchid;
 	iface->out_report= -1;
 	init_completion(&iface->out_complete);
+	init_completion(&iface->ready);
 	mutex_init(&iface->out_mutex);
-
-	dev_info(dchid->dev, "Initializing interface %s\n", iface->name);
+	iface->wq = alloc_ordered_workqueue("dchid-%s", WQ_MEM_RECLAIM, iface->name);
+	if (!iface->wq)
+		return NULL;
 
 	/* Comm is not a HID subdevice */
 	if (!strcmp(name, "comm")) {
@@ -308,7 +318,7 @@ static int dchid_cmd(struct dchid_iface *iface, u32 type, u32 req,
 	if (ret < 0)
 		goto done;
 
-	if (!wait_for_completion_timeout(&iface->out_complete, msecs_to_jiffies(1000))) {
+	if (!wait_for_completion_timeout(&iface->out_complete, msecs_to_jiffies(COMMAND_TIMEOUT_MS))) {
 		dev_err(iface->dchid->dev, "output report 0x%x to iface  %d (%s) timed out\n",
 			report_id, iface->index, iface->name);
 		ret = -ETIMEDOUT;
@@ -431,6 +441,49 @@ done:
 	return ret;
 }
 
+static int dchid_start_interface(struct dchid_iface *iface)
+{
+	void *fw;
+	size_t size;
+	int ret;
+
+	if (iface->starting) {
+		dev_warn(iface->dchid->dev, "Interface %s is already starting", iface->name);
+		return -EINPROGRESS;
+	}
+
+	dev_info(iface->dchid->dev, "Starting interface %s\n", iface->name);
+
+	iface->starting = true;
+
+	/* Look to see if we need firmware */
+	ret = dchid_get_firmware(iface, &fw, &size);
+	if (ret < 0)
+		goto err;
+
+	/* Only multi-touch has firmware */
+	if (fw && size) {
+
+		/* Send firmware to the device */
+		dev_info(iface->dchid->dev, "Sending firmware for %s\n", iface->name);
+		ret = dchid_send_firmware(iface, fw, size);
+		if (ret < 0) {
+			dev_err(iface->dchid->dev, "Failed to send %s firmwareS", iface->name);
+			goto err;
+		}
+
+		/* After loading firmware, multi-touch needs a reset */
+		dev_info(iface->dchid->dev, "Resetting %s\n", iface->name);
+		dchid_reset_interface(iface, 0);
+		dchid_reset_interface(iface, 2);
+	}
+
+	return 0;
+
+err:
+	iface->starting = false;
+	return ret;
+}
 
 static int dchid_start(struct hid_device *hdev)
 {
@@ -445,6 +498,18 @@ static void dchid_stop(struct hid_device *hdev)
 static int dchid_open(struct hid_device *hdev)
 {
 	struct dchid_iface *iface = hdev->driver_data;
+	int ret;
+
+	if (!completion_done(&iface->ready)) {
+		ret = dchid_start_interface(iface);
+		if (ret < 0)
+			return ret;
+
+		if (!wait_for_completion_timeout(&iface->ready, msecs_to_jiffies(START_TIMEOUT_MS))) {
+			dev_err(iface->dchid->dev, "iface %s start timed out\n", iface->name);
+			return -ETIMEDOUT;
+		}
+	}
 
 	iface->open = true;
 	return 0;
@@ -506,111 +571,29 @@ static struct hid_ll_driver dchid_ll = {
 	.raw_request = &dchid_raw_request,
 };
 
-static void dchid_init_interface(struct dchid_iface *iface)
+static void dchid_create_interface_work(struct work_struct *ws)
 {
-	void *fw;
-	size_t size;
+	struct dchid_iface *iface = container_of(ws, struct dchid_iface, create_work);
+	struct dockchannel_hid *dchid = iface->dchid;
+	struct hid_device *hid;
+	int ret;
+
+	if (iface->hid) {
+		dev_warn(dchid->dev, "Interface %s already created!\n",
+			 iface->name);
+		return;
+	}
+
+	dev_info(dchid->dev, "New interface %s\n", iface->name);
+
+	/* Start the interface. This is not the entire init process, as firmware is loaded later on device open. */
+	ret = dchid_enable_interface(iface);
+	if (ret < 0) {
+		dev_warn(dchid->dev, "Failed to enable %s: %d\n", iface->name, ret);
+		return;
+	}
 
 	iface->deferred = false;
-
-	/* Enable interface (general) */
-	if (dchid_enable_interface(iface) < 0)
-		return;
-
-	/* Look to see if we need firmware */
-	if (dchid_get_firmware(iface, &fw, &size) < 0)
-		return;
-
-	/* Only multi-touch has firmware */
-	if (!fw || !size)
-		return;
-
-	/* Send it to the device */
-	if (dchid_send_firmware(iface, fw, size) < 0)
-		return;
-
-	/* After loading firmware, multi-touch needs a reset */
-	dchid_reset_interface(iface, 0);
-	dchid_reset_interface(iface, 2);
-}
-
-static void dchid_handle_descriptor(struct dchid_iface *iface, void *hid_desc, size_t desc_len)
-{
-	if (iface->hid) {
-		dev_warn(iface->dchid->dev, "Tried to initialize already started interface %s!\n",
-			 iface->name);
-		return;
-	}
-
-	iface->hid_desc = devm_kmemdup(iface->dchid->dev, hid_desc, desc_len, GFP_KERNEL);
-	if (!iface->hid_desc)
-		return;
-
-	iface->hid_desc_len = desc_len;
-
-	/* We need to enable STM first, since it'll give us the device IDs */
-	if (iface->dchid->id_ready || !strcmp(iface->name, "stm"))
-		dchid_init_interface(iface);
-	else
-		iface->deferred = true;
-}
-
-static void dchid_handle_ready(struct dockchannel_hid *dchid, void *data, size_t length)
-{
-	struct hid_device *hid;
-	struct dchid_iface *iface;
-	int ret;
-	u8 *pkt = data;
-	u8 index;
-	int i;
-
-	if (length < 2) {
-		dev_err(dchid->dev, "Bad length for ready message: %ld\n", length);
-		return;
-	}
-
-	index = pkt[1];
-
-	if (index >= MAX_INTERFACES) {
-		dev_err(dchid->dev, "Got ready notification for bad iface %d\n", index);
-		return;
-	}
-
-	iface = dchid->ifaces[index];
-	if (!iface) {
-		dev_err(dchid->dev, "Got ready notification for unknown iface %d\n", index);
-		return;
-	}
-
-	if (iface->hid) {
-		dev_warn(iface->dchid->dev, "Interface %s already ready!\n",
-			 iface->name);
-		return;
-	}
-
-	/* When STM is ready, grab global device info */
-	if (!strcmp(iface->name, "stm")) {
-		ret = dchid_get_report_cmd(iface, STM_REPORT_ID, &dchid->device_id,
-					   sizeof(dchid->device_id));
-		if (ret < sizeof(dchid->device_id)) {
-			dev_warn(iface->dchid->dev, "Failed to get device ID from STM!\n");
-			/* Fake it and keep going. Things might still work... */
-			memset(&dchid->device_id, 0, sizeof(dchid->device_id));
-			dchid->device_id.vendor_id = HOST_VENDOR_ID_APPLE;
-		}
-		ret = dchid_get_report_cmd(iface, STM_REPORT_SERIAL, dchid->serial,
-					   sizeof(dchid->serial) - 1);
-		if (ret < 0) {
-			dev_warn(iface->dchid->dev, "Failed to get serial from STM!\n");
-			dchid->serial[0] = 0;
-		}
-
-		dchid->id_ready = true;
-		for (i = 0; i < MAX_INTERFACES; i++)
-			if (dchid->ifaces[i] && dchid->ifaces[i]->deferred)
-				dchid_init_interface(dchid->ifaces[i]);
-
-	}
 
 	hid = hid_allocate_device();
 	if (IS_ERR(hid))
@@ -618,7 +601,7 @@ static void dchid_handle_ready(struct dockchannel_hid *dchid, void *data, size_t
 
 	snprintf(hid->name, sizeof(hid->name), "Apple MTP %s", iface->name);
 	snprintf(hid->phys, sizeof(hid->phys), "%s.%d (%s)",
-		 dev_name(iface->dchid->dev), iface->index, iface->name);
+		 dev_name(dchid->dev), iface->index, iface->name);
 	strscpy(hid->uniq, dchid->serial, sizeof(hid->uniq));
 
 	hid->ll_driver = &dchid_ll;
@@ -651,14 +634,100 @@ static void dchid_handle_ready(struct dockchannel_hid *dchid, void *data, size_t
 	hid->dev.parent = iface->dchid->dev;
 	hid->driver_data = iface;
 
+	iface->hid = hid;
+
 	ret = hid_add_device(hid);
 	if (ret < 0) {
+		iface->hid = NULL;
 		hid_destroy_device(hid);
 		dev_warn(iface->dchid->dev, "Failed to register hid device %s", iface->name);
+	}
+}
+
+static int dchid_create_interface(struct dchid_iface *iface)
+{
+	if (iface->creating)
+		return -EBUSY;
+
+	iface->creating = true;
+	INIT_WORK(&iface->create_work, dchid_create_interface_work);
+	return queue_work(iface->dchid->new_iface_wq, &iface->create_work);
+}
+
+static void dchid_handle_descriptor(struct dchid_iface *iface, void *hid_desc, size_t desc_len)
+{
+	if (iface->hid) {
+		dev_warn(iface->dchid->dev, "Tried to initialize already started interface %s!\n",
+			 iface->name);
 		return;
 	}
 
-	iface->hid = hid;
+	iface->hid_desc = devm_kmemdup(iface->dchid->dev, hid_desc, desc_len, GFP_KERNEL);
+	if (!iface->hid_desc)
+		return;
+
+	iface->hid_desc_len = desc_len;
+
+	/* We need to enable STM first, since it'll give us the device IDs */
+	if (iface->dchid->id_ready || !strcmp(iface->name, "stm")) {
+		dchid_create_interface(iface);
+	} else {
+		iface->deferred = true;
+	}
+}
+
+static void dchid_handle_ready(struct dockchannel_hid *dchid, void *data, size_t length)
+{
+	struct dchid_iface *iface;
+	u8 *pkt = data;
+	u8 index;
+	int i, ret;
+
+	if (length < 2) {
+		dev_err(dchid->dev, "Bad length for ready message: %ld\n", length);
+		return;
+	}
+
+	index = pkt[1];
+
+	if (index >= MAX_INTERFACES) {
+		dev_err(dchid->dev, "Got ready notification for bad iface %d\n", index);
+		return;
+	}
+
+	iface = dchid->ifaces[index];
+	if (!iface) {
+		dev_err(dchid->dev, "Got ready notification for unknown iface %d\n", index);
+		return;
+	}
+
+	dev_info(dchid->dev, "Interface %s is now ready\n", iface->name);
+	complete_all(&iface->ready);
+
+	/* When STM is ready, grab global device info */
+	if (!strcmp(iface->name, "stm")) {
+		ret = dchid_get_report_cmd(iface, STM_REPORT_ID, &dchid->device_id,
+					   sizeof(dchid->device_id));
+		if (ret < sizeof(dchid->device_id)) {
+			dev_warn(iface->dchid->dev, "Failed to get device ID from STM!\n");
+			/* Fake it and keep going. Things might still work... */
+			memset(&dchid->device_id, 0, sizeof(dchid->device_id));
+			dchid->device_id.vendor_id = HOST_VENDOR_ID_APPLE;
+		}
+		ret = dchid_get_report_cmd(iface, STM_REPORT_SERIAL, dchid->serial,
+					   sizeof(dchid->serial) - 1);
+		if (ret < 0) {
+			dev_warn(iface->dchid->dev, "Failed to get serial from STM!\n");
+			dchid->serial[0] = 0;
+		}
+
+		dchid->id_ready = true;
+		for (i = 0; i < MAX_INTERFACES; i++) {
+			if (!dchid->ifaces[i] || !dchid->ifaces[i]->deferred)
+				continue;
+			dchid_create_interface(dchid->ifaces[i]);
+		}
+	}
 }
 
 static void dchid_request_gpio(struct dchid_iface *iface, int id, const char *name)
@@ -951,7 +1020,7 @@ static void dchid_handle_packet(void *cookie, size_t avail)
 	memcpy(work->data, dchid->pkt_buf, hdr.length);
 	INIT_WORK(&work->work, dchid_packet_work);
 
-	queue_work(dchid->wq, &work->work);
+	queue_work(iface->wq, &work->work);
 
 done:
 	dockchannel_await(dchid->dc, dchid_handle_packet, dchid, sizeof(struct dchid_hdr));
@@ -1004,16 +1073,15 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 	if (IS_ERR_OR_NULL(dchid->dc)) {
 		return -PTR_ERR(dchid->dc);
 	}
+	dchid->new_iface_wq = alloc_workqueue("dchid-new", WQ_MEM_RECLAIM, 0);
+	if (!dchid->new_iface_wq)
+		return -ENOMEM;
 
 	dchid->comm = dchid_get_interface(dchid, IFACE_COMM, "comm");
 	if (!dchid->comm) {
 		dev_err(dchid->dev, "Failed to initialize comm interface");
 		return -EIO;
 	}
-
-	dchid->wq = alloc_ordered_workqueue("dockchannel-hid-report", WQ_MEM_RECLAIM);
-	if (!dchid->wq)
-		return -ENOMEM;
 
 	dev_info(dchid->dev, "initialized, awaiting packets\n");
 	dockchannel_await(dchid->dc, dchid_handle_packet, dchid, sizeof(struct dchid_hdr));
