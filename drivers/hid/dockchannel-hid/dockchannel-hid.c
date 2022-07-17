@@ -152,7 +152,6 @@ struct dchid_iface {
 	const struct device_node *of_node;
 
 	uint8_t tx_seq;
-	uint8_t rx_seq;
 	bool deferred;
 	bool open;
 
@@ -858,7 +857,7 @@ static void dchid_handle_ack(struct dchid_iface *iface, struct dchid_hdr *hdr, v
 	}
 	if (shdr->flags != iface->out_flags) {
 		dev_err(iface->dchid->dev,
-			"Received unexpected flags 0x%x on ACK channel (expected 0x%x)\n",
+			"Received unexpected flags 0x%x on ACK channel (expFected 0x%x)\n",
 			shdr->flags, iface->out_flags);
 		return;
 	}
@@ -869,7 +868,7 @@ static void dchid_handle_ack(struct dchid_iface *iface, struct dchid_hdr *hdr, v
 	}
 	if (iface->tx_seq != hdr->seq) {
 		dev_err(iface->dchid->dev, "Received ACK with bad seq (expected %d, got %d)\n",
-			iface->rx_seq, hdr->seq);
+			iface->tx_seq, hdr->seq);
 		return;
 	}
 	if (iface->out_report != payload[0]) {
@@ -942,14 +941,6 @@ static void dchid_handle_packet(void *cookie, size_t avail)
 				 hdr.channel);
 			break;
 	}
-
-	if (hdr.seq != iface->rx_seq) {
-		dev_err(dchid->dev, "Received packet out of sequence (expected %d, got %d)\n",
-			iface->rx_seq, hdr.seq);
-		goto done;
-	}
-
-	iface->rx_seq++;
 
 	work = kzalloc(sizeof(*work) + hdr.length, GFP_KERNEL);
 	if (!work)
