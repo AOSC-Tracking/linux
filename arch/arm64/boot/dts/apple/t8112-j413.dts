@@ -74,7 +74,7 @@
 		compatible = "apple,cd321x";
 		reg = <0x3a>;
 		interrupt-parent = <&pinctrl_ap>;
-		interrupts = <174 IRQ_TYPE_LEVEL_LOW>;
+		interrupts = <8 IRQ_TYPE_LEVEL_LOW>;
 		interrupt-names = "irq";
 	};
 };
