@@ -1858,6 +1858,15 @@ static int skl_tplg_be_fill_pipe_params(struct snd_soc_dai *dai,
 					pipe_fmt->bps, params->s_cont,
 					pipe_fmt->channels, pipe_fmt->freq,
 					pipe->direction, dev_type);
+	if (!cfg) {
+		/* Retry with PCM parameters, as the old behavior */
+		cfg = intel_nhlt_get_endpoint_blob(dai->dev, skl->nhlt,
+						mconfig->vbus_id, link_type,
+						params->s_fmt, params->s_cont,
+						params->ch, params->s_freq,
+						params->stream, dev_type);
+	}
+
 	if (cfg) {
 		mconfig->formats_config[SKL_PARAM_INIT].caps_size = cfg->size;
 		mconfig->formats_config[SKL_PARAM_INIT].caps = (u32 *)&cfg->caps;
@@ -1866,6 +1875,8 @@ static int skl_tplg_be_fill_pipe_params(struct snd_soc_dai *dai,
 			mconfig->vbus_id, link_type, params->stream,
 			pipe_fmt->channels, pipe_fmt->freq,
 			pipe_fmt->bps);
+		dev_err(dai->dev, "PCM: ch %d, freq %d, fmt %d\n",
+			params->ch, params->s_freq, params->s_fmt);
 		return -EINVAL;
 	}
 
