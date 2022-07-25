@@ -1864,7 +1864,8 @@ static int skl_tplg_be_fill_pipe_params(struct snd_soc_dai *dai,
 	} else {
 		dev_err(dai->dev, "Blob NULL for id:%d type:%d dirn:%d ch:%d, freq:%d, fmt:%d\n",
 			mconfig->vbus_id, link_type, params->stream,
-			params->ch, params->s_freq, params->s_fmt);
+			pipe_fmt->channels, pipe_fmt->freq,
+			pipe_fmt->bps);
 		return -EINVAL;
 	}
 
