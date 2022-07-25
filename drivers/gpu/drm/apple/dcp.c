@@ -20,6 +20,9 @@
 
 struct apple_dcp;
 
+#define APPLE_DCP_COPROC_CPU_CONTROL	 0x44
+#define APPLE_DCP_COPROC_CPU_CONTROL_RUN BIT(4)
+
 /* Register defines used in bandwidth setup structure */
 #define REG_SCRATCH (0x14)
 #define REG_DOORBELL (0x0)
@@ -68,6 +71,9 @@ struct apple_dcp {
 
 	/* DCP shared memory */
 	void *shmem;
+
+	/* Coprocessor control register */
+	void __iomem *coproc_reg;
 
 	/* Display registers mappable to the DCP */
 	struct resource *disp_registers[MAX_DISP_REGISTERS];
@@ -1301,9 +1307,9 @@ static int dcp_get_disp_regs(struct apple_dcp *dcp)
 static int dcp_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct resource *res;
 	struct apple_dcp *dcp;
 	dma_addr_t shmem_iova;
+	u32 cpu_ctrl;
 	int ret;
 
 	dcp = devm_kzalloc(dev, sizeof(*dcp), GFP_KERNEL);
@@ -1317,9 +1323,9 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "coproc");
-	if (!res)
-		return -EINVAL;
+	dcp->coproc_reg = devm_platform_ioremap_resource_byname(pdev, "coproc");
+	if (IS_ERR(dcp->coproc_reg))
+		return PTR_ERR(dcp->coproc_reg);
 
 	of_platform_default_populate(dev->of_node, NULL, dev);
 
@@ -1334,6 +1340,10 @@ static int dcp_platform_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to find display registers\n");
 		return ret;
 	}
+
+	cpu_ctrl = readl_relaxed(dcp->coproc_reg + APPLE_DCP_COPROC_CPU_CONTROL);
+	writel_relaxed(cpu_ctrl | APPLE_DCP_COPROC_CPU_CONTROL_RUN,
+		       dcp->coproc_reg + APPLE_DCP_COPROC_CPU_CONTROL);
 
 	dcp->rtk = devm_apple_rtkit_init(dev, dcp, "mbox", 0, &rtkit_ops);
 	if (IS_ERR(dcp->rtk))
