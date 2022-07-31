@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright 2021 Alyssa Rosenzweig <alyssa@rosenzweig.io> */
 
+#include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/of_device.h>
@@ -70,6 +71,9 @@ struct apple_dcp {
 
 	/* DCP has crashed */
 	bool crashed;
+
+	/* clock rate request by dcp in */
+	struct clk *clk;
 
 	/* DCP shared memory */
 	void *shmem;
@@ -511,8 +515,7 @@ dcpep_cb_map_physical(struct apple_dcp *dcp, struct dcp_map_physical_req *req)
 
 static u64 dcpep_cb_get_frequency(struct apple_dcp *dcp)
 {
-	/* Pixel clock frequency in Hz (compare: 4K@60 VGA clock 533.250 MHz) */
-	return 533333328;
+	return clk_get_rate(dcp->clk);
 }
 
 static struct dcp_map_reg_resp
@@ -1392,6 +1395,10 @@ static int dcp_platform_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to find display registers\n");
 		return ret;
 	}
+
+	dcp->clk = devm_clk_get(dev, NULL);
+	if (IS_ERR(dcp->clk))
+		return dev_err_probe(dev, PTR_ERR(dcp->clk), "Unable to find clock\n");
 
 	INIT_WORK(&dcp->vblank_wq, dcp_delayed_vblank);
 
