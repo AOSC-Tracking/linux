@@ -707,8 +707,9 @@ static void boot_1_5(struct apple_dcp *dcp, void *out, void *cookie)
 }
 
 /* Use special function signature to defer the ACK */
-static bool dcpep_cb_boot_1(struct apple_dcp *dcp, void *out, void *in)
+static bool dcpep_cb_boot_1(struct apple_dcp *dcp, int tag, void *out, void *in)
 {
+	dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, __func__);
 	dcp_set_create_dfb(dcp, false, boot_1_5, NULL);
 	return false;
 }
@@ -809,9 +810,9 @@ static void dcp_delayed_vblank(struct work_struct *work)
  */
 
 #define TRAMPOLINE_VOID(func, handler)                                         \
-	static bool func(struct apple_dcp *dcp, void *out, void *in)           \
+	static bool func(struct apple_dcp *dcp, int tag, void *out, void *in)  \
 	{                                                                      \
-		dev_dbg(dcp->dev, "received callback %s\n", #handler);         \
+		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);       \
 		handler(dcp);                                                  \
 		return true;                                                   \
 	}
@@ -819,11 +820,11 @@ static void dcp_delayed_vblank(struct work_struct *work)
 #define TRAMPOLINE_IN(func, handler, T_in)                                     \
 	typedef void (*callback_##handler)(struct apple_dcp *, T_in *);        \
                                                                                \
-	static bool func(struct apple_dcp *dcp, void *out, void *in)           \
+	static bool func(struct apple_dcp *dcp, int tag, void *out, void *in)  \
 	{                                                                      \
 		callback_##handler cb = handler;                               \
                                                                                \
-		dev_dbg(dcp->dev, "received callback %s\n", #handler);         \
+		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);       \
 		cb(dcp, in);                                                   \
 		return true;                                                   \
 	}
@@ -831,22 +832,22 @@ static void dcp_delayed_vblank(struct work_struct *work)
 #define TRAMPOLINE_INOUT(func, handler, T_in, T_out)                           \
 	typedef T_out (*callback_##handler)(struct apple_dcp *, T_in *);       \
                                                                                \
-	static bool func(struct apple_dcp *dcp, void *out, void *in)           \
+	static bool func(struct apple_dcp *dcp, int tag, void *out, void *in)  \
 	{                                                                      \
 		T_out *typed_out = out;                                        \
 		callback_##handler cb = handler;                               \
                                                                                \
-		dev_dbg(dcp->dev, "received callback %s\n", #handler);         \
+		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);       \
 		*typed_out = cb(dcp, in);                                      \
 		return true;                                                   \
 	}
 
 #define TRAMPOLINE_OUT(func, handler, T_out)                                   \
-	static bool func(struct apple_dcp *dcp, void *out, void *in)           \
+	static bool func(struct apple_dcp *dcp, int tag, void *out, void *in)  \
 	{                                                                      \
 		T_out *typed_out = out;                                        \
                                                                                \
-		dev_dbg(dcp->dev, "received callback %s\n", #handler);         \
+		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);       \
 		*typed_out = handler(dcp);                                     \
 		return true;                                                   \
 	}
@@ -878,7 +879,7 @@ TRAMPOLINE_OUT(trampoline_get_frequency, dcpep_cb_get_frequency, u64);
 TRAMPOLINE_OUT(trampoline_get_time, dcpep_cb_get_time, u64);
 TRAMPOLINE_IN(trampoline_hotplug, dcpep_cb_hotplug, u64);
 
-bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, void *, void *) = {
+bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, void *) = {
 	[0] = trampoline_true, /* did_boot_signal */
 	[1] = trampoline_true, /* did_power_on_signal */
 	[2] = trampoline_nop, /* will_power_off_signal */
@@ -950,7 +951,7 @@ static void dcpep_handle_cb(struct apple_dcp *dcp, enum dcp_context_id context,
 	depth = dcp_push_depth(&ch->depth);
 	ch->output[depth] = out;
 
-	if (dcpep_cb_handlers[tag](dcp, out, in))
+	if (dcpep_cb_handlers[tag](dcp, tag, out, in))
 		dcp_ack(dcp, context);
 }
 
