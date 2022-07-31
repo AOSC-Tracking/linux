@@ -10,6 +10,7 @@
 #include <linux/iommu.h>
 #include <linux/align.h>
 #include <linux/soc/apple/rtkit.h>
+#include <linux/completion.h>
 
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fourcc.h>
@@ -111,6 +112,11 @@ struct apple_dcp {
 	/* Is the DCP booted? */
 	bool active;
 
+	/* eDP display without DP-HDMI conversion */
+	bool main_display;
+
+	bool ignore_swap_complete;
+
 	/* Modes valid for the connected display */
 	struct dcp_display_mode *modes;
 	unsigned int nr_modes;
@@ -130,6 +136,11 @@ struct apple_dcp {
 struct dcp_fb_reference {
 	struct list_head head;
 	struct drm_framebuffer *fb;
+};
+
+struct dcp_wait_cookie {
+	struct completion done;
+	atomic_t refcount;
 };
 
 /*
@@ -417,9 +428,11 @@ void dcp_drm_crtc_vblank(struct apple_crtc *crtc)
 	spin_unlock_irqrestore(&crtc->base.dev->event_lock, flags);
 }
 
-static void dcpep_cb_swap_complete(struct apple_dcp *dcp)
+static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
+	      struct dc_swap_complete_resp *resp)
 {
-	dcp_drm_crtc_vblank(dcp->crtc);
+	if (!dcp->ignore_swap_complete)
+		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
 static struct dcp_get_uint_prop_resp
@@ -756,6 +769,182 @@ static u64 dcpep_cb_get_time(struct apple_dcp *dcp)
 	return ktime_to_ms(ktime_get_real());
 }
 
+struct dcp_swap_cookie {
+	struct completion done;
+	atomic_t refcount;
+	u32 swap_id;
+};
+
+static void dcp_swap_cleared(struct apple_dcp *dcp, void *data, void *cookie)
+{
+	struct dcp_swap_submit_resp *resp = data;
+
+	if (cookie) {
+		struct dcp_swap_cookie *info = cookie;
+		complete(&info->done);
+		if (atomic_dec_and_test(&info->refcount))
+			kfree(info);
+	}
+
+	if (resp->ret) {
+		dev_err(dcp->dev, "swap_clear failed! status %u\n", resp->ret);
+		dcp_drm_crtc_vblank(dcp->crtc);
+		return;
+	}
+
+	while (!list_empty(&dcp->swapped_out_fbs)) {
+		struct dcp_fb_reference *entry;
+		entry = list_first_entry(&dcp->swapped_out_fbs,
+					 struct dcp_fb_reference, head);
+		if (entry->fb)
+			drm_framebuffer_put(entry->fb);
+		list_del(&entry->head);
+		kfree(entry);
+	}
+}
+
+static void dcp_swap_clear_started(struct apple_dcp *dcp, void *data,
+				   void *cookie)
+{
+	struct dcp_swap_start_resp *resp = data;
+	dcp->swap.swap.swap_id = resp->swap_id;
+
+	if (cookie) {
+		struct dcp_swap_cookie *info = cookie;
+		info->swap_id = resp->swap_id;
+	}
+
+	dcp_swap_submit(dcp, false, &dcp->swap, dcp_swap_cleared, cookie);
+}
+
+static void dcp_on_final(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	struct dcp_wait_cookie *wait = cookie;
+
+	if (wait) {
+		complete(&wait->done);
+		if (atomic_dec_and_test(&wait->refcount))
+			kfree(wait);
+	}
+}
+
+static void dcp_on_set_parameter(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	struct dcp_set_parameter_dcp param = {
+		.param = 14,
+		.value = { 0 },
+		.count = 1,
+	};
+
+	dcp_set_parameter_dcp(dcp, false, &param, dcp_on_final, cookie);
+}
+
+void dcp_poweron(struct platform_device *pdev)
+{
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+	struct dcp_wait_cookie * cookie;
+	struct dcp_set_power_state_req req = {
+		.unklong = 1,
+	};
+	int ret;
+	u32 handle;
+
+	cookie = kzalloc(sizeof(*cookie), GFP_KERNEL);
+	if (!cookie)
+		return;
+
+	init_completion(&cookie->done);
+	atomic_set(&cookie->refcount, 2);
+
+	if (dcp->main_display) {
+		handle = 0;
+		dcp_set_display_device(dcp, false, &handle, dcp_on_final, cookie);
+	} else {
+		handle = 2;
+		dcp_set_display_device(dcp, false, &handle, dcp_on_set_parameter, cookie);
+	}
+	dcp_set_power_state(dcp, true, &req, NULL, NULL);
+
+	ret = wait_for_completion_timeout(&cookie->done,  msecs_to_jiffies(500));
+
+	if (ret == 0)
+		dev_warn(dcp->dev, "wait for power timed out");
+
+	if (atomic_dec_and_test(&cookie->refcount))
+		kfree(cookie);
+}
+EXPORT_SYMBOL(dcp_poweron);
+
+static void complete_set_powerstate(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	struct dcp_wait_cookie *wait = cookie;
+
+	if (wait) {
+		complete(&wait->done);
+		if (atomic_dec_and_test(&wait->refcount))
+			kfree(wait);
+	}
+}
+
+void dcp_poweroff(struct platform_device *pdev)
+{
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+	int ret, swap_id;
+	struct dcp_set_power_state_req power_req = {
+		.unklong = 0,
+	};
+	struct dcp_swap_cookie *cookie;
+	struct dcp_wait_cookie *poff_cookie;
+	struct dcp_swap_start_req swap_req= { 0 };
+
+	cookie = kzalloc(sizeof(*cookie), GFP_KERNEL);
+	if (!cookie)
+		return;
+	init_completion(&cookie->done);
+	atomic_set(&cookie->refcount, 2);
+
+	// clear surfaces
+	memset(&dcp->swap, 0, sizeof(dcp->swap));
+
+	dcp->swap.swap.swap_enabled = DCP_REMOVE_LAYERS | 0x7;
+	dcp->swap.swap.swap_completed = DCP_REMOVE_LAYERS | 0x7;
+	dcp->swap.swap.unk_10c = 0xFF000000;
+
+	for (int l = 0; l < SWAP_SURFACES; l++)
+		dcp->swap.surf_null[l] = true;
+
+	dcp_swap_start(dcp, false, &swap_req, dcp_swap_clear_started, cookie);
+
+	ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(50));
+	swap_id = cookie->swap_id;
+	if (atomic_dec_and_test(&cookie->refcount))
+		kfree(cookie);
+	if (ret <= 0) {
+		dcp->crashed = true;
+		return;
+	}
+
+	poff_cookie = kzalloc(sizeof(*poff_cookie), GFP_KERNEL);
+	if (!poff_cookie)
+		return;
+	init_completion(&poff_cookie->done);
+	atomic_set(&poff_cookie->refcount, 2);
+
+	dcp_set_power_state(dcp, false, &power_req, complete_set_powerstate, poff_cookie);
+	ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(1000));
+
+	if (ret == 0)
+		dev_warn(dcp->dev, "setPowerState(0) timeout %u ms", 1000);
+	else if (ret > 0)
+		dev_dbg(dcp->dev, "setPowerState(0) finished with %d ms to spare",
+			jiffies_to_msecs(ret));
+
+	if (atomic_dec_and_test(&poff_cookie->refcount))
+		kfree(poff_cookie);
+	dev_dbg(dcp->dev, "%s: setPowerState(0) done", __func__);
+}
+EXPORT_SYMBOL(dcp_poweroff);
+
 /*
  * Helper to send a DRM hotplug event. The DCP is accessed from a single
  * (RTKit) thread. To handle hotplug callbacks, we need to call
@@ -767,16 +956,19 @@ void dcp_hotplug(struct work_struct *work)
 {
 	struct apple_connector *connector;
 	struct drm_device *dev;
+	struct apple_dcp *dcp;
 
 	connector = container_of(work, struct apple_connector, hotplug_wq);
 	dev = connector->base.dev;
+
+	dcp = platform_get_drvdata(connector->dcp);
 
 	/*
 	 * DCP defers link training until we set a display mode. But we set
 	 * display modes from atomic_flush, so userspace needs to trigger a
 	 * flush, or the CRTC gets no signal.
 	 */
-	if (connector->connected) {
+	if (!dcp->valid_mode && connector->connected) {
 		drm_connector_set_link_status_property(
 			&connector->base, DRM_MODE_LINK_STATUS_BAD);
 	}
@@ -791,10 +983,16 @@ static void dcpep_cb_hotplug(struct apple_dcp *dcp, u64 *connected)
 	struct apple_connector *connector = dcp->connector;
 
 	/* Hotplug invalidates mode. DRM doesn't always handle this. */
-	dcp->valid_mode = false;
+	if (!(*connected)) {
+		dcp->valid_mode = false;
+		/* after unplug swap will not complete until the next
+		 * set_digital_out_mode */
+		schedule_work(&dcp->vblank_wq);
+	}
 
-	if (connector) {
+	if (connector && connector->connected != !!(*connected)) {
 		connector->connected = !!(*connected);
+		dcp->valid_mode = false;
 		schedule_work(&connector->hotplug_wq);
 	}
 }
@@ -868,7 +1066,8 @@ TRAMPOLINE_VOID(trampoline_nop, dcpep_cb_nop);
 TRAMPOLINE_OUT(trampoline_true, dcpep_cb_true, u8);
 TRAMPOLINE_OUT(trampoline_false, dcpep_cb_false, u8);
 TRAMPOLINE_OUT(trampoline_zero, dcpep_cb_zero, u32);
-TRAMPOLINE_VOID(trampoline_swap_complete, dcpep_cb_swap_complete);
+TRAMPOLINE_IN(trampoline_swap_complete, dcpep_cb_swap_complete,
+	      struct dc_swap_complete_resp);
 TRAMPOLINE_INOUT(trampoline_get_uint_prop, dcpep_cb_get_uint_prop,
 		 struct dcp_get_uint_prop_req, struct dcp_get_uint_prop_resp);
 TRAMPOLINE_INOUT(trampoline_map_piodma, dcpep_cb_map_piodma,
@@ -906,6 +1105,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, v
 	[110] = trampoline_true, /* create_iomfb_service */
 	[111] = trampoline_false, /* create_backlight_service */
 	[116] = dcpep_cb_boot_1,
+	[117] = trampoline_false, /* is_dark_boot */
 	[118] = trampoline_false, /* is_dark_boot / is_waking_from_hibernate*/
 	[120] = trampoline_false, /* read_edt_data */
 	[122] = trampoline_prop_start,
@@ -938,6 +1138,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, v
 	[582] = trampoline_true, /* create_default_fb_surface */
 	[589] = trampoline_swap_complete,
 	[591] = trampoline_nop, /* swap_complete_intent_gated */
+	[593] = trampoline_nop, /* enable_backlight_message_ap_gated */
 	[598] = trampoline_nop, /* find_swap_function_gated */
 };
 
@@ -1142,12 +1343,24 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 {
 	struct dcp_swap_start_req start_req = { 0 };
 
-	dcp_swap_start(dcp, false, &start_req, dcp_swap_started, NULL);
+	if (dcp->connector && dcp->connector->connected)
+		dcp_swap_start(dcp, false, &start_req, dcp_swap_started, NULL);
+	else
+		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
-static void dcp_modeset(struct apple_dcp *dcp, void *out, void *cookie)
+static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
+					  void *cookie)
 {
-	dcp_set_digital_out_mode(dcp, false, &dcp->mode, do_swap, NULL);
+	struct dcp_wait_cookie *wait = cookie;
+
+	dcp->ignore_swap_complete = false;
+
+	if (wait) {
+		complete(&wait->done);
+		if (atomic_dec_and_test(&wait->refcount))
+			kfree(wait);
+	}
 }
 
 void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
@@ -1244,7 +1457,8 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 	if (drm_atomic_crtc_needs_modeset(crtc_state) || !dcp->valid_mode) {
 		struct dcp_display_mode *mode;
-		u32 handle = 2;
+		struct dcp_wait_cookie *cookie;
+		int ret;
 
 		mode = lookup_mode(dcp, &crtc_state->mode);
 		if (!mode) {
@@ -1259,19 +1473,43 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 			.timing_mode_id = mode->timing_mode_id
 		};
 
-		dcp->valid_mode = true;
+		cookie = kzalloc(sizeof(cookie), GFP_KERNEL);
+		if (!cookie) {
+			schedule_work(&dcp->vblank_wq);
+			return;
+		}
 
-		dcp_set_display_device(dcp, false, &handle, dcp_modeset, NULL);
+		init_completion(&cookie->done);
+		atomic_set(&cookie->refcount, 2);
+
+		dcp_set_digital_out_mode(dcp, false, &dcp->mode,
+					 complete_set_digital_out_mode, cookie);
+
+		ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(500));
+
+		if (atomic_dec_and_test(&cookie->refcount))
+			kfree(cookie);
+
+		if (ret == 0) {
+			dev_dbg(dcp->dev, "set_digital_out_mode 200 ms");
+			schedule_work(&dcp->vblank_wq);
+			return;
+		}
+		else if (ret > 0) {
+			dev_dbg(dcp->dev, "set_digital_out_mode finished with %d to spare",
+				jiffies_to_msecs(ret));
+		}
+
+		dcp->valid_mode = true;
 	}
-	else if (!has_surface) {
-		dev_warn(dcp->dev, "can't flush without surfaces, vsync:%d", dcp->crtc->vsync_disabled);
-		/* HACK: issue a delayed vblank event to avoid timeouts in
-		 * drm_atomic_helper_wait_for_vblanks(). It's currently unkown
-		 * if and how DCP supports swaps without attached surfaces.
-		 */
+
+	if (!has_surface) {
+		dev_warn(dcp->dev, "flush without surfaces, vsync:%d",
+				dcp->crtc->vsync_disabled);
 		schedule_work(&dcp->vblank_wq);
-	} else
-		do_swap(dcp, NULL, NULL);
+		return;
+	}
+	do_swap(dcp, NULL, NULL);
 }
 EXPORT_SYMBOL_GPL(dcp_flush);
 
@@ -1283,16 +1521,20 @@ bool dcp_is_initialized(struct platform_device *pdev)
 }
 EXPORT_SYMBOL_GPL(dcp_is_initialized);
 
-static void init_done(struct apple_dcp *dcp, void *out, void *cookie)
+
+static void res_is_main_display(struct apple_dcp *dcp, void *out, void *cookie)
 {
+	int result = *(int *)out;
+	dev_info(dcp->dev, "DCP is_main_display: %d\n", result);
+
+	dcp->main_display = result != 0;
+
+	dcp->active = true;
 }
 
 static void init_3(struct apple_dcp *dcp, void *out, void *cookie)
 {
-	struct dcp_set_power_state_req req = {
-		.unklong = 1,
-	};
-	dcp_set_power_state(dcp, false, &req, init_done, NULL);
+	dcp_is_main_display(dcp, false, res_is_main_display, NULL);
 }
 
 static void init_2(struct apple_dcp *dcp, void *out, void *cookie)
@@ -1300,13 +1542,17 @@ static void init_2(struct apple_dcp *dcp, void *out, void *cookie)
 	dcp_first_client_open(dcp, false, init_3, NULL);
 }
 
+static void init_1(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	u32 val = 0;
+	dcp_enable_disable_video_power_savings(dcp, false, &val, init_2, NULL);
+}
+
 static void dcp_started(struct apple_dcp *dcp, void *data, void *cookie)
 {
 	dev_info(dcp->dev, "DCP booted\n");
 
-	init_2(dcp, data, cookie);
-
-	dcp->active = true;
+	init_1(dcp, data, cookie);
 }
 
 static void dcp_got_msg(void *cookie, u8 endpoint, u64 message)
