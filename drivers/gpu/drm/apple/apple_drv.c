@@ -177,13 +177,17 @@ apple_connector_detect(struct drm_connector *connector, bool force)
 static void apple_crtc_atomic_enable(struct drm_crtc *crtc,
 				     struct drm_atomic_state *state)
 {
+	struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
+	dcp_poweron(apple_crtc->dcp);
 	drm_crtc_vblank_on(crtc);
 }
 
 static void apple_crtc_atomic_disable(struct drm_crtc *crtc,
 				      struct drm_atomic_state *state)
 {
+	struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
 	drm_crtc_vblank_off(crtc);
+	dcp_poweroff(apple_crtc->dcp);
 
 	if (crtc->state->event && !crtc->state->active) {
 		spin_lock_irq(&crtc->dev->event_lock);
