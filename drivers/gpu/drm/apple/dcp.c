@@ -985,6 +985,9 @@ static void dcpep_handle_ack(struct apple_dcp *dcp, enum dcp_context_id context,
 	cb = ch->callbacks[ch->depth];
 	cookie = ch->cookies[ch->depth];
 
+	ch->callbacks[ch->depth] = NULL;
+	ch->cookies[ch->depth] = NULL;
+
 	if (cb)
 		cb(dcp, data + sizeof(*header) + header->in_len, cookie);
 }
