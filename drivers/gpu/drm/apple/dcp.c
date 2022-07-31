@@ -225,8 +225,11 @@ const struct dcp_method_entry dcp_methods[dcpep_num_methods] = {
 	DCP_METHOD("A407", dcpep_swap_start),
 	DCP_METHOD("A408", dcpep_swap_submit),
 	DCP_METHOD("A410", dcpep_set_display_device),
+	DCP_METHOD("A411", dcpep_is_main_display),
 	DCP_METHOD("A412", dcpep_set_digital_out_mode),
+	DCP_METHOD("A439", dcpep_set_parameter_dcp),
 	DCP_METHOD("A443", dcpep_create_default_fb),
+	DCP_METHOD("A447", dcpep_enable_disable_video_power_savings),
 	DCP_METHOD("A454", dcpep_first_client_open),
 	DCP_METHOD("A460", dcpep_set_display_refresh_properties),
 	DCP_METHOD("A463", dcpep_flush_supports_power),
@@ -335,6 +338,15 @@ DCP_THUNK_VOID(dcp_first_client_open, dcpep_first_client_open);
 __attribute__((unused))
 DCP_THUNK_IN(dcp_update_notify_clients_dcp, dcpep_update_notify_clients_dcp,
 	     struct dcp_update_notify_clients_dcp);
+
+DCP_THUNK_INOUT(dcp_set_parameter_dcp, dcpep_set_parameter_dcp,
+		struct dcp_set_parameter_dcp, u32);
+
+DCP_THUNK_INOUT(dcp_enable_disable_video_power_savings,
+		dcpep_enable_disable_video_power_savings,
+		u32, int);
+
+DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 
 /* Parse a callback tag "D123" into the ID 123. Returns -EINVAL on failure. */
 static int dcp_parse_tag(char tag[4])
