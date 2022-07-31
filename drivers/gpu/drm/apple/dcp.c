@@ -431,6 +431,9 @@ void dcp_drm_crtc_vblank(struct apple_crtc *crtc)
 static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 	      struct dc_swap_complete_resp *resp)
 {
+	dev_dbg(dcp->dev, "swap complete for swap_id: %u vblank: %u",
+		resp->swap_id, dcp->ignore_swap_complete);
+
 	if (!dcp->ignore_swap_complete)
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
@@ -699,6 +702,7 @@ static void boot_done(struct apple_dcp *dcp, void *out, void *cookie)
 {
 	struct dcp_cb_channel *ch = &dcp->ch_cb;
 	u8 *succ = ch->output[ch->depth - 1];
+	dev_dbg(dcp->dev, "boot done");
 
 	*succ = true;
 	dcp_ack(dcp, DCP_CONTEXT_CB);
@@ -807,6 +811,7 @@ static void dcp_swap_clear_started(struct apple_dcp *dcp, void *data,
 				   void *cookie)
 {
 	struct dcp_swap_start_resp *resp = data;
+	dev_dbg(dcp->dev, "%s swap_id: %u", __func__, resp->swap_id);
 	dcp->swap.swap.swap_id = resp->swap_id;
 
 	if (cookie) {
@@ -924,6 +929,8 @@ void dcp_poweroff(struct platform_device *pdev)
 		return;
 	}
 
+	dev_dbg(dcp->dev, "%s: clear swap submitted: %u", __func__, swap_id);
+
 	poff_cookie = kzalloc(sizeof(*poff_cookie), GFP_KERNEL);
 	if (!poff_cookie)
 		return;
@@ -962,6 +969,7 @@ void dcp_hotplug(struct work_struct *work)
 	dev = connector->base.dev;
 
 	dcp = platform_get_drvdata(connector->dcp);
+	dev_info(dcp->dev, "%s: connected: %d", __func__, connector->connected);
 
 	/*
 	 * DCP defers link training until we set a display mode. But we set
@@ -995,6 +1003,14 @@ static void dcpep_cb_hotplug(struct apple_dcp *dcp, u64 *connected)
 		dcp->valid_mode = false;
 		schedule_work(&connector->hotplug_wq);
 	}
+}
+
+static void
+dcpep_cb_swap_complete_intent_gated(struct apple_dcp *dcp,
+				    struct dcp_swap_complete_intent_gated *info)
+{
+	dev_dbg(dcp->dev, "swap_id:%u width:%u height:%u", info->swap_id,
+		info->width, info->height);
 }
 
 /*
@@ -1089,6 +1105,9 @@ TRAMPOLINE_OUT(trampoline_rt_bandwidth, dcpep_cb_rt_bandwidth,
 TRAMPOLINE_OUT(trampoline_get_frequency, dcpep_cb_get_frequency, u64);
 TRAMPOLINE_OUT(trampoline_get_time, dcpep_cb_get_time, u64);
 TRAMPOLINE_IN(trampoline_hotplug, dcpep_cb_hotplug, u64);
+TRAMPOLINE_IN(trampoline_swap_complete_intent_gated,
+	      dcpep_cb_swap_complete_intent_gated,
+	      struct dcp_swap_complete_intent_gated);
 
 bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, void *) = {
 	[0] = trampoline_true, /* did_boot_signal */
@@ -1137,7 +1156,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *, v
 	[577] = trampoline_nop, /* powerstate_notify */
 	[582] = trampoline_true, /* create_default_fb_surface */
 	[589] = trampoline_swap_complete,
-	[591] = trampoline_nop, /* swap_complete_intent_gated */
+	[591] = trampoline_swap_complete_intent_gated,
 	[593] = trampoline_nop, /* enable_backlight_message_ap_gated */
 	[598] = trampoline_nop, /* find_swap_function_gated */
 };
@@ -1468,6 +1487,8 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 			return;
 		}
 
+		dev_info(dcp->dev, "set_digital_out_mode(color:%d timing:%d)",
+			 mode->color_mode_id, mode->timing_mode_id);
 		dcp->mode = (struct dcp_set_digital_out_mode_req) {
 			.color_mode_id = mode->color_mode_id,
 			.timing_mode_id = mode->timing_mode_id
@@ -1485,6 +1506,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		dcp_set_digital_out_mode(dcp, false, &dcp->mode,
 					 complete_set_digital_out_mode, cookie);
 
+		dev_dbg(dcp->dev, "%s - wait for modeset", __func__);
 		ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(500));
 
 		if (atomic_dec_and_test(&cookie->refcount))
