@@ -241,6 +241,9 @@ enum dcpep_method {
 	dcpep_set_power_state,
 	dcpep_first_client_open,
 	dcpep_update_notify_clients_dcp,
+	dcpep_set_parameter_dcp,
+	dcpep_enable_disable_video_power_savings,
+	dcpep_is_main_display,
 	dcpep_num_methods
 };
 
@@ -350,6 +353,15 @@ struct dcp_swap_submit_resp {
 	u8 padding[3];
 } __packed;
 
+struct dc_swap_complete_resp {
+	u32 swap_id;
+	u8 unkbool;
+	u64 swap_data;
+	u8 swap_info[0x6c4];
+	u32 unkint;
+	u8 swap_info_null;
+} __packed;
+
 struct dcp_get_uint_prop_req {
 	char obj[4];
 	char key[0x40];
@@ -401,6 +413,20 @@ struct dcp_update_notify_clients_dcp {
 	u32 client_b;
 	u32 client_c;
 	u32 client_d;
+} __packed;
+
+struct dcp_set_parameter_dcp {
+	u32 param;
+	u32 value[8];
+	u32 count;
+} __packed;
+
+struct dcp_swap_complete_intent_gated {
+	u32 swap_id;
+	u8 unkBool;
+	u32 unkInt;
+	u32 width;
+	u32 height;
 } __packed;
 
 #endif
