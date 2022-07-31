@@ -782,6 +782,7 @@ struct dcp_swap_cookie {
 static void dcp_swap_cleared(struct apple_dcp *dcp, void *data, void *cookie)
 {
 	struct dcp_swap_submit_resp *resp = data;
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	if (cookie) {
 		struct dcp_swap_cookie *info = cookie;
@@ -825,6 +826,7 @@ static void dcp_swap_clear_started(struct apple_dcp *dcp, void *data,
 static void dcp_on_final(struct apple_dcp *dcp, void *out, void *cookie)
 {
 	struct dcp_wait_cookie *wait = cookie;
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	if (wait) {
 		complete(&wait->done);
@@ -840,6 +842,7 @@ static void dcp_on_set_parameter(struct apple_dcp *dcp, void *out, void *cookie)
 		.value = { 0 },
 		.count = 1,
 	};
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	dcp_set_parameter_dcp(dcp, false, &param, dcp_on_final, cookie);
 }
@@ -853,6 +856,7 @@ void dcp_poweron(struct platform_device *pdev)
 	};
 	int ret;
 	u32 handle;
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	cookie = kzalloc(sizeof(*cookie), GFP_KERNEL);
 	if (!cookie)
@@ -901,6 +905,8 @@ void dcp_poweroff(struct platform_device *pdev)
 	struct dcp_swap_cookie *cookie;
 	struct dcp_wait_cookie *poff_cookie;
 	struct dcp_swap_start_req swap_req= { 0 };
+
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	cookie = kzalloc(sizeof(*cookie), GFP_KERNEL);
 	if (!cookie)
@@ -1361,6 +1367,7 @@ EXPORT_SYMBOL_GPL(dcp_mode_valid);
 static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 {
 	struct dcp_swap_start_req start_req = { 0 };
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	if (dcp->connector && dcp->connector->connected)
 		dcp_swap_start(dcp, false, &start_req, dcp_swap_started, NULL);
@@ -1372,6 +1379,7 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 					  void *cookie)
 {
 	struct dcp_wait_cookie *wait = cookie;
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	dcp->ignore_swap_complete = false;
 
@@ -1392,6 +1400,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	struct dcp_swap_submit_req *req = &dcp->swap;
 	int l;
 	int has_surface = 0;
+	dev_dbg(dcp->dev, "%s", __func__);
 
 	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 
