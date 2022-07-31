@@ -32,6 +32,8 @@ struct apple_connector {
 
 #define to_apple_connector(x) container_of(x, struct apple_connector, base)
 
+void dcp_poweroff(struct platform_device *pdev);
+void dcp_poweron(struct platform_device *pdev);
 void dcp_link(struct platform_device *pdev, struct apple_crtc *apple,
 	      struct apple_connector *connector);
 void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state);
