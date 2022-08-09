@@ -180,6 +180,7 @@ struct dchid_iface {
 struct dockchannel_hid {
 	struct device *dev;
 	struct dockchannel *dc;
+	struct device_link *helper_link;
 
 	bool id_ready;
 	struct dchid_stm_id device_id;
@@ -1034,9 +1035,16 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct dockchannel_hid *dchid;
-	struct device_node *child;
+	struct device_node *child, *helper;
+	struct platform_device *helper_pdev;
 	struct property *prop;
-	bool defer = false;
+
+	dchid = devm_kzalloc(dev, sizeof(*dchid), GFP_KERNEL);
+	if (!dchid) {
+		return -ENOMEM;
+	}
+
+	dchid->dev = dev;
 
 	/*
 	 * First make sure all the GPIOs are available, in cased we need to defer.
@@ -1057,7 +1065,6 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 						      prop->name);
 			if (IS_ERR_OR_NULL(gpio)) {
 				if (PTR_ERR(gpio) == EPROBE_DEFER) {
-					defer = true;
 					of_node_put(child);
 					return -EPROBE_DEFER;
 				}
@@ -1067,12 +1074,35 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 		}
 	}
 
-	dchid = devm_kzalloc(dev, sizeof(*dchid), GFP_KERNEL);
-	if (!dchid)
-		return -ENOMEM;
+	/*
+	 * Make sure we also have the MTP coprocessor available, and
+	 * defer probe if the helper hasn't probed yet.
+	 */
+	helper = of_parse_phandle(dev->of_node, "apple,helper-cpu", 0);
+	if (!helper) {
+		dev_err(dev, "Missing apple,helper-cpu property");
+		return -EINVAL;
+	}
 
+	helper_pdev = of_find_device_by_node(helper);
+	of_node_put(helper);
+	if (!helper_pdev) {
+		dev_err(dev, "Failed to find helper device");
+		return -EINVAL;
+	}
 
-	dchid->dev = &pdev->dev;
+	dchid->helper_link = device_link_add(dev, &helper_pdev->dev,
+					     DL_FLAG_AUTOREMOVE_CONSUMER);
+	put_device(&helper_pdev->dev);
+	if (!dchid->helper_link) {
+		dev_err(dev, "Failed to link to helper device");
+		return -EINVAL;
+	}
+
+	if (dchid->helper_link->supplier->links.status != DL_DEV_DRIVER_BOUND)
+		return -EPROBE_DEFER;
+
+	/* Now it is safe to begin initializing */
 	dchid->dc = dockchannel_init(pdev);
 	if (IS_ERR_OR_NULL(dchid->dc)) {
 		return -PTR_ERR(dchid->dc);
@@ -1087,7 +1117,7 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 		return -EIO;
 	}
 
-	dev_info(dchid->dev, "initialized, awaiting packets\n");
+	dev_info(dchid->dev, "Initialized, awaiting packets\n");
 	dockchannel_await(dchid->dc, dchid_handle_packet, dchid, sizeof(struct dchid_hdr));
 
 	return 0;
