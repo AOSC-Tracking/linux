@@ -1064,7 +1064,7 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 			gpio = gpiod_get_from_of_node(child, prop->name, 0, GPIOD_ASIS,
 						      prop->name);
 			if (IS_ERR_OR_NULL(gpio)) {
-				if (PTR_ERR(gpio) == EPROBE_DEFER) {
+				if (PTR_ERR(gpio) == -EPROBE_DEFER) {
 					of_node_put(child);
 					return -EPROBE_DEFER;
 				}
@@ -1105,7 +1105,7 @@ static int dockchannel_hid_probe(struct platform_device *pdev)
 	/* Now it is safe to begin initializing */
 	dchid->dc = dockchannel_init(pdev);
 	if (IS_ERR_OR_NULL(dchid->dc)) {
-		return -PTR_ERR(dchid->dc);
+		return PTR_ERR(dchid->dc);
 	}
 	dchid->new_iface_wq = alloc_workqueue("dchid-new", WQ_MEM_RECLAIM, 0);
 	if (!dchid->new_iface_wq)
