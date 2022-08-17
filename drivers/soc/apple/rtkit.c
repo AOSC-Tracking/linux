@@ -303,6 +303,9 @@ static int apple_rtkit_common_rx_get_buffer(struct apple_rtkit *rtk,
 	return 0;
 
 error:
+	dev_err(rtk->dev, "RTKit: failed buffer request for 0x%zx bytes (%d)\n",
+		buffer->size, err);
+
 	buffer->buffer = NULL;
 	buffer->iomem = NULL;
 	buffer->iova = 0;
