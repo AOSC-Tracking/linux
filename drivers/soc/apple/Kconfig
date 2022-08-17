@@ -38,6 +38,12 @@ config APPLE_SART
 
 	  Say 'y' here if you have an Apple SoC.
 
+config RUST_APPLE_RTKIT
+	bool
+	depends on PM
+	depends on RUST
+	select APPLE_RTKIT
+
 endmenu
 
 endif
