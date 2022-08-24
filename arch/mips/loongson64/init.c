@@ -27,7 +27,10 @@ static void __init mips_nmi_setup(void)
 	void *base;
 
 	base = (void *)(CAC_BASE + 0x380);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 	memcpy(base, except_vec_nmi, 0x80);
+#pragma GCC diagnostic pop
 	flush_icache_range((unsigned long)base, (unsigned long)base + 0x80);
 }
 
