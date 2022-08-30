@@ -140,7 +140,7 @@
 / {
 	sound {
 		compatible = "apple,j413-macaudio", "apple,macaudio";
-		model = "MacBook Air J413 integrated audio";
+		model = "MacBook Air J413";
 
 		dai-link@0 {
 			link-name = "Speakers";

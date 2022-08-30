@@ -97,7 +97,7 @@
 / {
 	sound {
 		compatible = "apple,j274-macaudio", "apple,macaudio";
-		model = "Mac mini J274 integrated audio";
+		model = "Mac mini J274";
 
 		dai-link@0 {
 			link-name = "Speaker";

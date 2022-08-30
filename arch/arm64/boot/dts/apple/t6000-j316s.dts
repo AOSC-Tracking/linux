@@ -26,5 +26,5 @@
 };
 
 &sound {
-	model = "MacBook Pro J316 integrated audio";
+	model = "MacBook Pro J316";
 };

@@ -104,7 +104,7 @@
 / {
 	sound {
 		compatible = "apple,j456-macaudio", "apple,macaudio";
-		model = "iMac J456 integrated audio";
+		model = "iMac J456";
 
 		dai-link@1 {
 			link-name = "Headphone Jack";

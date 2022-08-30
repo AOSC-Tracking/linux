@@ -183,7 +183,7 @@
 / {
 	sound {
 		compatible = "apple,j493-macaudio", "apple,macaudio";
-		model = "MacBook Pro J493 integrated audio";
+		model = "MacBook Pro J493";
 
 		dai-link@0 {
 			link-name = "Speakers";
