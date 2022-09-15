@@ -154,7 +154,7 @@ void waitDispVerticalSync(disp_control_t dispControl, unsigned long vSyncCount)
     if (dispControl == CHANNEL0_CTRL)
     {
         // There is no Vsync when PLL is off
-        if ((FIELD_GET(peekRegisterDWord(CLOCK_ENABLE), CLOCK_ENABLE, DC0) == CLOCK_ENABLE_DC0_OFF))
+        if ((DDK750_FIELD_GET(peekRegisterDWord(CLOCK_ENABLE), CLOCK_ENABLE, DC0) == CLOCK_ENABLE_DC0_OFF))
             return;
 
         ulDispCtrlAddr = DISPLAY_CTRL;
@@ -162,14 +162,14 @@ void waitDispVerticalSync(disp_control_t dispControl, unsigned long vSyncCount)
     else
     {
         // There is no Vsync when PLL is off
-        if ((FIELD_GET(peekRegisterDWord(CLOCK_ENABLE), CLOCK_ENABLE, DC1) == CLOCK_ENABLE_DC1_OFF))
+        if ((DDK750_FIELD_GET(peekRegisterDWord(CLOCK_ENABLE), CLOCK_ENABLE, DC1) == CLOCK_ENABLE_DC1_OFF))
             return;
 
         ulDispCtrlAddr = DISPLAY_CTRL+CHANNEL_OFFSET;
     }
 
     //There is no Vsync when display timing is off. 
-    if ((FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), DISPLAY_CTRL, TIMING) ==
+    if ((DDK750_FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), DISPLAY_CTRL, TIMING) ==
          DISPLAY_CTRL_TIMING_DISABLE))
     {
             return;
@@ -184,7 +184,7 @@ void waitDispVerticalSync(disp_control_t dispControl, unsigned long vSyncCount)
         ulLoopCount = 0;
         do
         {
-            status = FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), DISPLAY_CTRL, VSYNC);
+            status = DDK750_FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), DISPLAY_CTRL, VSYNC);
             //Insert delay to reduce number of Vsync checks
             timerWaitTicks(3, 0xffff);
             if(ulLoopCount++ > ulDeadLoopCount) break;
@@ -195,7 +195,7 @@ void waitDispVerticalSync(disp_control_t dispControl, unsigned long vSyncCount)
         ulLoopCount = 0;
         do
         {
-            status = FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), DISPLAY_CTRL, VSYNC);
+            status = DDK750_FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), DISPLAY_CTRL, VSYNC);
             timerWaitTicks(3, 0xffff);
             if(ulLoopCount++ > ulDeadLoopCount) break;
         }
@@ -224,7 +224,7 @@ void ddk768_waitVSyncLine(disp_control_t dispControl)
     
     do
     {
-    	value = FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), CURRENT_LINE, LINE);
+    	value = DDK750_FIELD_GET(peekRegisterDWord(ulDispCtrlAddr), CURRENT_LINE, LINE);
     }
     while (value < modeParam.vertical_sync_start);
 }
@@ -238,7 +238,7 @@ unsigned long getDisplayLine(disp_control_t dispControl)
     unsigned long ulRegValue;
     
     ulRegAddr = (dispControl == CHANNEL0_CTRL)? CURRENT_LINE : (CURRENT_LINE+DC_OFFSET);
-    ulRegValue = FIELD_GET(peekRegisterDWord(ulRegAddr), CURRENT_LINE, LINE);
+    ulRegValue = DDK750_FIELD_GET(peekRegisterDWord(ulRegAddr), CURRENT_LINE, LINE);
 
     return(ulRegValue);
 }
@@ -476,7 +476,7 @@ long ddk768_detectCRTMonitor(
     timerWaitTicks(3, 0x7ffff);
     
     /* Check if the monitor is detected. */
-    if (FIELD_GET(peekRegisterDWord(ulMonitorDetectAddr), CRT_DETECT, CRT) ==
+    if (DDK750_FIELD_GET(peekRegisterDWord(ulMonitorDetectAddr), CRT_DETECT, CRT) ==
         CRT_DETECT_CRT_PRESENT)
     {
         result = 0;

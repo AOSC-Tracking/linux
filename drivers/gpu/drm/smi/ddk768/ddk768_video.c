@@ -89,7 +89,7 @@ unsigned long videoGetBufferStatus(
     unsigned long bufferIndex
 )
 {
-        return (FIELD_GET(peekRegisterDWord(VIDEO_FB_ADDRESS), VIDEO_FB_ADDRESS, STATUS));
+        return (DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_ADDRESS), VIDEO_FB_ADDRESS, STATUS));
 }
 
 /*
@@ -102,7 +102,7 @@ unsigned long videoGetBufferStatus(
  */
 unsigned short videoGetPitch()
 {
-    return (FIELD_GET(peekRegisterDWord(VIDEO_FB_WIDTH), VIDEO_FB_WIDTH, WIDTH));
+    return (DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_WIDTH), VIDEO_FB_WIDTH, WIDTH));
 }
 
 /*
@@ -115,7 +115,7 @@ unsigned short videoGetPitch()
  */
 unsigned short videoGetLineOffset()
 {
-    return (FIELD_GET(peekRegisterDWord(VIDEO_FB_WIDTH), VIDEO_FB_WIDTH, OFFSET));
+    return (DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_WIDTH), VIDEO_FB_WIDTH, OFFSET));
 }
 
 /*
@@ -134,7 +134,7 @@ unsigned long videoGetBufferSize(
     if (bufferIndex == 0)
     {
         value = (unsigned long)
-            FIELD_GET(peekRegisterDWord(VIDEO_FB_ADDRESS), VIDEO_FB_ADDRESS, ADDRESS);
+            DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_ADDRESS), VIDEO_FB_ADDRESS, ADDRESS);
     }
     
     return value;
@@ -155,7 +155,7 @@ unsigned long videoGetBuffer(
     unsigned char bufferIndex
 )
 {
-        return (FIELD_GET(peekRegisterDWord(VIDEO_FB_ADDRESS), VIDEO_FB_ADDRESS, ADDRESS));
+        return (DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_ADDRESS), VIDEO_FB_ADDRESS, ADDRESS));
 }
 
 /*
@@ -214,13 +214,13 @@ unsigned long videoGetBufferLastAddress(
     if (bufferIndex == 0)
     {
         /* Get Video Buffer 0 Last Address */
-        return (unsigned long) (FIELD_GET(peekRegisterDWord(VIDEO_FB_0_LAST_ADDRESS), 
+        return (unsigned long) (DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_0_LAST_ADDRESS), 
                                           VIDEO_FB_0_LAST_ADDRESS, ADDRESS));
     }
     else
     {   
         /* Get Video Buffer 1 Last Address */ 
-        return (unsigned long) (FIELD_GET(peekRegisterDWord(VIDEO_FB_1_LAST_ADDRESS), 
+        return (unsigned long) (DDK750_FIELD_GET(peekRegisterDWord(VIDEO_FB_1_LAST_ADDRESS), 
                                           VIDEO_FB_1_LAST_ADDRESS, ADDRESS));
     }
 #endif
@@ -394,8 +394,8 @@ void videoSetWindowSize(
 	regBR = (dispCtrl == CHANNEL0_CTRL)? VIDEO_PLANE_BR : (VIDEO_PLANE_BR+CHANNEL_OFFSET);
 
 	value = peekRegisterDWord(regTL);
-	startX = FIELD_GET(value, VIDEO_PLANE_TL, LEFT);
-	startY = FIELD_GET(value, VIDEO_PLANE_TL, TOP);
+	startX = DDK750_FIELD_GET(value, VIDEO_PLANE_TL, LEFT);
+	startY = DDK750_FIELD_GET(value, VIDEO_PLANE_TL, TOP);
 
 	/* Set bottom and right position */
 	pokeRegisterDWord(regBR,
@@ -425,11 +425,11 @@ void videoGetWindowSize(
 
 	positionTopLeft = peekRegisterDWord(regTL);
 	positionRightBottom = peekRegisterDWord(regBR);
-	videoWidth  = FIELD_GET(positionRightBottom, VIDEO_PLANE_BR, RIGHT) - 
-	              FIELD_GET(positionTopLeft, VIDEO_PLANE_TL, LEFT) + 1 +
+	videoWidth  = DDK750_FIELD_GET(positionRightBottom, VIDEO_PLANE_BR, RIGHT) - 
+	              DDK750_FIELD_GET(positionTopLeft, VIDEO_PLANE_TL, LEFT) + 1 +
 	              gWidthAdjustment;
-	videoHeight = FIELD_GET(positionRightBottom, VIDEO_PLANE_BR, BOTTOM) - 
-	              FIELD_GET(positionTopLeft, VIDEO_PLANE_TL, TOP) + 1 +
+	videoHeight = DDK750_FIELD_GET(positionRightBottom, VIDEO_PLANE_BR, BOTTOM) - 
+	              DDK750_FIELD_GET(positionTopLeft, VIDEO_PLANE_TL, TOP) + 1 +
 	              gHeightAdjustment;
 
     if (pVideoWidth != ((unsigned long *)0))
@@ -544,9 +544,9 @@ void videoGetInitialScale(
 	regScale = (dispCtrl == CHANNEL0_CTRL)? VIDEO_INITIAL_SCALE : (VIDEO_INITIAL_SCALE+CHANNEL_OFFSET);
 
     *pBufferHInitScale = (unsigned short)
-        FIELD_GET(peekRegisterDWord(regScale), VIDEO_INITIAL_SCALE, HORIZONTAL);
+        DDK750_FIELD_GET(peekRegisterDWord(regScale), VIDEO_INITIAL_SCALE, HORIZONTAL);
     *pBufferVInitScale = (unsigned short)
-        FIELD_GET(peekRegisterDWord(regScale), VIDEO_INITIAL_SCALE, VERTICAL);
+        DDK750_FIELD_GET(peekRegisterDWord(regScale), VIDEO_INITIAL_SCALE, VERTICAL);
 }
 
 /*
@@ -670,7 +670,7 @@ void videoGetInterpolation(
     value = peekRegisterDWord(VIDEO_DISPLAY_CTRL);
     if (pHorzInterpolationStatus != (unsigned long *)0)
 	{
-		if (FIELD_GET(value, VIDEO_DISPLAY_CTRL, HORIZONTAL_MODE) == VIDEO_DISPLAY_CTRL_HORIZONTAL_MODE_INTERPOLATE)
+		if (DDK750_FIELD_GET(value, VIDEO_DISPLAY_CTRL, HORIZONTAL_MODE) == VIDEO_DISPLAY_CTRL_HORIZONTAL_MODE_INTERPOLATE)
         	*pHorzInterpolationStatus = 1;
 		else
 			*pHorzInterpolationStatus = 0;
@@ -678,7 +678,7 @@ void videoGetInterpolation(
         
     if (pHorzInterpolationStatus != (unsigned long *)0)
 	{
-		if (FIELD_GET(value, VIDEO_DISPLAY_CTRL, VERTICAL_MODE) == VIDEO_DISPLAY_CTRL_VERTICAL_MODE_INTERPOLATE)
+		if (DDK750_FIELD_GET(value, VIDEO_DISPLAY_CTRL, VERTICAL_MODE) == VIDEO_DISPLAY_CTRL_VERTICAL_MODE_INTERPOLATE)
 			*pVertInterpolationStatus = 1;
 		else
 			*pVertInterpolationStatus = 0;
@@ -746,7 +746,7 @@ unsigned char isVideoEnable()
     
     value = peekRegisterDWord(VIDEO_DISPLAY_CTRL);
     
-    return ((FIELD_GET(value, VIDEO_DISPLAY_CTRL, PLANE) == VIDEO_DISPLAY_CTRL_PLANE_ENABLE) ? 1 : 0);
+    return ((DDK750_FIELD_GET(value, VIDEO_DISPLAY_CTRL, PLANE) == VIDEO_DISPLAY_CTRL_PLANE_ENABLE) ? 1 : 0);
 }
 
 /*
@@ -880,9 +880,9 @@ unsigned long videoGetEdgeDetection(
         value = peekRegisterDWord(VIDEO_EDGE_DETECTION);
         
         if (pEdgeDetectValue != (unsigned long *)0)
-            *pEdgeDetectValue = (unsigned long) FIELD_GET(value, VIDEO_EDGE_DETECTION, VALUE);
+            *pEdgeDetectValue = (unsigned long) DDK750_FIELD_GET(value, VIDEO_EDGE_DETECTION, VALUE);
             
-        if (FIELD_GET(value, VIDEO_EDGE_DETECTION, DETECT) == VIDEO_EDGE_DETECTION_DETECT_ENABLE)
+        if (DDK750_FIELD_GET(value, VIDEO_EDGE_DETECTION, DETECT) == VIDEO_EDGE_DETECTION_DETECT_ENABLE)
             return 1;
         else
             return 0; 

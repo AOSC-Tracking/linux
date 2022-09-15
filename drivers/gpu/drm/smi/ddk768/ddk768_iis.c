@@ -112,7 +112,7 @@ void iisTxDmaSetup(
     len >>= 2;
     len--; //I2S DMA register requires length to be expressed as DWord - 1.
 
-    dmaPointer = FIELD_GET(peekRegisterDWord(I2S_SRAM_DMA), I2S_SRAM_DMA, ADDRESS);
+    dmaPointer = DDK750_FIELD_GET(peekRegisterDWord(I2S_SRAM_DMA), I2S_SRAM_DMA, ADDRESS);
 
     //If DMA pointer already at the requested offset. Just set up the length.
     if (dmaPointer == offset)
@@ -144,7 +144,7 @@ void iisTxDmaSetup(
     // When DMA get to the end of SRAM, it loads the new base pointer.
     do
     {
-      dmaPointer = FIELD_GET(peekRegisterDWord(I2S_SRAM_DMA), I2S_SRAM_DMA, ADDRESS);
+      dmaPointer = DDK750_FIELD_GET(peekRegisterDWord(I2S_SRAM_DMA), I2S_SRAM_DMA, ADDRESS);
     } while(dmaPointer != offset);
 
     iisStop();
@@ -155,7 +155,7 @@ void iisTxDmaSetup(
  */
 unsigned long iisDmaPointer(void)
 {
-    return(FIELD_GET(peekRegisterDWord(I2S_SRAM_DMA), I2S_SRAM_DMA, ADDRESS));
+    return(DDK750_FIELD_GET(peekRegisterDWord(I2S_SRAM_DMA), I2S_SRAM_DMA, ADDRESS));
 }
 
 /*
