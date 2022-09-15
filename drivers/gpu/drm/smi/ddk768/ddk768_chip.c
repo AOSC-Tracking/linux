@@ -28,7 +28,7 @@ unsigned long ddk768_getFrameBufSize()
 	return SMI_MEMORY_SIZE_SM768;
     unsigned long strapPin, ddrController, rValue;
 
-    strapPin = FIELD_GET(peekRegisterDWord(STRAP_PINS), STRAP_PINS, MEM_SIZE);
+    strapPin = DDK750_FIELD_GET(peekRegisterDWord(STRAP_PINS), STRAP_PINS, MEM_SIZE);
     ddrController = peekRegisterDWord(DDR_CONTROL);
 
     switch(strapPin)

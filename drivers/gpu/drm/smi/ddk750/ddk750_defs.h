@@ -34,7 +34,7 @@
 #define _F_DENORMALIZE(v, f)    (((v) << _F_START(f)) & _F_MASK(f))
 
 /* Global macros */
-#define FIELD_GET(x, reg, field) \
+#define DDK750_FIELD_GET(x, reg, field) \
 ( \
     _F_NORMALIZE((x), reg ## _ ## field) \
 )
