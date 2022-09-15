@@ -540,7 +540,7 @@ static void smi_encoder_dpms(struct drm_encoder *encoder, int mode)
 			if(g_m_connector == USE_VGA_HDMI||g_m_connector==USE_HDMI)
 			{
 				dbg_msg("DVI connector off\n");
-				LEAVE(0);
+				LEAVE();
 			}
 			dbg_msg("DVI connector: index=%d\n",index);
 	
@@ -550,14 +550,14 @@ static void smi_encoder_dpms(struct drm_encoder *encoder, int mode)
 			if(g_m_connector == USE_DVI_HDMI)
 			{
 				dbg_msg("VGA connector off\n");
-				LEAVE(0);
+				LEAVE();
 			}
 			dbg_msg("VGA connector: index=%d\n",index);
 		}
 		else if(encoder->encoder_type  == DRM_MODE_ENCODER_TMDS)
 		{	
 			if(force_connect)
-				LEAVE(0);
+				LEAVE();
 			if (mode == DRM_MODE_DPMS_OFF)	
 				hw768_HDMI_Disable_Output();
 			else
@@ -571,7 +571,7 @@ static void smi_encoder_dpms(struct drm_encoder *encoder, int mode)
 			 	dbg_msg("HDMI connector: index=%d\n",index);
 			}else{
 				dbg_msg("HDMI connector not set dpms\n");
-				LEAVE(0);
+				LEAVE();
 			}
 		}
 		
