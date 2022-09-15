@@ -85,7 +85,7 @@ void setDPMS(DPMS_t state)
 unsigned long getPowerMode()
 {
 
-    return (FIELD_GET(peekRegisterDWord(POWER_MODE_CTRL), POWER_MODE_CTRL, MODE));
+    return (DDK750_FIELD_GET(peekRegisterDWord(POWER_MODE_CTRL), POWER_MODE_CTRL, MODE));
 }
 
 /*
@@ -99,7 +99,7 @@ void setPowerMode(unsigned long powerMode)
     /* Get the current power mode ctrl register value and save it 
        before switching the power mode. */
     control_value = peekRegisterDWord(POWER_MODE_CTRL);
-    previousPowerState = FIELD_GET(control_value, POWER_MODE_CTRL, MODE);
+    previousPowerState = DDK750_FIELD_GET(control_value, POWER_MODE_CTRL, MODE);
 
     /* Set the power mode to the requested power mode. */
     switch (powerMode)
@@ -135,7 +135,7 @@ void setPowerMode(unsigned long powerMode)
     
     /* In SM718, the chip needs to wait until wake up from the sleep mode and wait for
        a few milliseconds before reseting the memory and resume the normal operation. */
-    if ((powerMode != 2) && (previousPowerState != FIELD_GET(control_value, POWER_MODE_CTRL, MODE)))
+    if ((powerMode != 2) && (previousPowerState != DDK750_FIELD_GET(control_value, POWER_MODE_CTRL, MODE)))
     {
         /* Switching power mode between power mode 0 and 1 */
         
