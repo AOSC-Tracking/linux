@@ -115,10 +115,10 @@ long deWaitForNotBusy(void)
     	while (i--)
     	{
     	    dwVal = PEEK_32(SYSTEM_CTRL);
-    	    if ((FIELD_GET(dwVal, SYSTEM_CTRL, DE_STATUS)      == SYSTEM_CTRL_DE_STATUS_IDLE) &&
-    	        (FIELD_GET(dwVal, SYSTEM_CTRL, DE_FIFO)        == SYSTEM_CTRL_DE_FIFO_EMPTY) &&
-    	        (FIELD_GET(dwVal, SYSTEM_CTRL, CSC_STATUS)     == SYSTEM_CTRL_CSC_STATUS_IDLE) &&
-    	        (FIELD_GET(dwVal, SYSTEM_CTRL, DE_MEM_FIFO)    == SYSTEM_CTRL_DE_MEM_FIFO_EMPTY))
+    	    if ((DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, DE_STATUS)      == SYSTEM_CTRL_DE_STATUS_IDLE) &&
+    	        (DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, DE_FIFO)        == SYSTEM_CTRL_DE_FIFO_EMPTY) &&
+    	        (DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, CSC_STATUS)     == SYSTEM_CTRL_CSC_STATUS_IDLE) &&
+    	        (DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, DE_MEM_FIFO)    == SYSTEM_CTRL_DE_MEM_FIFO_EMPTY))
     	    {
     	        return 0; /* Return because engine idle */
     	    }
@@ -131,9 +131,9 @@ long deWaitForNotBusy(void)
         while (i--)
         {
             dwVal = PEEK_32(DE_STATE2);
-            if ((FIELD_GET(dwVal, DE_STATE2, DE_STATUS)      == DE_STATE2_DE_STATUS_IDLE) &&
-                (FIELD_GET(dwVal, DE_STATE2, DE_FIFO)        == DE_STATE2_DE_FIFO_EMPTY) &&
-                (FIELD_GET(dwVal, DE_STATE2, DE_MEM_FIFO)    == DE_STATE2_DE_MEM_FIFO_EMPTY))
+            if ((DDK750_FIELD_GET(dwVal, DE_STATE2, DE_STATUS)      == DE_STATE2_DE_STATUS_IDLE) &&
+                (DDK750_FIELD_GET(dwVal, DE_STATE2, DE_FIFO)        == DE_STATE2_DE_FIFO_EMPTY) &&
+                (DDK750_FIELD_GET(dwVal, DE_STATE2, DE_MEM_FIFO)    == DE_STATE2_DE_MEM_FIFO_EMPTY))
             {
                 return 0; /* Return because engine idle */
 			}
@@ -167,7 +167,7 @@ long deWaitIdle(unsigned long i)
 		while (i--)
 		{
 			dwVal = PEEK_32(DE_CONTROL);
-			if (FIELD_GET(dwVal, DE_CONTROL, STATUS) == DE_CONTROL_STATUS_STOP)
+			if (DDK750_FIELD_GET(dwVal, DE_CONTROL, STATUS) == DE_CONTROL_STATUS_STOP)
 				return 0;
 		}
 		return -1;
@@ -175,9 +175,9 @@ long deWaitIdle(unsigned long i)
         while (i--)
         {
             dwVal = PEEK_32(DE_STATE2);
-            if ((FIELD_GET(dwVal, DE_STATE2, DE_STATUS)      == DE_STATE2_DE_STATUS_IDLE) && 
-                (FIELD_GET(dwVal, DE_STATE2, DE_FIFO)        == DE_STATE2_DE_FIFO_EMPTY) &&
-                (FIELD_GET(dwVal, DE_STATE2, DE_MEM_FIFO)    == DE_STATE2_DE_MEM_FIFO_EMPTY))
+            if ((DDK750_FIELD_GET(dwVal, DE_STATE2, DE_STATUS)      == DE_STATE2_DE_STATUS_IDLE) && 
+                (DDK750_FIELD_GET(dwVal, DE_STATE2, DE_FIFO)        == DE_STATE2_DE_FIFO_EMPTY) &&
+                (DDK750_FIELD_GET(dwVal, DE_STATE2, DE_MEM_FIFO)    == DE_STATE2_DE_MEM_FIFO_EMPTY))
             {
                 return 0; /* Return because engine idle */
             }
@@ -190,10 +190,10 @@ long deWaitIdle(unsigned long i)
     while (i--)
     {
         dwVal = PEEK_32(SYSTEM_CTRL);
-        if ((FIELD_GET(dwVal, SYSTEM_CTRL, DE_STATUS)      == SYSTEM_CTRL_DE_STATUS_IDLE) &&
-            (FIELD_GET(dwVal, SYSTEM_CTRL, DE_FIFO)        == SYSTEM_CTRL_DE_FIFO_EMPTY) &&
-            (FIELD_GET(dwVal, SYSTEM_CTRL, CSC_STATUS)     == SYSTEM_CTRL_CSC_STATUS_IDLE) &&
-            (FIELD_GET(dwVal, SYSTEM_CTRL, DE_MEM_FIFO)    == SYSTEM_CTRL_DE_MEM_FIFO_EMPTY))
+        if ((DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, DE_STATUS)      == SYSTEM_CTRL_DE_STATUS_IDLE) &&
+            (DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, DE_FIFO)        == SYSTEM_CTRL_DE_FIFO_EMPTY) &&
+            (DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, CSC_STATUS)     == SYSTEM_CTRL_CSC_STATUS_IDLE) &&
+            (DDK750_FIELD_GET(dwVal, SYSTEM_CTRL, DE_MEM_FIFO)    == SYSTEM_CTRL_DE_MEM_FIFO_EMPTY))
         {
             return 0; /* Return because engine idle */
         }
@@ -2582,7 +2582,7 @@ long deNextLineStrip(
     
     de_ctrl = PEEK_32(DE_CONTROL);
     
-    if (FIELD_GET(de_ctrl, DE_CONTROL, MAJOR) == DE_CONTROL_MAJOR_X)
+    if (DDK750_FIELD_GET(de_ctrl, DE_CONTROL, MAJOR) == DE_CONTROL_MAJOR_X)
     {
         /* Set the line length and width */
         POKE_32(DE_DIMENSION,

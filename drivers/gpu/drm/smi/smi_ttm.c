@@ -8,7 +8,7 @@
  */
  
 #include <drm/drmP.h>
-#include <ttm/ttm_page_alloc.h>
+#include <drm/ttm/ttm_page_alloc.h>
 #include "smi_drv.h"
 
 static inline struct smi_device *
