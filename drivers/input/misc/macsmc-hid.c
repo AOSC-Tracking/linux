@@ -24,7 +24,8 @@ struct macsmc_hid {
 #define SMC_EV_BTN 0x7201
 #define SMC_EV_LID 0x7203
 
-#define BTN_POWER	0x06
+#define BTN_POWER	0x01
+#define BTN_TOUCHID	0x06
 #define BTN_POWER_HELD1	0xfe
 #define BTN_POWER_HELD2	0x00
 
@@ -39,6 +40,7 @@ static int macsmc_hid_event(struct notifier_block *nb, unsigned long event, void
 	case SMC_EV_BTN:
 		switch (d1) {
 		case BTN_POWER:
+		case BTN_TOUCHID:
 			if (smchid->wakeup_mode) {
 				if (d2) {
 					dev_info(smchid->dev, "Button wakeup\n");
