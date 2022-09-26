@@ -596,11 +596,18 @@ int apple_rtkit_send_message(struct apple_rtkit *rtk, u8 ep, u64 message,
 		.msg1 = ep,
 	};
 
-	if (rtk->crashed)
+	if (rtk->crashed) {
+		dev_warn(rtk->dev,
+			 "RTKit: Device is crashed, cannot send message\n");
 		return -EINVAL;
+	}
+
 	if (ep >= APPLE_RTKIT_APP_ENDPOINT_START &&
-	    !apple_rtkit_is_running(rtk))
+	    !apple_rtkit_is_running(rtk)) {
+		dev_warn(rtk->dev,
+			 "RTKit: Endpoint 0x%02x is not running, cannot send message\n", ep);
 		return -EINVAL;
+	}
 
 	/*
 	 * The message will be sent with a MMIO write. We need the barrier
