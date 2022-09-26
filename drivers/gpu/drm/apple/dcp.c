@@ -76,6 +76,7 @@ struct dcp_mem_descriptor {
 struct apple_dcp {
 	struct device *dev;
 	struct platform_device *piodma;
+	struct device_link *piodma_link;
 	struct apple_rtkit *rtk;
 	struct apple_crtc *crtc;
 	struct apple_connector *connector;
@@ -1792,12 +1793,15 @@ EXPORT_SYMBOL_GPL(dcp_link);
 
 static struct platform_device *dcp_get_dev(struct device *dev, const char *name)
 {
-	struct device_node *node = of_get_child_by_name(dev->of_node, name);
+	struct platform_device *pdev;
+	struct device_node *node = of_parse_phandle(dev->of_node, name, 0);
 
 	if (!node)
 		return NULL;
 
-	return of_find_device_by_node(node);
+	pdev = of_find_device_by_node(node);
+	of_node_put(node);
+	return pdev;
 }
 
 static int dcp_get_disp_regs(struct apple_dcp *dcp)
@@ -1843,11 +1847,21 @@ static int dcp_platform_probe(struct platform_device *pdev)
 
 	of_platform_default_populate(dev->of_node, NULL, dev);
 
-	dcp->piodma = dcp_get_dev(dev, "piodma");
+	dcp->piodma = dcp_get_dev(dev, "apple,piodma-mapper");
 	if (!dcp->piodma) {
 		dev_err(dev, "failed to find piodma\n");
 		return -ENODEV;
 	}
+
+	dcp->piodma_link = device_link_add(dev, &dcp->piodma->dev,
+					   DL_FLAG_AUTOREMOVE_CONSUMER);
+	if (!dcp->piodma_link) {
+		dev_err(dev, "Failed to link to piodma device");
+		return -EINVAL;
+	}
+
+	if (dcp->piodma_link->supplier->links.status != DL_DEV_DRIVER_BOUND)
+		return -EPROBE_DEFER;
 
 	ret = dcp_get_disp_regs(dcp);
 	if (ret) {
