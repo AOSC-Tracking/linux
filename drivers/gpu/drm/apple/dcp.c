@@ -1615,7 +1615,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 			.timing_mode_id = mode->timing_mode_id
 		};
 
-		cookie = kzalloc(sizeof(cookie), GFP_KERNEL);
+		cookie = kzalloc(sizeof(*cookie), GFP_KERNEL);
 		if (!cookie) {
 			schedule_work(&dcp->vblank_wq);
 			return;
