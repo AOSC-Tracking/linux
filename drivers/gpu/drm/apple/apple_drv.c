@@ -331,7 +331,7 @@ static int apple_probe_per_dcp(struct device *dev,
 		return ret;
 
 	connector->base.polled = DRM_CONNECTOR_POLL_HPD;
-	connector->connected = true; /* XXX */
+	connector->connected = false;
 	connector->dcp = dcp;
 
 	INIT_WORK(&connector->hotplug_wq, dcp_hotplug);
