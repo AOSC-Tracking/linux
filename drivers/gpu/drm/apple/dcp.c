@@ -1672,12 +1672,19 @@ EXPORT_SYMBOL_GPL(dcp_is_initialized);
 
 static void res_is_main_display(struct apple_dcp *dcp, void *out, void *cookie)
 {
+	struct apple_connector *connector;
 	int result = *(int *)out;
 	dev_info(dcp->dev, "DCP is_main_display: %d\n", result);
 
 	dcp->main_display = result != 0;
 
 	dcp->active = true;
+
+	connector = dcp->connector;
+	if (connector) {
+		connector->connected = dcp->nr_modes > 0;
+		schedule_work(&connector->hotplug_wq);
+	}
 }
 
 static void init_3(struct apple_dcp *dcp, void *out, void *cookie)
@@ -1788,6 +1795,9 @@ void dcp_link(struct platform_device *pdev, struct apple_crtc *crtc,
 
 	dcp->crtc = crtc;
 	dcp->connector = connector;
+
+	/* init connector status by modes offered by dcp */
+	connector->connected = dcp->nr_modes > 0;
 
 	/* Dimensions might already be parsed */
 	dcp_set_dimensions(dcp);
