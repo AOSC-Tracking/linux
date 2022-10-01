@@ -1512,12 +1512,15 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	struct dcp_swap_submit_req *req = &dcp->swap;
 	int l;
 	int has_surface = 0;
+	bool modeset;
 	dev_dbg(dcp->dev, "%s", __func__);
 
 	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 
+	modeset = drm_atomic_crtc_needs_modeset(crtc_state) || !dcp->valid_mode;
+
 	if (WARN(dcp_channel_busy(&dcp->ch_cmd), "unexpected busy channel") ||
-	    WARN(!dcp->connector->connected, "can't flush if disconnected")) {
+	    WARN(!modeset && !dcp->connector->connected, "can't flush if disconnected")) {
 		/* HACK: issue a delayed vblank event to avoid timeouts in
 		 * drm_atomic_helper_wait_for_vblanks().
 		 */
@@ -1595,7 +1598,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	/* These fields should be set together */
 	req->swap.swap_completed = req->swap.swap_enabled;
 
-	if (drm_atomic_crtc_needs_modeset(crtc_state) || !dcp->valid_mode) {
+	if (modeset) {
 		struct dcp_display_mode *mode;
 		struct dcp_wait_cookie *cookie;
 		int ret;
