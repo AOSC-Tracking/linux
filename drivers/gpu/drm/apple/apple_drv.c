@@ -400,6 +400,8 @@ static int apple_platform_probe(struct platform_device *pdev)
 
 	/* Unknown maximum, use the iMac (24-inch, 2021) display resolution as
 	 * maximum.
+	 * TODO: this is the max framebuffer size not the maximal supported output
+	 * resolution. DCP reports the maximal framebuffer size take it from there.
 	 */
 	apple->drm.mode_config.max_width = 4480;
 	apple->drm.mode_config.max_height = 2520;
