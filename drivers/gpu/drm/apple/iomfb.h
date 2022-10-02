@@ -4,8 +4,10 @@
 #ifndef __APPLE_DCPEP_H__
 #define __APPLE_DCPEP_H__
 
+#include <linux/types.h>
+
 /* Endpoint for general DCP traffic (dcpep in macOS) */
-#define DCP_ENDPOINT 0x37
+#define IOMFB_ENDPOINT 0x37
 
 /* Fixed size of shared memory between DCP and AP */
 #define DCP_SHMEM_SIZE 0x100000
@@ -29,27 +31,6 @@ enum dcp_context_id {
 
 	DCP_NUM_CONTEXTS
 };
-
-static int dcp_tx_offset(enum dcp_context_id id)
-{
-	switch (id) {
-	case DCP_CONTEXT_CB:
-	case DCP_CONTEXT_CMD:    return 0x00000;
-	case DCP_CONTEXT_OOBCB:
-	case DCP_CONTEXT_OOBCMD: return 0x08000;
-	default:		 return -EINVAL;
-	}
-}
-
-static int dcp_channel_offset(enum dcp_context_id id)
-{
-	switch (id) {
-	case DCP_CONTEXT_ASYNC:  return 0x40000;
-	case DCP_CONTEXT_CB:     return 0x60000;
-	case DCP_CONTEXT_OOBCB:  return 0x68000;
-	default:		 return dcp_tx_offset(id);
-	}
-}
 
 /* RTKit endpoint message types */
 enum dcpep_type {
@@ -86,29 +67,6 @@ struct dcp_packet_header {
 
 #define DCP_IS_NULL(ptr) ((ptr) ? 1 : 0)
 #define DCP_PACKET_ALIGNMENT (0x40)
-
-static inline u64
-dcpep_set_shmem(u64 dart_va)
-{
-	return (DCPEP_TYPE_SET_SHMEM << DCPEP_TYPE_SHIFT) |
-	       (DCPEP_FLAG_VALUE << DCPEP_FLAG_SHIFT) |
-	       (dart_va << DCPEP_DVA_SHIFT);
-}
-
-static inline u64
-dcpep_msg(enum dcp_context_id id, u32 length, u16 offset)
-{
-	return (DCPEP_TYPE_MESSAGE << DCPEP_TYPE_SHIFT) |
-	       ((u64) id << DCPEP_CONTEXT_SHIFT) |
-	       ((u64) offset << DCPEP_OFFSET_SHIFT) |
-	       ((u64) length << DCPEP_LENGTH_SHIFT);
-}
-
-static inline u64
-dcpep_ack(enum dcp_context_id id)
-{
-	return dcpep_msg(id, 0, 0) | DCPEP_ACK;
-}
 
 /* Structures used in v12.0 firmware */
 
