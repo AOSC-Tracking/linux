@@ -21,6 +21,10 @@
 	};
 };
 
+&dcp {
+	apple,connector-type = "eDP";
+};
+
 &bluetooth0 {
 	brcm,board-type = "apple,capri";
 };

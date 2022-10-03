@@ -21,6 +21,10 @@
 	};
 };
 
+&dcp {
+	apple,connector-type = "HDMI-A";
+};
+
 &bluetooth0 {
 	brcm,board-type = "apple,atlantisb";
 };
