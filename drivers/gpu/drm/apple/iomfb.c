@@ -983,6 +983,16 @@ static void dcpep_cb_hotplug(struct apple_dcp *dcp, u64 *connected)
 {
 	struct apple_connector *connector = dcp->connector;
 
+	/* DCP issues hotplug_gated callbacks after SetPowerState() calls on
+	 * devices with display (macbooks, imacs). This must not result in
+	 * connector state changes on DRM side. Some applications won't enable
+	 * a CRTC with a connector in disconnected state. Weston after DPMS off
+	 * is one example. dcp_is_main_display() returns true on devices with
+	 * integrated display. Ignore the hotplug_gated() callbacks there.
+	 */
+	if (dcp->main_display)
+		return;
+
 	/* Hotplug invalidates mode. DRM doesn't always handle this. */
 	if (!(*connected)) {
 		dcp->valid_mode = false;
