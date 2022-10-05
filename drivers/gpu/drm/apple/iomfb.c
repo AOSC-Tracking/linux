@@ -9,6 +9,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/iommu.h>
+#include <linux/kref.h>
 #include <linux/align.h>
 #include <linux/apple-mailbox.h>
 #include <linux/soc/apple/rtkit.h>
@@ -32,9 +33,17 @@
 #define REG_DOORBELL_BIT (2)
 
 struct dcp_wait_cookie {
+	struct kref refcount;
 	struct completion done;
-	atomic_t refcount;
 };
+
+static void release_wait_cookie(struct kref *ref)
+{
+	struct dcp_wait_cookie *cookie;
+	cookie = container_of(ref, struct dcp_wait_cookie, refcount);
+
+        kfree(cookie);
+}
 
 static int dcp_tx_offset(enum dcp_context_id id)
 {
@@ -755,10 +764,18 @@ static u64 dcpep_cb_get_time(struct apple_dcp *dcp)
 }
 
 struct dcp_swap_cookie {
+	struct kref refcount;
 	struct completion done;
-	atomic_t refcount;
 	u32 swap_id;
 };
+
+static void release_swap_cookie(struct kref *ref)
+{
+	struct dcp_swap_cookie *cookie;
+	cookie = container_of(ref, struct dcp_swap_cookie, refcount);
+
+        kfree(cookie);
+}
 
 static void dcp_swap_cleared(struct apple_dcp *dcp, void *data, void *cookie)
 {
@@ -768,8 +785,7 @@ static void dcp_swap_cleared(struct apple_dcp *dcp, void *data, void *cookie)
 	if (cookie) {
 		struct dcp_swap_cookie *info = cookie;
 		complete(&info->done);
-		if (atomic_dec_and_test(&info->refcount))
-			kfree(info);
+		kref_put(&info->refcount, release_swap_cookie);
 	}
 
 	if (resp->ret) {
@@ -811,8 +827,7 @@ static void dcp_on_final(struct apple_dcp *dcp, void *out, void *cookie)
 
 	if (wait) {
 		complete(&wait->done);
-		if (atomic_dec_and_test(&wait->refcount))
-			kfree(wait);
+		kref_put(&wait->refcount, release_wait_cookie);
 	}
 }
 
@@ -844,7 +859,9 @@ void dcp_poweron(struct platform_device *pdev)
 		return;
 
 	init_completion(&cookie->done);
-	atomic_set(&cookie->refcount, 2);
+	kref_init(&cookie->refcount);
+	/* increase refcount to ensure the receiver has a reference */
+	kref_get(&cookie->refcount);
 
 	if (dcp->main_display) {
 		handle = 0;
@@ -862,8 +879,7 @@ void dcp_poweron(struct platform_device *pdev)
 	if (ret == 0)
 		dev_warn(dcp->dev, "wait for power timed out");
 
-	if (atomic_dec_and_test(&cookie->refcount))
-		kfree(cookie);
+	kref_put(&cookie->refcount, release_wait_cookie);;
 }
 EXPORT_SYMBOL(dcp_poweron);
 
@@ -874,8 +890,7 @@ static void complete_set_powerstate(struct apple_dcp *dcp, void *out,
 
 	if (wait) {
 		complete(&wait->done);
-		if (atomic_dec_and_test(&wait->refcount))
-			kfree(wait);
+		kref_put(&wait->refcount, release_wait_cookie);
 	}
 }
 
@@ -896,7 +911,9 @@ void dcp_poweroff(struct platform_device *pdev)
 	if (!cookie)
 		return;
 	init_completion(&cookie->done);
-	atomic_set(&cookie->refcount, 2);
+	kref_init(&cookie->refcount);
+	/* increase refcount to ensure the receiver has a reference */
+	kref_get(&cookie->refcount);
 
 	// clear surfaces
 	memset(&dcp->swap, 0, sizeof(dcp->swap));
@@ -912,8 +929,7 @@ void dcp_poweroff(struct platform_device *pdev)
 
 	ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(50));
 	swap_id = cookie->swap_id;
-	if (atomic_dec_and_test(&cookie->refcount))
-		kfree(cookie);
+	kref_put(&cookie->refcount, release_swap_cookie);
 	if (ret <= 0) {
 		dcp->crashed = true;
 		return;
@@ -925,7 +941,9 @@ void dcp_poweroff(struct platform_device *pdev)
 	if (!poff_cookie)
 		return;
 	init_completion(&poff_cookie->done);
-	atomic_set(&poff_cookie->refcount, 2);
+	kref_init(&poff_cookie->refcount);
+	/* increase refcount to ensure the receiver has a reference */
+	kref_get(&poff_cookie->refcount);
 
 	dcp_set_power_state(dcp, false, &power_req, complete_set_powerstate,
 			    poff_cookie);
@@ -939,8 +957,7 @@ void dcp_poweroff(struct platform_device *pdev)
 			"setPowerState(0) finished with %d ms to spare",
 			jiffies_to_msecs(ret));
 
-	if (atomic_dec_and_test(&poff_cookie->refcount))
-		kfree(poff_cookie);
+	kref_put(&poff_cookie->refcount, release_wait_cookie);
 	dev_dbg(dcp->dev, "%s: setPowerState(0) done", __func__);
 }
 EXPORT_SYMBOL(dcp_poweroff);
@@ -1379,8 +1396,7 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 
 	if (wait) {
 		complete(&wait->done);
-		if (atomic_dec_and_test(&wait->refcount))
-			kfree(wait);
+		kref_put(&wait->refcount, release_wait_cookie);
 	}
 }
 
@@ -1509,7 +1525,9 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		}
 
 		init_completion(&cookie->done);
-		atomic_set(&cookie->refcount, 2);
+		kref_init(&cookie->refcount);
+		/* increase refcount to ensure the receiver has a reference */
+		kref_get(&cookie->refcount);
 
 		dcp_set_digital_out_mode(dcp, false, &dcp->mode,
 					 complete_set_digital_out_mode, cookie);
@@ -1518,8 +1536,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		ret = wait_for_completion_timeout(&cookie->done,
 						  msecs_to_jiffies(500));
 
-		if (atomic_dec_and_test(&cookie->refcount))
-			kfree(cookie);
+		kref_put(&cookie->refcount, release_wait_cookie);
 
 		if (ret == 0) {
 			dev_dbg(dcp->dev, "set_digital_out_mode 200 ms");
