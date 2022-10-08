@@ -25,6 +25,7 @@
 #include "dcp-internal.h"
 #include "iomfb.h"
 #include "parser.h"
+#include "trace.h"
 
 /* Register defines used in bandwidth setup structure */
 #define REG_SCRATCH (0x14)
@@ -228,17 +229,15 @@ static void dcp_push(struct apple_dcp *dcp, bool oob, enum dcpep_method method,
 	if (in_len > 0)
 		memcpy(out_data, data, in_len);
 
-	dev_dbg(dcp->dev, "---> %s: context %u, offset %u, depth %u\n",
-		dcp_methods[method].name, context, offset, depth);
+	trace_iomfb_push(dcp, &dcp_methods[method], context, offset, depth);
 
 	ch->callbacks[depth] = cb;
 	ch->cookies[depth] = cookie;
 	ch->output[depth] = out + sizeof(header) + in_len;
 	ch->end[depth] = offset + ALIGN(data_len, DCP_PACKET_ALIGNMENT);
 
-	apple_rtkit_send_message(dcp->rtk, IOMFB_ENDPOINT,
-				 dcpep_msg(context, data_len, offset), NULL,
-				 false);
+	dcp_send_message(dcp, IOMFB_ENDPOINT,
+			 dcpep_msg(context, data_len, offset));
 }
 
 #define DCP_THUNK_VOID(func, handle)                                         \
@@ -333,8 +332,8 @@ static void dcp_ack(struct apple_dcp *dcp, enum dcp_context_id context)
 	struct dcp_cb_channel *ch = dcp_get_cb_channel(dcp, context);
 
 	dcp_pop_depth(&ch->depth);
-	apple_rtkit_send_message(dcp->rtk, IOMFB_ENDPOINT, dcpep_ack(context),
-				 NULL, false);
+	dcp_send_message(dcp, IOMFB_ENDPOINT,
+			 dcpep_ack(context));
 }
 
 /* DCP callback handlers */
@@ -361,8 +360,7 @@ static u32 dcpep_cb_zero(struct apple_dcp *dcp)
 static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 				   struct dc_swap_complete_resp *resp)
 {
-	dev_dbg(dcp->dev, "swap complete for swap_id: %u vblank: %u",
-		resp->swap_id, dcp->ignore_swap_complete);
+	trace_iomfb_swap_complete(dcp, resp->swap_id);
 
 	if (!dcp->ignore_swap_complete)
 		dcp_drm_crtc_vblank(dcp->crtc);
@@ -725,7 +723,7 @@ static void boot_1_5(struct apple_dcp *dcp, void *out, void *cookie)
 /* Use special function signature to defer the ACK */
 static bool dcpep_cb_boot_1(struct apple_dcp *dcp, int tag, void *out, void *in)
 {
-	dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, __func__);
+	trace_iomfb_callback(dcp, tag, __func__);
 	dcp_set_create_dfb(dcp, false, boot_1_5, NULL);
 	return false;
 }
@@ -1029,7 +1027,7 @@ static void
 dcpep_cb_swap_complete_intent_gated(struct apple_dcp *dcp,
 				    struct dcp_swap_complete_intent_gated *info)
 {
-	dev_dbg(dcp->dev, "swap_id:%u width:%u height:%u", info->swap_id,
+	trace_iomfb_swap_complete_intent_gated(dcp, info->swap_id,
 		info->width, info->height);
 }
 
@@ -1043,7 +1041,7 @@ dcpep_cb_swap_complete_intent_gated(struct apple_dcp *dcp,
 #define TRAMPOLINE_VOID(func, handler)                                        \
 	static bool func(struct apple_dcp *dcp, int tag, void *out, void *in) \
 	{                                                                     \
-		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);      \
+		trace_iomfb_callback(dcp, tag, #handler);                     \
 		handler(dcp);                                                 \
 		return true;                                                  \
 	}
@@ -1055,7 +1053,7 @@ dcpep_cb_swap_complete_intent_gated(struct apple_dcp *dcp,
 	{                                                                     \
 		callback_##handler cb = handler;                              \
                                                                               \
-		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);      \
+		trace_iomfb_callback(dcp, tag, #handler);                     \
 		cb(dcp, in);                                                  \
 		return true;                                                  \
 	}
@@ -1068,7 +1066,7 @@ dcpep_cb_swap_complete_intent_gated(struct apple_dcp *dcp,
 		T_out *typed_out = out;                                       \
 		callback_##handler cb = handler;                              \
                                                                               \
-		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);      \
+		trace_iomfb_callback(dcp, tag, #handler);                     \
 		*typed_out = cb(dcp, in);                                     \
 		return true;                                                  \
 	}
@@ -1078,7 +1076,7 @@ dcpep_cb_swap_complete_intent_gated(struct apple_dcp *dcp,
 	{                                                                     \
 		T_out *typed_out = out;                                       \
                                                                               \
-		dev_dbg(dcp->dev, "Callback D%03d %s\n", tag, #handler);      \
+		trace_iomfb_callback(dcp, tag, #handler);                     \
 		*typed_out = handler(dcp);                                    \
 		return true;                                                  \
 	}
@@ -1290,6 +1288,7 @@ static void dcp_swap_started(struct apple_dcp *dcp, void *data, void *cookie)
 
 	dcp->swap.swap.swap_id = resp->swap_id;
 
+	trace_iomfb_swap_submit(dcp, resp->swap_id);
 	dcp_swap_submit(dcp, false, &dcp->swap, dcp_swapped, NULL);
 }
 
@@ -1633,8 +1632,7 @@ int iomfb_start_rtkit(struct apple_dcp *dcp)
 					GFP_KERNEL);
 
 	shmem_iova |= dcp->asc_dram_mask;
-	apple_rtkit_send_message(dcp->rtk, IOMFB_ENDPOINT,
-				 dcpep_set_shmem(shmem_iova), NULL, false);
+	dcp_send_message(dcp, IOMFB_ENDPOINT, dcpep_set_shmem(shmem_iova));
 
 	return 0;
 }
