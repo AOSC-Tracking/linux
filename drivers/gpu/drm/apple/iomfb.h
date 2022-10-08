@@ -6,9 +6,6 @@
 
 #include <linux/types.h>
 
-/* Endpoint for general DCP traffic (dcpep in macOS) */
-#define IOMFB_ENDPOINT 0x37
-
 /* Fixed size of shared memory between DCP and AP */
 #define DCP_SHMEM_SIZE 0x100000
 

@@ -12,6 +12,17 @@
 
 struct apple_dcp;
 
+enum {
+	SYSTEM_ENDPOINT = 0x20,
+	TEST_ENDPOINT = 0x21,
+	DCP_EXPERT_ENDPOINT = 0x22,
+	DISP0_ENDPOINT = 0x23,
+	DPTX_ENDPOINT = 0x2a,
+	HDCP_ENDPOINT = 0x2b,
+	REMOTE_ALLOC_ENDPOINT = 0x2d,
+	IOMFB_ENDPOINT = 0x37,
+};
+
 /* Temporary backing for a chunked transfer via setDCPAVPropStart/Chunk/End */
 struct dcp_chunks {
 	size_t length;
