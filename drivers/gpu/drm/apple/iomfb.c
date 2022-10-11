@@ -1315,10 +1315,31 @@ static u32 drm_format_to_dcp(u32 drm)
 	case DRM_FORMAT_XBGR8888:
 	case DRM_FORMAT_ABGR8888:
 		return fourcc_code('A', 'B', 'G', 'R');
+
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_XRGB2101010:
+		return fourcc_code('r', '0', '3', 'w');
 	}
 
 	pr_warn("DRM format %X not supported in DCP\n", drm);
 	return 0;
+}
+
+static u8 drm_format_to_colorspace(u32 drm)
+{
+	switch (drm) {
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
+		return 1;
+
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_XRGB2101010:
+		return 2;
+	}
+
+	return 1;
 }
 
 int dcp_get_modes(struct drm_connector *connector)
@@ -1484,7 +1505,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		req->surf[l] = (struct dcp_surface){
 			.format = drm_format_to_dcp(fb->format->format),
 			.xfer_func = 13,
-			.colorspace = 1,
+			.colorspace = drm_format_to_colorspace(fb->format->format),
 			.stride = fb->pitches[0],
 			.width = fb->width,
 			.height = fb->height,
