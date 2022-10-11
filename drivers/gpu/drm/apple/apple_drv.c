@@ -136,6 +136,7 @@ u64 apple_format_modifiers[] = {
 };
 
 static struct drm_plane *apple_plane_init(struct drm_device *dev,
+					  unsigned long possible_crtcs,
 					  enum drm_plane_type type)
 {
 	int ret;
@@ -143,7 +144,8 @@ static struct drm_plane *apple_plane_init(struct drm_device *dev,
 
 	plane = devm_kzalloc(dev->dev, sizeof(*plane), GFP_KERNEL);
 
-	ret = drm_universal_plane_init(dev, plane, 0x1, &apple_plane_funcs,
+	ret = drm_universal_plane_init(dev, plane, possible_crtcs,
+				       &apple_plane_funcs,
 				       dcp_formats, ARRAY_SIZE(dcp_formats),
 				       apple_format_modifiers, type, NULL);
 	if (ret)
@@ -295,7 +297,8 @@ static const struct drm_crtc_helper_funcs apple_crtc_helper_funcs = {
 
 static int apple_probe_per_dcp(struct device *dev,
 			       struct drm_device *drm,
-			       struct platform_device *dcp)
+			       struct platform_device *dcp,
+			       int num)
 {
 	struct apple_crtc *crtc;
 	struct apple_connector *connector;
@@ -304,7 +307,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	int con_type;
 	int ret;
 
-	primary = apple_plane_init(drm, DRM_PLANE_TYPE_PRIMARY);
+	primary = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_PRIMARY);
 
 	if (IS_ERR(primary))
 		return PTR_ERR(primary);
@@ -421,7 +424,7 @@ static int apple_platform_probe(struct platform_device *pdev)
 	apple->drm.mode_config.helper_private = &apple_mode_config_helpers;
 
 	for (i = 0; i < nr_dcp; ++i) {
-		ret = apple_probe_per_dcp(&pdev->dev, &apple->drm, dcp[i]);
+		ret = apple_probe_per_dcp(&pdev->dev, &apple->drm, dcp[i], i);
 
 		if (ret)
 			goto err_unload;
