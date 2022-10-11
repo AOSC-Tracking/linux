@@ -47,8 +47,18 @@ struct apple_drm_private {
 
 DEFINE_DRM_GEM_DMA_FOPS(apple_fops);
 
+static int apple_drm_gem_dumb_create(struct drm_file *file_priv,
+                            struct drm_device *drm,
+                            struct drm_mode_create_dumb *args)
+{
+        args->pitch = ALIGN(DIV_ROUND_UP(args->width * args->bpp, 8), 64);
+        args->size = args->pitch * args->height;
+
+	return drm_gem_dma_dumb_create_internal(file_priv, drm, args);
+}
+
 static const struct drm_driver apple_drm_driver = {
-	DRM_GEM_DMA_DRIVER_OPS,
+	DRM_GEM_DMA_DRIVER_OPS_WITH_DUMB_CREATE(apple_drm_gem_dumb_create),
 	DRM_FBDEV_DMA_DRIVER_OPS,
 	.name			= DRIVER_NAME,
 	.desc			= DRIVER_DESC,
