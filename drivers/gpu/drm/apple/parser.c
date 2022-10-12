@@ -340,6 +340,12 @@ static int parse_mode(struct dcp_parse_ctx *handle,
 	}
 
 	/*
+	 * Reject modes without valid color mode.
+	 */
+	if (best_color_mode < 0)
+		return -EINVAL;
+
+	/*
 	 * We need to skip virtual modes. In some cases, virtual modes are "too
 	 * big" for the monitor and can cause breakage. It is unclear why the
 	 * DCP reports these modes at all. Treat as a recoverable error.
