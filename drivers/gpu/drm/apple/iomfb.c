@@ -1437,9 +1437,18 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 	modeset = drm_atomic_crtc_needs_modeset(crtc_state) || !dcp->valid_mode;
 
-	if (WARN(dcp_channel_busy(&dcp->ch_cmd), "unexpected busy channel") ||
-	    WARN(!modeset && !dcp->connector->connected,
-		 "can't flush if disconnected")) {
+	if (dcp_channel_busy(&dcp->ch_cmd))
+	{
+		dev_err(dcp->dev, "unexpected busy command channel");
+		/* HACK: issue a delayed vblank event to avoid timeouts in
+		 * drm_atomic_helper_wait_for_vblanks().
+		 */
+		schedule_work(&dcp->vblank_wq);
+		return;
+	}
+	if (!modeset && !dcp->connector->connected)
+	{
+		dev_err(dcp->dev, "dcp_flush while disconnected");
 		/* HACK: issue a delayed vblank event to avoid timeouts in
 		 * drm_atomic_helper_wait_for_vblanks().
 		 */
