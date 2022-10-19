@@ -21,6 +21,7 @@
 #include <linux/ioport.h>
 #include <linux/jiffies.h>
 #include <linux/jump_label.h>
+#include <linux/ktime.h>
 #include <linux/lockdep.h>
 #include <linux/mdio.h>
 #include <linux/miscdevice.h>
@@ -36,6 +37,7 @@
 #include <linux/sched.h>
 #include <linux/security.h>
 #include <linux/slab.h>
+#include <linux/timekeeping.h>
 #include <linux/tracepoint.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
