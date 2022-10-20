@@ -181,6 +181,44 @@ void dcp_send_message(struct apple_dcp *dcp, u8 endpoint, u64 message)
 				 false);
 }
 
+int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
+{
+	struct platform_device *pdev = to_apple_crtc(crtc)->dcp;
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+	struct drm_plane_state *new_state;
+	struct drm_plane *plane;
+	struct drm_crtc_state *crtc_state;
+	int plane_idx, plane_count = 0;
+	bool needs_modeset;
+
+	if (dcp->crashed)
+		return -EINVAL;
+
+	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+
+	needs_modeset = drm_atomic_crtc_needs_modeset(crtc_state) || !dcp->valid_mode;
+	if (!needs_modeset && !dcp->connector->connected) {
+		dev_err(dcp->dev, "crtc_atomic_check: disconnected but no modeset");
+		return -EINVAL;
+	}
+
+	for_each_new_plane_in_state(state, plane, new_state, plane_idx) {
+		/* skip planes not for this crtc */
+		if (new_state->crtc != crtc)
+			continue;
+
+		plane_count += 1;
+	}
+
+	if (plane_count > DCP_MAX_PLANES) {
+		dev_err(dcp->dev, "crtc_atomic_check: Blend supports only 2 layers!");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dcp_crtc_atomic_check);
+
 void dcp_link(struct platform_device *pdev, struct apple_crtc *crtc,
 	      struct apple_connector *connector)
 {

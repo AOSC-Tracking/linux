@@ -1446,15 +1446,6 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		schedule_work(&dcp->vblank_wq);
 		return;
 	}
-	if (!modeset && !dcp->connector->connected)
-	{
-		dev_err(dcp->dev, "dcp_flush while disconnected");
-		/* HACK: issue a delayed vblank event to avoid timeouts in
-		 * drm_atomic_helper_wait_for_vblanks().
-		 */
-		schedule_work(&dcp->vblank_wq);
-		return;
-	}
 
 	/* Reset to defaults */
 	memset(req, 0, sizeof(*req));
