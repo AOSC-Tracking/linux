@@ -10,6 +10,8 @@
 
 #include "iomfb.h"
 
+#define DCP_MAX_PLANES 2
+
 struct apple_dcp;
 
 enum {

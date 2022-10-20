@@ -37,6 +37,7 @@ struct apple_connector {
 
 void dcp_poweroff(struct platform_device *pdev);
 void dcp_poweron(struct platform_device *pdev);
+int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void dcp_link(struct platform_device *pdev, struct apple_crtc *apple,
 	      struct apple_connector *connector);
 void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state);
