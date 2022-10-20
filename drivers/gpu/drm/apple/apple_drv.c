@@ -302,6 +302,7 @@ static const struct drm_connector_helper_funcs apple_connector_helper_funcs = {
 
 static const struct drm_crtc_helper_funcs apple_crtc_helper_funcs = {
 	.atomic_begin		= apple_crtc_atomic_begin,
+	.atomic_check		= dcp_crtc_atomic_check,
 	.atomic_flush		= dcp_flush,
 	.atomic_enable		= apple_crtc_atomic_enable,
 	.atomic_disable		= apple_crtc_atomic_disable,
