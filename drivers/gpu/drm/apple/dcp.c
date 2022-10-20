@@ -107,6 +107,10 @@ static void dcp_rtk_crashed(void *cookie, const void *crashlog, size_t crashlog_
 
 	dcp->crashed = true;
 	dev_err(dcp->dev, "DCP has crashed");
+	if (dcp->connector) {
+		dcp->connector->connected = 0;
+		schedule_work(&dcp->connector->hotplug_wq);
+	}
 }
 
 static int dcp_rtk_shmem_setup(void *cookie, struct apple_rtkit_shmem *bfr)
