@@ -381,7 +381,7 @@ MODULE_DEVICE_TABLE(of, of_match);
  */
 static int dcp_suspend(struct device *dev)
 {
-	dcp_platform_shutdown(to_platform_device(dev));
+	dcp_poweroff(to_platform_device(dev));
 	return 0;
 }
 
