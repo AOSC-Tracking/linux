@@ -371,14 +371,16 @@ static int apple_probe_per_dcp(struct device *dev,
 
 static int apple_platform_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct apple_drm_private *apple;
 	struct platform_device *dcp[MAX_COPROCESSORS];
 	int ret, nr_dcp, i;
 
 	for (nr_dcp = 0; nr_dcp < MAX_COPROCESSORS; ++nr_dcp) {
 		struct device_node *np;
+		struct device_link *dcp_link;
 
-		np = of_parse_phandle(pdev->dev.of_node, "apple,coprocessors",
+		np = of_parse_phandle(dev->of_node, "apple,coprocessors",
 				      nr_dcp);
 
 		if (!np)
@@ -389,11 +391,14 @@ static int apple_platform_probe(struct platform_device *pdev)
 		if (!dcp[nr_dcp])
 			return -ENODEV;
 
-		/* DCP needs to be initialized before KMS can come online */
-		if (!platform_get_drvdata(dcp[nr_dcp]))
-			return -EPROBE_DEFER;
+		dcp_link = device_link_add(dev, &dcp[nr_dcp]->dev,
+					   DL_FLAG_AUTOREMOVE_CONSUMER);
+		if (!dcp_link) {
+			dev_err(dev, "Failed to link to DCP %d device", nr_dcp);
+			return -EINVAL;
+		}
 
-		if (!dcp_is_initialized(dcp[nr_dcp]))
+		if (dcp_link->supplier->links.status != DL_DEV_DRIVER_BOUND)
 			return -EPROBE_DEFER;
 	}
 
@@ -401,11 +406,11 @@ static int apple_platform_probe(struct platform_device *pdev)
 	if (nr_dcp < 1)
 		return -ENODEV;
 
-	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 	if (ret)
 		return ret;
 
-	apple = devm_drm_dev_alloc(&pdev->dev, &apple_drm_driver,
+	apple = devm_drm_dev_alloc(dev, &apple_drm_driver,
 				   struct apple_drm_private, drm);
 	if (IS_ERR(apple))
 		return PTR_ERR(apple);
@@ -437,7 +442,12 @@ static int apple_platform_probe(struct platform_device *pdev)
 	apple->drm.mode_config.helper_private = &apple_mode_config_helpers;
 
 	for (i = 0; i < nr_dcp; ++i) {
-		ret = apple_probe_per_dcp(&pdev->dev, &apple->drm, dcp[i], i);
+		ret = apple_probe_per_dcp(dev, &apple->drm, dcp[i], i);
+
+		if (ret)
+			goto err_unload;
+
+		ret = dcp_start(dcp[i]);
 
 		if (ret)
 			goto err_unload;

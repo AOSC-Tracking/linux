@@ -226,14 +226,22 @@ void dcp_link(struct platform_device *pdev, struct apple_crtc *crtc,
 
 	dcp->crtc = crtc;
 	dcp->connector = connector;
-
-	/* init connector status by modes offered by dcp */
-	connector->connected = dcp->nr_modes > 0;
-
-	/* Dimensions might already be parsed */
-	dcp_set_dimensions(dcp);
 }
 EXPORT_SYMBOL_GPL(dcp_link);
+
+int dcp_start(struct platform_device *pdev)
+{
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+	int ret;
+
+	/* start RTKit endpoints */
+	ret = iomfb_start_rtkit(dcp);
+	if (ret)
+		dev_err(dcp->dev, "Failed to start IOMFB endpoint: %d", ret);
+
+	return ret;
+}
+EXPORT_SYMBOL(dcp_start);
 
 static struct platform_device *dcp_get_dev(struct device *dev, const char *name)
 {
@@ -346,12 +354,6 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret,
 				     "Failed to boot RTKit: %d", ret);
-
-	/* start RTKit endpoints */
-	ret = iomfb_start_rtkit(dcp);
-	if (ret)
-		return dev_err_probe(dev, ret,
-				     "Failed to start IOMFB endpoint: %d", ret);
 
 	return ret;
 }
