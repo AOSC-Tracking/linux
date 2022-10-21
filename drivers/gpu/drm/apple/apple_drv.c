@@ -415,7 +415,7 @@ static int apple_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(apple))
 		return PTR_ERR(apple);
 
-	ret = drm_vblank_init(&apple->drm, 1);
+	ret = drm_vblank_init(&apple->drm, nr_dcp);
 	if (ret)
 		return ret;
 
