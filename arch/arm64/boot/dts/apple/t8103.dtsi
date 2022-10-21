@@ -20,6 +20,10 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
+	aliases {
+		gpu = &gpu;
+	};
+
 	cpus {
 		#address-cells = <2>;
 		#size-cells = <0>;
@@ -299,6 +303,50 @@
 #endif
 	};
 
+	gpu_opp: opp-table-gpu {
+		compatible = "operating-points-v2";
+
+		/*
+		 * NOTE: The voltage and power values are device-specific and
+		 * must be filled in by the bootloader.
+		 */
+		opp00 {
+			opp-hz = /bits/ 64 <0>;
+			opp-microvolt = <400000>;
+			apple,opp-rel-power = <0>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <396000000>;
+			opp-microvolt = <603000>;
+			apple,opp-rel-power = <19>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <528000000>;
+			opp-microvolt = <640000>;
+			apple,opp-rel-power = <26>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <720000000>;
+			opp-microvolt = <690000>;
+			apple,opp-rel-power = <38>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <924000000>;
+			opp-microvolt = <784000>;
+			apple,opp-rel-power = <60>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1128000000>;
+			opp-microvolt = <862000>;
+			apple,opp-rel-power = <87>;
+		};
+		opp06 {
+			opp-hz = /bits/ 64 <1278000000>;
+			opp-microvolt = <931000>;
+			apple,opp-rel-power = <100>;
+		};
+	};
+
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupt-parent = <&aic>;
@@ -389,7 +437,7 @@
 		ranges;
 		nonposted-mmio;
 
-		agx: gpu@206400000 {
+		gpu: gpu@206400000 {
 			compatible = "apple,agx-t8103", "apple,agx-g13g";
 			reg = <0x2 0x6400000 0 0x40000>,
 				<0x2 0x4000000 0 0x1000000>;
@@ -404,6 +452,8 @@
 			power-domains = <&ps_gfx>;
 			memory-region = <&uat_ttbs>, <&uat_pagetables>, <&uat_handoff>;
 			memory-region-names = "ttbs", "pagetables", "handoff";
+
+			operating-points-v2 = <&gpu_opp>;
 		};
 
 		agx_mbox: mbox@206408000 {
