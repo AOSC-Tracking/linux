@@ -25,6 +25,7 @@
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_simple_kms_helper.h>
+#include <drm/drm_mode.h>
 #include <drm/drm_modeset_helper.h>
 #include <drm/drm_of.h>
 #include <drm/drm_probe_helper.h>
@@ -300,6 +301,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct apple_connector *connector;
 	struct drm_encoder *encoder;
 	struct drm_plane *primary;
+	int con_type;
 	int ret;
 
 	primary = apple_plane_init(drm, DRM_PLANE_TYPE_PRIMARY);
@@ -325,8 +327,17 @@ static int apple_probe_per_dcp(struct device *dev,
 	drm_connector_helper_add(&connector->base,
 				 &apple_connector_helper_funcs);
 
+	if (of_property_match_string(dcp->dev.of_node, "apple,connector-type", "eDP") >= 0)
+		con_type = DRM_MODE_CONNECTOR_eDP;
+	else if (of_property_match_string(dcp->dev.of_node, "apple,connector-type", "HDMI-A") >= 0)
+		con_type = DRM_MODE_CONNECTOR_HDMIA;
+	else if (of_property_match_string(dcp->dev.of_node, "apple,connector-type", "USB-C") >= 0)
+		con_type = DRM_MODE_CONNECTOR_USB;
+	else
+		con_type = DRM_MODE_CONNECTOR_Unknown;
+
 	ret = drm_connector_init(drm, &connector->base, &apple_connector_funcs,
-				 DRM_MODE_CONNECTOR_HDMIA);
+				 con_type);
 	if (ret)
 		return ret;
 
