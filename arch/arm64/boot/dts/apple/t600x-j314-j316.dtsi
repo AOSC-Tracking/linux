@@ -65,6 +65,10 @@
 	status = "okay";
 };
 
+&dcp {
+	apple,connector-type = "eDP";
+};
+
 /* USB Type C */
 &i2c0 {
 	hpm0: usb-pd@38 {
