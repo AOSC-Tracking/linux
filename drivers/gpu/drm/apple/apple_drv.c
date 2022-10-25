@@ -455,6 +455,7 @@ static int apple_platform_probe(struct platform_device *pdev)
 
 	drm_mode_config_reset(&apple->drm);
 
+	// remove before registering our DRM device
 	ret = drm_aperture_remove_framebuffers(false, &apple_drm_driver);
 	if (ret)
 		return ret;
