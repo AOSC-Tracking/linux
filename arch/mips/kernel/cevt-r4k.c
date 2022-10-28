@@ -151,7 +151,8 @@ irqreturn_t c0_compare_interrupt(int irq, void *dev_id)
 		/* Clear Count/Compare Interrupt */
 		write_c0_compare(read_c0_compare());
 		cd = &per_cpu(mips_clockevent_device, cpu);
-		cd->event_handler(cd);
+        if (cd->event_handler)
+			cd->event_handler(cd);
 
 		return IRQ_HANDLED;
 	}
