@@ -47,7 +47,7 @@ struct dcp_mem_descriptor {
 
 typedef void (*dcp_callback_t)(struct apple_dcp *, void *, void *);
 
-struct dcp_call_channel {
+struct dcp_channel {
 	dcp_callback_t callbacks[DCP_MAX_CALL_DEPTH];
 	void *cookies[DCP_MAX_CALL_DEPTH];
 	void *output[DCP_MAX_CALL_DEPTH];
@@ -55,11 +55,6 @@ struct dcp_call_channel {
 
 	/* Current depth of the call stack. Less than DCP_MAX_CALL_DEPTH */
 	u8 depth;
-};
-
-struct dcp_cb_channel {
-	u8 depth;
-	void *output[DCP_MAX_CALL_DEPTH];
 };
 
 struct dcp_fb_reference {
@@ -108,8 +103,8 @@ struct apple_dcp {
 	/* Indexed table of memory descriptors */
 	struct dcp_mem_descriptor memdesc[DCP_MAX_MAPPINGS];
 
-	struct dcp_call_channel ch_cmd, ch_oobcmd;
-	struct dcp_cb_channel ch_cb, ch_oobcb, ch_async;
+	struct dcp_channel ch_cmd, ch_oobcmd;
+	struct dcp_channel ch_cb, ch_oobcb, ch_async;
 
 	/* Active chunked transfer. There can only be one at a time. */
 	struct dcp_chunks chunks;
