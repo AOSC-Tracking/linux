@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright 2021 Alyssa Rosenzweig <alyssa@rosenzweig.io> */
 
+#include <linux/bitfield.h>
 #include <linux/bitmap.h>
 #include <linux/clk.h>
 #include <linux/module.h>
@@ -76,22 +77,22 @@ static int dcp_channel_offset(enum dcp_context_id id)
 
 static inline u64 dcpep_set_shmem(u64 dart_va)
 {
-	return (DCPEP_TYPE_SET_SHMEM << DCPEP_TYPE_SHIFT) |
-	       (DCPEP_FLAG_VALUE << DCPEP_FLAG_SHIFT) |
-	       (dart_va << DCPEP_DVA_SHIFT);
+	return FIELD_PREP(IOMFB_MESSAGE_TYPE, IOMFB_MESSAGE_TYPE_SET_SHMEM) |
+	       FIELD_PREP(IOMFB_SHMEM_FLAG, IOMFB_SHMEM_FLAG_VALUE) |
+	       FIELD_PREP(IOMFB_SHMEM_DVA, dart_va);
 }
 
 static inline u64 dcpep_msg(enum dcp_context_id id, u32 length, u16 offset)
 {
-	return (DCPEP_TYPE_MESSAGE << DCPEP_TYPE_SHIFT) |
-	       ((u64)id << DCPEP_CONTEXT_SHIFT) |
-	       ((u64)offset << DCPEP_OFFSET_SHIFT) |
-	       ((u64)length << DCPEP_LENGTH_SHIFT);
+	return FIELD_PREP(IOMFB_MESSAGE_TYPE, IOMFB_MESSAGE_TYPE_MSG) |
+		FIELD_PREP(IOMFB_MSG_CONTEXT, id) |
+		FIELD_PREP(IOMFB_MSG_OFFSET, offset) |
+		FIELD_PREP(IOMFB_MSG_LENGTH, length);
 }
 
 static inline u64 dcpep_ack(enum dcp_context_id id)
 {
-	return dcpep_msg(id, 0, 0) | DCPEP_ACK;
+	return dcpep_msg(id, 0, 0) | IOMFB_MSG_ACK;
 }
 
 /*
@@ -1238,9 +1239,9 @@ static void dcpep_got_msg(struct apple_dcp *dcp, u64 message)
 	int channel_offset;
 	void *data;
 
-	ctx_id = (message & DCPEP_CONTEXT_MASK) >> DCPEP_CONTEXT_SHIFT;
-	offset = (message & DCPEP_OFFSET_MASK) >> DCPEP_OFFSET_SHIFT;
-	length = (message >> DCPEP_LENGTH_SHIFT);
+	ctx_id = FIELD_GET(IOMFB_MSG_CONTEXT, message);
+	offset = FIELD_GET(IOMFB_MSG_OFFSET, message);
+	length = FIELD_GET(IOMFB_MSG_LENGTH, message);
 
 	channel_offset = dcp_channel_offset(ctx_id);
 
@@ -1251,7 +1252,7 @@ static void dcpep_got_msg(struct apple_dcp *dcp, u64 message)
 
 	data = dcp->shmem + channel_offset + offset;
 
-	if (message & DCPEP_ACK)
+	if (FIELD_GET(IOMFB_MSG_ACK, message))
 		dcpep_handle_ack(dcp, ctx_id, data, length);
 	else
 		dcpep_handle_cb(dcp, ctx_id, data, length);
@@ -1651,11 +1652,11 @@ static void dcp_started(struct apple_dcp *dcp, void *data, void *cookie)
 
 void iomfb_recv_msg(struct apple_dcp *dcp, u64 message)
 {
-	enum dcpep_type type = (message >> DCPEP_TYPE_SHIFT) & DCPEP_TYPE_MASK;
+	enum dcpep_type type = FIELD_GET(IOMFB_MESSAGE_TYPE, message);
 
-	if (type == DCPEP_TYPE_INITIALIZED)
+	if (type == IOMFB_MESSAGE_TYPE_INITIALIZED)
 		dcp_start_signal(dcp, false, dcp_started, NULL);
-	else if (type == DCPEP_TYPE_MESSAGE)
+	else if (type == IOMFB_MESSAGE_TYPE_MSG)
 		dcpep_got_msg(dcp, message);
 	else
 		dev_warn(dcp->dev, "Ignoring unknown message %llx\n", message);
