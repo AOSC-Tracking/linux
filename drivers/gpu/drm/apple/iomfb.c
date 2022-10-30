@@ -171,7 +171,10 @@ const struct dcp_method_entry dcp_methods[dcpep_num_methods] = {
 	DCP_METHOD("A000", dcpep_late_init_signal),
 	DCP_METHOD("A029", dcpep_setup_video_limits),
 	DCP_METHOD("A034", dcpep_update_notify_clients_dcp),
+	DCP_METHOD("A131", iomfbep_a131_pmu_service_matched),
+	DCP_METHOD("A132", iomfbep_a132_backlight_service_matched),
 	DCP_METHOD("A357", dcpep_set_create_dfb),
+	DCP_METHOD("A358", iomfbep_a358_vi_set_temperature_hint),
 	DCP_METHOD("A401", dcpep_start_signal),
 	DCP_METHOD("A407", dcpep_swap_start),
 	DCP_METHOD("A408", dcpep_swap_submit),
@@ -257,6 +260,10 @@ static void dcp_push(struct apple_dcp *dcp, bool oob, enum dcpep_method method,
 		dcp_push(dcp, oob, handle, sizeof(T_in), sizeof(T_out), data, \
 			 cb, cookie);                                         \
 	}
+
+DCP_THUNK_OUT(iomfb_a131_pmu_service_matched, iomfbep_a131_pmu_service_matched, u32);
+DCP_THUNK_OUT(iomfb_a132_backlight_service_matched, iomfbep_a132_backlight_service_matched, u32);
+DCP_THUNK_OUT(iomfb_a358_vi_set_temperature_hint, iomfbep_a358_vi_set_temperature_hint, u32);
 
 DCP_THUNK_INOUT(dcp_swap_submit, dcpep_swap_submit, struct dcp_swap_submit_req,
 		struct dcp_swap_submit_resp);
@@ -355,11 +362,91 @@ static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
+/* special */
+static void complete_vi_set_temperature_hint(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	// ack D100 cb_match_pmu_service
+	dcp_ack(dcp, DCP_CONTEXT_CB);
+}
+
+static bool iomfbep_cb_match_pmu_service(struct apple_dcp *dcp, int tag, void *out, void *in)
+{
+	trace_iomfb_callback(dcp, tag, __func__);
+	iomfb_a358_vi_set_temperature_hint(dcp, false,
+					   complete_vi_set_temperature_hint,
+					   NULL);
+
+	// return false for deferred ACK
+	return false;
+}
+
+static void complete_pmu_service_matched(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	struct dcp_channel *ch = &dcp->ch_cb;
+	u8 *succ = ch->output[ch->depth - 1];
+
+	*succ = true;
+
+	// ack D206 cb_match_pmu_service_2
+	dcp_ack(dcp, DCP_CONTEXT_CB);
+}
+
+static bool iomfbep_cb_match_pmu_service_2(struct apple_dcp *dcp, int tag, void *out, void *in)
+{
+	trace_iomfb_callback(dcp, tag, __func__);
+
+	iomfb_a131_pmu_service_matched(dcp, false, complete_pmu_service_matched,
+				       out);
+
+	// return false for deferred ACK
+	return false;
+}
+
+static void complete_backlight_service_matched(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	struct dcp_channel *ch = &dcp->ch_cb;
+	u8 *succ = ch->output[ch->depth - 1];
+
+	*succ = true;
+
+	// ack D206 cb_match_backlight_service
+	dcp_ack(dcp, DCP_CONTEXT_CB);
+}
+
+static bool iomfbep_cb_match_backlight_service(struct apple_dcp *dcp, int tag, void *out, void *in)
+{
+	trace_iomfb_callback(dcp, tag, __func__);
+
+	iomfb_a132_backlight_service_matched(dcp, false, complete_backlight_service_matched, out);
+
+	// return false for deferred ACK
+	return false;
+}
+
 static struct dcp_get_uint_prop_resp
 dcpep_cb_get_uint_prop(struct apple_dcp *dcp, struct dcp_get_uint_prop_req *req)
 {
-	/* unimplemented for now */
-	return (struct dcp_get_uint_prop_resp){ .value = 0 };
+	struct dcp_get_uint_prop_resp resp = (struct dcp_get_uint_prop_resp){
+	    .value = 0
+	};
+
+	if (memcmp(req->obj, "SUMP", sizeof(req->obj)) == 0) { /* "PMUS */
+	    if (strncmp(req->key, "Temperature", sizeof(req->key)) == 0) {
+		/*
+		 * TODO: value from j314c, find out if it is temperature in
+		 *       centigrade C and which temperature sensor reports it
+		 */
+		resp.value = 3029;
+		resp.ret = true;
+	    }
+	}
+
+	return resp;
+}
+
+static void iomfbep_cb_set_fx_prop(struct apple_dcp *dcp, struct iomfb_set_fx_prop_req *req)
+{
+    // TODO: trace this, see if there properties which needs to used later
 }
 
 /*
@@ -1079,6 +1166,8 @@ TRAMPOLINE_IN(trampoline_swap_complete, dcpep_cb_swap_complete,
 	      struct dc_swap_complete_resp);
 TRAMPOLINE_INOUT(trampoline_get_uint_prop, dcpep_cb_get_uint_prop,
 		 struct dcp_get_uint_prop_req, struct dcp_get_uint_prop_resp);
+TRAMPOLINE_IN(trampoline_set_fx_prop, iomfbep_cb_set_fx_prop,
+	      struct iomfb_set_fx_prop_req)
 TRAMPOLINE_INOUT(trampoline_map_piodma, dcpep_cb_map_piodma,
 		 struct dcp_map_buf_req, struct dcp_map_buf_resp);
 TRAMPOLINE_IN(trampoline_unmap_piodma, dcpep_cb_unmap_piodma,
@@ -1114,7 +1203,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *,
 	[1] = trampoline_true, /* did_power_on_signal */
 	[2] = trampoline_nop, /* will_power_off_signal */
 	[3] = trampoline_rt_bandwidth,
-	[100] = trampoline_nop, /* match_pmu_service */
+	[100] = iomfbep_cb_match_pmu_service,
 	[101] = trampoline_zero, /* get_display_default_stride */
 	[103] = trampoline_nop, /* set_boolean_property */
 	[106] = trampoline_nop, /* remove_property */
@@ -1122,7 +1211,7 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *,
 	[108] = trampoline_true, /* create_product_service */
 	[109] = trampoline_true, /* create_pmu_service */
 	[110] = trampoline_true, /* create_iomfb_service */
-	[111] = trampoline_false, /* create_backlight_service */
+	[111] = trampoline_true, /* create_backlight_service */
 	[116] = dcpep_cb_boot_1,
 	[117] = trampoline_false, /* is_dark_boot */
 	[118] = trampoline_false, /* is_dark_boot / is_waking_from_hibernate*/
@@ -1132,14 +1221,14 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *,
 	[124] = trampoline_prop_end,
 	[201] = trampoline_map_piodma,
 	[202] = trampoline_unmap_piodma,
-	[206] = trampoline_true, /* match_pmu_service_2 */
-	[207] = trampoline_true, /* match_backlight_service */
+	[206] = iomfbep_cb_match_pmu_service_2,
+	[207] = iomfbep_cb_match_backlight_service,
 	[208] = trampoline_get_time,
 	[211] = trampoline_nop, /* update_backlight_factor_prop */
 	[300] = trampoline_nop, /* pr_publish */
 	[401] = trampoline_get_uint_prop,
 	[404] = trampoline_nop, /* sr_set_uint_prop */
-	[406] = trampoline_nop, /* set_fx_prop */
+	[406] = trampoline_set_fx_prop,
 	[408] = trampoline_get_frequency,
 	[411] = trampoline_map_reg,
 	[413] = trampoline_true, /* sr_set_property_dict */

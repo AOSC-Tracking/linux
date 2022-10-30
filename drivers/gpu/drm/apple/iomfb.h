@@ -197,6 +197,9 @@ enum dcpep_method {
 	dcpep_set_parameter_dcp,
 	dcpep_enable_disable_video_power_savings,
 	dcpep_is_main_display,
+	iomfbep_a131_pmu_service_matched,
+	iomfbep_a132_backlight_service_matched,
+	iomfbep_a358_vi_set_temperature_hint,
 	dcpep_num_methods
 };
 
@@ -335,6 +338,12 @@ struct dcp_get_uint_prop_resp {
 	u64 value;
 	u8 ret;
 	u8 padding[3];
+} __packed;
+
+struct iomfb_set_fx_prop_req {
+	char obj[4];
+	char key[0x40];
+	u32 value;
 } __packed;
 
 struct dcp_set_power_state_req {
