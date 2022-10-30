@@ -32,29 +32,27 @@ enum dcp_context_id {
 /* RTKit endpoint message types */
 enum dcpep_type {
 	/* Set shared memory */
-	DCPEP_TYPE_SET_SHMEM = 0,
+	IOMFB_MESSAGE_TYPE_SET_SHMEM = 0,
 
 	/* DCP is initialized */
-	DCPEP_TYPE_INITIALIZED = 1,
+	IOMFB_MESSAGE_TYPE_INITIALIZED = 1,
 
 	/* Remote procedure call */
-	DCPEP_TYPE_MESSAGE = 2,
+	IOMFB_MESSAGE_TYPE_MSG = 2,
 };
 
+#define IOMFB_MESSAGE_TYPE	GENMASK_ULL( 3,  0)
+
 /* Message */
-#define DCPEP_TYPE_SHIFT (0)
-#define DCPEP_TYPE_MASK GENMASK(1, 0)
-#define DCPEP_ACK BIT_ULL(6)
-#define DCPEP_CONTEXT_SHIFT (8)
-#define DCPEP_CONTEXT_MASK GENMASK(11, 8)
-#define DCPEP_OFFSET_SHIFT (16)
-#define DCPEP_OFFSET_MASK GENMASK(31, 16)
-#define DCPEP_LENGTH_SHIFT (32)
+#define IOMFB_MSG_LENGTH	GENMASK_ULL(63, 32)
+#define IOMFB_MSG_OFFSET	GENMASK_ULL(31, 16)
+#define IOMFB_MSG_CONTEXT	GENMASK_ULL(11,  8)
+#define IOMFB_MSG_ACK		BIT_ULL(6)
 
 /* Set shmem */
-#define DCPEP_DVA_SHIFT (16)
-#define DCPEP_FLAG_SHIFT (4)
-#define DCPEP_FLAG_VALUE (4)
+#define IOMFB_SHMEM_DVA		GENMASK_ULL(63, 16)
+#define IOMFB_SHMEM_FLAG	GENMASK_ULL( 7,  4)
+#define IOMFB_SHMEM_FLAG_VALUE	4
 
 struct dcp_packet_header {
 	char tag[4];
