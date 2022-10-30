@@ -99,25 +99,9 @@ static inline u64 dcpep_ack(enum dcp_context_id id)
  * A channel is busy if we have sent a message that has yet to be
  * acked. The driver must not sent a message to a busy channel.
  */
-static bool dcp_channel_busy(struct dcp_call_channel *ch)
+static bool dcp_channel_busy(struct dcp_channel *ch)
 {
 	return (ch->depth != 0);
-}
-
-/* Get a call channel for a context */
-static struct dcp_call_channel *
-dcp_get_call_channel(struct apple_dcp *dcp, enum dcp_context_id context)
-{
-	switch (context) {
-	case DCP_CONTEXT_CMD:
-	case DCP_CONTEXT_CB:
-		return &dcp->ch_cmd;
-	case DCP_CONTEXT_OOBCMD:
-	case DCP_CONTEXT_OOBCB:
-		return &dcp->ch_oobcmd;
-	default:
-		return NULL;
-	}
 }
 
 /*
@@ -136,15 +120,19 @@ static enum dcp_context_id dcp_call_context(struct apple_dcp *dcp, bool oob)
 		return oob ? DCP_CONTEXT_OOBCMD : DCP_CONTEXT_CMD;
 }
 
-/* Get a callback channel for a context */
-static struct dcp_cb_channel *dcp_get_cb_channel(struct apple_dcp *dcp,
-						 enum dcp_context_id context)
+/* Get a channel for a context */
+static struct dcp_channel *dcp_get_channel(struct apple_dcp *dcp,
+					   enum dcp_context_id context)
 {
 	switch (context) {
 	case DCP_CONTEXT_CB:
 		return &dcp->ch_cb;
+	case DCP_CONTEXT_CMD:
+		return &dcp->ch_cmd;
 	case DCP_CONTEXT_OOBCB:
 		return &dcp->ch_oobcb;
+	case DCP_CONTEXT_OOBCMD:
+		return &dcp->ch_oobcmd;
 	case DCP_CONTEXT_ASYNC:
 		return &dcp->ch_async;
 	default:
@@ -153,7 +141,7 @@ static struct dcp_cb_channel *dcp_get_cb_channel(struct apple_dcp *dcp,
 }
 
 /* Get the start of a packet: after the end of the previous packet */
-static u16 dcp_packet_start(struct dcp_call_channel *ch, u8 depth)
+static u16 dcp_packet_start(struct dcp_channel *ch, u8 depth)
 {
 	if (depth > 0)
 		return ch->end[depth - 1];
@@ -204,8 +192,8 @@ static void dcp_push(struct apple_dcp *dcp, bool oob, enum dcpep_method method,
 		     u32 in_len, u32 out_len, void *data, dcp_callback_t cb,
 		     void *cookie)
 {
-	struct dcp_call_channel *ch = oob ? &dcp->ch_oobcmd : &dcp->ch_cmd;
 	enum dcp_context_id context = dcp_call_context(dcp, oob);
+	struct dcp_channel *ch = dcp_get_channel(dcp, context);
 
 	struct dcp_packet_header header = {
 		.in_len = in_len,
@@ -330,7 +318,7 @@ static int dcp_parse_tag(char tag[4])
 /* Ack a callback from the DCP */
 static void dcp_ack(struct apple_dcp *dcp, enum dcp_context_id context)
 {
-	struct dcp_cb_channel *ch = dcp_get_cb_channel(dcp, context);
+	struct dcp_channel *ch = dcp_get_channel(dcp, context);
 
 	dcp_pop_depth(&ch->depth);
 	dcp_send_message(dcp, IOMFB_ENDPOINT,
@@ -687,7 +675,7 @@ static u8 dcpep_cb_prop_end(struct apple_dcp *dcp,
 /* Boot sequence */
 static void boot_done(struct apple_dcp *dcp, void *out, void *cookie)
 {
-	struct dcp_cb_channel *ch = &dcp->ch_cb;
+	struct dcp_channel *ch = &dcp->ch_cb;
 	u8 *succ = ch->output[ch->depth - 1];
 	dev_dbg(dcp->dev, "boot done");
 
@@ -1176,13 +1164,13 @@ bool (*const dcpep_cb_handlers[DCPEP_MAX_CB])(struct apple_dcp *, int, void *,
 };
 
 static void dcpep_handle_cb(struct apple_dcp *dcp, enum dcp_context_id context,
-			    void *data, u32 length)
+			    void *data, u32 length, u16 offset)
 {
 	struct device *dev = dcp->dev;
 	struct dcp_packet_header *hdr = data;
 	void *in, *out;
 	int tag = dcp_parse_tag(hdr->tag);
-	struct dcp_cb_channel *ch = dcp_get_cb_channel(dcp, context);
+	struct dcp_channel *ch = dcp_get_channel(dcp, context);
 	u8 depth;
 
 	if (tag < 0 || tag >= DCPEP_MAX_CB || !dcpep_cb_handlers[tag]) {
@@ -1201,6 +1189,7 @@ static void dcpep_handle_cb(struct apple_dcp *dcp, enum dcp_context_id context,
 
 	depth = dcp_push_depth(&ch->depth);
 	ch->output[depth] = out;
+	ch->end[depth] = offset + ALIGN(length, DCP_PACKET_ALIGNMENT);
 
 	if (dcpep_cb_handlers[tag](dcp, tag, out, in))
 		dcp_ack(dcp, context);
@@ -1210,7 +1199,7 @@ static void dcpep_handle_ack(struct apple_dcp *dcp, enum dcp_context_id context,
 			     void *data, u32 length)
 {
 	struct dcp_packet_header *header = data;
-	struct dcp_call_channel *ch = dcp_get_call_channel(dcp, context);
+	struct dcp_channel *ch = dcp_get_channel(dcp, context);
 	void *cookie;
 	dcp_callback_t cb;
 
@@ -1255,7 +1244,7 @@ static void dcpep_got_msg(struct apple_dcp *dcp, u64 message)
 	if (FIELD_GET(IOMFB_MSG_ACK, message))
 		dcpep_handle_ack(dcp, ctx_id, data, length);
 	else
-		dcpep_handle_cb(dcp, ctx_id, data, length);
+		dcpep_handle_cb(dcp, ctx_id, data, length, offset);
 }
 
 /*
