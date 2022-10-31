@@ -31,7 +31,16 @@
 };
 
 &dcp {
-	apple,connector-type = "eDP";
+	panel: panel {
+		compatible = "apple,panel-j313", "apple,panel";
+		width-mm = <286>;
+		height-mm = <179>;
+		apple,max-brightness = <420>;
+	};
+};
+
+&framebuffer0 {
+	panel = &panel;
 };
 
 &bluetooth0 {
