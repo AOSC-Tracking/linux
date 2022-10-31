@@ -63,6 +63,12 @@ struct dcp_packet_header {
 #define DCP_IS_NULL(ptr) ((ptr) ? 1 : 0)
 #define DCP_PACKET_ALIGNMENT (0x40)
 
+enum iomfb_property_id {
+    IOMFB_PROPERTY_NITS = 15, // divide by Brightness_Scale
+};
+
+#define IOMFB_BRIGHTNESS_MIN 0x10000000
+
 /* Structures used in v12.0 firmware */
 
 #define SWAP_SURFACES 4
@@ -114,7 +120,11 @@ struct dcp_swap {
 	u32 unk_2c8;
 	u8 unk_2cc[0x14];
 	u32 unk_2e0;
-	u8 unk_2e4[0x3c];
+	u16 unk_2e2;
+	u64 bl_unk;
+	u32 bl_value; // min value is 0x10000000
+	u8  bl_power; // constant 0x40 for on
+	u8 unk_2f3[0x2d];
 } __packed;
 
 /* Information describing a plane of a planar compressed surface */
@@ -340,6 +350,14 @@ struct dcp_get_uint_prop_resp {
 	u8 padding[3];
 } __packed;
 
+struct iomfb_sr_set_property_int_req {
+	char obj[4];
+	char key[0x40];
+	u64 value;
+	u8 value_null;
+	u8 padding[3];
+} __packed;
+
 struct iomfb_set_fx_prop_req {
 	char obj[4];
 	char key[0x40];
@@ -408,6 +426,11 @@ struct dcp_read_edt_data_req {
 struct dcp_read_edt_data_resp {
 	u32 value[8];
 	u8 ret;
+} __packed;
+
+struct iomfb_property {
+	u32 id;
+	u32 value;
 } __packed;
 
 #endif
