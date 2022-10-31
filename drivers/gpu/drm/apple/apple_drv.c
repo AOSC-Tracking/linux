@@ -317,7 +317,6 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct apple_connector *connector;
 	struct drm_encoder *encoder;
 	struct drm_plane *primary;
-	int con_type;
 	int ret;
 
 	primary = apple_plane_init(drm, 1U << num, DRM_PLANE_TYPE_PRIMARY);
@@ -343,17 +342,8 @@ static int apple_probe_per_dcp(struct device *dev,
 	drm_connector_helper_add(&connector->base,
 				 &apple_connector_helper_funcs);
 
-	if (of_property_match_string(dcp->dev.of_node, "apple,connector-type", "eDP") >= 0)
-		con_type = DRM_MODE_CONNECTOR_eDP;
-	else if (of_property_match_string(dcp->dev.of_node, "apple,connector-type", "HDMI-A") >= 0)
-		con_type = DRM_MODE_CONNECTOR_HDMIA;
-	else if (of_property_match_string(dcp->dev.of_node, "apple,connector-type", "USB-C") >= 0)
-		con_type = DRM_MODE_CONNECTOR_USB;
-	else
-		con_type = DRM_MODE_CONNECTOR_Unknown;
-
 	ret = drm_connector_init(drm, &connector->base, &apple_connector_funcs,
-				 con_type);
+				 dcp_get_connector_type(dcp));
 	if (ret)
 		return ret;
 

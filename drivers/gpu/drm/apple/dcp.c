@@ -21,6 +21,7 @@
 
 #include "dcp.h"
 #include "dcp-internal.h"
+#include "iomfb.h"
 #include "parser.h"
 #include "trace.h"
 
@@ -219,6 +220,14 @@ int dcp_crtc_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 }
 EXPORT_SYMBOL_GPL(dcp_crtc_atomic_check);
 
+int dcp_get_connector_type(struct platform_device *pdev)
+{
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+
+	return (dcp->connector_type);
+}
+EXPORT_SYMBOL_GPL(dcp_get_connector_type);
+
 void dcp_link(struct platform_device *pdev, struct apple_crtc *crtc,
 	      struct apple_connector *connector)
 {
@@ -277,6 +286,7 @@ static int dcp_get_disp_regs(struct apple_dcp *dcp)
 static int dcp_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct device_node *panel_np;
 	struct apple_dcp *dcp;
 	u32 cpu_ctrl;
 	int ret;
@@ -297,6 +307,27 @@ static int dcp_platform_probe(struct platform_device *pdev)
 		return PTR_ERR(dcp->coproc_reg);
 
 	of_platform_default_populate(dev->of_node, NULL, dev);
+
+	/* intialize brightness scale to a sensible default to avoid divide by 0*/
+	dcp->brightness.scale = 65536;
+	panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
+	if (panel_np) {
+		of_node_put(panel_np);
+		dcp->connector_type = DRM_MODE_CONNECTOR_eDP;
+
+		/* try to register backlight device, */
+		ret = dcp_backlight_register(dcp);
+		if (ret)
+			return dev_err_probe(dev, ret,
+						"Unable to register backlight device\n");
+	} else if (of_property_match_string(dev->of_node, "apple,connector-type", "HDMI-A") >= 0)
+		dcp->connector_type = DRM_MODE_CONNECTOR_HDMIA;
+	else if (of_property_match_string(dev->of_node, "apple,connector-type", "DP") >= 0)
+		dcp->connector_type = DRM_MODE_CONNECTOR_DisplayPort;
+	else if (of_property_match_string(dev->of_node, "apple,connector-type", "USB-C") >= 0)
+		dcp->connector_type = DRM_MODE_CONNECTOR_USB;
+	else
+		dcp->connector_type = DRM_MODE_CONNECTOR_Unknown;
 
 	dcp->piodma = dcp_get_dev(dev, "apple,piodma-mapper");
 	if (!dcp->piodma) {
