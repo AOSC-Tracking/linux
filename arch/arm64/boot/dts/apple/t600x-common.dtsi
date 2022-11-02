@@ -11,6 +11,10 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
+	aliases {
+		gpu = &gpu;
+	};
+
 	cpus {
 		#address-cells = <2>;
 		#size-cells = <0>;
@@ -333,6 +337,50 @@
 		*/
 	};
 
+	gpu_opp: opp-table-gpu {
+		compatible = "operating-points-v2";
+
+		/*
+		 * NOTE: The voltage and power values are device-specific and
+		 * must be filled in by the bootloader.
+		 */
+		opp00 {
+			opp-hz = /bits/ 64 <0>;
+			opp-microvolt = GPU_REPEAT(400000);
+			opp-microwatt = <0>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <388800000>;
+			opp-microvolt = GPU_REPEAT(634000);
+			opp-microwatt = <25011450>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <486000000>;
+			opp-microvolt = GPU_REPEAT(650000);
+			opp-microwatt = <31681170>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <648000000>;
+			opp-microvolt = GPU_REPEAT(668000);
+			opp-microwatt = <41685750>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <777600000>;
+			opp-microvolt = GPU_REPEAT(715000);
+			opp-microwatt = <56692620>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <972000000>;
+			opp-microvolt = GPU_REPEAT(778000);
+			opp-microwatt = <83371500>;
+		};
+		opp06 {
+			opp-hz = /bits/ 64 <1296000000>;
+			opp-microvolt = GPU_REPEAT(903000);
+			opp-microwatt = <166743000>;
+		};
+	};
+
 	pmu-e {
 		compatible = "apple,icestorm-pmu";
 		interrupt-parent = <&aic>;
@@ -383,5 +431,23 @@
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
 		clock-output-names = "nco_ref";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		uat_handoff: uat-handoff {
+			reg = <0 0 0 0>;
+		};
+
+		uat_pagetables: uat-pagetables {
+			reg = <0 0 0 0>;
+		};
+
+		uat_ttbs: uat-ttbs {
+			reg = <0 0 0 0>;
+		};
 	};
 };

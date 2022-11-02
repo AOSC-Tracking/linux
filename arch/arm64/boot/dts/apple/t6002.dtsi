@@ -16,6 +16,10 @@
 
 #include "multi-die-cpp.h"
 
+#ifndef GPU_REPEAT
+# define GPU_REPEAT(x) <x x x x x x x x>
+#endif
+
 #include "t600x-common.dtsi"
 
 / {
@@ -300,4 +304,8 @@
 &ps_gfx {
 	// On t6002, the die0 GPU power domain needs both AFR power domains
 	power-domains = <&ps_afr>, <&ps_afr_die1>;
+};
+
+&gpu {
+	compatible = "apple,agx-t6002", "apple,agx-g13x";
 };

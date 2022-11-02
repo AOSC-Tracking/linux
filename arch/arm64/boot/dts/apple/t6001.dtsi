@@ -16,6 +16,10 @@
 
 #include "multi-die-cpp.h"
 
+#ifndef GPU_REPEAT
+# define GPU_REPEAT(x) <x x x x>
+#endif
+
 #include "t600x-common.dtsi"
 
 / {
@@ -62,4 +66,8 @@
 				&cpu_p10 &cpu_p11 &cpu_p12 &cpu_p13>;
 		};
 	};
+};
+
+&gpu {
+	compatible = "apple,agx-t6001", "apple,agx-g13x";
 };

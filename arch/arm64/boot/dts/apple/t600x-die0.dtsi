@@ -429,6 +429,70 @@
 		#sound-dai-cells = <1>;
 	};
 
+	gpu: gpu@406400000 {
+		compatible = "apple,agx-g13x";
+		reg = <0x4 0x6400000 0 0x40000>,
+			<0x4 0x4000000 0 0x1000000>;
+		reg-names = "asc", "sgx";
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 1044 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1045 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1046 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1047 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1063 IRQ_TYPE_LEVEL_HIGH>;
+		mboxes = <&agx_mbox>;
+		power-domains = <&ps_gfx>;
+		memory-region = <&uat_ttbs>, <&uat_pagetables>, <&uat_handoff>;
+		memory-region-names = "ttbs", "pagetables", "handoff";
+
+		operating-points-v2 = <&gpu_opp>;
+		apple,perf-base-pstate = <1>;
+		apple,min-sram-microvolt = <790000>;
+		apple,avg-power-filter-tc-ms = <1000>;
+		apple,avg-power-ki-only = <2.4>;
+		apple,avg-power-kp = <1.5>;
+		apple,avg-power-min-duty-cycle = <40>;
+		apple,avg-power-target-filter-tc = <125>;
+		apple,fast-die0-integral-gain = <500.0>;
+		apple,fast-die0-proportional-gain = <72.0>;
+		apple,perf-boost-ce-step = <50>;
+		apple,perf-boost-min-util = <90>;
+		apple,perf-filter-drop-threshold = <0>;
+		apple,perf-filter-time-constant = <5>;
+		apple,perf-filter-time-constant2 = <50>;
+		apple,perf-integral-gain = <6.3>;
+		apple,perf-integral-gain2 = <0.197392>;
+		apple,perf-integral-min-clamp = <0>;
+		apple,perf-proportional-gain = <15.75>;
+		apple,perf-proportional-gain2 = <6.853981>;
+		apple,perf-tgt-utilization = <85>;
+		apple,power-sample-period = <8>;
+		apple,ppm-filter-time-constant-ms = <100>;
+		apple,ppm-ki = <30>;
+		apple,ppm-kp = <1.5>;
+		apple,pwr-filter-time-constant = <313>;
+		apple,pwr-integral-gain = <0.0202129>;
+		apple,pwr-integral-min-clamp = <0>;
+		apple,pwr-min-duty-cycle = <40>;
+		apple,pwr-proportional-gain = <5.2831855>;
+
+		apple,core-leak-coef = GPU_REPEAT(1200.0);
+		apple,sram-leak-coef = GPU_REPEAT(20.0);
+	};
+
+	agx_mbox: mbox@406408000 {
+		compatible = "apple,t6000-asc-mailbox", "apple,asc-mailbox-v4";
+		reg = <0x4 0x6408000 0x0 0x4000>;
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 1059 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1060 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1061 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 1062 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "send-empty", "send-not-empty",
+			"recv-empty", "recv-not-empty";
+		#mbox-cells = <0>;
+	};
+
 	pcie0_dart_0: iommu@581008000 {
 		compatible = "apple,t6000-dart";
 		reg = <0x5 0x81008000 0x0 0x4000>;
