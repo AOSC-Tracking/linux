@@ -480,6 +480,9 @@
 			apple,pwr-integral-min-clamp = <0>;
 			apple,pwr-min-duty-cycle = <40>;
 			apple,pwr-proportional-gain = <5.2831855>;
+
+			apple,core-leak-coef = <1000.0>;
+			apple,sram-leak-coef = <45.0>;
 		};
 
 		agx_mbox: mbox@206408000 {
