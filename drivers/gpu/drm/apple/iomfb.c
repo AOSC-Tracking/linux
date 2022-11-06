@@ -985,7 +985,7 @@ void dcp_hotplug(struct work_struct *work)
 	 * display modes from atomic_flush, so userspace needs to trigger a
 	 * flush, or the CRTC gets no signal.
 	 */
-	if (!dcp->valid_mode && connector->connected) {
+	if (connector->base.state && !dcp->valid_mode && connector->connected) {
 		drm_connector_set_link_status_property(
 			&connector->base, DRM_MODE_LINK_STATUS_BAD);
 	}
