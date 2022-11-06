@@ -373,7 +373,8 @@ static void dcp_platform_shutdown(struct platform_device *pdev)
 {
 	struct apple_dcp *dcp = platform_get_drvdata(pdev);
 
-	iomfb_shutdown(dcp);
+	if (dcp->shmem)
+		iomfb_shutdown(dcp);
 }
 
 static const struct of_device_id of_match[] = {
