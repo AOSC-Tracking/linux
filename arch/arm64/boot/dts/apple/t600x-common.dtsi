@@ -440,14 +440,17 @@
 
 		uat_handoff: uat-handoff {
 			reg = <0 0 0 0>;
+			no-map;
 		};
 
 		uat_pagetables: uat-pagetables {
 			reg = <0 0 0 0>;
+			no-map;
 		};
 
 		uat_ttbs: uat-ttbs {
 			reg = <0 0 0 0>;
+			no-map;
 		};
 	};
 };
