@@ -73,6 +73,13 @@
 		reg = <0x2 0x9e280000 0 0x4000>;
 	};
 
+	DIE_NODE(efuse): efuse@29e2cc000 {
+		compatible = "apple,t6020-efuses", "apple,efuses";
+		reg = <0x2 0x9e2cc000 0x0 0x2000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+
 	DIE_NODE(pinctrl_aop): pinctrl@2a6820000 {
 		compatible = "apple,t6020-pinctrl", "apple,t8103-pinctrl";
 		reg = <0x2 0xa6820000 0x0 0x4000>;
