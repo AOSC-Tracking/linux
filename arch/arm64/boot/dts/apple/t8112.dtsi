@@ -860,6 +860,103 @@
 			interrupts = <AIC_IRQ 379 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
+		efuse@23d2c8000 {
+			compatible = "apple,t8112-efuses", "apple,efuses";
+			reg = <0x2 0x3d2c8000 0x0 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			atcphy0_auspll_rodco_bias_adjust: efuse@480,20 {
+				reg = <0x480 4>;
+				bits = <20 3>;
+			};
+
+			atcphy0_auspll_rodco_encap: efuse@480,23 {
+				reg = <0x480 4>;
+				bits = <23 2>;
+			};
+
+			atcphy0_auspll_dtc_vreg_adjust: efuse@480,25 {
+				reg = <0x480 4>;
+				bits = <25 3>;
+			};
+
+			atcphy0_auspll_fracn_dll_start_capcode: efuse@480,28 {
+				reg = <0x480 4>;
+				bits = <28 2>;
+			};
+
+			atcphy0_aus_cmn_shm_vreg_trim: efuse@480,30 {
+				reg = <0x480 8>;
+				bits = <30 5>;
+			};
+
+			atcphy0_cio3pll_dco_coarsebin0: efuse@484,3 {
+				reg = <0x484 4>;
+				bits = <3 6>;
+			};
+
+			atcphy0_cio3pll_dco_coarsebin1: efuse@484,9 {
+				reg = <0x484 4>;
+				bits = <9 6>;
+			};
+
+			atcphy0_cio3pll_dll_start_capcode: efuse@484,15 {
+				reg = <0x484 4>;
+				bits = <15 2>;
+			};
+
+			atcphy0_cio3pll_dtc_vreg_adjust: efuse@484,17 {
+				reg = <0x484 0x4>;
+				bits = <17 3>;
+			};
+
+			atcphy1_auspll_rodco_bias_adjust: efuse@484,30 {
+				reg = <0x484 8>;
+				bits = <30 3>;
+			};
+
+			atcphy1_auspll_rodco_encap: efuse@488,1 {
+				reg = <0x488 8>;
+				bits = <1 2>;
+			};
+
+			atcphy1_auspll_dtc_vreg_adjust: efuse@488,3 {
+				reg = <0x488 4>;
+				bits = <3 3>;
+			};
+
+			atcphy1_auspll_fracn_dll_start_capcode: efuse@488,6 {
+				reg = <0x488 4>;
+				bits = <6 2>;
+			};
+
+			atcphy1_aus_cmn_shm_vreg_trim: efuse@488,8 {
+				reg = <0x488 4>;
+				bits = <8 5>;
+			};
+
+			atcphy1_cio3pll_dco_coarsebin0: efuse@488,13 {
+				reg = <0x488 4>;
+				bits = <13 6>;
+			};
+
+			atcphy1_cio3pll_dco_coarsebin1: efuse@488,19 {
+				reg = <0x488 4>;
+				bits = <19 6>;
+			};
+
+			atcphy1_cio3pll_dll_start_capcode: efuse@488,25 {
+				reg = <0x488 4>;
+				bits = <25 2>;
+			};
+
+			atcphy1_cio3pll_dtc_vreg_adjust: efuse@488,27 {
+				reg = <0x488 0x4>;
+				bits = <27 3>;
+			};
+		};
+
 		smc_mbox: mbox@23e408000 {
 			compatible = "apple,t8112-asc-mailbox", "apple,asc-mailbox-v4";
 			reg = <0x2 0x3e408000 0x0 0x4000>;
