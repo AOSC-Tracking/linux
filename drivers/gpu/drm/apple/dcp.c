@@ -414,39 +414,12 @@ static const struct of_device_id of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, of_match);
 
-#ifdef CONFIG_PM_SLEEP
-/*
- * We don't hold any useful persistent state, so for suspend/resume it suffices
- * to power off/on the entire DCP. The firmware will sort out the details for
- * us.
- */
-static int dcp_suspend(struct device *dev)
-{
-	dcp_poweroff(to_platform_device(dev));
-	return 0;
-}
-
-static int dcp_resume(struct device *dev)
-{
-	dcp_poweron(to_platform_device(dev));
-	return 0;
-}
-
-static const struct dev_pm_ops dcp_pm_ops = {
-	.suspend	= dcp_suspend,
-	.resume		= dcp_resume,
-};
-#endif
-
 static struct platform_driver apple_platform_driver = {
 	.probe		= dcp_platform_probe,
 	.shutdown	= dcp_platform_shutdown,
 	.driver	= {
 		.name = "apple-dcp",
 		.of_match_table	= of_match,
-#ifdef CONFIG_PM_SLEEP
-		.pm = &dcp_pm_ops,
-#endif
 	},
 };
 
