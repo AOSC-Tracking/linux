@@ -405,6 +405,8 @@ static int apple_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(apple))
 		return PTR_ERR(apple);
 
+	dev_set_drvdata(dev, apple);
+
 	ret = drm_vblank_init(&apple->drm, nr_dcp);
 	if (ret)
 		return ret;
@@ -467,9 +469,9 @@ err_unload:
 
 static int apple_platform_remove(struct platform_device *pdev)
 {
-	struct drm_device *drm = platform_get_drvdata(pdev);
+	struct apple_drm_private *apple = platform_get_drvdata(pdev);
 
-	drm_dev_unregister(drm);
+	drm_dev_unregister(&apple->drm);
 
 	return 0;
 }
@@ -480,10 +482,35 @@ static const struct of_device_id of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, of_match);
 
+#ifdef CONFIG_PM_SLEEP
+static int apple_platform_suspend(struct device *dev)
+{
+	struct apple_drm_private *apple = dev_get_drvdata(dev);
+
+	return drm_mode_config_helper_suspend(&apple->drm);
+}
+
+static int apple_platform_resume(struct device *dev)
+{
+	struct apple_drm_private *apple = dev_get_drvdata(dev);
+
+	drm_mode_config_helper_resume(&apple->drm);
+	return 0;
+}
+
+static const struct dev_pm_ops apple_platform_pm_ops = {
+	.suspend	= apple_platform_suspend,
+	.resume		= apple_platform_resume,
+};
+#endif
+
 static struct platform_driver apple_platform_driver = {
 	.driver	= {
 		.name = "apple-drm",
 		.of_match_table	= of_match,
+#ifdef CONFIG_PM_SLEEP
+		.pm = &apple_platform_pm_ops,
+#endif
 	},
 	.probe		= apple_platform_probe,
 	.remove		= apple_platform_remove,
