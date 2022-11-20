@@ -40,6 +40,19 @@
 	};
 };
 
+&dcp {
+	panel: panel {
+		compatible = "apple,panel-j493", "apple,panel";
+		width-mm = <286>;
+		height-mm = <179>;
+		apple,max-brightness = <525>;
+	};
+};
+
+&framebuffer0 {
+	panel = &panel;
+};
+
 &display_dfr {
 	status = "okay";
 };

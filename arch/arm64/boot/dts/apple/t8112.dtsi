@@ -367,6 +367,14 @@
 		clock-output-names = "nco_ref";
 	};
 
+	/* Pixel clock? frequency in Hz (compare: 4K@60 VGA clock 533.250 MHz) */
+	clk_disp0: clock-disp0 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <533333328>;
+		clock-output-names = "clk_disp0";
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -446,6 +454,74 @@
 					#size-cells = <0>;
 				};
 			};
+		};
+
+		disp0_dart: iommu@231304000 {
+			compatible = "apple,t8112-dart", "apple,t8110-dart";
+			reg = <0x2 0x31304000 0x0 0x4000>;
+			#iommu-cells = <1>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 553 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		dcp_dart: iommu@23130c000 {
+			compatible = "apple,t8112-dart", "apple,t8110-dart";
+			reg = <0x2 0x3130c000 0x0 0x4000>;
+			#iommu-cells = <1>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 553 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		dcp_mbox: mbox@231c08000 {
+			compatible = "apple,t8112-asc-mailbox", "apple,asc-mailbox-v4";
+			reg = <0x2 0x31c08000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 535 IRQ_TYPE_LEVEL_HIGH>,
+				<AIC_IRQ 536 IRQ_TYPE_LEVEL_HIGH>,
+				<AIC_IRQ 537 IRQ_TYPE_LEVEL_HIGH>,
+				<AIC_IRQ 538 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "send-empty", "send-not-empty",
+				"recv-empty", "recv-not-empty";
+			#mbox-cells = <0>;
+			power-domains = <&ps_disp0_cpu0>;
+			resets = <&ps_disp0_cpu0>;
+		};
+
+		dcp: dcp@231c00000 {
+			compatible = "apple,t8112-dcp", "apple,dcp";
+			mboxes = <&dcp_mbox>;
+			mbox-names = "mbox";
+			iommus = <&dcp_dart 5>;
+
+			/* the ADT has 2 additional regs which seems to be unused */
+			reg-names = "coproc", "disp-0", "disp-1", "disp-2", "disp-3";
+			reg = <0x2 0x31c00000 0x0 0x4000>,
+				<0x2 0x30000000 0x0 0x61c000>,
+				<0x2 0x31320000 0x0 0x4000>,
+				<0x2 0x31344000 0x0 0x4000>,
+				<0x2 0x31800000 0x0 0x800000>;
+			apple,bw-scratch = <&pmgr_dcp 0 4 0x5d8>;
+			power-domains = <&ps_disp0_cpu0>;
+			clocks = <&clk_disp0>;
+			apple,asc-dram-mask = <0x0 0x0>;
+			phandle = <&dcp>;
+			// required bus properties for 'piodma' subdevice
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+			disp0_piodma: piodma {
+				iommus = <&disp0_dart 4>;
+				phandle = <&disp0_piodma>;
+			};
+		};
+
+		display: display-subsystem {
+			compatible = "apple,display-subsystem";
+			/* disp_dart0 must be 1st since it is locked */
+			iommus = <&disp0_dart 0>;
+			/* generate phandle explicitly for use in loader */
+			phandle = <&display>;
 		};
 
 		sio_dart: iommu@235004000 {
@@ -675,6 +751,12 @@
 			#size-cells = <1>;
 			reg = <0x2 0x3b700000 0 0x14000>;
 			/* child nodes are added in t8103-pmgr.dtsi */
+		};
+
+		pmgr_dcp: power-management@23b3d0000 {
+			reg = <0x2 0x3b3d0000 0x0 0x4000>;
+			reg-names = "dcp-bw-scratch";
+			#apple,bw-scratch-cells = <3>;
 		};
 
 		pinctrl_ap: pinctrl@23c100000 {
