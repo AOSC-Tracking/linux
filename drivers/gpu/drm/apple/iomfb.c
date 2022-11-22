@@ -433,6 +433,7 @@ static void iomfb_cb_pr_publish(struct apple_dcp *dcp, struct iomfb_property *pr
 		/* notify backlight device of the initial brightness */
 		if (!dcp->brightness.bl_dev && dcp->brightness.maximum > 0)
 			schedule_work(&dcp->bl_register_wq);
+		trace_iomfb_brightness(dcp, prop->value);
 		break;
 	}
 	default:
