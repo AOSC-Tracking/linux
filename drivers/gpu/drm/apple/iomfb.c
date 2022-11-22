@@ -428,12 +428,13 @@ static void iomfb_cb_pr_publish(struct apple_dcp *dcp, struct iomfb_property *pr
 {
 	switch (prop->id) {
 	case IOMFB_PROPERTY_NITS:
+	{
 		dcp->brightness.nits = prop->value / dcp->brightness.scale;
-		/* temporary for user debugging during tesing */
-		dev_info(dcp->dev, "Backlight updated to %u nits\n",
-			 dcp->brightness.nits);
-		dcp->brightness.update = false;
+		/* notify backlight device of the initial brightness */
+		if (!dcp->brightness.bl_dev && dcp->brightness.maximum > 0)
+			schedule_work(&dcp->bl_register_wq);
 		break;
+	}
 	default:
 		dev_dbg(dcp->dev, "pr_publish: id: %d = %u\n", prop->id, prop->value);
 	}
