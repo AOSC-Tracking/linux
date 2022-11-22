@@ -165,29 +165,28 @@ fail:
 
 static int dcp_set_brightness(struct backlight_device *bd)
 {
-	int ret = 0;
+	int ret;
 	struct apple_dcp *dcp = bl_get_data(bd);
+	struct drm_modeset_acquire_ctx ctx;
 
-	bd->props.power = FB_BLANK_UNBLANK;
-	if (dcp->brightness.set != bd->props.brightness) {
-	       dcp->brightness.dac = calculate_dac(dcp, bd->props.brightness);
-	       dcp->brightness.set = bd->props.brightness;
-	       dcp->brightness.update = true;
-	}
+	if (bd->props.state & BL_CORE_SUSPENDED)
+		return 0;
 
-	if (dcp->brightness.update && dcp->crtc) {
-		struct drm_modeset_acquire_ctx ctx;
-		struct drm_device *drm_dev = dcp->crtc->base.dev;
+	if (!dcp->crtc)
+		return -EAGAIN;
 
-		DRM_MODESET_LOCK_ALL_BEGIN(drm_dev, ctx, 0, ret);
-		ret = drm_crtc_set_brightness(&dcp->crtc->base, &ctx);
-		DRM_MODESET_LOCK_ALL_END(drm_dev, ctx, ret);
-	}
+	dcp->brightness.dac = calculate_dac(dcp, bd->props.brightness);
+	dcp->brightness.update = true;
+
+	DRM_MODESET_LOCK_ALL_BEGIN(dcp->crtc->base.dev, ctx, 0, ret);
+	ret = drm_crtc_set_brightness(&dcp->crtc->base, &ctx);
+	DRM_MODESET_LOCK_ALL_END(dcp->crtc->base.dev, ctx, ret);
 
 	return ret;
 }
 
 static const struct backlight_ops dcp_backlight_ops = {
+	.options = BL_CORE_SUSPENDRESUME,
 	.get_brightness = dcp_get_brightness,
 	.update_status = dcp_set_brightness,
 };
@@ -195,38 +194,20 @@ static const struct backlight_ops dcp_backlight_ops = {
 int dcp_backlight_register(struct apple_dcp *dcp)
 {
 	struct device *dev = dcp->dev;
-	struct backlight_device *bd;
-	struct device_node *panel_np;
+	struct backlight_device *bl_dev;
 	struct backlight_properties props = {
 		.type = BACKLIGHT_PLATFORM,
 		.brightness = dcp->brightness.nits,
-		.max_brightness = 0,
 		.scale = BACKLIGHT_SCALE_LINEAR,
 	};
-	u32 max_brightness;
-	int ret = 0;
+	props.max_brightness = min(dcp->brightness.maximum, MAX_BRIGHTNESS_PART2 - 1);
 
-	panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
-	if (!panel_np)
-		return 0;
+	bl_dev = devm_backlight_device_register(dev, "apple-panel-bl", dev, dcp,
+						&dcp_backlight_ops, &props);
+	if (IS_ERR(bl_dev))
+		return PTR_ERR(bl_dev);
 
-	if (!of_device_is_available(panel_np))
-		goto out_put;
+	dcp->brightness.bl_dev = bl_dev;
 
-	ret = of_property_read_u32(panel_np, "apple,max-brightness", &max_brightness);
-	if (ret) {
-		dev_err(dev, "Missing property 'apple,max-brightness'\n");
-		goto out_put;
-	}
-	props.max_brightness = min(max_brightness, MAX_BRIGHTNESS_PART2 - 1);
-
-	bd = devm_backlight_device_register(dev, "apple-panel-bl", dev, dcp,
-					    &dcp_backlight_ops, &props);
-	if (IS_ERR(bd))
-		ret = PTR_ERR(bd);
-
-out_put:
-	of_node_put(panel_np);
-
-	return ret;
+	return 0;
 }
