@@ -153,6 +153,24 @@ TRACE_EVENT(iomfb_swap_complete_intent_gated,
 	    )
 );
 
+TRACE_EVENT(iomfb_brightness,
+	    TP_PROTO(struct apple_dcp *dcp, u32 nits),
+	    TP_ARGS(dcp, nits),
+	    TP_STRUCT__entry(
+			     __field(u64, dcp)
+			     __field(u32, nits)
+	    ),
+	    TP_fast_assign(
+			   __entry->dcp = (u64)dcp;
+			   __entry->nits = nits;
+	    ),
+	    TP_printk("dcp=%llx, nits=%u (raw=0x%05x)",
+		      __entry->dcp,
+		      __entry->nits >> 16,
+		      __entry->nits
+	    )
+);
+
 #endif /* _TRACE_DCP_H */
 
 /* This part must be outside protection */
