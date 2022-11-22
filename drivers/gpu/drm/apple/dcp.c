@@ -12,6 +12,7 @@
 #include <linux/align.h>
 #include <linux/soc/apple/rtkit.h>
 #include <linux/completion.h>
+#include "linux/workqueue.h"
 
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fourcc.h>
@@ -252,6 +253,28 @@ int dcp_start(struct platform_device *pdev)
 }
 EXPORT_SYMBOL(dcp_start);
 
+static void dcp_work_register_backlight(struct work_struct *work)
+{
+	int ret;
+	struct apple_dcp *dcp;
+
+	dcp = container_of(work, struct apple_dcp, bl_register_wq);
+
+	mutex_lock(&dcp->bl_register_mutex);
+	if (dcp->brightness.bl_dev)
+		goto out_unlock;
+
+	/* try to register backlight device, */
+	ret = dcp_backlight_register(dcp);
+	if (ret) {
+		dev_err(dcp->dev, "Unable to register backlight device\n");
+		dcp->brightness.maximum = 0;
+	}
+
+out_unlock:
+	mutex_unlock(&dcp->bl_register_mutex);
+}
+
 static struct platform_device *dcp_get_dev(struct device *dev, const char *name)
 {
 	struct platform_device *pdev;
@@ -312,14 +335,16 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	dcp->brightness.scale = 65536;
 	panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
 	if (panel_np) {
+		if (of_device_is_available(panel_np)) {
+			ret = of_property_read_u32(panel_np, "apple,max-brightness",
+						   &dcp->brightness.maximum);
+			if (ret)
+				dev_err(dev, "Missing property 'apple,max-brightness'\n");
+		}
 		of_node_put(panel_np);
 		dcp->connector_type = DRM_MODE_CONNECTOR_eDP;
-
-		/* try to register backlight device, */
-		ret = dcp_backlight_register(dcp);
-		if (ret)
-			return dev_err_probe(dev, ret,
-						"Unable to register backlight device\n");
+		INIT_WORK(&dcp->bl_register_wq, dcp_work_register_backlight);
+		mutex_init(&dcp->bl_register_mutex);
 	} else if (of_property_match_string(dev->of_node, "apple,connector-type", "HDMI-A") >= 0)
 		dcp->connector_type = DRM_MODE_CONNECTOR_HDMIA;
 	else if (of_property_match_string(dev->of_node, "apple,connector-type", "DP") >= 0)

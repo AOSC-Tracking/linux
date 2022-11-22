@@ -4,7 +4,9 @@
 #ifndef __APPLE_DCP_INTERNAL_H__
 #define __APPLE_DCP_INTERNAL_H__
 
+#include <linux/backlight.h>
 #include <linux/device.h>
+#include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <linux/scatterlist.h>
 
@@ -65,9 +67,10 @@ struct dcp_fb_reference {
 #define MAX_NOTCH_HEIGHT 160
 
 struct dcp_brightness {
+	struct backlight_device *bl_dev;
+	u32 maximum;
 	u32 dac;
 	int nits;
-	int set;
 	int scale;
 	bool update;
 };
@@ -153,6 +156,9 @@ struct apple_dcp {
 	struct list_head swapped_out_fbs;
 
 	struct dcp_brightness brightness;
+	/* Workqueue for updating the initial initial brightness */
+	struct work_struct bl_register_wq;
+	struct mutex bl_register_mutex;
 };
 
 int dcp_backlight_register(struct apple_dcp *dcp);
