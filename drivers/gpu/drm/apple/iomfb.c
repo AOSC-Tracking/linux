@@ -1485,7 +1485,7 @@ EXPORT_SYMBOL_GPL(dcp_get_modes);
 
 /* The user may own drm_display_mode, so we need to search for our copy */
 static struct dcp_display_mode *lookup_mode(struct apple_dcp *dcp,
-					    struct drm_display_mode *mode)
+					    const struct drm_display_mode *mode)
 {
 	int i;
 
@@ -1509,6 +1509,19 @@ int dcp_mode_valid(struct drm_connector *connector,
 	return lookup_mode(dcp, mode) ? MODE_OK : MODE_BAD;
 }
 EXPORT_SYMBOL_GPL(dcp_mode_valid);
+
+bool dcp_crtc_mode_fixup(struct drm_crtc *crtc,
+			 const struct drm_display_mode *mode,
+			 struct drm_display_mode *adjusted_mode)
+{
+	struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
+	struct platform_device *pdev = apple_crtc->dcp;
+	struct apple_dcp *dcp = platform_get_drvdata(pdev);
+
+	/* TODO: support synthesized modes through scaling */
+	return lookup_mode(dcp, mode) != NULL;
+}
+EXPORT_SYMBOL(dcp_crtc_mode_fixup);
 
 /* Helpers to modeset and swap, used to flush */
 static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)

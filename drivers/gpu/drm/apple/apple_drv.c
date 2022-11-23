@@ -306,6 +306,7 @@ static const struct drm_crtc_helper_funcs apple_crtc_helper_funcs = {
 	.atomic_flush		= dcp_flush,
 	.atomic_enable		= apple_crtc_atomic_enable,
 	.atomic_disable		= apple_crtc_atomic_disable,
+	.mode_fixup		= dcp_crtc_mode_fixup,
 };
 
 static int apple_probe_per_dcp(struct device *dev,
