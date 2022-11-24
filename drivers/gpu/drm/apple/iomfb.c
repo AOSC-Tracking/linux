@@ -764,12 +764,17 @@ static bool dcpep_process_chunks(struct apple_dcp *dcp,
 			return false;
 		}
 	} else if (!strcmp(req->key, "DisplayAttributes")) {
-		ret = parse_display_attributes(&ctx, &dcp->width_mm,
-					       &dcp->height_mm);
+		/* DisplayAttributes are empty for integrated displays, use
+		 * display dimensions read from the devicetree
+		 */
+		if (dcp->main_display) {
+			ret = parse_display_attributes(&ctx, &dcp->width_mm,
+						&dcp->height_mm);
 
-		if (ret) {
-			dev_warn(dcp->dev, "failed to parse display attribs\n");
-			return false;
+			if (ret) {
+				dev_warn(dcp->dev, "failed to parse display attribs\n");
+				return false;
+			}
 		}
 
 		dcp_set_dimensions(dcp);
