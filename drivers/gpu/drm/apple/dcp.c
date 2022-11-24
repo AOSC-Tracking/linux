@@ -331,16 +331,31 @@ static int dcp_platform_probe(struct platform_device *pdev)
 
 	of_platform_default_populate(dev->of_node, NULL, dev);
 
+	ret = of_property_read_u32(dev->of_node, "apple,notch-height",
+				   &dcp->notch_height);
+	if (dcp->notch_height > MAX_NOTCH_HEIGHT)
+		dcp->notch_height = MAX_NOTCH_HEIGHT;
+	if (dcp->notch_height > 0)
+		dev_info(dev, "Detected display with notch of %u pixel\n", dcp->notch_height);
+
 	/* intialize brightness scale to a sensible default to avoid divide by 0*/
 	dcp->brightness.scale = 65536;
 	panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
 	if (panel_np) {
+		const char height_prop[2][16] = { "adj-height-mm", "height-mm" };
+
 		if (of_device_is_available(panel_np)) {
 			ret = of_property_read_u32(panel_np, "apple,max-brightness",
 						   &dcp->brightness.maximum);
 			if (ret)
 				dev_err(dev, "Missing property 'apple,max-brightness'\n");
 		}
+
+		of_property_read_u32(panel_np, "width-mm", &dcp->width_mm);
+		/* use adjusted height as long as the notch is hidden */
+		of_property_read_u32(panel_np, height_prop[!dcp->notch_height],
+				     &dcp->height_mm);
+
 		of_node_put(panel_np);
 		dcp->connector_type = DRM_MODE_CONNECTOR_eDP;
 		INIT_WORK(&dcp->bl_register_wq, dcp_work_register_backlight);
@@ -386,13 +401,6 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	if (ret)
 		dev_warn(dev, "failed read 'apple,asc-dram-mask': %d\n", ret);
 	dev_dbg(dev, "'apple,asc-dram-mask': 0x%011llx\n", dcp->asc_dram_mask);
-
-	ret = of_property_read_u32(dev->of_node, "apple,notch-height",
-				   &dcp->notch_height);
-	if (dcp->notch_height > MAX_NOTCH_HEIGHT)
-		dcp->notch_height = MAX_NOTCH_HEIGHT;
-	if (dcp->notch_height > 0)
-		dev_info(dev, "Detected display with notch of %u pixel\n", dcp->notch_height);
 
 	bitmap_zero(dcp->memdesc_map, DCP_MAX_MAPPINGS);
 	// TDOD: mem_desc IDs start at 1, for simplicity just skip '0' entry
