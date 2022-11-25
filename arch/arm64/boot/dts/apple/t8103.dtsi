@@ -453,6 +453,9 @@
 			memory-region = <&uat_ttbs>, <&uat_pagetables>, <&uat_handoff>;
 			memory-region-names = "ttbs", "pagetables", "handoff";
 
+			apple,firmware-version = <12 3 0>;
+			apple,firmware-compat = <12 3 0>;
+
 			operating-points-v2 = <&gpu_opp>;
 			apple,perf-base-pstate = <1>;
 			apple,min-sram-microvolt = <850000>;
