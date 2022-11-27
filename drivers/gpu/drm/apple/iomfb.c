@@ -942,6 +942,16 @@ static void dcp_on_final(struct apple_dcp *dcp, void *out, void *cookie)
 	}
 }
 
+static void dcp_on_set_power_state(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	struct dcp_set_power_state_req req = {
+		.unklong = 1,
+	};
+	dev_dbg(dcp->dev, "%s", __func__);
+
+	dcp_set_power_state(dcp, false, &req, dcp_on_final, cookie);
+}
+
 static void dcp_on_set_parameter(struct apple_dcp *dcp, void *out, void *cookie)
 {
 	struct dcp_set_parameter_dcp param = {
@@ -951,16 +961,13 @@ static void dcp_on_set_parameter(struct apple_dcp *dcp, void *out, void *cookie)
 	};
 	dev_dbg(dcp->dev, "%s", __func__);
 
-	dcp_set_parameter_dcp(dcp, false, &param, dcp_on_final, cookie);
+	dcp_set_parameter_dcp(dcp, false, &param, dcp_on_set_power_state, cookie);
 }
 
 void dcp_poweron(struct platform_device *pdev)
 {
 	struct apple_dcp *dcp = platform_get_drvdata(pdev);
 	struct dcp_wait_cookie *cookie;
-	struct dcp_set_power_state_req req = {
-		.unklong = 1,
-	};
 	int ret;
 	u32 handle;
 	dev_dbg(dcp->dev, "%s", __func__);
@@ -976,15 +983,13 @@ void dcp_poweron(struct platform_device *pdev)
 
 	if (dcp->main_display) {
 		handle = 0;
-		dcp_set_display_device(dcp, false, &handle, dcp_on_final,
+		dcp_set_display_device(dcp, false, &handle, dcp_on_set_power_state,
 				       cookie);
 	} else {
 		handle = 2;
 		dcp_set_display_device(dcp, false, &handle,
 				       dcp_on_set_parameter, cookie);
 	}
-	dcp_set_power_state(dcp, true, &req, NULL, NULL);
-
 	ret = wait_for_completion_timeout(&cookie->done, msecs_to_jiffies(500));
 
 	if (ret == 0)
