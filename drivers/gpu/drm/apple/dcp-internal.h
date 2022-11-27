@@ -133,6 +133,9 @@ struct apple_dcp {
 	/* eDP display without DP-HDMI conversion */
 	bool main_display;
 
+	/* panel has a mini-LED backllight */
+	bool has_mini_led;
+	
 	/* Modes valid for the connected display */
 	struct dcp_display_mode *modes;
 	unsigned int nr_modes;

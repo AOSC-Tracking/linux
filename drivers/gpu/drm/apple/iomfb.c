@@ -447,7 +447,8 @@ dcpep_cb_get_uint_prop(struct apple_dcp *dcp, struct dcp_get_uint_prop_req *req)
 	    .value = 0
 	};
 
-	if (memcmp(req->obj, "SUMP", sizeof(req->obj)) == 0) { /* "PMUS */
+	if (dcp->has_mini_led &&
+	    memcmp(req->obj, "SUMP", sizeof(req->obj)) == 0) { /* "PMUS */
 	    if (strncmp(req->key, "Temperature", sizeof(req->key)) == 0) {
 		/*
 		 * TODO: value from j314c, find out if it is temperature in
