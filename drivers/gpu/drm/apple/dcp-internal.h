@@ -133,8 +133,6 @@ struct apple_dcp {
 	/* eDP display without DP-HDMI conversion */
 	bool main_display;
 
-	bool ignore_swap_complete;
-
 	/* Modes valid for the connected display */
 	struct dcp_display_mode *modes;
 	unsigned int nr_modes;
