@@ -340,7 +340,12 @@ static int dcp_platform_probe(struct platform_device *pdev)
 
 	/* intialize brightness scale to a sensible default to avoid divide by 0*/
 	dcp->brightness.scale = 65536;
-	panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
+	panel_np = of_get_compatible_child(dev->of_node, "apple,panel-mini-led");
+	if (panel_np)
+		dcp->has_mini_led = true;
+	else
+		panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
+
 	if (panel_np) {
 		const char height_prop[2][16] = { "adj-height-mm", "height-mm" };
 
