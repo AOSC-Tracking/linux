@@ -359,8 +359,7 @@ static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 {
 	trace_iomfb_swap_complete(dcp, resp->swap_id);
 
-	if (!dcp->ignore_swap_complete)
-		dcp_drm_crtc_vblank(dcp->crtc);
+	dcp_drm_crtc_vblank(dcp->crtc);
 }
 
 /* special */
@@ -1550,8 +1549,6 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 {
 	struct dcp_wait_cookie *wait = cookie;
 	dev_dbg(dcp->dev, "%s", __func__);
-
-	dcp->ignore_swap_complete = false;
 
 	if (wait) {
 		complete(&wait->done);
