@@ -168,18 +168,6 @@ static struct drm_plane *apple_plane_init(struct drm_device *dev,
 	return plane;
 }
 
-static int apple_enable_vblank(struct drm_crtc *crtc)
-{
-	to_apple_crtc(crtc)->vsync_disabled = false;
-
-	return 0;
-}
-
-static void apple_disable_vblank(struct drm_crtc *crtc)
-{
-	to_apple_crtc(crtc)->vsync_disabled = true;
-}
-
 static enum drm_connector_status
 apple_connector_detect(struct drm_connector *connector, bool force)
 {
@@ -201,7 +189,6 @@ static void apple_crtc_atomic_enable(struct drm_crtc *crtc,
 		dcp_poweron(apple_crtc->dcp);
 		dev_dbg(&apple_crtc->dcp->dev, "%s finished", __func__);
 	}
-	drm_crtc_vblank_on(crtc);
 }
 
 static void apple_crtc_atomic_disable(struct drm_crtc *crtc,
@@ -209,8 +196,6 @@ static void apple_crtc_atomic_disable(struct drm_crtc *crtc,
 {
 	struct drm_crtc_state *crtc_state;
 	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
-
-	drm_crtc_vblank_off(crtc);
 
 	if (crtc_state->active_changed && !crtc_state->active) {
 		struct apple_crtc *apple_crtc = to_apple_crtc(crtc);
@@ -235,8 +220,6 @@ static void apple_crtc_atomic_begin(struct drm_crtc *crtc,
 	unsigned long flags;
 
 	if (crtc->state->event) {
-		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
-
 		spin_lock_irqsave(&crtc->dev->event_lock, flags);
 		apple_crtc->event = crtc->state->event;
 		spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
@@ -272,8 +255,6 @@ static const struct drm_crtc_funcs apple_crtc_funcs = {
 	.page_flip		= drm_atomic_helper_page_flip,
 	.reset			= drm_atomic_helper_crtc_reset,
 	.set_config             = drm_atomic_helper_set_config,
-	.enable_vblank		= apple_enable_vblank,
-	.disable_vblank		= apple_disable_vblank,
 };
 
 static const struct drm_mode_config_funcs apple_mode_config_funcs = {
@@ -407,10 +388,6 @@ static int apple_platform_probe(struct platform_device *pdev)
 		return PTR_ERR(apple);
 
 	dev_set_drvdata(dev, apple);
-
-	ret = drm_vblank_init(&apple->drm, nr_dcp);
-	if (ret)
-		return ret;
 
 	ret = drmm_mode_config_init(&apple->drm);
 	if (ret)
