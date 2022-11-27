@@ -38,15 +38,9 @@ void dcp_drm_crtc_vblank(struct apple_crtc *crtc)
 {
 	unsigned long flags;
 
-	if (crtc->vsync_disabled)
-		return;
-
-	drm_crtc_handle_vblank(&crtc->base);
-
 	spin_lock_irqsave(&crtc->base.dev->event_lock, flags);
 	if (crtc->event) {
 		drm_crtc_send_vblank_event(&crtc->base, crtc->event);
-		drm_crtc_vblank_put(&crtc->base);
 		crtc->event = NULL;
 	}
 	spin_unlock_irqrestore(&crtc->base.dev->event_lock, flags);
