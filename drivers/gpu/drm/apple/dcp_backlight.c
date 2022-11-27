@@ -208,6 +208,7 @@ int dcp_backlight_register(struct apple_dcp *dcp)
 		return PTR_ERR(bl_dev);
 
 	dcp->brightness.bl_dev = bl_dev;
+	dcp->brightness.dac = calculate_dac(dcp, dcp->brightness.nits);
 
 	return 0;
 }

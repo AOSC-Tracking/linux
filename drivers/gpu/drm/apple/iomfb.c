@@ -995,6 +995,9 @@ void dcp_poweron(struct platform_device *pdev)
 		dev_warn(dcp->dev, "wait for power timed out");
 
 	kref_put(&cookie->refcount, release_wait_cookie);;
+
+	/* Force a brightness update after poweron, to restore the brightness */
+	dcp->brightness.update = true;
 }
 EXPORT_SYMBOL(dcp_poweron);
 
@@ -1036,6 +1039,17 @@ void dcp_poweroff(struct platform_device *pdev)
 	dcp->swap.swap.swap_enabled = DCP_REMOVE_LAYERS | 0x7;
 	dcp->swap.swap.swap_completed = DCP_REMOVE_LAYERS | 0x7;
 	dcp->swap.swap.unk_10c = 0xFF000000;
+
+	/*
+	 * Turn off the backlight. This matters because the DCP's idea of
+	 * backlight brightness gets desynced after a power change, and it
+	 * needs to be told it's going to turn off so it will consider the
+	 * subsequent update on poweron an actual change and restore the
+	 * brightness.
+	 */
+	dcp->swap.swap.bl_unk = 1;
+	dcp->swap.swap.bl_value = 0;
+	dcp->swap.swap.bl_power = 0;
 
 	for (int l = 0; l < SWAP_SURFACES; l++)
 		dcp->swap.surf_null[l] = true;
@@ -1677,14 +1691,6 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	/* These fields should be set together */
 	req->swap.swap_completed = req->swap.swap_enabled;
 
-	/* update brightness if changed */
-	if (dcp->brightness.update) {
-		req->swap.bl_unk = 1;
-		req->swap.bl_value = dcp->brightness.dac;
-		req->swap.bl_power = 0x40;
-		dcp->brightness.update = false;
-	}
-
 	if (modeset) {
 		struct dcp_display_mode *mode;
 		struct dcp_wait_cookie *cookie;
@@ -1747,6 +1753,15 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 		req->clear = 1;
 	}
+
+	/* update brightness if changed */
+	if (dcp->brightness.update) {
+		req->swap.bl_unk = 1;
+		req->swap.bl_value = dcp->brightness.dac;
+		req->swap.bl_power = 0x40;
+		dcp->brightness.update = false;
+	}
+
 	do_swap(dcp, NULL, NULL);
 }
 EXPORT_SYMBOL_GPL(dcp_flush);
