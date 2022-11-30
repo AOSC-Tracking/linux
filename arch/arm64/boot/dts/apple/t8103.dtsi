@@ -12,6 +12,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/pinctrl/apple.h>
 #include <dt-bindings/spmi/spmi.h>
+#include <dt-bindings/phy/phy.h>
 
 / {
 	compatible = "apple,t8103", "apple,arm-platform";
@@ -1058,6 +1059,100 @@
 			reg = <0x2 0x3d2bc000 0x0 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			atcphy0_auspll_rodco_bias_adjust: efuse@430,26 {
+				reg = <0x430 4>;
+				bits = <26 3>;
+			};
+
+			atcphy0_auspll_rodco_encap: efuse@430,29 {
+				reg = <0x430 4>;
+				bits = <29 2>;
+			};
+
+			atcphy0_auspll_dtc_vreg_adjust: efuse@430,31 {
+				reg = <0x430 8>;
+				bits = <31 3>;
+			};
+
+			atcphy0_auspll_fracn_dll_start_capcode: efuse@434,2 {
+				reg = <0x434 4>;
+				bits = <2 2>;
+			};
+
+			atcphy0_aus_cmn_shm_vreg_trim: efuse@434,4 {
+				reg = <0x434 4>;
+				bits = <4 5>;
+			};
+
+			atcphy0_cio3pll_dco_coarsebin0: efuse@434,9 {
+				reg = <0x434 4>;
+				bits = <9 6>;
+			};
+
+			atcphy0_cio3pll_dco_coarsebin1: efuse@434,15 {
+				reg = <0x434 4>;
+				bits = <15 6>;
+			};
+
+			atcphy0_cio3pll_dll_start_capcode: efuse@434,21 {
+				reg = <0x434 4>;
+				bits = <21 2>;
+			};
+
+			atcphy0_cio3pll_dtc_vreg_adjust: efuse@434,23 {
+				reg = <0x434 0x4>;
+				bits = <23 3>;
+			};
+
+			atcphy1_auspll_rodco_bias_adjust: efuse@438,4 {
+				reg = <0x438 4>;
+				bits = <4 3>;
+			};
+
+			atcphy1_auspll_rodco_encap: efuse@438,7 {
+				reg = <0x438 4>;
+				bits = <7 2>;
+			};
+
+			atcphy1_auspll_dtc_vreg_adjust: efuse@438,9 {
+				reg = <0x438 4>;
+				bits = <9 3>;
+			};
+
+			atcphy1_auspll_fracn_dll_start_capcode: efuse@438,12 {
+				reg = <0x438 4>;
+				bits = <12 2>;
+			};
+
+			atcphy1_aus_cmn_shm_vreg_trim: efuse@438,14 {
+				reg = <0x438 4>;
+				bits = <14 5>;
+			};
+
+			atcphy1_cio3pll_dco_coarsebin0: efuse@438,19 {
+				reg = <0x438 4>;
+				bits = <19 6>;
+			};
+
+			atcphy1_cio3pll_dco_coarsebin1: efuse@438,25 {
+				reg = <0x438 4>;
+				bits = <25 6>;
+			};
+
+			atcphy1_cio3pll_dll_start_capcode: efuse@438,31 {
+				reg = <0x438 4>;
+				bits = <31 1>;
+			};
+
+			atcphy1_cio3pll_dll_start_capcode_workaround: efuse@43c,0 {
+				reg = <0x43c 0x4>;
+				bits = <0 1>;
+			};
+
+			atcphy1_cio3pll_dtc_vreg_adjust: efuse@43c,1 {
+				reg = <0x43c 0x4>;
+				bits = <1 3>;
+			};
 		};
 
 		dwc3_0: usb@382280000 {
@@ -1070,6 +1165,9 @@
 			role-switch-default-mode = "host";
 			iommus = <&dwc3_0_dart_0 0>, <&dwc3_0_dart_1 1>;
 			power-domains = <&ps_atc0_usb>;
+			resets = <&atcphy0>;
+			phys = <&atcphy0 PHY_TYPE_USB2>, <&atcphy0 PHY_TYPE_USB3>;
+			phy-names = "usb2-phy", "usb3-phy";
 		};
 
 		dwc3_0_dart_0: iommu@382f00000 {
@@ -1090,6 +1188,44 @@
 			power-domains = <&ps_atc0_usb>;
 		};
 
+		atcphy0: phy@383000000 {
+			compatible = "apple,t8103-atcphy";
+			reg = <0x3 0x83000000 0x0 0x4c000>,
+				<0x3 0x83050000 0x0 0x8000>,
+				<0x3 0x80000000 0x0 0x4000>,
+				<0x3 0x82a90000 0x0 0x4000>,
+				<0x3 0x82a84000 0x0 0x4000>;
+			reg-names = "core", "lpdptx", "axi2af", "usb2phy",
+				"pipehandler";
+
+			#phy-cells = <1>;
+			#reset-cells = <0>;
+
+			nvmem-cells = <&atcphy0_aus_cmn_shm_vreg_trim>,
+				<&atcphy0_auspll_rodco_encap>,
+				<&atcphy0_auspll_rodco_bias_adjust>,
+				<&atcphy0_auspll_fracn_dll_start_capcode>,
+				<&atcphy0_auspll_dtc_vreg_adjust>,
+				<&atcphy0_cio3pll_dco_coarsebin0>,
+				<&atcphy0_cio3pll_dco_coarsebin1>,
+				<&atcphy0_cio3pll_dll_start_capcode>,
+				<&atcphy0_cio3pll_dtc_vreg_adjust>;
+			nvmem-cell-names =  "aus_cmn_shm_vreg_trim",
+				"auspll_rodco_encap",
+				"auspll_rodco_bias_adjust",
+				"auspll_fracn_dll_start_capcode",
+				"auspll_dtc_vreg_adjust",
+				"cio3pll_dco_coarsebin0",
+				"cio3pll_dco_coarsebin1",
+				"cio3pll_dll_start_capcode",
+				"cio3pll_dtc_vreg_adjust";
+
+			orientation-switch;
+			mode-switch;
+			svid = <0xff01>, <0x8087>;
+			power-domains = <&ps_atc0_usb>;
+		};
+
 		dwc3_1: usb@502280000 {
 			compatible = "apple,t8103-dwc3", "apple,dwc3", "snps,dwc3";
 			reg = <0x5 0x02280000 0x0 0x100000>;
@@ -1100,6 +1236,9 @@
 			role-switch-default-mode = "host";
 			iommus = <&dwc3_1_dart_0 0>, <&dwc3_1_dart_1 1>;
 			power-domains = <&ps_atc1_usb>;
+			resets = <&atcphy1>;
+			phys = <&atcphy1 PHY_TYPE_USB2>, <&atcphy1 PHY_TYPE_USB3>;
+			phy-names = "usb2-phy", "usb3-phy";
 		};
 
 		dwc3_1_dart_0: iommu@502f00000 {
@@ -1117,6 +1256,46 @@
 			interrupt-parent = <&aic>;
 			interrupts = <AIC_IRQ 861 IRQ_TYPE_LEVEL_HIGH>;
 			#iommu-cells = <1>;
+			power-domains = <&ps_atc1_usb>;
+		};
+
+		atcphy1: phy@503000000 {
+			compatible = "apple,t8103-atcphy";
+			reg = <0x5 0x03000000 0x0 0x4c000>,
+				<0x5 0x03050000 0x0 0x8000>,
+				<0x5 0x0 0x0 0x4000>,
+				<0x5 0x02a90000 0x0 0x4000>,
+				<0x5 0x02a84000 0x0 0x4000>;
+			reg-names = "core", "lpdptx", "axi2af", "usb2phy",
+				"pipehandler";
+
+			nvmem-cells = <&atcphy1_aus_cmn_shm_vreg_trim>,
+				<&atcphy1_auspll_rodco_encap>,
+				<&atcphy1_auspll_rodco_bias_adjust>,
+				<&atcphy1_auspll_fracn_dll_start_capcode>,
+				<&atcphy1_auspll_dtc_vreg_adjust>,
+				<&atcphy1_cio3pll_dco_coarsebin0>,
+				<&atcphy1_cio3pll_dco_coarsebin1>,
+				<&atcphy1_cio3pll_dll_start_capcode>,
+				<&atcphy1_cio3pll_dtc_vreg_adjust>,
+				<&atcphy1_cio3pll_dll_start_capcode_workaround>;
+			nvmem-cell-names =  "aus_cmn_shm_vreg_trim",
+				"auspll_rodco_encap",
+				"auspll_rodco_bias_adjust",
+				"auspll_fracn_dll_start_capcode",
+				"auspll_dtc_vreg_adjust",
+				"cio3pll_dco_coarsebin0",
+				"cio3pll_dco_coarsebin1",
+				"cio3pll_dll_start_capcode",
+				"cio3pll_dtc_vreg_adjust",
+				"cio3pll_dll_start_capcode_workaround";
+
+			#phy-cells = <1>;
+			#reset-cells = <0>;
+
+			orientation-switch;
+			mode-switch;
+			svid = <0xff01>, <0x8087>;
 			power-domains = <&ps_atc1_usb>;
 		};
 
