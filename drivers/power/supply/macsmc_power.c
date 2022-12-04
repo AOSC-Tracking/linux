@@ -11,6 +11,9 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/macsmc.h>
 #include <linux/power_supply.h>
+#include <linux/reboot.h>
+#include <linux/delay.h>
+#include <linux/workqueue.h>
 
 #define MAX_STRING_LENGTH 256
 
@@ -26,6 +29,9 @@ struct macsmc_power {
 	struct power_supply *ac;
 
 	struct notifier_block nb;
+
+	struct work_struct critical_work;
+	bool shutdown_started;
 };
 
 #define CHNC_BATTERY_FULL	BIT(0)
@@ -45,6 +51,9 @@ struct macsmc_power {
 
 #define CH0X_CH0C		BIT(0)
 #define CH0X_CH0B		BIT(1)
+
+#define ACSt_CAN_BOOT_AP	BIT(2)
+#define ACSt_CAN_BOOT_IBOOT	BIT(1)
 
 static int macsmc_battery_get_status(struct macsmc_power *power)
 {
@@ -187,6 +196,34 @@ static int macsmc_battery_get_date(const char *s, int *out)
 	return 0;
 }
 
+static int macsmc_battery_get_capacity_level(struct macsmc_power *power)
+{
+	u32 val;
+	int ret;
+
+	/* Check for emergency shutdown condition */
+	if (apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &val) >= 0 && val)
+		return POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+
+	/* Check AC status for whether we could boot in this state */
+	if (apple_smc_read_u32(power->smc, SMC_KEY(ACSt), &val) >= 0) {
+		if (!(val & ACSt_CAN_BOOT_IBOOT))
+			return POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+
+		if (!(val & ACSt_CAN_BOOT_AP))
+			return POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+	}
+
+	/* Check battery full flag */
+	ret = apple_smc_read_flag(power->smc, SMC_KEY(BSFC));
+	if (ret > 0)
+		return POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+	else if (ret == 0)
+		return POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+	else
+		return POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
+}
+
 static int macsmc_battery_get_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       union power_supply_propval *val)
@@ -223,6 +260,10 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &vu8);
 		val->intval = vu8;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		val->intval = macsmc_battery_get_capacity_level(power);
+		ret = val->intval < 0 ? val->intval : 0;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0AV), &vu16);
@@ -343,6 +384,7 @@ static enum power_supply_property macsmc_battery_props[] = {
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
+	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_POWER_NOW,
@@ -424,6 +466,59 @@ static const struct power_supply_desc macsmc_ac_desc = {
 	.num_properties		= ARRAY_SIZE(macsmc_ac_props),
 };
 
+static void macsmc_power_critical_work(struct work_struct *wrk) {
+	struct macsmc_power *power = container_of(wrk, struct macsmc_power, critical_work);
+	int ret;
+	u32 bcf0;
+	u16 bitv, b0av;
+
+	/*
+	 * Check if the battery voltage is below the design voltage. If it is,
+	 * we have a few seconds until the machine dies. Explicitly shut down,
+	 * which at least gets the NVMe controller to flush its cache.
+	 */
+	if (apple_smc_read_u16(power->smc, SMC_KEY(BITV), &bitv) >= 0 &&
+	    apple_smc_read_u16(power->smc, SMC_KEY(B0AV), &b0av) >= 0 &&
+	    b0av < bitv) {
+		dev_crit(power->dev, "Emergency notification: Battery is critical\n");
+		if (kernel_can_power_off())
+			kernel_power_off();
+		else /* Missing macsmc-reboot driver? In this state, this will not boot anyway. */
+			kernel_restart("Battery is critical");
+	}
+
+	/* This spams once per second, so make sure we only trigger shutdown once. */
+	if (power->shutdown_started)
+		return;
+
+	/* Check for battery empty condition */
+	ret = apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &bcf0);
+	if (ret < 0) {
+		dev_err(power->dev,
+				"Emergency notification: Failed to read battery status\n");
+	} else if (bcf0 == 0) {
+		dev_warn(power->dev, "Emergency notification: Battery status is OK?\n");
+		return;
+	} else {
+		dev_warn(power->dev, "Emergency notification: Battery is empty\n");
+	}
+
+	power->shutdown_started = true;
+
+	/*
+	 * Attempt to trigger an orderly shutdown. At this point, we should have a few
+	 * minutes of reserve capacity left, enough to do a clean shutdown.
+	 */
+	dev_warn(power->dev, "Shutting down in 10 seconds\n");
+	ssleep(10);
+
+	/*
+	 * Don't force it; if this stalls or fails, the last-resort check above will
+	 * trigger a hard shutdown when shutdown is truly imminent.
+	 */
+	orderly_poweroff(false);
+}
+
 static int macsmc_power_event(struct notifier_block *nb, unsigned long event, void *data)
 {
 	struct macsmc_power *power = container_of(nb, struct macsmc_power, nb);
@@ -436,6 +531,28 @@ static int macsmc_power_event(struct notifier_block *nb, unsigned long event, vo
 		power_supply_changed(power->ac);
 
 		return NOTIFY_OK;
+	} else if (event == 0x71020000) {
+		schedule_work(&power->critical_work);
+
+		return NOTIFY_OK;
+	} else if ((event & 0xffff0000) == 0x71060000) {
+		u8 changed_port = event >> 8;
+		u8 cur_port;
+
+		/* Port charging state change? */
+		if (apple_smc_read_u8(power->smc, SMC_KEY(AC-W), &cur_port) >= 0) {
+			dev_info(power->dev, "Port %d state change (charge port: %d)\n",
+				 changed_port + 1, cur_port);
+		}
+
+		power_supply_changed(power->batt);
+		power_supply_changed(power->ac);
+
+		return NOTIFY_OK;
+	} else if ((event & 0xff000000) == 0x71000000) {
+		dev_info(power->dev, "Unknown charger event 0x%lx\n", event);
+
+		return NOTIFY_OK;
 	}
 
 	return NOTIFY_DONE;
@@ -446,6 +563,7 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	struct apple_smc *smc = dev_get_drvdata(pdev->dev.parent);
 	struct power_supply_config psy_cfg = {};
 	struct macsmc_power *power;
+	u32 val;
 	int ret;
 
 	power = devm_kzalloc(&pdev->dev, sizeof(*power), GFP_KERNEL);
@@ -469,6 +587,9 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	apple_smc_write_u8(power->smc, SMC_KEY(CH0K), 0);
 	apple_smc_write_u8(power->smc, SMC_KEY(CH0B), 0);
 
+	/* Doing one read of this flag enables critical shutdown notifications */
+	apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &val);
+
 	psy_cfg.drv_data = power;
 	power->batt = devm_power_supply_register(&pdev->dev, &macsmc_battery_desc, &psy_cfg);
 	if (IS_ERR(power->batt)) {
@@ -486,6 +607,8 @@ static int macsmc_power_probe(struct platform_device *pdev)
 
 	power->nb.notifier_call = macsmc_power_event;
 	apple_smc_register_notifier(power->smc, &power->nb);
+
+	INIT_WORK(&power->critical_work, macsmc_power_critical_work);
 
 	return 0;
 }
