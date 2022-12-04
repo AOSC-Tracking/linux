@@ -16,6 +16,11 @@
 
 struct apple_dcp;
 
+enum dcp_firmware_version {
+	DCP_FIRMWARE_UNKNOWN,
+	DCP_FIRMWARE_V_12_3,
+};
+
 enum {
 	SYSTEM_ENDPOINT = 0x20,
 	TEST_ENDPOINT = 0x21,
@@ -83,6 +88,9 @@ struct apple_dcp {
 	struct apple_rtkit *rtk;
 	struct apple_crtc *crtc;
 	struct apple_connector *connector;
+
+	/* firmware version and compatible firmware version */
+	enum dcp_firmware_version fw_compat;
 
 	/* Coprocessor control register */
 	void __iomem *coproc_reg;
