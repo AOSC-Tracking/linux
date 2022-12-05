@@ -580,7 +580,6 @@ static ssize_t dc_status_show(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR_RW(dc_status);
 
 static struct attribute *acpi_tad_attrs[] = {
-	&dev_attr_caps.attr,
 	&dev_attr_ac_alarm.attr,
 	&dev_attr_ac_policy.attr,
 	&dev_attr_ac_status.attr,
@@ -843,11 +842,6 @@ static int acpi_tad_probe(struct platform_device *pdev)
 	if (ACPI_FAILURE(status)) {
 		dev_info(dev, "Unable to get capabilities\n");
 		return -ENODEV;
-	}
-
-	if (!acpi_has_method(handle, "_PRW")) {
-		dev_info(dev, "Missing _PRW\n");
-		caps &= ~(ACPI_TAD_AC_WAKE | ACPI_TAD_DC_WAKE);
 	}
 
 	if (!(caps & ACPI_TAD_AC_WAKE))
