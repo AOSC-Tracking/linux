@@ -171,6 +171,126 @@ TRACE_EVENT(iomfb_brightness,
 	    )
 );
 
+#define show_eotf(eotf)					\
+	__print_symbolic(eotf, { 0, "SDR gamma"},	\
+			       { 1, "HDR gamma"},	\
+			       { 2, "ST 2084 (PQ)"},	\
+			       { 3, "BT.2100 (HLG)"},	\
+			       { 4, "unexpected"})
+
+#define show_encoding(enc)							\
+	__print_symbolic(enc, { 0, "RGB"},					\
+			      { 1, "YUV 4:2:0"},				\
+			      { 3, "YUV 4:2:2"},				\
+			      { 2, "YUV 4:4:4"},				\
+			      { 4, "DolbyVision (native)"},			\
+			      { 5, "DolbyVision (HDMI)"},			\
+			      { 6, "YCbCr 4:2:2 (DP tunnel)"},			\
+			      { 7, "YCbCr 4:2:2 (HDMI tunnel)"},		\
+			      { 8, "DolbyVision LL YCbCr 4:2:2"},		\
+			      { 9, "DolbyVision LL YCbCr 4:2:2 (DP)"},		\
+			      {10, "DolbyVision LL YCbCr 4:2:2 (HDMI)"},	\
+			      {11, "DolbyVision LL YCbCr 4:4:4"},		\
+			      {12, "DolbyVision LL RGB 4:2:2"},			\
+			      {13, "GRGB as YCbCr422 (Even line blue)"},	\
+			      {14, "GRGB as YCbCr422 (Even line red)"},		\
+			      {15, "unexpected"})
+
+#define show_colorimetry(col)					\
+	__print_symbolic(col, { 0, "SMPTE 170M/BT.601"},	\
+			      { 1, "BT.701"},			\
+			      { 2, "xvYCC601"},			\
+			      { 3, "xvYCC709"},			\
+			      { 4, "sYCC601"},			\
+			      { 5, "AdobeYCC601"},		\
+			      { 6, "BT.2020 (c)"},		\
+			      { 7, "BT.2020 (nc)"},		\
+			      { 8, "DolbyVision VSVDB"},	\
+			      { 9, "BT.2020 (RGB)"},		\
+			      {10, "sRGB"},			\
+			      {11, "scRGB"},			\
+			      {12, "scRGBfixed"},		\
+			      {13, "AdobeRGB"},			\
+			      {14, "DCI-P3 (D65)"},		\
+			      {15, "DCI-P3 (Theater)"},		\
+			      {16, "Default RGB"},		\
+			      {17, "unexpected"})
+
+#define show_range(range)				\
+	__print_symbolic(range, { 0, "Full"},		\
+				{ 1, "Limited"},	\
+				{ 2, "unexpected"})
+
+TRACE_EVENT(iomfb_color_mode,
+	    TP_PROTO(struct apple_dcp *dcp, u32 id, u32 score, u32 depth,
+		     u32 colorimetry, u32 eotf, u32 range, u32 pixel_enc),
+	    TP_ARGS(dcp, id, score, depth, colorimetry, eotf, range, pixel_enc),
+	    TP_STRUCT__entry(
+			     __field(u64, dcp)
+			     __field(u32, id)
+			     __field(u32, score)
+			     __field(u32, depth)
+			     __field(u32, colorimetry)
+			     __field(u32, eotf)
+			     __field(u32, range)
+			     __field(u32, pixel_enc)
+	    ),
+	    TP_fast_assign(
+			   __entry->dcp = (u64)dcp;
+			   __entry->id = id;
+			   __entry->score = score;
+			   __entry->depth = depth;
+			   __entry->colorimetry = min_t(u32, colorimetry, 17U);
+			   __entry->eotf = min_t(u32, eotf, 4U);
+			   __entry->range = min_t(u32, range, 2U);
+			   __entry->pixel_enc = min_t(u32, pixel_enc, 15U);
+	    ),
+	    TP_printk("dcp=%llx, id=%u, score=%u,  depth=%u, colorimetry=%s, eotf=%s, range=%s, pixel_enc=%s",
+		      __entry->dcp,
+		      __entry->id,
+		      __entry->score,
+		      __entry->depth,
+		      show_colorimetry(__entry->colorimetry),
+		      show_eotf(__entry->eotf),
+		      show_range(__entry->range),
+		      show_encoding(__entry->pixel_enc)
+	    )
+);
+
+TRACE_EVENT(iomfb_timing_mode,
+	    TP_PROTO(struct apple_dcp *dcp, u32 id, u32 score, u32 width,
+		     u32 height, u32 clock, u32 color_mode),
+	    TP_ARGS(dcp, id, score, width, height, clock, color_mode),
+	    TP_STRUCT__entry(
+			     __field(u64, dcp)
+			     __field(u32, id)
+			     __field(u32, score)
+			     __field(u32, width)
+			     __field(u32, height)
+			     __field(u32, clock)
+			     __field(u32, color_mode)
+	    ),
+	    TP_fast_assign(
+			   __entry->dcp = (u64)dcp;
+			   __entry->id = id;
+			   __entry->score = score;
+			   __entry->width = width;
+			   __entry->height = height;
+			   __entry->clock = clock;
+			   __entry->color_mode = color_mode;
+	    ),
+	    TP_printk("dcp=%llx, id=%u, score=%u,  %ux%u@%u.%u, color_mode=%u",
+		      __entry->dcp,
+		      __entry->id,
+		      __entry->score,
+		      __entry->width,
+		      __entry->height,
+		      __entry->clock >> 16,
+		      ((__entry->clock & 0xffff) * 1000) >> 16,
+		      __entry->color_mode
+	    )
+);
+
 #endif /* _TRACE_DCP_H */
 
 /* This part must be outside protection */
