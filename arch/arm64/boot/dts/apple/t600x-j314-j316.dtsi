@@ -37,7 +37,9 @@
 			reg = <0 0 0 0>; /* To be filled by loader */
 			/* Format properties will be added by loader */
 			status = "disabled";
-			panel = &panel;
+			panel = <&panel>;
+			post-init-providers = <&panel>;
+			power-domains = <&ps_disp0_cpu0>;
 		};
 	};
 
