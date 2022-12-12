@@ -32,7 +32,24 @@ struct macsmc_power {
 
 	struct work_struct critical_work;
 	bool shutdown_started;
+
+	struct delayed_work dbg_log_work;
 };
+
+static int macsmc_log_power_set(const char *val, const struct kernel_param *kp);
+
+static const struct kernel_param_ops macsmc_log_power_ops = {
+        .set = macsmc_log_power_set,
+        .get = param_get_bool,
+};
+
+static bool log_power = false;
+module_param_cb(log_power, &macsmc_log_power_ops, &log_power, 0644);
+MODULE_PARM_DESC(log_power, "Periodically log power consumption for debugging");
+
+#define POWER_LOG_INTERVAL (HZ)
+
+static struct macsmc_power *g_power;
 
 #define CHNC_BATTERY_FULL	BIT(0)
 #define CHNC_NO_CHARGER		BIT(7)
@@ -466,7 +483,58 @@ static const struct power_supply_desc macsmc_ac_desc = {
 	.num_properties		= ARRAY_SIZE(macsmc_ac_props),
 };
 
-static void macsmc_power_critical_work(struct work_struct *wrk) {
+static int macsmc_log_power_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = param_set_bool(val, kp);
+
+	if (ret < 0)
+		return ret;
+
+	if (log_power && g_power)
+		schedule_delayed_work(&g_power->dbg_log_work, 0);
+
+	return 0;
+}
+
+static void macsmc_dbg_work(struct work_struct *wrk)
+{
+	struct macsmc_power *power = container_of(to_delayed_work(wrk),
+						  struct macsmc_power, dbg_log_work);
+	int p_in = 0, p_sys = 0, p_3v8 = 0, p_mpmu = 0, p_spmu = 0, p_clvr = 0, p_cpu = 0;
+	s32 p_bat = 0;
+	s16 t_full = 0, t_empty = 0;
+	u8 charge = 0;
+
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PDTR), &p_in, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSTR), &p_sys, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PMVR), &p_3v8, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PHPC), &p_cpu, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSVR), &p_clvr, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPMC), &p_mpmu, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPSC), &p_spmu, 1000);
+	apple_smc_read_s32(power->smc, SMC_KEY(B0AP), &p_bat);
+	apple_smc_read_s16(power->smc, SMC_KEY(B0TE), &t_empty);
+	apple_smc_read_s16(power->smc, SMC_KEY(B0TF), &t_full);
+	apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &charge);
+
+#define FD3(x) ((x) / 1000), abs((x) % 1000)
+
+	dev_info(power->dev,
+		 "In %2d.%03dW Sys %2d.%03dW 3V8 %2d.%03dW MPMU %2d.%03dW SPMU %2d.%03dW "
+		 "CLVR %2d.%03dW CPU %2d.%03dW Batt %2d.%03dW %d%% T%s %dm\n",
+		 FD3(p_in), FD3(p_sys), FD3(p_3v8), FD3(p_mpmu), FD3(p_spmu), FD3(p_clvr),
+		 FD3(p_cpu), FD3(p_bat), charge,
+		 t_full >= 0 ? "full" : "empty",
+		 t_full >= 0 ? t_full : t_empty);
+
+#undef FD3
+
+	if (log_power)
+		schedule_delayed_work(&power->dbg_log_work, POWER_LOG_INTERVAL);
+}
+
+static void macsmc_power_critical_work(struct work_struct *wrk)
+{
 	struct macsmc_power *power = container_of(wrk, struct macsmc_power, critical_work);
 	int ret;
 	u32 bcf0;
@@ -609,6 +677,12 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	apple_smc_register_notifier(power->smc, &power->nb);
 
 	INIT_WORK(&power->critical_work, macsmc_power_critical_work);
+	INIT_DELAYED_WORK(&power->dbg_log_work, macsmc_dbg_work);
+
+	g_power = power;
+
+	if (log_power)
+		schedule_delayed_work(&power->dbg_log_work, 0);
 
 	return 0;
 }
@@ -616,6 +690,11 @@ static int macsmc_power_probe(struct platform_device *pdev)
 static void macsmc_power_remove(struct platform_device *pdev)
 {
 	struct macsmc_power *power = dev_get_drvdata(&pdev->dev);
+
+	cancel_work(&power->critical_work);
+	cancel_delayed_work(&power->dbg_log_work);
+
+	g_power = NULL;
 
 	apple_smc_unregister_notifier(power->smc, &power->nb);
 }
