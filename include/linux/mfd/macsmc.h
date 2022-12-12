@@ -82,6 +82,8 @@ static inline int apple_smc_read_flag(struct apple_smc *smc, smc_key key)
 }
 #define apple_smc_write_flag apple_smc_write_u8
 
+int apple_smc_read_f32_scaled(struct apple_smc *smc, smc_key key, int *p, int scale);
+
 int apple_smc_register_notifier(struct apple_smc *smc, struct notifier_block *n);
 int apple_smc_unregister_notifier(struct apple_smc *smc, struct notifier_block *n);
 

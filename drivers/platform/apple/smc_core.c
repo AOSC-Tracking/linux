@@ -4,6 +4,7 @@
  * Copyright The Asahi Linux Contributors
  */
 
+#include <linux/bitfield.h>
 #include <linux/device.h>
 #include <linux/mfd/core.h>
 #include <linux/mutex.h>
@@ -97,6 +98,53 @@ int apple_smc_rw(struct apple_smc *smc, smc_key key, void *wbuf, size_t wsize,
 	return ret;
 }
 EXPORT_SYMBOL(apple_smc_rw);
+
+int apple_smc_read_f32_scaled(struct apple_smc *smc, smc_key key, int *p, int scale)
+{
+	u32 fval;
+	u64 val;
+	int ret, exp;
+
+	ret = apple_smc_read_u32(smc, key, &fval);
+	if (ret < 0)
+		return ret;
+
+	val = ((u64)((fval & GENMASK(22, 0)) | BIT(23)));
+	exp = ((fval >> 23) & 0xff) - 127 - 23;
+	if (scale < 0) {
+		val <<= 32;
+		exp -= 32;
+		val /= -scale;
+	} else {
+		val *= scale;
+	}
+
+	if (exp > 63)
+		val = U64_MAX;
+	else if (exp < -63)
+		val = 0;
+	else if (exp < 0)
+		val >>= -exp;
+	else if (exp != 0 && (val & ~((1UL << (64 - exp)) - 1))) /* overflow */
+		val = U64_MAX;
+	else
+		val <<= exp;
+
+	if (fval & BIT(31)) {
+		if (val > (-(s64)INT_MIN))
+			*p = INT_MIN;
+		else
+			*p = -val;
+	} else {
+		if (val > INT_MAX)
+			*p = INT_MAX;
+		else
+			*p = val;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(apple_smc_read_f32_scaled);
 
 int apple_smc_get_key_by_index(struct apple_smc *smc, int index, smc_key *key)
 {
