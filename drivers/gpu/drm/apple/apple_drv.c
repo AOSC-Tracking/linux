@@ -7,12 +7,13 @@
  * Copyright (C) 2014 Endless Mobile
  */
 
+#include <linux/aperture.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 
-#include <drm/drm_aperture.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/clients/drm_client_setup.h>
@@ -341,10 +342,45 @@ static int apple_probe_per_dcp(struct device *dev,
 	return drm_connector_attach_encoder(&connector->base, encoder);
 }
 
+static int apple_get_fb_resource(struct device *dev, const char *name,
+				 struct resource *fb_r)
+{
+	int idx, ret = -ENODEV;
+	struct device_node *node;
+
+	idx = of_property_match_string(dev->of_node, "memory-region-names", name);
+
+	node = of_parse_phandle(dev->of_node, "memory-region", idx);
+	if (!node) {
+		dev_err(dev, "reserved-memory node '%s' not found\n", name);
+		return -ENODEV;
+	}
+
+	if (!of_device_is_available(node)) {
+		dev_err(dev, "reserved-memory node '%s' is unavailable\n", name);
+		goto err;
+	}
+
+	if (!of_device_is_compatible(node, "framebuffer")) {
+		dev_err(dev, "reserved-memory node '%s' is incompatible\n",
+			node->full_name);
+		goto err;
+	}
+
+	ret = of_address_to_resource(node, 0, fb_r);
+
+err:
+	of_node_put(node);
+	return ret;
+}
+
+
 static int apple_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct apple_drm_private *apple;
+	struct resource fb_r;
+	resource_size_t fb_size;
 	struct platform_device *dcp[MAX_COPROCESSORS];
 	int ret, nr_dcp, i;
 
@@ -381,6 +417,18 @@ static int apple_platform_probe(struct platform_device *pdev)
 	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 	if (ret)
 		return ret;
+
+	ret = apple_get_fb_resource(dev, "framebuffer", &fb_r);
+	if (ret)
+		return ret;
+
+	fb_size = fb_r.end - fb_r.start + 1;
+	ret = aperture_remove_conflicting_devices(fb_r.start, fb_size,
+						  apple_drm_driver.name);
+	if (ret) {
+		dev_err(dev, "Failed remove fb: %d\n", ret);
+		return ret;
+	}
 
 	apple = devm_drm_dev_alloc(dev, &apple_drm_driver,
 				   struct apple_drm_private, drm);
@@ -426,11 +474,6 @@ static int apple_platform_probe(struct platform_device *pdev)
 	}
 
 	drm_mode_config_reset(&apple->drm);
-
-	// remove before registering our DRM device
-	ret = drm_aperture_remove_framebuffers(false, &apple_drm_driver);
-	if (ret)
-		return ret;
 
 	ret = drm_dev_register(&apple->drm, 0);
 	if (ret)
