@@ -74,6 +74,17 @@ enum iomfb_property_id {
 #define SWAP_SURFACES 4
 #define MAX_PLANES 3
 
+enum dcp_colorspace {
+	DCP_COLORSPACE_BG_SRGB = 0,
+	DCP_COLORSPACE_BG_BT2020 = 9,
+	DCP_COLORSPACE_NATIVE = 12,
+};
+
+enum dcp_xfer_func {
+	DCP_XFER_FUNC_SDR = 13,
+	DCP_XFER_FUNC_HDR = 16,
+};
+
 struct dcp_iouserclient {
 	/* Handle for the IOUserClient. macOS sets this to a kernel VA. */
 	u64 handle;

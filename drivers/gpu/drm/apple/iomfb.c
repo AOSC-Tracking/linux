@@ -1493,23 +1493,6 @@ static u32 drm_format_to_dcp(u32 drm)
 	return 0;
 }
 
-static u8 drm_format_to_colorspace(u32 drm)
-{
-	switch (drm) {
-	case DRM_FORMAT_XRGB8888:
-	case DRM_FORMAT_ARGB8888:
-	case DRM_FORMAT_XBGR8888:
-	case DRM_FORMAT_ABGR8888:
-		return 1;
-
-	case DRM_FORMAT_ARGB2101010:
-	case DRM_FORMAT_XRGB2101010:
-		return 2;
-	}
-
-	return 1;
-}
-
 int dcp_get_modes(struct drm_connector *connector)
 {
 	struct apple_connector *apple_connector = to_apple_connector(connector);
@@ -1631,7 +1614,8 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	for (l = 0; l < SWAP_SURFACES; l++)
 		req->surf_null[l] = true;
 
-	l = 0;
+	// Surface 0 has limitations at least on t600x.
+	l = 1;
 	for_each_oldnew_plane_in_state(state, plane, old_state, new_state, plane_idx) {
 		struct drm_framebuffer *fb = new_state->fb;
 		struct drm_gem_dma_object *obj;
@@ -1698,8 +1682,8 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		req->surf[l] = (struct dcp_surface){
 			.opaque = opaque,
 			.format = drm_format_to_dcp(fb->format->format),
-			.xfer_func = 13,
-			.colorspace = drm_format_to_colorspace(fb->format->format),
+			.xfer_func = DCP_XFER_FUNC_SDR,
+			.colorspace = DCP_COLORSPACE_NATIVE,
 			.stride = fb->pitches[0],
 			.width = fb->width,
 			.height = fb->height,
