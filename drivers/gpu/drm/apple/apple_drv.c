@@ -10,6 +10,7 @@
 #include <linux/aperture.h>
 #include <linux/component.h>
 #include <linux/dma-mapping.h>
+#include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -403,7 +404,8 @@ static int apple_drm_init_dcp(struct device *dev)
 	struct apple_drm_private *apple = dev_get_drvdata(dev);
 	struct platform_device *dcp[MAX_COPROCESSORS];
 	struct device_node *np;
-	int ret, num_dcp = 0;
+	u64 timeout;
+	int i, ret, num_dcp = 0;
 
 	for_each_matching_node(np, apple_dcp_id_tbl) {
 		if (!of_device_is_available(np)) {
@@ -431,6 +433,21 @@ static int apple_drm_init_dcp(struct device *dev)
 	if (num_dcp < 1)
 		return -ENODEV;
 
+	timeout = get_jiffies_64() + msecs_to_jiffies(500);
+
+	for (i = 0; i < num_dcp; ++i) {
+		u64 jiffies = get_jiffies_64();
+		u64 wait = time_after_eq64(jiffies, timeout) ?
+				   0 :
+				   timeout - jiffies;
+		ret = dcp_wait_ready(dcp[i], wait);
+		/* There is nothing we can do if a dcp/dcpext does not boot
+		 * (successfully). Ignoring it should not do any harm now.
+		 * Needs to reevaluated whenn adding dcpext support.
+		 */
+		if (ret)
+			dev_warn(dev, "DCP[%d] not ready: %d\n", i, ret);
+	}
 
 	return 0;
 }
