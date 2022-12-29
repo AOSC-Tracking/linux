@@ -134,6 +134,9 @@ struct apple_dcp {
 	bool valid_mode;
 	struct dcp_set_digital_out_mode_req mode;
 
+	/* completion for active turning true */
+	struct completion start_done;
+
 	/* Is the DCP booted? */
 	bool active;
 

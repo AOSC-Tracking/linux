@@ -1811,13 +1811,14 @@ static void res_is_main_display(struct apple_dcp *dcp, void *out, void *cookie)
 
 	dcp->main_display = result != 0;
 
-	dcp->active = true;
-
 	connector = dcp->connector;
 	if (connector) {
 		connector->connected = dcp->nr_modes > 0;
 		schedule_work(&connector->hotplug_wq);
 	}
+
+	dcp->active = true;
+	complete(&dcp->start_done);
 }
 
 static void init_3(struct apple_dcp *dcp, void *out, void *cookie)
