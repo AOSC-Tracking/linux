@@ -8,8 +8,9 @@
  */
 
 #include <linux/aperture.h>
-#include <linux/module.h>
+#include <linux/component.h>
 #include <linux/dma-mapping.h>
+#include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
@@ -392,45 +393,54 @@ err:
 	return ret;
 }
 
+static const struct of_device_id apple_dcp_id_tbl[] = {
+	{ .compatible = "apple,dcp" },
+	{},
+};
 
-static int apple_platform_probe(struct platform_device *pdev)
+static int apple_drm_init_dcp(struct device *dev)
 {
-	struct device *dev = &pdev->dev;
+	struct apple_drm_private *apple = dev_get_drvdata(dev);
+	struct platform_device *dcp[MAX_COPROCESSORS];
+	struct device_node *np;
+	int ret, num_dcp = 0;
+
+	for_each_matching_node(np, apple_dcp_id_tbl) {
+		if (!of_device_is_available(np)) {
+			of_node_put(np);
+			continue;
+		}
+
+		dcp[num_dcp] = of_find_device_by_node(np);
+		of_node_put(np);
+		if (!dcp[num_dcp])
+			continue;
+
+		ret = apple_probe_per_dcp(dev, &apple->drm, dcp[num_dcp],
+					  num_dcp);
+		if (ret)
+			continue;
+
+		ret = dcp_start(dcp[num_dcp]);
+		if (ret)
+			continue;
+
+		num_dcp++;
+	}
+
+	if (num_dcp < 1)
+		return -ENODEV;
+
+
+	return 0;
+}
+
+static int apple_drm_init(struct device *dev)
+{
 	struct apple_drm_private *apple;
 	struct resource fb_r;
 	resource_size_t fb_size;
-	struct platform_device *dcp[MAX_COPROCESSORS];
-	int ret, nr_dcp, i;
-
-	for (nr_dcp = 0; nr_dcp < MAX_COPROCESSORS; ++nr_dcp) {
-		struct device_node *np;
-		struct device_link *dcp_link;
-
-		np = of_parse_phandle(dev->of_node, "apple,coprocessors",
-				      nr_dcp);
-
-		if (!np)
-			break;
-
-		dcp[nr_dcp] = of_find_device_by_node(np);
-
-		if (!dcp[nr_dcp])
-			return -ENODEV;
-
-		dcp_link = device_link_add(dev, &dcp[nr_dcp]->dev,
-					   DL_FLAG_AUTOREMOVE_CONSUMER);
-		if (!dcp_link) {
-			dev_err(dev, "Failed to link to DCP %d device", nr_dcp);
-			return -EINVAL;
-		}
-
-		if (dcp_link->supplier->links.status != DL_DEV_DRIVER_BOUND)
-			return -EPROBE_DEFER;
-	}
-
-	/* Need at least 1 DCP for a display subsystem */
-	if (nr_dcp < 1)
-		return -ENODEV;
+	int ret;
 
 	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 	if (ret)
@@ -440,14 +450,6 @@ static int apple_platform_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	fb_size = fb_r.end - fb_r.start + 1;
-	ret = aperture_remove_conflicting_devices(fb_r.start, fb_size,
-						  apple_drm_driver.name);
-	if (ret) {
-		dev_err(dev, "Failed remove fb: %d\n", ret);
-		return ret;
-	}
-
 	apple = devm_drm_dev_alloc(dev, &apple_drm_driver,
 				   struct apple_drm_private, drm);
 	if (IS_ERR(apple))
@@ -455,9 +457,22 @@ static int apple_platform_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(dev, apple);
 
+	ret = component_bind_all(dev, apple);
+	if (ret)
+		return ret;
+
+	fb_size = fb_r.end - fb_r.start + 1;
+	ret = aperture_remove_conflicting_devices(fb_r.start, fb_size,
+						  apple_drm_driver.name);
+
+	if (ret) {
+		dev_err(dev, "Failed remove fb: %d\n", ret);
+		goto err_unbind;
+	}
+
 	ret = drmm_mode_config_init(&apple->drm);
 	if (ret)
-		goto err_unload;
+		goto err_unbind;
 
 	/*
 	 * IOMFB::UPPipeDCP_H13P::verify_surfaces produces the error "plane
@@ -479,40 +494,110 @@ static int apple_platform_probe(struct platform_device *pdev)
 	apple->drm.mode_config.funcs = &apple_mode_config_funcs;
 	apple->drm.mode_config.helper_private = &apple_mode_config_helpers;
 
-	for (i = 0; i < nr_dcp; ++i) {
-		ret = apple_probe_per_dcp(dev, &apple->drm, dcp[i], i);
-
-		if (ret)
-			goto err_unload;
-
-		ret = dcp_start(dcp[i]);
-
-		if (ret)
-			goto err_unload;
-	}
+	ret = apple_drm_init_dcp(dev);
+	if (ret)
+		goto err_unbind;
 
 	drm_mode_config_reset(&apple->drm);
 
 	ret = drm_dev_register(&apple->drm, 0);
 	if (ret)
-		goto err_unload;
+		goto err_unbind;
 
 	drm_client_setup_with_fourcc(&apple->drm, DRM_FORMAT_XRGB8888);
 
 	return 0;
 
-err_unload:
-	drm_dev_put(&apple->drm);
+err_unbind:
+	component_unbind_all(dev, NULL);
 	return ret;
 }
 
-static int apple_platform_remove(struct platform_device *pdev)
+static void apple_drm_uninit(struct device *dev)
 {
-	struct apple_drm_private *apple = platform_get_drvdata(pdev);
+	struct apple_drm_private *apple = dev_get_drvdata(dev);
 
 	drm_dev_unregister(&apple->drm);
+	drm_atomic_helper_shutdown(&apple->drm);
+
+	component_unbind_all(dev, NULL);
+
+	dev_set_drvdata(dev, NULL);
+}
+
+static int apple_drm_bind(struct device *dev)
+{
+	return apple_drm_init(dev);
+}
+
+static void apple_drm_unbind(struct device *dev)
+{
+	apple_drm_uninit(dev);
+}
+
+const struct component_master_ops apple_drm_ops = {
+	.bind	= apple_drm_bind,
+	.unbind	= apple_drm_unbind,
+};
+
+static const struct of_device_id apple_component_id_tbl[] = {
+	{ .compatible = "apple,dcp-piodma" },
+	{},
+};
+
+static int add_display_components(struct device *dev,
+				  struct component_match **matchptr)
+{
+	struct device_node *np;
+
+	for_each_matching_node(np, apple_component_id_tbl) {
+		if (of_device_is_available(np))
+			drm_of_component_match_add(dev, matchptr,
+						   component_compare_of, np);
+		of_node_put(np);
+	}
 
 	return 0;
+}
+
+static int add_dcp_components(struct device *dev,
+			      struct component_match **matchptr)
+{
+	struct device_node *np;
+	int num = 0;
+
+	for_each_matching_node(np, apple_dcp_id_tbl) {
+		if (of_device_is_available(np)) {
+			drm_of_component_match_add(dev, matchptr,
+						   component_compare_of, np);
+			num++;
+		}
+		of_node_put(np);
+	}
+
+	return num;
+}
+
+static int apple_platform_probe(struct platform_device *pdev)
+{
+	struct device *mdev = &pdev->dev;
+	struct component_match *match = NULL;
+	int num_dcp;
+
+	/* add PIODMA mapper components */
+	add_display_components(mdev, &match);
+
+	/* add DCP components, handle less than 1 as probe error */
+	num_dcp = add_dcp_components(mdev, &match);
+	if (num_dcp < 1)
+		return -ENODEV;
+
+	return component_master_add_with_match(mdev, &apple_drm_ops, match);
+}
+
+static void apple_platform_remove(struct platform_device *pdev)
+{
+	component_master_del(&pdev->dev, &apple_drm_ops);
 }
 
 static const struct of_device_id of_match[] = {
@@ -526,14 +611,19 @@ static int apple_platform_suspend(struct device *dev)
 {
 	struct apple_drm_private *apple = dev_get_drvdata(dev);
 
-	return drm_mode_config_helper_suspend(&apple->drm);
+	if (apple)
+		return drm_mode_config_helper_suspend(&apple->drm);
+
+	return 0;
 }
 
 static int apple_platform_resume(struct device *dev)
 {
 	struct apple_drm_private *apple = dev_get_drvdata(dev);
 
-	drm_mode_config_helper_resume(&apple->drm);
+	if (apple)
+		drm_mode_config_helper_resume(&apple->drm);
+
 	return 0;
 }
 

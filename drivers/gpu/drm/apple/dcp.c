@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright 2021 Alyssa Rosenzweig <alyssa@rosenzweig.io> */
 
+#include <linux/align.h>
 #include <linux/bitmap.h>
 #include <linux/clk.h>
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/moduleparam.h>
-#include <linux/slab.h>
-#include <linux/string.h>
-#include <linux/of_device.h>
+#include <linux/completion.h>
+#include <linux/component.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/iommu.h>
-#include <linux/align.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/of_device.h>
+#include <linux/slab.h>
 #include <linux/soc/apple/rtkit.h>
-#include <linux/completion.h>
-#include "linux/workqueue.h"
+#include <linux/string.h>
+#include <linux/workqueue.h>
 
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fourcc.h>
@@ -376,33 +377,18 @@ static enum dcp_firmware_version dcp_check_firmware_version(struct device *dev)
 	return DCP_FIRMWARE_UNKNOWN;
 }
 
-static int dcp_platform_probe(struct platform_device *pdev)
+static int dcp_comp_bind(struct device *dev, struct device *main, void *data)
 {
-	struct device *dev = &pdev->dev;
 	struct device_node *panel_np;
-	struct apple_dcp *dcp;
-	enum dcp_firmware_version fw_compat;
+	struct apple_dcp *dcp = dev_get_drvdata(dev);
 	u32 cpu_ctrl;
 	int ret;
-
-	fw_compat = dcp_check_firmware_version(dev);
-	if (fw_compat == DCP_FIRMWARE_UNKNOWN)
-		return -ENODEV;
-
-	dcp = devm_kzalloc(dev, sizeof(*dcp), GFP_KERNEL);
-	if (!dcp)
-		return -ENOMEM;
-
-	dcp->fw_compat = fw_compat;
-
-	platform_set_drvdata(pdev, dcp);
-	dcp->dev = dev;
 
 	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 	if (ret)
 		return ret;
 
-	dcp->coproc_reg = devm_platform_ioremap_resource_byname(pdev, "coproc");
+	dcp->coproc_reg = devm_platform_ioremap_resource_byname(to_platform_device(dev), "coproc");
 	if (IS_ERR(dcp->coproc_reg))
 		return PTR_ERR(dcp->coproc_reg);
 
@@ -453,21 +439,16 @@ static int dcp_platform_probe(struct platform_device *pdev)
 	else
 		dcp->connector_type = DRM_MODE_CONNECTOR_Unknown;
 
+	/*
+	 * Components do not ensure the bind order of sub components but
+	 * the piodma device is only used for its iommu. The iommu is fully
+	 * initialized by the time dcp_piodma_probe() calls component_add().
+	 */
 	dcp->piodma = dcp_get_dev(dev, "apple,piodma-mapper");
 	if (!dcp->piodma) {
 		dev_err(dev, "failed to find piodma\n");
 		return -ENODEV;
 	}
-
-	dcp->piodma_link = device_link_add(dev, &dcp->piodma->dev,
-					   DL_FLAG_AUTOREMOVE_CONSUMER);
-	if (!dcp->piodma_link) {
-		dev_err(dev, "Failed to link to piodma device");
-		return -EINVAL;
-	}
-
-	if (dcp->piodma_link->supplier->links.status != DL_DEV_DRIVER_BOUND)
-		return -EPROBE_DEFER;
 
 	ret = dcp_get_disp_regs(dcp);
 	if (ret) {
@@ -517,12 +498,55 @@ static int dcp_platform_probe(struct platform_device *pdev)
  * We need to shutdown DCP before tearing down the display subsystem. Otherwise
  * the DCP will crash and briefly flash a green screen of death.
  */
+static void dcp_comp_unbind(struct device *dev, struct device *main, void *data)
+{
+	struct apple_dcp *dcp = dev_get_drvdata(dev);
+
+	if (dcp && dcp->shmem)
+		iomfb_shutdown(dcp);
+
+	platform_device_put(dcp->piodma);
+	dcp->piodma = NULL;
+
+	devm_clk_put(dev, dcp->clk);
+	dcp->clk = NULL;
+}
+
+static const struct component_ops dcp_comp_ops = {
+	.bind	= dcp_comp_bind,
+	.unbind	= dcp_comp_unbind,
+};
+
+static int dcp_platform_probe(struct platform_device *pdev)
+{
+	enum dcp_firmware_version fw_compat;
+	struct device *dev = &pdev->dev;
+	struct apple_dcp *dcp;
+
+	fw_compat = dcp_check_firmware_version(dev);
+	if (fw_compat == DCP_FIRMWARE_UNKNOWN)
+		return -ENODEV;
+
+	dcp = devm_kzalloc(dev, sizeof(*dcp), GFP_KERNEL);
+	if (!dcp)
+		return -ENOMEM;
+
+	dcp->fw_compat = fw_compat;
+	dcp->dev = dev;
+
+	platform_set_drvdata(pdev, dcp);
+
+	return component_add(&pdev->dev, &dcp_comp_ops);
+}
+
+static void dcp_platform_remove(struct platform_device *pdev)
+{
+	component_del(&pdev->dev, &dcp_comp_ops);
+}
+
 static void dcp_platform_shutdown(struct platform_device *pdev)
 {
-	struct apple_dcp *dcp = platform_get_drvdata(pdev);
-
-	if (dcp->shmem)
-		iomfb_shutdown(dcp);
+	component_del(&pdev->dev, &dcp_comp_ops);
 }
 
 static const struct of_device_id of_match[] = {
@@ -533,6 +557,7 @@ MODULE_DEVICE_TABLE(of, of_match);
 
 static struct platform_driver apple_platform_driver = {
 	.probe		= dcp_platform_probe,
+	.remove		= dcp_platform_remove,
 	.shutdown	= dcp_platform_shutdown,
 	.driver	= {
 		.name = "apple-dcp",

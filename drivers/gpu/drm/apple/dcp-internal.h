@@ -84,7 +84,6 @@ struct dcp_brightness {
 struct apple_dcp {
 	struct device *dev;
 	struct platform_device *piodma;
-	struct device_link *piodma_link;
 	struct apple_rtkit *rtk;
 	struct apple_crtc *crtc;
 	struct apple_connector *connector;
