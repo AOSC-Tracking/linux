@@ -20,6 +20,7 @@
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_framebuffer.h>
+#include <drm/drm_module.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
 
@@ -539,7 +540,7 @@ static struct platform_driver apple_platform_driver = {
 	},
 };
 
-module_platform_driver(apple_platform_driver);
+drm_module_platform_driver(apple_platform_driver);
 
 MODULE_AUTHOR("Alyssa Rosenzweig <alyssa@rosenzweig.io>");
 MODULE_DESCRIPTION("Apple Display Controller DRM driver");
