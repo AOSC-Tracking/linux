@@ -1614,6 +1614,15 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	for (l = 0; l < SWAP_SURFACES; l++)
 		req->surf_null[l] = true;
 
+	/*
+	 * Clear all surfaces on startup. The boot framebuffer in surface 0
+	 * sticks around.
+	 */
+	if (!dcp->surfaces_cleared) {
+		req->swap.swap_enabled = DCP_REMOVE_LAYERS | 0xF;
+		dcp->surfaces_cleared = true;
+	}
+
 	// Surface 0 has limitations at least on t600x.
 	l = 1;
 	for_each_oldnew_plane_in_state(state, plane, old_state, new_state, plane_idx) {

@@ -141,6 +141,9 @@ struct apple_dcp {
 	/* eDP display without DP-HDMI conversion */
 	bool main_display;
 
+	/* clear all surfaces on init */
+	bool surfaces_cleared;
+
 	/* panel has a mini-LED backllight */
 	bool has_mini_led;
 	
