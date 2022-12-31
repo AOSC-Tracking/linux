@@ -28,6 +28,7 @@
 #include <drm/drm_simple_kms_helper.h>
 #include <drm/drm_mode.h>
 #include <drm/drm_modeset_helper.h>
+#include <drm/drm_module.h>
 #include <drm/drm_of.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
@@ -537,7 +538,7 @@ static struct platform_driver apple_platform_driver = {
 	.remove		= apple_platform_remove,
 };
 
-module_platform_driver(apple_platform_driver);
+drm_module_platform_driver(apple_platform_driver);
 
 MODULE_AUTHOR("Alyssa Rosenzweig <alyssa@rosenzweig.io>");
 MODULE_DESCRIPTION(DRIVER_DESC);
