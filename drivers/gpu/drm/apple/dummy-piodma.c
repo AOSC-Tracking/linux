@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only OR MIT
 /* Copyright 2021 Alyssa Rosenzweig <alyssa@rosenzweig.io> */
 
+#include <drm/drm_module.h>
+
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
 #include <linux/of_device.h>
@@ -24,7 +26,7 @@ static struct platform_driver dcp_piodma_platform_driver = {
 	},
 };
 
-module_platform_driver(dcp_piodma_platform_driver);
+drm_module_platform_driver(dcp_piodma_platform_driver);
 
 MODULE_AUTHOR("Alyssa Rosenzweig <alyssa@rosenzweig.io>");
 MODULE_DESCRIPTION("[HACK] Apple DCP PIODMA shim");
