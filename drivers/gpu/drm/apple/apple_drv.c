@@ -115,10 +115,16 @@ static const struct drm_plane_helper_funcs apple_plane_helper_funcs = {
 	.atomic_update	= apple_plane_atomic_update,
 };
 
+static void apple_plane_cleanup(struct drm_plane *plane)
+{
+	drm_plane_cleanup(plane);
+	kfree(plane);
+}
+
 static const struct drm_plane_funcs apple_plane_funcs = {
 	.update_plane		= drm_atomic_helper_update_plane,
 	.disable_plane		= drm_atomic_helper_disable_plane,
-	.destroy		= drm_plane_cleanup,
+	.destroy		= apple_plane_cleanup,
 	.reset			= drm_atomic_helper_plane_reset,
 	.atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
 	.atomic_destroy_state	= drm_atomic_helper_plane_destroy_state,
@@ -156,7 +162,7 @@ static struct drm_plane *apple_plane_init(struct drm_device *dev,
 	int ret;
 	struct drm_plane *plane;
 
-	plane = devm_kzalloc(dev->dev, sizeof(*plane), GFP_KERNEL);
+	plane = kzalloc(sizeof(*plane), GFP_KERNEL);
 
 	ret = drm_universal_plane_init(dev, plane, possible_crtcs,
 				       &apple_plane_funcs,
@@ -249,11 +255,16 @@ static void dcp_atomic_commit_tail(struct drm_atomic_state *old_state)
 	drm_atomic_helper_cleanup_planes(dev, old_state);
 }
 
+static void apple_crtc_cleanup(struct drm_crtc *crtc)
+{
+	drm_crtc_cleanup(crtc);
+	kfree(to_apple_crtc(crtc));
+}
 
 static const struct drm_crtc_funcs apple_crtc_funcs = {
 	.atomic_destroy_state	= drm_atomic_helper_crtc_destroy_state,
 	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
-	.destroy		= drm_crtc_cleanup,
+	.destroy		= apple_crtc_cleanup,
 	.page_flip		= drm_atomic_helper_page_flip,
 	.reset			= drm_atomic_helper_crtc_reset,
 	.set_config             = drm_atomic_helper_set_config,
@@ -269,9 +280,15 @@ static const struct drm_mode_config_helper_funcs apple_mode_config_helpers = {
 	.atomic_commit_tail	= dcp_atomic_commit_tail,
 };
 
+static void appledrm_connector_cleanup(struct drm_connector *connector)
+{
+	drm_connector_cleanup(connector);
+	kfree(to_apple_connector(connector));
+}
+
 static const struct drm_connector_funcs apple_connector_funcs = {
 	.fill_modes		= drm_helper_probe_single_connector_modes,
-	.destroy		= drm_connector_cleanup,
+	.destroy		= appledrm_connector_cleanup,
 	.reset			= drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state	= drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state	= drm_atomic_helper_connector_destroy_state,
@@ -299,7 +316,7 @@ static int apple_probe_per_dcp(struct device *dev,
 {
 	struct apple_crtc *crtc;
 	struct apple_connector *connector;
-	struct drm_encoder *encoder;
+	struct apple_encoder *enc;
 	struct drm_plane *primary;
 	int ret;
 
@@ -308,7 +325,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	if (IS_ERR(primary))
 		return PTR_ERR(primary);
 
-	crtc = devm_kzalloc(dev, sizeof(*crtc), GFP_KERNEL);
+	crtc = kzalloc(sizeof(*crtc), GFP_KERNEL);
 	ret = drm_crtc_init_with_planes(drm, &crtc->base, primary, NULL,
 					&apple_crtc_funcs, NULL);
 	if (ret)
@@ -316,13 +333,13 @@ static int apple_probe_per_dcp(struct device *dev,
 
 	drm_crtc_helper_add(&crtc->base, &apple_crtc_helper_funcs);
 
-	encoder = devm_kzalloc(dev, sizeof(*encoder), GFP_KERNEL);
-	encoder->possible_crtcs = drm_crtc_mask(&crtc->base);
-	ret = drm_simple_encoder_init(drm, encoder, DRM_MODE_ENCODER_TMDS);
-	if (ret)
-		return ret;
+	enc = drmm_simple_encoder_alloc(drm, struct apple_encoder, base,
+					DRM_MODE_ENCODER_TMDS);
+	if (IS_ERR(enc))
+                return PTR_ERR(enc);
+	enc->base.possible_crtcs = drm_crtc_mask(&crtc->base);
 
-	connector = devm_kzalloc(dev, sizeof(*connector), GFP_KERNEL);
+	connector = kzalloc(sizeof(*connector), GFP_KERNEL);
 	drm_connector_helper_add(&connector->base,
 				 &apple_connector_helper_funcs);
 
@@ -340,7 +357,7 @@ static int apple_probe_per_dcp(struct device *dev,
 	crtc->dcp = dcp;
 	dcp_link(dcp, crtc, connector);
 
-	return drm_connector_attach_encoder(&connector->base, encoder);
+	return drm_connector_attach_encoder(&connector->base, &enc->base);
 }
 
 static int apple_get_fb_resource(struct device *dev, const char *name,
