@@ -5,6 +5,7 @@
 #define __APPLE_DCP_H__
 
 #include <drm/drm_atomic.h>
+#include <drm/drm_encoder.h>
 #include <drm/drm_fourcc.h>
 
 #include "dcp-internal.h"
@@ -34,6 +35,12 @@ struct apple_connector {
 };
 
 #define to_apple_connector(x) container_of(x, struct apple_connector, base)
+
+struct apple_encoder {
+	struct drm_encoder base;
+};
+
+#define to_apple_encoder(x) container_of(x, struct apple_encoder, base)
 
 void dcp_poweroff(struct platform_device *pdev);
 void dcp_poweron(struct platform_device *pdev);
