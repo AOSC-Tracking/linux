@@ -102,12 +102,9 @@ struct dcp_rect {
 } __packed;
 
 /*
- * Set in the swap_{enabled,completed} field to remove missing
- * layers. Without this flag, the DCP will assume missing layers have
- * not changed since the previous frame and will preserve their
- * content.
-  */
-#define DCP_REMOVE_LAYERS BIT(31)
+ * Update background color to struct dcp_swap.bg_color
+ */
+#define IOMFB_SET_BACKGROUND	BIT(31)
 
 struct dcp_swap {
 	u64 ts1;
@@ -126,7 +123,7 @@ struct dcp_swap {
 	u32 swap_enabled;
 	u32 swap_completed;
 
-	u32 unk_10c;
+	u32 bg_color;
 	u8 unk_110[0x1b8];
 	u32 unk_2c8;
 	u8 unk_2cc[0x14];
@@ -160,12 +157,12 @@ struct dcp_component_types {
 /* Information describing a surface */
 struct dcp_surface {
 	u8 is_tiled;
-	u8 unk_1;
-	u8 opaque; /** ignore alpha, also required YUV overlays */
+	u8 is_tearing_allowed;
+	u8 is_premultiplied;
 	u32 plane_cnt;
 	u32 plane_cnt2;
 	u32 format; /* DCP fourcc */
-	u32 unk_f;
+	u32 ycbcr_matrix;
 	u8 xfer_func;
 	u8 colorspace;
 	u32 stride;
@@ -176,8 +173,7 @@ struct dcp_surface {
 	u32 width;
 	u32 height;
 	u32 buf_size;
-	u32 unk_2d;
-	u32 unk_31;
+	u64 protection_opts;
 	u32 surface_id;
 	struct dcp_component_types comp_types[MAX_PLANES];
 	u64 has_comp;
@@ -185,7 +181,8 @@ struct dcp_surface {
 	u64 has_planes;
 	u32 compression_info[MAX_PLANES][13];
 	u64 has_compr_info;
-	u64 unk_1f5;
+	u32 unk_num;
+	u32 unk_denom;
 	u8 padding[7];
 } __packed;
 
