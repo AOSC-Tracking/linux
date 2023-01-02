@@ -1063,9 +1063,9 @@ void dcp_poweroff(struct platform_device *pdev)
 	// clear surfaces
 	memset(&dcp->swap, 0, sizeof(dcp->swap));
 
-	dcp->swap.swap.swap_enabled = DCP_REMOVE_LAYERS | 0x7;
-	dcp->swap.swap.swap_completed = DCP_REMOVE_LAYERS | 0x7;
-	dcp->swap.swap.unk_10c = 0xFF000000;
+	dcp->swap.swap.swap_enabled =
+		dcp->swap.swap.swap_completed = IOMFB_SET_BACKGROUND | 0xF;
+	dcp->swap.swap.bg_color = 0xFF000000;
 
 	/*
 	 * Turn off the backlight. This matters because the DCP's idea of
@@ -1619,7 +1619,8 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	 * sticks around.
 	 */
 	if (!dcp->surfaces_cleared) {
-		req->swap.swap_enabled = DCP_REMOVE_LAYERS | 0xF;
+		req->swap.swap_enabled = IOMFB_SET_BACKGROUND | 0xF;
+		req->swap.bg_color = 0xFF000000;
 		dcp->surfaces_cleared = true;
 	}
 
@@ -1629,7 +1630,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		struct drm_framebuffer *fb = new_state->fb;
 		struct drm_gem_dma_object *obj;
 		struct drm_rect src_rect;
-		bool opaque = false;
+		bool is_premultiplied = false;
 
 		/* skip planes not for this crtc */
 		if (old_state->crtc != crtc && new_state->crtc != crtc)
@@ -1660,18 +1661,21 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 		}
 
 		if (!new_state->fb) {
-			if (old_state->fb)
-				req->swap.swap_enabled |= DCP_REMOVE_LAYERS;
-
 			l += 1;
 			continue;
 		}
 		req->surf_null[l] = false;
 		has_surface = 1;
 
-		if (!fb->format->has_alpha ||
-		    new_state->plane->type == DRM_PLANE_TYPE_PRIMARY)
-		    opaque = true;
+		/*
+		 * DCP doesn't support XBGR8 / XRGB8 natively. Blending as
+		 * pre-multiplied alpha with a black background can be used as
+		 * workaround for the bottommost plane.
+		 */
+		if (fb->format->format == DRM_FORMAT_XRGB8888 ||
+		    fb->format->format == DRM_FORMAT_XBGR8888)
+		    is_premultiplied = true;
+
 		drm_rect_fp_to_int(&src_rect, &new_state->src);
 
 		req->swap.src_rect[l] = drm_to_dcp_rect(&src_rect);
@@ -1689,7 +1693,7 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 			req->surf_iova[l] = obj->dma_addr + fb->offsets[0];
 
 		req->surf[l] = (struct dcp_surface){
-			.opaque = opaque,
+			.is_premultiplied = is_premultiplied,
 			.format = drm_format_to_dcp(fb->format->format),
 			.xfer_func = DCP_XFER_FUNC_SDR,
 			.colorspace = DCP_COLORSPACE_NATIVE,
@@ -1709,9 +1713,6 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 		l += 1;
 	}
-
-	/* These fields should be set together */
-	req->swap.swap_completed = req->swap.swap_enabled;
 
 	if (modeset) {
 		struct dcp_display_mode *mode;
@@ -1773,8 +1774,14 @@ void dcp_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 			return;
 		}
 
+		/* Set black background */
+		req->swap.swap_enabled |= IOMFB_SET_BACKGROUND;
+		req->swap.bg_color = 0xFF000000;
 		req->clear = 1;
 	}
+
+	/* These fields should be set together */
+	req->swap.swap_completed = req->swap.swap_enabled;
 
 	/* update brightness if changed */
 	if (dcp->brightness.update) {
