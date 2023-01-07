@@ -128,7 +128,7 @@ static void cpu_node_probe(void)
 		loongson_sysconf.nr_cpus, num_online_nodes());
 }
 
-static int __init compute_node_distance(int row, int col)
+static unsigned char __init compute_node_distance(int row, int col)
 {
 	int package_row = row * loongson_sysconf.cores_per_node /
 				loongson_sysconf.cores_per_package;
@@ -136,11 +136,11 @@ static int __init compute_node_distance(int row, int col)
 				loongson_sysconf.cores_per_package;
 
 	if (col == row)
-		return 0;
+		return LOCAL_DISTANCE;
 	else if (package_row == package_col)
 		return 40;
 	else
-		return 200;
+		return 100;
 }
 
 static void __init init_topology_matrix(void)
