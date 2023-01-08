@@ -263,20 +263,22 @@ static void dcp_push(struct apple_dcp *dcp, bool oob, enum dcpep_method method,
 			 cb, cookie);                                         \
 	}
 
-#define IOMFB_THUNK_INOUT(name, T_in, T_out)                                      \
-	static void iomfb_ ## name(struct apple_dcp *dcp, bool oob, T_in *data,   \
-			 dcp_callback_t cb, void *cookie)                         \
-	{                                                                         \
-		dcp_push(dcp, oob, iomfbep_ ## name, sizeof(T_in), sizeof(T_out), \
-			 data,  cb, cookie);                                      \
+#define IOMFB_THUNK_INOUT(name)                                     \
+	static void iomfb_ ## name(struct apple_dcp *dcp, bool oob, \
+			struct iomfb_ ## name ## _req *data,        \
+			dcp_callback_t cb, void *cookie)            \
+	{                                                           \
+		dcp_push(dcp, oob, iomfbep_ ## name,                \
+			 sizeof(struct iomfb_ ## name ## _req),     \
+			 sizeof(struct iomfb_ ## name ## _resp),    \
+			 data,  cb, cookie);                        \
 	}
 
 DCP_THUNK_OUT(iomfb_a131_pmu_service_matched, iomfbep_a131_pmu_service_matched, u32);
 DCP_THUNK_OUT(iomfb_a132_backlight_service_matched, iomfbep_a132_backlight_service_matched, u32);
 DCP_THUNK_OUT(iomfb_a358_vi_set_temperature_hint, iomfbep_a358_vi_set_temperature_hint, u32);
 
-IOMFB_THUNK_INOUT(get_color_remap_mode, struct iomfb_get_color_remap_mode_req,
-		struct iomfb_get_color_remap_mode_resp);
+IOMFB_THUNK_INOUT(get_color_remap_mode);
 
 DCP_THUNK_INOUT(dcp_swap_submit, dcpep_swap_submit, struct dcp_swap_submit_req,
 		struct dcp_swap_submit_resp);
