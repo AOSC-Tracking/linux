@@ -42,6 +42,7 @@
 #include <linux/tracepoint.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <linux/xarray.h>
 #include <trace/events/rust_sample.h>
 
 #if defined(CONFIG_DRM_PANIC_SCREEN_QR_CODE)
@@ -60,3 +61,19 @@ const gfp_t RUST_CONST_HELPER___GFP_ZERO = __GFP_ZERO;
 const gfp_t RUST_CONST_HELPER___GFP_HIGHMEM = ___GFP_HIGHMEM;
 const gfp_t RUST_CONST_HELPER___GFP_NOWARN = ___GFP_NOWARN;
 const blk_features_t RUST_CONST_HELPER_BLK_FEAT_ROTATIONAL = BLK_FEAT_ROTATIONAL;
+
+const gfp_t BINDINGS_XA_FLAGS_LOCK_IRQ = XA_FLAGS_LOCK_IRQ;
+const gfp_t BINDINGS_XA_FLAGS_LOCK_BH = XA_FLAGS_LOCK_BH;
+const gfp_t BINDINGS_XA_FLAGS_TRACK_FREE = XA_FLAGS_TRACK_FREE;
+const gfp_t BINDINGS_XA_FLAGS_ZERO_BUSY = XA_FLAGS_ZERO_BUSY;
+const gfp_t BINDINGS_XA_FLAGS_ALLOC_WRAPPED = XA_FLAGS_ALLOC_WRAPPED;
+const gfp_t BINDINGS_XA_FLAGS_ACCOUNT = XA_FLAGS_ACCOUNT;
+const gfp_t BINDINGS_XA_FLAGS_ALLOC = XA_FLAGS_ALLOC;
+const gfp_t BINDINGS_XA_FLAGS_ALLOC1 = XA_FLAGS_ALLOC1;
+
+const xa_mark_t BINDINGS_XA_MARK_0 = XA_MARK_0;
+const xa_mark_t BINDINGS_XA_MARK_1 = XA_MARK_1;
+const xa_mark_t BINDINGS_XA_MARK_2 = XA_MARK_2;
+const xa_mark_t BINDINGS_XA_PRESENT = XA_PRESENT;
+const xa_mark_t BINDINGS_XA_MARK_MAX = XA_MARK_MAX;
+const xa_mark_t BINDINGS_XA_FREE_MARK = XA_FREE_MARK;
