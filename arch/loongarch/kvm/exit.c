@@ -664,3 +664,48 @@ static int kvm_handle_fpu_disabled(struct kvm_vcpu *vcpu)
 	kvm_own_fpu(vcpu);
 	return RESUME_GUEST;
 }
+
+/*
+ * Loongarch KVM callback handling for not implemented guest exiting
+ */
+static int kvm_fault_ni(struct kvm_vcpu *vcpu)
+{
+	unsigned long estat, badv;
+	unsigned int exccode, inst;
+
+	/*
+	 *  Fetch the instruction.
+	 */
+	badv = vcpu->arch.badv;
+	estat = vcpu->arch.host_estat;
+	exccode = (estat & CSR_ESTAT_EXC) >> CSR_ESTAT_EXC_SHIFT;
+	inst = vcpu->arch.badi;
+	kvm_err("Exccode: %d PC=%#lx inst=0x%08x BadVaddr=%#lx estat=%#lx\n",
+			exccode, vcpu->arch.pc, inst, badv, read_gcsr_estat());
+	kvm_arch_vcpu_dump_regs(vcpu);
+	kvm_queue_exception(vcpu, EXCCODE_INE, 0);
+	return RESUME_GUEST;
+}
+
+static exit_handle_fn kvm_fault_tables[EXCCODE_INT_START] = {
+	[EXCCODE_TLBL]			= kvm_handle_read_fault,
+	[EXCCODE_TLBI]			= kvm_handle_read_fault,
+	[EXCCODE_TLBS]			= kvm_handle_write_fault,
+	[EXCCODE_TLBM]			= kvm_handle_write_fault,
+	[EXCCODE_FPDIS]			= kvm_handle_fpu_disabled,
+	[EXCCODE_GSPR]			= kvm_handle_gspr,
+};
+
+void kvm_init_fault(void)
+{
+	int i;
+
+	for (i = 0; i < EXCCODE_INT_START; i++)
+		if (!kvm_fault_tables[i])
+			kvm_fault_tables[i] = kvm_fault_ni;
+}
+
+int kvm_handle_fault(struct kvm_vcpu *vcpu, int fault)
+{
+	return kvm_fault_tables[fault](vcpu);
+}
