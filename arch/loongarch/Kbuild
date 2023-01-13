@@ -2,6 +2,7 @@ obj-y += kernel/
 obj-y += mm/
 obj-y += net/
 obj-y += vdso/
+obj-$(CONFIG_KVM) += kvm/
 
 # for cleaning
 subdir- += boot
