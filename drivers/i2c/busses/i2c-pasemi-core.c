@@ -49,6 +49,7 @@
 #define CTL_EN		BIT(11)
 #define CTL_MRR		BIT(10)
 #define CTL_MTR		BIT(9)
+#define CTL_UJM		BIT(8)
 #define CTL_CLK_M	GENMASK(7, 0)
 
 #define TRANSFER_TIMEOUT_MS	100
@@ -72,7 +73,7 @@ static inline int reg_read(struct pasemi_smbus *smbus, int reg)
 
 static void pasemi_reset(struct pasemi_smbus *smbus)
 {
-	u32 val = (CTL_MTR | CTL_MRR | (smbus->clk_div & CTL_CLK_M));
+	u32 val = (CTL_MTR | CTL_MRR | CTL_UJM | (smbus->clk_div & CTL_CLK_M));
 
 	if (smbus->hw_rev >= 6)
 		val |= CTL_EN;
