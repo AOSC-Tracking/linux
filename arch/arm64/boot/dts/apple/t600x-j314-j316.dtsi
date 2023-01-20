@@ -195,6 +195,8 @@
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Tweeter";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <8>;
+		ti,vmon-slot-no = <10>;
 	};
 
 	speaker_left_woof1: codec@38 {
@@ -204,6 +206,8 @@
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 1";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <0>;
+		ti,vmon-slot-no = <2>;
 	};
 
 	speaker_left_woof2: codec@39 {
@@ -213,6 +217,8 @@
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 2";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <16>;
+		ti,vmon-slot-no = <18>;
 	};
 };
 
@@ -239,6 +245,8 @@
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Tweeter";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <12>;
+		ti,vmon-slot-no = <14>;
 	};
 
 	speaker_right_woof1: codec@3b {
@@ -248,6 +256,8 @@
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 1";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <4>;
+		ti,vmon-slot-no = <6>;
 	};
 
 	speaker_right_woof2: codec@3c {
@@ -257,6 +267,8 @@
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 2";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <20>;
+		ti,vmon-slot-no = <22>;
 	};
 };
 
