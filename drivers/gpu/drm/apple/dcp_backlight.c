@@ -165,21 +165,30 @@ fail:
 
 static int dcp_set_brightness(struct backlight_device *bd)
 {
-	int ret;
+	int ret = 0;
 	struct apple_dcp *dcp = bl_get_data(bd);
 	struct drm_modeset_acquire_ctx ctx;
 
 	if (bd->props.state & BL_CORE_SUSPENDED)
 		return 0;
 
-	if (!dcp->crtc)
-		return -EAGAIN;
+	DRM_MODESET_LOCK_ALL_BEGIN(dcp->crtc->base.dev, ctx, 0, ret);
 
 	dcp->brightness.dac = calculate_dac(dcp, bd->props.brightness);
 	dcp->brightness.update = true;
 
-	DRM_MODESET_LOCK_ALL_BEGIN(dcp->crtc->base.dev, ctx, 0, ret);
+	/*
+	 * Do not actively try to change brightness if no mode is set.
+	 * TODO: should this be reflected the in backlight's power property?
+	 *       defer this hopefully until it becomes irrelevant due to proper
+	 *       drm integrated backlight handling
+	 */
+	if (!dcp->valid_mode)
+		goto out;
+
 	ret = drm_crtc_set_brightness(&dcp->crtc->base, &ctx);
+
+out:
 	DRM_MODESET_LOCK_ALL_END(dcp->crtc->base.dev, ctx, ret);
 
 	return ret;
