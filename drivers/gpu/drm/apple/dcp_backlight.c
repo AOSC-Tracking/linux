@@ -168,13 +168,11 @@ static int dcp_set_brightness(struct backlight_device *bd)
 	int ret = 0;
 	struct apple_dcp *dcp = bl_get_data(bd);
 	struct drm_modeset_acquire_ctx ctx;
-
-	if (bd->props.state & BL_CORE_SUSPENDED)
-		return 0;
+	int brightness = backlight_get_brightness(bd);
 
 	DRM_MODESET_LOCK_ALL_BEGIN(dcp->crtc->base.dev, ctx, 0, ret);
 
-	dcp->brightness.dac = calculate_dac(dcp, bd->props.brightness);
+	dcp->brightness.dac = calculate_dac(dcp, brightness);
 	dcp->brightness.update = true;
 
 	/*
