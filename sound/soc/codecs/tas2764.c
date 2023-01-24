@@ -537,6 +537,36 @@ static uint8_t sn012776_bop_presets[] = {
 
 static const struct regmap_config tas2764_i2c_regmap;
 
+static int tas2764_apply_unk_apple_quirk(struct snd_soc_component *component)
+{
+	int ret;
+
+	ret = snd_soc_component_write(component, 0xfd0d, 0xd);
+
+	if (ret < 0)
+		return ret;
+
+
+	ret = snd_soc_component_write(component, 0xfd6c, 0x2);
+
+	if (ret < 0)
+		return ret;
+
+
+	ret = snd_soc_component_write(component, 0xfd6d, 0xf);
+
+	if (ret < 0)
+		return ret;
+
+
+	ret = snd_soc_component_write(component, 0xfd0d, 0x0);
+
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int tas2764_codec_probe(struct snd_soc_component *component)
 {
 	struct tas2764_priv *tas2764 = snd_soc_component_get_drvdata(component);
@@ -606,6 +636,11 @@ static int tas2764_codec_probe(struct snd_soc_component *component)
 	}
 
 	if (tas2764->devid == DEVID_SN012776) {
+		ret = tas2764_apply_unk_apple_quirk(component);
+
+		if (ret < 0)
+			return ret;
+
 		ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
 					TAS2764_PWR_CTRL_BOP_SRC,
 					TAS2764_PWR_CTRL_BOP_SRC);
@@ -698,6 +733,9 @@ static bool tas2764_volatile_register(struct device *dev, unsigned int reg)
 	switch (reg) {
 	case TAS2764_INT_LTCH0 ... TAS2764_INT_LTCH4:
 	case TAS2764_INT_CLK_CFG:
+		return true;
+	case TAS2764_REG(0xf0, 0x0) ... TAS2764_REG(0xff, 0x0):
+		/* TI's undocumented registers for the application of quirks */
 		return true;
 	default:
 		return false;
