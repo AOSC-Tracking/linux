@@ -347,6 +347,44 @@ static int tas2764_hw_params(struct snd_pcm_substream *substream,
 	return tas2764_set_samplerate(tas2764, params_rate(params));
 }
 
+static int tas2764_write_sdout_zero_mask(struct tas2764_priv *tas2764, int bclk_ratio)
+{
+	struct snd_soc_component *component = tas2764->component;
+	int nsense_slots = bclk_ratio / 8;
+	u32 cropped_mask;
+	int i, ret;
+
+	if (!tas2764->sdout_zero_mask)
+		return 0;
+
+	cropped_mask = tas2764->sdout_zero_mask & GENMASK(nsense_slots - 1, 0);
+
+	for (i = 0; i < 4; i++) {
+		ret = snd_soc_component_write(component, TAS2764_SDOUT_HIZ_1 + i,
+					      (cropped_mask >> (i * 8)) & 0xff);
+
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = snd_soc_component_update_bits(component, TAS2764_SDOUT_HIZ_9,
+					    TAS2764_SDOUT_HIZ_9_FORCE_0_EN,
+					    TAS2764_SDOUT_HIZ_9_FORCE_0_EN);
+
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int tas2764_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
+{
+	struct snd_soc_component *component = dai->component;
+	struct tas2764_priv *tas2764 = snd_soc_component_get_drvdata(component);
+
+	return tas2764_write_sdout_zero_mask(tas2764, ratio);
+}
+
 static int tas2764_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
 	struct snd_soc_component *component = dai->component;
@@ -496,6 +534,7 @@ static int tas2764_set_ivsense_transmit(struct tas2764_priv *tas2764, int i_slot
 static const struct snd_soc_dai_ops tas2764_dai_ops = {
 	.mute_stream = tas2764_mute,
 	.hw_params  = tas2764_hw_params,
+	.set_bclk_ratio = tas2764_set_bclk_ratio,
 	.set_fmt    = tas2764_set_fmt,
 	.set_tdm_slot = tas2764_set_dai_tdm_slot,
 	.no_capture_mute = 1,
@@ -647,23 +686,6 @@ static int tas2764_codec_probe(struct snd_soc_component *component)
 	if (tas2764->i_sense_slot != -1 && tas2764->v_sense_slot != -1) {
 		ret = tas2764_set_ivsense_transmit(tas2764, tas2764->i_sense_slot,
 						   tas2764->v_sense_slot);
-
-		if (ret < 0)
-			return ret;
-	}
-
-	if (tas2764->sdout_zero_mask) {
-		for (i = 0; i < 4; i++) {
-			ret = snd_soc_component_write(component, TAS2764_SDOUT_HIZ_1 + i,
-						      (tas2764->sdout_zero_mask >> (i * 8)) & 0xff);
-
-			if (ret < 0)
-				return ret;
-		}
-
-		ret = snd_soc_component_update_bits(component, TAS2764_SDOUT_HIZ_9,
-						    TAS2764_SDOUT_HIZ_9_FORCE_0_EN,
-						    TAS2764_SDOUT_HIZ_9_FORCE_0_EN);
 
 		if (ret < 0)
 			return ret;
