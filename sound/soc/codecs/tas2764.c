@@ -47,6 +47,12 @@ struct tas2764_priv {
 	bool unmuted;
 };
 
+static int apple_quirks;
+module_param(apple_quirks, int, 0644);
+MODULE_PARM_DESC(apple_quirks, "Mask of quirks to mimic after Apple's SN012776 driver");
+
+#include "tas2764-quirks.h"
+
 static const char *tas2764_int_ltch0_msgs[8] = {
 	"fault: over temperature", /* INT_LTCH0 & BIT(0) */
 	"fault: over current",
@@ -123,6 +129,9 @@ static int tas2764_update_pwr_ctrl(struct tas2764_priv *tas2764)
 			TAS2764_PWR_CTRL_ACTIVE : TAS2764_PWR_CTRL_MUTE;
 	else
 		val = TAS2764_PWR_CTRL_SHUTDOWN;
+
+	if (apple_quirks & TAS2764_SHUTDOWN_DANCE)
+		return tas2764_do_quirky_pwr_ctrl_change(tas2764, val);
 
 	ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
 					    TAS2764_PWR_CTRL_MASK, val);
@@ -577,32 +586,25 @@ static uint8_t sn012776_bop_presets[] = {
 
 static const struct regmap_config tas2764_i2c_regmap;
 
-static int tas2764_apply_unk_apple_quirk(struct snd_soc_component *component)
+static int tas2764_apply_init_quirks(struct tas2764_priv * tas2764)
 {
-	int ret;
+	int ret, i;
 
-	ret = snd_soc_component_write(component, 0xfd0d, 0xd);
+	for (i = 0; i < ARRAY_SIZE(tas2764_quirk_init_sequences); i++) {
+		struct tas2764_quirk_init_sequence *init_seq = \
+					&tas2764_quirk_init_sequences[i];
+		if (!init_seq->seq)
+			continue;
 
-	if (ret < 0)
-		return ret;
+		if (!(BIT(i) & apple_quirks))
+			continue;
 
+		ret = regmap_multi_reg_write(tas2764->regmap, init_seq->seq,
+					     init_seq->len);
 
-	ret = snd_soc_component_write(component, 0xfd6c, 0x2);
-
-	if (ret < 0)
-		return ret;
-
-
-	ret = snd_soc_component_write(component, 0xfd6d, 0xf);
-
-	if (ret < 0)
-		return ret;
-
-
-	ret = snd_soc_component_write(component, 0xfd0d, 0x0);
-
-	if (ret < 0)
-		return ret;
+		if (ret < 0)
+			return ret;
+	}
 
 	return 0;
 }
@@ -692,11 +694,6 @@ static int tas2764_codec_probe(struct snd_soc_component *component)
 	}
 
 	if (tas2764->devid == DEVID_SN012776) {
-		ret = tas2764_apply_unk_apple_quirk(component);
-
-		if (ret < 0)
-			return ret;
-
 		ret = snd_soc_component_update_bits(component, TAS2764_PWR_CTRL,
 					TAS2764_PWR_CTRL_BOP_SRC,
 					TAS2764_PWR_CTRL_BOP_SRC);
@@ -711,6 +708,11 @@ static int tas2764_codec_probe(struct snd_soc_component *component)
 			if (ret < 0)
 				return ret;
 		}
+
+		ret = tas2764_apply_init_quirks(tas2764);
+
+		if (ret < 0)
+			return ret;
 	}
 
 	ret = sysfs_create_groups(&component->dev->kobj, tas2764_sysfs_groups);
