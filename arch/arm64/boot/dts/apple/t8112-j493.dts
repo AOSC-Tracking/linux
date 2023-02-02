@@ -97,6 +97,18 @@
 	};
 };
 
+/*
+ * Provide labels for the USB type C ports.
+ */
+
+&typec0 {
+	label = "USB-C Left-back";
+};
+
+&typec1 {
+	label = "USB-C Left-front";
+};
+
 &i2c1 {
 	speaker_left_rear: codec@38 {
 		compatible = "ti,sn012776", "ti,tas2764";
