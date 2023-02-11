@@ -8,3 +8,4 @@ pub mod file;
 pub mod gem;
 pub mod ioctl;
 pub mod mm;
+pub mod syncobj;
