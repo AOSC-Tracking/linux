@@ -13,6 +13,8 @@
 #include <linux/cred.h>
 #include <linux/device/faux.h>
 #include <linux/delay.h>
+#include <linux/dma-fence.h>
+#include <linux/dma-fence-chain.h>
 #include <linux/dma-mapping.h>
 #include <linux/errname.h>
 #include <linux/ethtool.h>
