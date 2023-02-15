@@ -18,6 +18,92 @@ int kvm_arch_vcpu_precreate(struct kvm *kvm, unsigned int id)
 	return 0;
 }
 
+/*
+ * kvm_check_requests - check and handle pending vCPU requests
+ *
+ * Return: RESUME_GUEST if we should enter the guest
+ *         RESUME_HOST  if we should exit to userspace
+ */
+static int kvm_check_requests(struct kvm_vcpu *vcpu)
+{
+	if (!kvm_request_pending(vcpu))
+		return RESUME_GUEST;
+
+	if (kvm_check_request(KVM_REQ_TLB_FLUSH, vcpu))
+		/* Drop vpid for this vCPU */
+		vcpu->arch.vpid = 0;
+
+	if (kvm_dirty_ring_check_request(vcpu))
+		return RESUME_HOST;
+
+	return RESUME_GUEST;
+}
+
+/*
+ * Check and handle pending signal and vCPU requests etc
+ * Run with irq enabled and preempt enabled
+ *
+ * Return: RESUME_GUEST if we should enter the guest
+ *         RESUME_HOST  if we should exit to userspace
+ *         < 0 if we should exit to userspace, where the return value
+ *         indicates an error
+ */
+static int kvm_enter_guest_check(struct kvm_vcpu *vcpu)
+{
+	int ret;
+
+	/*
+	 * Check conditions before entering the guest
+	 */
+	ret = xfer_to_guest_mode_handle_work(vcpu);
+	if (ret < 0)
+		return ret;
+
+	ret = kvm_check_requests(vcpu);
+	return ret;
+}
+
+/*
+ * called with irq enabled
+ *
+ * Return: RESUME_GUEST if we should enter the guest, and irq disabled
+ *         Others if we should exit to userspace
+ */
+static int kvm_pre_enter_guest(struct kvm_vcpu *vcpu)
+{
+	int ret;
+
+	do {
+		ret = kvm_enter_guest_check(vcpu);
+		if (ret != RESUME_GUEST)
+			break;
+
+		/*
+		 * handle vcpu timer, interrupts, check requests and
+		 * check vmid before vcpu enter guest
+		 */
+		local_irq_disable();
+		kvm_acquire_timer(vcpu);
+		kvm_deliver_intr(vcpu);
+		kvm_deliver_exception(vcpu);
+		/* make sure the vcpu mode has been written */
+		smp_store_mb(vcpu->mode, IN_GUEST_MODE);
+		kvm_check_vpid(vcpu);
+		vcpu->arch.host_eentry = csr_read64(LOONGARCH_CSR_EENTRY);
+		/* clear KVM_LARCH_CSR as csr will change when enter guest */
+		vcpu->arch.aux_inuse &= ~KVM_LARCH_CSR;
+
+		if (kvm_request_pending(vcpu) || xfer_to_guest_mode_work_pending()) {
+			/* make sure the vcpu mode has been written */
+			smp_store_mb(vcpu->mode, OUTSIDE_GUEST_MODE);
+			local_irq_enable();
+			ret = -EAGAIN;
+		}
+	} while (ret != RESUME_GUEST);
+
+	return ret;
+}
+
 int kvm_arch_vcpu_create(struct kvm_vcpu *vcpu)
 {
 	unsigned long timer_hz;
@@ -84,4 +170,49 @@ void kvm_arch_vcpu_destroy(struct kvm_vcpu *vcpu)
 		if (context->last_vcpu == vcpu)
 			context->last_vcpu = NULL;
 	}
+}
+
+int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu)
+{
+	int r = -EINTR;
+	struct kvm_run *run = vcpu->run;
+
+	if (vcpu->mmio_needed) {
+		if (!vcpu->mmio_is_write)
+			kvm_complete_mmio_read(vcpu, run);
+		vcpu->mmio_needed = 0;
+	}
+
+	if (run->exit_reason == KVM_EXIT_LOONGARCH_IOCSR) {
+		if (!run->iocsr_io.is_write)
+			kvm_complete_iocsr_read(vcpu, run);
+	}
+
+	if (run->immediate_exit)
+		return r;
+
+	/* clear exit_reason */
+	run->exit_reason = KVM_EXIT_UNKNOWN;
+	lose_fpu(1);
+	vcpu_load(vcpu);
+	kvm_sigset_activate(vcpu);
+	r = kvm_pre_enter_guest(vcpu);
+	if (r != RESUME_GUEST)
+		goto out;
+
+	guest_timing_enter_irqoff();
+	guest_state_enter_irqoff();
+	trace_kvm_enter(vcpu);
+	r = kvm_loongarch_ops->enter_guest(run, vcpu);
+
+	trace_kvm_out(vcpu);
+	/*
+	 * guest exit is already recorded at kvm_handle_exit
+	 * return val must not be RESUME_GUEST
+	 */
+	local_irq_enable();
+out:
+	kvm_sigset_deactivate(vcpu);
+	vcpu_put(vcpu);
+	return r;
 }
