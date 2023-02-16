@@ -17,6 +17,7 @@
 #![cfg_attr(not(CONFIG_RUSTC_HAS_COERCE_POINTEE), feature(coerce_unsized))]
 #![cfg_attr(not(CONFIG_RUSTC_HAS_COERCE_POINTEE), feature(dispatch_from_dyn))]
 #![cfg_attr(not(CONFIG_RUSTC_HAS_COERCE_POINTEE), feature(unsize))]
+#![feature(duration_constants)]
 #![feature(inline_const)]
 #![feature(lint_reasons)]
 #![feature(ptr_sub_ptr)]
@@ -44,6 +45,7 @@ pub mod block;
 #[doc(hidden)]
 pub mod build_assert;
 pub mod cred;
+pub mod delay;
 pub mod device;
 pub mod device_id;
 pub mod devres;
