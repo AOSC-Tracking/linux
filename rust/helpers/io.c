@@ -18,6 +18,11 @@ void rust_helper_iounmap(volatile void __iomem *addr)
 	iounmap(addr);
 }
 
+void rust_helper_memcpy_fromio(void *to, const volatile void __iomem *from, long count)
+{
+	memcpy_fromio(to, from, count);
+}
+
 u8 rust_helper_readb(const volatile void __iomem *addr)
 {
 	return readb(addr);
