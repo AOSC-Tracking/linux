@@ -505,6 +505,7 @@ struct pci_dev {
 	unsigned int	rom_attr_enabled:1;	/* Display of ROM attribute enabled? */
 	unsigned int	non_mappable_bars:1;	/* BARs can't be mapped to user-space  */
 	unsigned int	aspm_os_control:1;	/* Display of ROM attribute enabled? */
+	unsigned int	no_shutdown:1;		/* Do not touch device on shutdown */
 	pci_dev_flags_t dev_flags;
 	atomic_t	enable_cnt;	/* pci_enable_device has been called */
 
