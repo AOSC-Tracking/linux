@@ -86,7 +86,7 @@ int hw_atl2_utils_soft_reset(struct aq_hw_s *self)
 				rbl_status,
 				((rbl_status & AQ_A2_BOOT_STARTED) &&
 				 (rbl_status != 0xFFFFFFFFu)),
-				10, 200000);
+				10, 2000000);
 	if (err) {
 		aq_pr_err("Boot code hanged");
 		goto err_exit;
