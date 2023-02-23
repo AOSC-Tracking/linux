@@ -12,14 +12,19 @@ apple_dcp-y += iomfb_v12_3.o
 apple_dcp-y += iomfb_v13_3.o
 apple_dcp-$(CONFIG_TRACING) += trace.o
 
+apple_dcp_audio-y := audio.o
 
 obj-$(CONFIG_DRM_APPLE) += appledrm.o
 obj-$(CONFIG_DRM_APPLE) += apple_dcp.o
+ifeq ($(CONFIG_DRM_APPLE_AUDIO),y)
+obj-$(CONFIG_DRM_APPLE) += apple_dcp_audio.o
+endif
 
 # header test
 
 # exclude some broken headers from the test coverage
 no-header-test := \
+	hdmi-codec-chmap.h
 
 always-y += \
 	$(patsubst %.h,%.hdrtest, $(filter-out $(no-header-test), \
