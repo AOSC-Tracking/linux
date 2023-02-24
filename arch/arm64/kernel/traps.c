@@ -837,6 +837,7 @@ const char *esr_get_class_string(unsigned long esr)
 {
 	return esr_class_str[ESR_ELx_EC(esr)];
 }
+EXPORT_SYMBOL_GPL(esr_get_class_string);
 
 /*
  * bad_el0_sync handles unexpected, but potentially recoverable synchronous

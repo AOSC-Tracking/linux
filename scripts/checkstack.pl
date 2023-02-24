@@ -58,7 +58,7 @@ my (@stack, $re, $dre, $sub, $x, $xs, $funcre, $min_stack);
 		#ffffffc0006325cc:       a9bb7bfd        stp     x29, x30, [sp, #-80]!
 		#a110:       d11643ff        sub     sp, sp, #0x590
 		$re = qr/^.*stp.*sp, \#-([0-9]{1,8})\]\!/o;
-		$dre = qr/^.*sub.*sp, sp, #(0x$x{1,8})/o;
+		$dre = qr/^.*sub.*sp, sp, #(0x$x{1,8})(?:, lsl #([0-9]*))?/o;
 	} elsif ($arch eq 'arm') {
 		#c0008ffc:	e24dd064	sub	sp, sp, #100	; 0x64
 		$re = qr/.*sub.*sp, sp, #([0-9]{1,4})/o;
@@ -187,8 +187,10 @@ while (my $line = <STDIN>) {
 	}
 	elsif (defined $dre && $line =~ m/$dre/) {
 		my $size = $1;
+		my $shift = $2;
 
 		$size = hex($size) if ($size =~ /^0x/);
+		$size = $size << $shift if $shift;
 		$total_size += $size;
 	}
 	elsif (defined $sub) {

@@ -78,15 +78,19 @@ branch-prot-flags-$(CONFIG_CC_HAS_SIGN_RETURN_ADDRESS) := -msign-return-address=
 # narrow potential for ROP protection benefits and no substantial
 # performance impact has been observed.
 PACRET-y := pac-ret+leaf
+PACRET_RUST-y := pac-ret,leaf
 
 # Using a shadow call stack in leaf functions is too costly, so avoid PAC there
 # as well when we may be patching PAC into SCS
 PACRET-$(CONFIG_UNWIND_PATCH_PAC_INTO_SCS) := pac-ret
+PACRET_RUST-$(CONFIG_UNWIND_PATCH_PAC_INTO_SCS) := pac-ret
 
 ifeq ($(CONFIG_ARM64_BTI_KERNEL),y)
 branch-prot-flags-$(CONFIG_CC_HAS_BRANCH_PROT_PAC_RET_BTI) := -mbranch-protection=$(PACRET-y)+bti
+branch-prot-rust-flags-y := -Z branch-protection=$(PACRET_RUST-y),bti
 else
 branch-prot-flags-$(CONFIG_CC_HAS_BRANCH_PROT_PAC_RET) := -mbranch-protection=$(PACRET-y)
+branch-prot-rust-flags-y := -Z branch-protection=$(PACRET_RUST-y)
 endif
 # -march=armv8.3-a enables the non-nops instructions for PAC, to avoid the
 # compiler to generate them and consequently to break the single image contract
@@ -98,6 +102,7 @@ endif
 endif
 
 KBUILD_CFLAGS += $(branch-prot-flags-y)
+KBUILD_RUSTFLAGS += $(branch-prot-rust-flags-y)
 
 ifeq ($(CONFIG_AS_HAS_ARMV8_4), y)
 # make sure to pass the newest target architecture to -march.

@@ -148,7 +148,57 @@ fn main() {
     let mut ts = TargetSpec::new();
 
     // `llvm-target`s are taken from `scripts/Makefile.clang`.
-    if cfg.has("X86_64") {
+    if cfg.has("ARM") {
+        ts.push("arch", "arm");
+        ts.push(
+            "data-layout",
+            "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64",
+        );
+        ts.push("features", "+strict-align,+v6");
+        ts.push("llvm-target", "arm-linux-gnueabi");
+        ts.push("max-atomic-width", 64);
+        ts.push("target-mcount", "\\u0001__gnu_mcount_nc");
+        ts.push("target-pointer-width", "32");
+    } else if cfg.has("ARM64") {
+        ts.push("arch", "aarch64");
+        ts.push(
+            "data-layout",
+            "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128",
+        );
+        ts.push("disable-redzone", true);
+        ts.push("features", "+strict-align,-neon,-fp-armv8");
+        ts.push("llvm-target", "aarch64-linux-gnu");
+        ts.push("max-atomic-width", 128);
+        ts.push("target-pointer-width", "64");
+    } else if cfg.has("PPC") {
+        ts.push("arch", "powerpc64");
+        ts.push("code-model", "large");
+        ts.push("data-layout", "e-m:e-i64:64-n32:64");
+        ts.push("features", "-altivec,-vsx,-hard-float");
+        ts.push("llvm-target", "powerpc64le-linux-gnu");
+        ts.push("max-atomic-width", 64);
+        ts.push("target-mcount", "_mcount");
+        ts.push("target-pointer-width", "64");
+    } else if cfg.has("RISCV") {
+        if cfg.has("64BIT") {
+            ts.push("arch", "riscv64");
+            ts.push("data-layout", "e-m:e-p:64:64-i64:64-i128:128-n64-S128");
+            ts.push("llvm-target", "riscv64-linux-gnu");
+            ts.push("target-pointer-width", "64");
+        } else {
+            ts.push("arch", "riscv32");
+            ts.push("data-layout", "e-m:e-p:32:32-i64:64-n32-S128");
+            ts.push("llvm-target", "riscv32-linux-gnu");
+            ts.push("target-pointer-width", "32");
+        }
+        ts.push("code-model", "medium");
+        ts.push("disable-redzone", true);
+        let mut features = "+m,+a".to_string();
+        if cfg.has("RISCV_ISA_C") {
+            features += ",+c";
+        }
+        ts.push("features", features);
+    } else if cfg.has("X86_64") {
         ts.push("arch", "x86_64");
         ts.push(
             "data-layout",

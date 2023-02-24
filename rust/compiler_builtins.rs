@@ -61,3 +61,19 @@ define_panicking_intrinsics!("`u128` should not be used", {
     __udivti3,
     __umodti3,
 });
+
+#[cfg(target_arch = "arm")]
+define_panicking_intrinsics!("`f32` should not be used", {
+    __aeabi_fcmpeq,
+    __aeabi_fcmpun,
+});
+
+#[cfg(target_arch = "arm")]
+define_panicking_intrinsics!("`f64` should not be used", {
+    __aeabi_dcmpun,
+});
+
+#[cfg(target_arch = "arm")]
+define_panicking_intrinsics!("`u64` division/modulo should not be used", {
+    __aeabi_uldivmod,
+});

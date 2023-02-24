@@ -4,5 +4,7 @@ target.json
 bindings_generated.rs
 bindings_helpers_generated.rs
 exports_*_generated.h
+doctests_kernel_generated.rs
+doctests_kernel_generated_kunit.c
 doc/
 test/

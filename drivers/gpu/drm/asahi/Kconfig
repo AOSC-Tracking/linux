@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config DRM_ASAHI
+	tristate "Asahi (DRM support for Apple AGX GPUs)"
+	depends on RUST
+	depends on DRM
+	depends on (ARM64 && ARCH_APPLE) || (COMPILE_TEST && !GENERIC_ATOMIC64)
+	depends on MMU
+	select DRM_SCHED
+	select IOMMU_SUPPORT
+	select IOMMU_IO_PGTABLE_LPAE
+	select DRM_GEM_SHMEM_HELPER
+	help
+	  DRM driver for Apple AGX GPUs (G13x, found in the M1 SoC family)
+
+config DRM_ASAHI_DEBUG_ALLOCATOR
+	bool "Use debug allocator"
+	depends on DRM_ASAHI
+	help
+	  Use an alternate, simpler allocator which significantly reduces
+	  performance, but can help find firmware- or GPU-side memory safety
+	  issues.

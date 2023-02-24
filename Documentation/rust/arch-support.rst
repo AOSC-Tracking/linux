@@ -15,5 +15,9 @@ support corresponds to ``S`` values in the ``MAINTAINERS`` file.
 ============  ================  ==============================================
 Architecture  Level of support  Constraints
 ============  ================  ==============================================
+``arm``       Maintained        ``armv6`` and compatible only.
+``arm64``     Maintained        None.
+``powerpc``   Maintained        ``ppc64le`` only.
+``riscv``     Maintained        ``riscv64`` only.
 ``x86``       Maintained        ``x86_64`` only.
 ============  ================  ==============================================

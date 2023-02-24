@@ -711,12 +711,15 @@ static int cs42l42_pll_config(struct snd_soc_component *component, unsigned int 
 					CS42L42_FSYNC_PULSE_WIDTH_MASK,
 					CS42L42_FRAC1_VAL(fsync - 1) <<
 					CS42L42_FSYNC_PULSE_WIDTH_SHIFT);
-			if (pll_ratio_table[i].mclk_src_sel == 0) {
-				/* Pass the clock straight through */
-				snd_soc_component_update_bits(component,
-					CS42L42_PLL_CTL1,
-					CS42L42_PLL_START_MASK,	0);
-			} else {
+			/* Ensure the PLL is disconnected and off before reconfiguring */
+			snd_soc_component_update_bits(component,
+				CS42L42_MCLK_SRC_SEL,
+				CS42L42_MCLK_SRC_SEL_MASK, 0);
+			usleep_range(100, 200);
+			snd_soc_component_update_bits(component,
+				CS42L42_PLL_CTL1,
+				CS42L42_PLL_START_MASK, 0);
+			if (pll_ratio_table[i].mclk_src_sel != 0) {
 				/* Configure PLL per table 4-5 */
 				snd_soc_component_update_bits(component,
 					CS42L42_PLL_DIV_CFG1,
@@ -1122,7 +1125,6 @@ struct snd_soc_dai_driver cs42l42_dai = {
 			.formats = CS42L42_FORMATS,
 		},
 		.symmetric_rate = 1,
-		.symmetric_sample_bits = 1,
 		.ops = &cs42l42_ops,
 };
 EXPORT_SYMBOL_NS_GPL(cs42l42_dai, SND_SOC_CS42L42_CORE);
@@ -1648,7 +1650,7 @@ static irqreturn_t cs42l42_irq_thread(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	/* Read sticky registers to clear interurpt */
+	/* Read sticky registers to clear interrupt */
 	for (i = 0; i < ARRAY_SIZE(stickies); i++) {
 		regmap_read(cs42l42->regmap, irq_params_table[i].status_addr,
 				&(stickies[i]));

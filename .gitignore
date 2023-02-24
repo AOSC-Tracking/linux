@@ -103,6 +103,9 @@ modules.order
 !.mailmap
 !.rustfmt.toml
 
+# XXX: Only for GitHub CI -- do not commit into mainline
+!.github
+
 #
 # Generated include files
 #

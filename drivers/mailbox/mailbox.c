@@ -310,7 +310,7 @@ int mbox_flush(struct mbox_chan *chan, unsigned long timeout)
 		return -ENOTSUPP;
 
 	ret = chan->mbox->ops->flush(chan, timeout);
-	if (ret < 0)
+	if (ret >= 0)
 		tx_tick(chan, ret);
 
 	return ret;
@@ -390,7 +390,7 @@ struct mbox_chan *mbox_request_channel(struct mbox_client *cl, int index)
 
 	spin_unlock_irqrestore(&chan->lock, flags);
 
-	if (chan->mbox->ops->startup) {
+	if (!cl->defer_startup && chan->mbox->ops->startup) {
 		ret = chan->mbox->ops->startup(chan);
 
 		if (ret) {
@@ -404,6 +404,22 @@ struct mbox_chan *mbox_request_channel(struct mbox_client *cl, int index)
 	return chan;
 }
 EXPORT_SYMBOL_GPL(mbox_request_channel);
+
+int mbox_start_channel(struct mbox_chan *chan)
+{
+	if (chan->mbox->ops->startup) {
+		int ret = chan->mbox->ops->startup(chan);
+
+		if (ret) {
+			dev_err(chan->cl->dev,
+					"Unable to startup the chan (%d)\n", ret);
+		}
+		return ret;
+	} else {
+		return 0;
+	}
+}
+EXPORT_SYMBOL_GPL(mbox_start_channel);
 
 struct mbox_chan *mbox_request_channel_byname(struct mbox_client *cl,
 					      const char *name)

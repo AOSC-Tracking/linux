@@ -165,11 +165,9 @@ use crate::str::from_boxed_utf8_unchecked;
 #[cfg(not(no_global_oom_handling))]
 use crate::vec::Vec;
 
-#[cfg(not(no_thin))]
 #[unstable(feature = "thin_box", issue = "92791")]
 pub use thin::ThinBox;
 
-#[cfg(not(no_thin))]
 mod thin;
 
 /// A pointer type for heap allocation.

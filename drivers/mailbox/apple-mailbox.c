@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
 
@@ -103,6 +104,8 @@ struct apple_mbox {
 	struct device *dev;
 	struct mbox_controller controller;
 	spinlock_t rx_lock;
+	spinlock_t tx_lock;
+	bool tx_pending;
 };
 
 static const struct of_device_id apple_mbox_of_match[];
@@ -166,11 +169,15 @@ static int apple_mbox_chan_send_data(struct mbox_chan *chan, void *data)
 {
 	struct apple_mbox *apple_mbox = chan->con_priv;
 	struct apple_mbox_msg *msg = data;
+	unsigned long flags;
 	int ret;
+
+	spin_lock_irqsave(&apple_mbox->tx_lock, flags);
+	WARN_ON(apple_mbox->tx_pending);
 
 	ret = apple_mbox_hw_send(apple_mbox, msg);
 	if (ret)
-		return ret;
+		goto err_unlock;
 
 	/*
 	 * The interrupt is level triggered and will keep firing as long as the
@@ -185,9 +192,13 @@ static int apple_mbox_chan_send_data(struct mbox_chan *chan, void *data)
 		writel_relaxed(apple_mbox->hw->irq_bit_send_empty,
 			       apple_mbox->regs + apple_mbox->hw->irq_ack);
 	}
+	apple_mbox->tx_pending = true;
 	enable_irq(apple_mbox->irq_send_empty);
 
-	return 0;
+err_unlock:
+	spin_unlock_irqrestore(&apple_mbox->tx_lock, flags);
+
+	return ret;
 }
 
 static irqreturn_t apple_mbox_send_empty_irq(int irq, void *data)
@@ -202,7 +213,14 @@ static irqreturn_t apple_mbox_send_empty_irq(int irq, void *data)
 	 * it at the main controller again.
 	 */
 	disable_irq_nosync(apple_mbox->irq_send_empty);
-	mbox_chan_txdone(&apple_mbox->chan, 0);
+	spin_lock(&apple_mbox->tx_lock);
+	if (apple_mbox->tx_pending) {
+		apple_mbox->tx_pending = false;
+		spin_unlock(&apple_mbox->tx_lock);
+		mbox_chan_txdone(&apple_mbox->chan, 0);
+	} else {
+		spin_unlock(&apple_mbox->tx_lock);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -260,10 +278,17 @@ static int apple_mbox_chan_flush(struct mbox_chan *chan, unsigned long timeout)
 {
 	struct apple_mbox *apple_mbox = chan->con_priv;
 	unsigned long deadline = jiffies + msecs_to_jiffies(timeout);
+	unsigned long flags;
 
 	while (time_before(jiffies, deadline)) {
 		if (apple_mbox_hw_send_empty(apple_mbox)) {
-			mbox_chan_txdone(&apple_mbox->chan, 0);
+			spin_lock_irqsave(&apple_mbox->tx_lock, flags);
+			if (apple_mbox->tx_pending) {
+				apple_mbox->tx_pending = false;
+				disable_irq_nosync(apple_mbox->irq_send_empty);
+			}
+			/* Mailbox subsystem will call txdone for us */
+			spin_unlock_irqrestore(&apple_mbox->tx_lock, flags);
 			return 0;
 		}
 
@@ -361,6 +386,7 @@ static int apple_mbox_probe(struct platform_device *pdev)
 	mbox->controller.of_xlate = apple_mbox_of_xlate;
 	mbox->chan.con_priv = mbox;
 	spin_lock_init(&mbox->rx_lock);
+	spin_lock_init(&mbox->tx_lock);
 
 	irqname = devm_kasprintf(dev, GFP_KERNEL, "%s-recv", dev_name(dev));
 	if (!irqname)
@@ -368,8 +394,8 @@ static int apple_mbox_probe(struct platform_device *pdev)
 
 	ret = devm_request_threaded_irq(dev, mbox->irq_recv_not_empty, NULL,
 					apple_mbox_recv_irq,
-					IRQF_NO_AUTOEN | IRQF_ONESHOT, irqname,
-					mbox);
+					IRQF_NO_AUTOEN | IRQF_ONESHOT | IRQF_NO_SUSPEND,
+					irqname, mbox);
 	if (ret)
 		return ret;
 
@@ -377,9 +403,12 @@ static int apple_mbox_probe(struct platform_device *pdev)
 	if (!irqname)
 		return -ENOMEM;
 
-	ret = devm_request_irq(dev, mbox->irq_send_empty,
-			       apple_mbox_send_empty_irq, IRQF_NO_AUTOEN,
-			       irqname, mbox);
+	ret = devm_request_irq(dev, mbox->irq_send_empty, apple_mbox_send_empty_irq,
+			       IRQF_NO_AUTOEN | IRQF_NO_SUSPEND, irqname, mbox);
+	if (ret)
+		return ret;
+
+	ret = devm_pm_runtime_enable(dev);
 	if (ret)
 		return ret;
 

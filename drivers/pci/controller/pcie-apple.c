@@ -507,12 +507,36 @@ static u32 apple_pcie_rid2sid_write(struct apple_pcie_port *port,
 	return readl_relaxed(port->base + PORT_RID2SID(idx));
 }
 
+static int apple_pcie_probe_port(struct device_node *np)
+{
+	struct gpio_desc *gd;
+
+	gd = gpiod_get_from_of_node(np, "reset-gpios", 0,
+				    GPIOD_OUT_LOW, "PERST#");
+	if (IS_ERR(gd)) {
+		return PTR_ERR(gd);
+	}
+
+	gpiod_put(gd);
+
+	gd = gpiod_get_from_of_node(np, "pwren-gpios", 0,
+				    GPIOD_OUT_LOW, "PWREN");
+	if (IS_ERR(gd)) {
+		if (PTR_ERR(gd) != -ENOENT)
+			return PTR_ERR(gd);
+	} else {
+		gpiod_put(gd);
+	}
+
+	return 0;
+}
+
 static int apple_pcie_setup_port(struct apple_pcie *pcie,
 				 struct device_node *np)
 {
 	struct platform_device *platform = to_platform_device(pcie->dev);
 	struct apple_pcie_port *port;
-	struct gpio_desc *reset;
+	struct gpio_desc *reset, *pwren = NULL;
 	u32 stat, idx;
 	int ret, i;
 
@@ -520,6 +544,15 @@ static int apple_pcie_setup_port(struct apple_pcie *pcie,
 				      GPIOD_OUT_LOW, "PERST#");
 	if (IS_ERR(reset))
 		return PTR_ERR(reset);
+
+	pwren = devm_gpiod_get_from_of_node(pcie->dev, np, "pwren-gpios", 0,
+					    GPIOD_OUT_LOW, "PWREN");
+	if (IS_ERR(pwren)) {
+		if (PTR_ERR(pwren) == -ENOENT)
+			pwren = NULL;
+		else
+			return PTR_ERR(pwren);
+	}
 
 	port = devm_kzalloc(pcie->dev, sizeof(*port), GFP_KERNEL);
 	if (!port)
@@ -541,18 +574,27 @@ static int apple_pcie_setup_port(struct apple_pcie *pcie,
 	rmw_set(PORT_APPCLK_EN, port->base + PORT_APPCLK);
 
 	/* Assert PERST# before setting up the clock */
-	gpiod_set_value(reset, 1);
+	gpiod_set_value_cansleep(reset, 1);
+
+	/* Power on the device if required */
+	gpiod_set_value_cansleep(pwren, 1);
 
 	ret = apple_pcie_setup_refclk(pcie, port);
 	if (ret < 0)
 		return ret;
 
-	/* The minimal Tperst-clk value is 100us (PCIe CEM r5.0, 2.9.2) */
-	usleep_range(100, 200);
+	/*
+	 * The minimal Tperst-clk value is 100us (PCIe CEM r5.0, 2.9.2)
+	 * If powering up, the minimal Tpvperl is 100ms
+	 */
+	if (pwren)
+		msleep(100);
+	else
+		usleep_range(100, 200);
 
 	/* Deassert PERST# */
 	rmw_set(PORT_PERST_OFF, port->base + PORT_PERST);
-	gpiod_set_value(reset, 0);
+	gpiod_set_value_cansleep(reset, 0);
 
 	/* Wait for 100ms after PERST# deassertion (PCIe r5.0, 6.6.1) */
 	msleep(100);
@@ -584,6 +626,9 @@ static int apple_pcie_setup_port(struct apple_pcie *pcie,
 
 	list_add_tail(&port->entry, &pcie->ports);
 	init_completion(&pcie->event);
+
+	/* In the success path, we keep a reference to np around */
+	of_node_get(np);
 
 	ret = apple_pcie_port_register_irqs(port);
 	WARN_ON(ret);
@@ -797,7 +842,18 @@ static int apple_pcie_init(struct pci_config_window *cfg)
 
 static int apple_pcie_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
+	struct device_node *of_port;
 	int ret;
+
+	/* Check for probe dependencies for all ports first */
+	for_each_child_of_node(dev->of_node, of_port) {
+		ret = apple_pcie_probe_port(of_port);
+		if (ret) {
+			of_node_put(of_port);
+			return dev_err_probe(dev, ret, "Port %pOF probe fail\n", of_port);
+		}
+	}
 
 	ret = bus_register_notifier(&pci_bus_type, &apple_pcie_nb);
 	if (ret)

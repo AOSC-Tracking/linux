@@ -98,6 +98,19 @@ config HW_RANDOM_BCM2835
 
 	  If unsure, say Y.
 
+config HW_RANDOM_BCM2835_RUST
+	tristate "Rust implementation of Broadcom BCM2835 Random Number Generator"
+	depends on RUST && ARCH_BCM2835
+	help
+	  This driver provides alternative Rust-based kernel-side support
+	  for the Random Number Generator hardware found on the Broadcom
+	  BCM2835 SoC.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called bcm2835_rng_rust
+
+	  If unsure, say N.
+
 config HW_RANDOM_IPROC_RNG200
 	tristate "Broadcom iProc/STB RNG200 support"
 	depends on ARCH_BCM_IPROC || ARCH_BCM2835 || ARCH_BRCMSTB || COMPILE_TEST

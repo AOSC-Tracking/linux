@@ -23,6 +23,7 @@ mod tests;
 enum AllocInit {
     /// The contents of the new memory are uninitialized.
     Uninitialized,
+    #[allow(dead_code)]
     /// The new memory is guaranteed to be zeroed.
     #[allow(dead_code)]
     Zeroed,
@@ -391,6 +392,16 @@ impl<T, A: Allocator> RawVec<T, A> {
     pub fn shrink_to_fit(&mut self, cap: usize) {
         handle_reserve(self.shrink(cap));
     }
+
+    /// Tries to shrink the buffer down to the specified capacity. If the given amount
+    /// is 0, actually completely deallocates.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given amount is *larger* than the current capacity.
+    pub fn try_shrink_to_fit(&mut self, cap: usize) -> Result<(), TryReserveError> {
+        self.shrink(cap)
+    }
 }
 
 impl<T, A: Allocator> RawVec<T, A> {
@@ -460,7 +471,6 @@ impl<T, A: Allocator> RawVec<T, A> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn shrink(&mut self, cap: usize) -> Result<(), TryReserveError> {
         assert!(cap <= self.capacity(), "Tried to shrink to a larger capacity");
 

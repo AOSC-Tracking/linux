@@ -13,7 +13,7 @@ use core::ops::{Add, AddAssign};
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use core::borrow::{Borrow, BorrowMut};
 
-use core::fmt;
+use crate::fmt;
 #[cfg(not(no_global_oom_handling))]
 use crate::string::String;
 

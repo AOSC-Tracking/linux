@@ -38,6 +38,10 @@ and run::
 
 	rustup override set $(scripts/min-tool-version.sh rustc)
 
+Please note the ``O=`` option changes the working directory before the build
+starts. If you use a separate output directory, you need to run
+``rustup override set`` so that it covers the output directory.
+
 Otherwise, fetch a standalone installer or install ``rustup`` from:
 
 	https://www.rust-lang.org
