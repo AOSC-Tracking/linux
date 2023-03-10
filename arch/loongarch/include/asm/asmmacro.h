@@ -581,77 +581,81 @@
 	.endm
 
 	.macro	lsx_save_data thread tmp
-	li.w	\tmp, THREAD_FPR0
-	PTR_ADD \tmp, \thread, \tmp
-	vst	$vr0, \tmp, THREAD_FPR0  - THREAD_FPR0
-	vst	$vr1, \tmp, THREAD_FPR1  - THREAD_FPR0
-	vst	$vr2, \tmp, THREAD_FPR2  - THREAD_FPR0
-	vst	$vr3, \tmp, THREAD_FPR3  - THREAD_FPR0
-	vst	$vr4, \tmp, THREAD_FPR4  - THREAD_FPR0
-	vst	$vr5, \tmp, THREAD_FPR5  - THREAD_FPR0
-	vst	$vr6, \tmp, THREAD_FPR6  - THREAD_FPR0
-	vst	$vr7, \tmp, THREAD_FPR7  - THREAD_FPR0
-	vst	$vr8, \tmp, THREAD_FPR8  - THREAD_FPR0
-	vst	$vr9, \tmp, THREAD_FPR9  - THREAD_FPR0
-	vst	$vr10, \tmp, THREAD_FPR10 - THREAD_FPR0
-	vst	$vr11, \tmp, THREAD_FPR11 - THREAD_FPR0
-	vst	$vr12, \tmp, THREAD_FPR12 - THREAD_FPR0
-	vst	$vr13, \tmp, THREAD_FPR13 - THREAD_FPR0
-	vst	$vr14, \tmp, THREAD_FPR14 - THREAD_FPR0
-	vst	$vr15, \tmp, THREAD_FPR15 - THREAD_FPR0
-	vst	$vr16, \tmp, THREAD_FPR16 - THREAD_FPR0
-	vst	$vr17, \tmp, THREAD_FPR17 - THREAD_FPR0
-	vst	$vr18, \tmp, THREAD_FPR18 - THREAD_FPR0
-	vst	$vr19, \tmp, THREAD_FPR19 - THREAD_FPR0
-	vst	$vr20, \tmp, THREAD_FPR20 - THREAD_FPR0
-	vst	$vr21, \tmp, THREAD_FPR21 - THREAD_FPR0
-	vst	$vr22, \tmp, THREAD_FPR22 - THREAD_FPR0
-	vst	$vr23, \tmp, THREAD_FPR23 - THREAD_FPR0
-	vst	$vr24, \tmp, THREAD_FPR24 - THREAD_FPR0
-	vst	$vr25, \tmp, THREAD_FPR25 - THREAD_FPR0
-	vst	$vr26, \tmp, THREAD_FPR26 - THREAD_FPR0
-	vst	$vr27, \tmp, THREAD_FPR27 - THREAD_FPR0
-	vst	$vr28, \tmp, THREAD_FPR28 - THREAD_FPR0
-	vst	$vr29, \tmp, THREAD_FPR29 - THREAD_FPR0
-	vst	$vr30, \tmp, THREAD_FPR30 - THREAD_FPR0
-	vst	$vr31, \tmp, THREAD_FPR31 - THREAD_FPR0
+	parse_r __tmp, \tmp
+	li.w		\tmp, THREAD_FPR0
+	PTR_ADD 	\tmp, \thread, \tmp
+	/* vst opcode is 0xb1 */
+	.word (0xb1 << 22 | ((THREAD_FPR0-THREAD_FPR0) << 10) | __tmp << 5 | 0)
+	.word (0xb1 << 22 | ((THREAD_FPR1-THREAD_FPR0) << 10) | __tmp << 5 | 1)
+	.word (0xb1 << 22 | ((THREAD_FPR2-THREAD_FPR0) << 10) | __tmp << 5 | 2)
+	.word (0xb1 << 22 | ((THREAD_FPR3-THREAD_FPR0) << 10) | __tmp << 5 | 3)
+	.word (0xb1 << 22 | ((THREAD_FPR4-THREAD_FPR0) << 10) | __tmp << 5 | 4)
+	.word (0xb1 << 22 | ((THREAD_FPR5-THREAD_FPR0) << 10) | __tmp << 5 | 5)
+	.word (0xb1 << 22 | ((THREAD_FPR6-THREAD_FPR0) << 10) | __tmp << 5 | 6)
+	.word (0xb1 << 22 | ((THREAD_FPR7-THREAD_FPR0) << 10) | __tmp << 5 | 7)
+	.word (0xb1 << 22 | ((THREAD_FPR8-THREAD_FPR0) << 10) | __tmp << 5 | 8)
+	.word (0xb1 << 22 | ((THREAD_FPR9-THREAD_FPR0) << 10) | __tmp << 5 | 9)
+	.word (0xb1 << 22 | ((THREAD_FPR10-THREAD_FPR0) << 10) | __tmp << 5 | 10)
+	.word (0xb1 << 22 | ((THREAD_FPR11-THREAD_FPR0) << 10) | __tmp << 5 | 11)
+	.word (0xb1 << 22 | ((THREAD_FPR12-THREAD_FPR0) << 10) | __tmp << 5 | 12)
+	.word (0xb1 << 22 | ((THREAD_FPR13-THREAD_FPR0) << 10) | __tmp << 5 | 13)
+	.word (0xb1 << 22 | ((THREAD_FPR14-THREAD_FPR0) << 10) | __tmp << 5 | 14)
+	.word (0xb1 << 22 | ((THREAD_FPR15-THREAD_FPR0) << 10) | __tmp << 5 | 15)
+	.word (0xb1 << 22 | ((THREAD_FPR16-THREAD_FPR0) << 10) | __tmp << 5 | 16)
+	.word (0xb1 << 22 | ((THREAD_FPR17-THREAD_FPR0) << 10) | __tmp << 5 | 17)
+	.word (0xb1 << 22 | ((THREAD_FPR18-THREAD_FPR0) << 10) | __tmp << 5 | 18)
+	.word (0xb1 << 22 | ((THREAD_FPR19-THREAD_FPR0) << 10) | __tmp << 5 | 19)
+	.word (0xb1 << 22 | ((THREAD_FPR20-THREAD_FPR0) << 10) | __tmp << 5 | 20)
+	.word (0xb1 << 22 | ((THREAD_FPR21-THREAD_FPR0) << 10) | __tmp << 5 | 21)
+	.word (0xb1 << 22 | ((THREAD_FPR22-THREAD_FPR0) << 10) | __tmp << 5 | 22)
+	.word (0xb1 << 22 | ((THREAD_FPR23-THREAD_FPR0) << 10) | __tmp << 5 | 23)
+	.word (0xb1 << 22 | ((THREAD_FPR24-THREAD_FPR0) << 10) | __tmp << 5 | 24)
+	.word (0xb1 << 22 | ((THREAD_FPR25-THREAD_FPR0) << 10) | __tmp << 5 | 25)
+	.word (0xb1 << 22 | ((THREAD_FPR26-THREAD_FPR0) << 10) | __tmp << 5 | 26)
+	.word (0xb1 << 22 | ((THREAD_FPR27-THREAD_FPR0) << 10) | __tmp << 5 | 27)
+	.word (0xb1 << 22 | ((THREAD_FPR28-THREAD_FPR0) << 10) | __tmp << 5 | 28)
+	.word (0xb1 << 22 | ((THREAD_FPR29-THREAD_FPR0) << 10) | __tmp << 5 | 29)
+	.word (0xb1 << 22 | ((THREAD_FPR30-THREAD_FPR0) << 10) | __tmp << 5 | 30)
+	.word (0xb1 << 22 | ((THREAD_FPR31-THREAD_FPR0) << 10) | __tmp << 5 | 31)
 	.endm
 
 	.macro	lsx_restore_data thread tmp
-	li.w	\tmp, THREAD_FPR0
-	PTR_ADD	\tmp, \thread, \tmp
-	vld	$vr0, \tmp, THREAD_FPR0  - THREAD_FPR0
-	vld	$vr1, \tmp, THREAD_FPR1  - THREAD_FPR0
-	vld	$vr2, \tmp, THREAD_FPR2  - THREAD_FPR0
-	vld	$vr3, \tmp, THREAD_FPR3  - THREAD_FPR0
-	vld	$vr4, \tmp, THREAD_FPR4  - THREAD_FPR0
-	vld	$vr5, \tmp, THREAD_FPR5  - THREAD_FPR0
-	vld	$vr6, \tmp, THREAD_FPR6  - THREAD_FPR0
-	vld	$vr7, \tmp, THREAD_FPR7  - THREAD_FPR0
-	vld	$vr8, \tmp, THREAD_FPR8  - THREAD_FPR0
-	vld	$vr9, \tmp, THREAD_FPR9  - THREAD_FPR0
-	vld	$vr10, \tmp, THREAD_FPR10 - THREAD_FPR0
-	vld	$vr11, \tmp, THREAD_FPR11 - THREAD_FPR0
-	vld	$vr12, \tmp, THREAD_FPR12 - THREAD_FPR0
-	vld	$vr13, \tmp, THREAD_FPR13 - THREAD_FPR0
-	vld	$vr14, \tmp, THREAD_FPR14 - THREAD_FPR0
-	vld	$vr15, \tmp, THREAD_FPR15 - THREAD_FPR0
-	vld	$vr16, \tmp, THREAD_FPR16 - THREAD_FPR0
-	vld	$vr17, \tmp, THREAD_FPR17 - THREAD_FPR0
-	vld	$vr18, \tmp, THREAD_FPR18 - THREAD_FPR0
-	vld	$vr19, \tmp, THREAD_FPR19 - THREAD_FPR0
-	vld	$vr20, \tmp, THREAD_FPR20 - THREAD_FPR0
-	vld	$vr21, \tmp, THREAD_FPR21 - THREAD_FPR0
-	vld	$vr22, \tmp, THREAD_FPR22 - THREAD_FPR0
-	vld	$vr23, \tmp, THREAD_FPR23 - THREAD_FPR0
-	vld	$vr24, \tmp, THREAD_FPR24 - THREAD_FPR0
-	vld	$vr25, \tmp, THREAD_FPR25 - THREAD_FPR0
-	vld	$vr26, \tmp, THREAD_FPR26 - THREAD_FPR0
-	vld	$vr27, \tmp, THREAD_FPR27 - THREAD_FPR0
-	vld	$vr28, \tmp, THREAD_FPR28 - THREAD_FPR0
-	vld	$vr29, \tmp, THREAD_FPR29 - THREAD_FPR0
-	vld	$vr30, \tmp, THREAD_FPR30 - THREAD_FPR0
-	vld	$vr31, \tmp, THREAD_FPR31 - THREAD_FPR0
+	parse_r __tmp, \tmp
+	li.w		\tmp, THREAD_FPR0
+	PTR_ADD		\tmp, \thread, \tmp
+	/* vld opcode is 0xb0 */
+	.word (0xb0 << 22 | ((THREAD_FPR0-THREAD_FPR0) << 10) | __tmp << 5 | 0)
+	.word (0xb0 << 22 | ((THREAD_FPR1-THREAD_FPR0) << 10) | __tmp << 5 | 1)
+	.word (0xb0 << 22 | ((THREAD_FPR2-THREAD_FPR0) << 10) | __tmp << 5 | 2)
+	.word (0xb0 << 22 | ((THREAD_FPR3-THREAD_FPR0) << 10) | __tmp << 5 | 3)
+	.word (0xb0 << 22 | ((THREAD_FPR4-THREAD_FPR0) << 10) | __tmp << 5 | 4)
+	.word (0xb0 << 22 | ((THREAD_FPR5-THREAD_FPR0) << 10) | __tmp << 5 | 5)
+	.word (0xb0 << 22 | ((THREAD_FPR6-THREAD_FPR0) << 10) | __tmp << 5 | 6)
+	.word (0xb0 << 22 | ((THREAD_FPR7-THREAD_FPR0) << 10) | __tmp << 5 | 7)
+	.word (0xb0 << 22 | ((THREAD_FPR8-THREAD_FPR0) << 10) | __tmp << 5 | 8)
+	.word (0xb0 << 22 | ((THREAD_FPR9-THREAD_FPR0) << 10) | __tmp << 5 | 9)
+	.word (0xb0 << 22 | ((THREAD_FPR10-THREAD_FPR0) << 10) | __tmp << 5 | 10)
+	.word (0xb0 << 22 | ((THREAD_FPR11-THREAD_FPR0) << 10) | __tmp << 5 | 11)
+	.word (0xb0 << 22 | ((THREAD_FPR12-THREAD_FPR0) << 10) | __tmp << 5 | 12)
+	.word (0xb0 << 22 | ((THREAD_FPR13-THREAD_FPR0) << 10) | __tmp << 5 | 13)
+	.word (0xb0 << 22 | ((THREAD_FPR14-THREAD_FPR0) << 10) | __tmp << 5 | 14)
+	.word (0xb0 << 22 | ((THREAD_FPR15-THREAD_FPR0) << 10) | __tmp << 5 | 15)
+	.word (0xb0 << 22 | ((THREAD_FPR16-THREAD_FPR0) << 10) | __tmp << 5 | 16)
+	.word (0xb0 << 22 | ((THREAD_FPR17-THREAD_FPR0) << 10) | __tmp << 5 | 17)
+	.word (0xb0 << 22 | ((THREAD_FPR18-THREAD_FPR0) << 10) | __tmp << 5 | 18)
+	.word (0xb0 << 22 | ((THREAD_FPR19-THREAD_FPR0) << 10) | __tmp << 5 | 19)
+	.word (0xb0 << 22 | ((THREAD_FPR20-THREAD_FPR0) << 10) | __tmp << 5 | 20)
+	.word (0xb0 << 22 | ((THREAD_FPR21-THREAD_FPR0) << 10) | __tmp << 5 | 21)
+	.word (0xb0 << 22 | ((THREAD_FPR22-THREAD_FPR0) << 10) | __tmp << 5 | 22)
+	.word (0xb0 << 22 | ((THREAD_FPR23-THREAD_FPR0) << 10) | __tmp << 5 | 23)
+	.word (0xb0 << 22 | ((THREAD_FPR24-THREAD_FPR0) << 10) | __tmp << 5 | 24)
+	.word (0xb0 << 22 | ((THREAD_FPR25-THREAD_FPR0) << 10) | __tmp << 5 | 25)
+	.word (0xb0 << 22 | ((THREAD_FPR26-THREAD_FPR0) << 10) | __tmp << 5 | 26)
+	.word (0xb0 << 22 | ((THREAD_FPR27-THREAD_FPR0) << 10) | __tmp << 5 | 27)
+	.word (0xb0 << 22 | ((THREAD_FPR28-THREAD_FPR0) << 10) | __tmp << 5 | 28)
+	.word (0xb0 << 22 | ((THREAD_FPR29-THREAD_FPR0) << 10) | __tmp << 5 | 29)
+	.word (0xb0 << 22 | ((THREAD_FPR30-THREAD_FPR0) << 10) | __tmp << 5 | 30)
+	.word (0xb0 << 22 | ((THREAD_FPR31-THREAD_FPR0) << 10) | __tmp << 5 | 31)
 	.endm
 
 	.macro	lsx_save_all	thread tmp0 tmp1
@@ -667,8 +671,11 @@
 	.endm
 
 	.macro	lsx_save_upper vd base tmp off
-	vpickve2gr.d	\tmp, \vd, 1
-	st.d		\tmp, \base, (\off+8)
+	parse_vr __vd, \vd
+	parse_r __tmp, \tmp
+	/* vpickve2gr opcode is 0xe5dfe */
+	.word (0xe5dfe << 11 | 1 << 10 | __vd << 5 | __tmp)
+	st.d	\tmp, \base, (\off+8)
 	.endm
 
 	.macro	lsx_save_all_upper thread base tmp
@@ -709,8 +716,11 @@
 	.endm
 
 	.macro	lsx_restore_upper vd base tmp off
-	ld.d		\tmp, \base, (\off+8)
-	vinsgr2vr.d	\vd,  \tmp, 1
+	parse_vr __vd, \vd
+	parse_r __tmp, \tmp
+	ld.d	\tmp, \base, (\off+8)
+	/* vinsgr2vr opcode is 0xe5d7e */
+	.word	(0xe5d7e << 11 | 1 << 10 | __tmp << 5 | __vd)
 	.endm
 
 	.macro	lsx_restore_all_upper thread base tmp
@@ -751,7 +761,10 @@
 	.endm
 
 	.macro	lsx_init_upper vd tmp
-	vinsgr2vr.d	\vd, \tmp, 1
+	parse_vr __vd, \vd
+	parse_r __tmp, \tmp
+	/* vinsgr2vr opcode is 0xe5d7e */
+	.word	(0xe5d7e << 11 | 1 << 10 | __tmp << 5 | __vd)
 	.endm
 
 	.macro	lsx_init_all_upper tmp
@@ -791,77 +804,81 @@
 	.endm
 
 	.macro	lasx_save_data thread tmp
-	li.w	\tmp, THREAD_FPR0
-	PTR_ADD	\tmp, \thread, \tmp
-	xvst	$xr0, \tmp, THREAD_FPR0  - THREAD_FPR0
-	xvst	$xr1, \tmp, THREAD_FPR1  - THREAD_FPR0
-	xvst	$xr2, \tmp, THREAD_FPR2  - THREAD_FPR0
-	xvst	$xr3, \tmp, THREAD_FPR3  - THREAD_FPR0
-	xvst	$xr4, \tmp, THREAD_FPR4  - THREAD_FPR0
-	xvst	$xr5, \tmp, THREAD_FPR5  - THREAD_FPR0
-	xvst	$xr6, \tmp, THREAD_FPR6  - THREAD_FPR0
-	xvst	$xr7, \tmp, THREAD_FPR7  - THREAD_FPR0
-	xvst	$xr8, \tmp, THREAD_FPR8  - THREAD_FPR0
-	xvst	$xr9, \tmp, THREAD_FPR9  - THREAD_FPR0
-	xvst	$xr10, \tmp, THREAD_FPR10 - THREAD_FPR0
-	xvst	$xr11, \tmp, THREAD_FPR11 - THREAD_FPR0
-	xvst	$xr12, \tmp, THREAD_FPR12 - THREAD_FPR0
-	xvst	$xr13, \tmp, THREAD_FPR13 - THREAD_FPR0
-	xvst	$xr14, \tmp, THREAD_FPR14 - THREAD_FPR0
-	xvst	$xr15, \tmp, THREAD_FPR15 - THREAD_FPR0
-	xvst	$xr16, \tmp, THREAD_FPR16 - THREAD_FPR0
-	xvst	$xr17, \tmp, THREAD_FPR17 - THREAD_FPR0
-	xvst	$xr18, \tmp, THREAD_FPR18 - THREAD_FPR0
-	xvst	$xr19, \tmp, THREAD_FPR19 - THREAD_FPR0
-	xvst	$xr20, \tmp, THREAD_FPR20 - THREAD_FPR0
-	xvst	$xr21, \tmp, THREAD_FPR21 - THREAD_FPR0
-	xvst	$xr22, \tmp, THREAD_FPR22 - THREAD_FPR0
-	xvst	$xr23, \tmp, THREAD_FPR23 - THREAD_FPR0
-	xvst	$xr24, \tmp, THREAD_FPR24 - THREAD_FPR0
-	xvst	$xr25, \tmp, THREAD_FPR25 - THREAD_FPR0
-	xvst	$xr26, \tmp, THREAD_FPR26 - THREAD_FPR0
-	xvst	$xr27, \tmp, THREAD_FPR27 - THREAD_FPR0
-	xvst	$xr28, \tmp, THREAD_FPR28 - THREAD_FPR0
-	xvst	$xr29, \tmp, THREAD_FPR29 - THREAD_FPR0
-	xvst	$xr30, \tmp, THREAD_FPR30 - THREAD_FPR0
-	xvst	$xr31, \tmp, THREAD_FPR31 - THREAD_FPR0
+	parse_r __tmp, \tmp
+	li.w            \tmp, THREAD_FPR0
+	PTR_ADD         \tmp, \thread, \tmp
+	/* xvst opcode is 0xb3 */
+	.word (0xb3 << 22 | ((THREAD_FPR0-THREAD_FPR0) << 10) | __tmp << 5 | 0)
+	.word (0xb3 << 22 | ((THREAD_FPR1-THREAD_FPR0) << 10) | __tmp << 5 | 1)
+	.word (0xb3 << 22 | ((THREAD_FPR2-THREAD_FPR0) << 10) | __tmp << 5 | 2)
+	.word (0xb3 << 22 | ((THREAD_FPR3-THREAD_FPR0) << 10) | __tmp << 5 | 3)
+	.word (0xb3 << 22 | ((THREAD_FPR4-THREAD_FPR0) << 10) | __tmp << 5 | 4)
+	.word (0xb3 << 22 | ((THREAD_FPR5-THREAD_FPR0) << 10) | __tmp << 5 | 5)
+	.word (0xb3 << 22 | ((THREAD_FPR6-THREAD_FPR0) << 10) | __tmp << 5 | 6)
+	.word (0xb3 << 22 | ((THREAD_FPR7-THREAD_FPR0) << 10) | __tmp << 5 | 7)
+	.word (0xb3 << 22 | ((THREAD_FPR8-THREAD_FPR0) << 10) | __tmp << 5 | 8)
+	.word (0xb3 << 22 | ((THREAD_FPR9-THREAD_FPR0) << 10) | __tmp << 5 | 9)
+	.word (0xb3 << 22 | ((THREAD_FPR10-THREAD_FPR0) << 10) | __tmp << 5 | 10)
+	.word (0xb3 << 22 | ((THREAD_FPR11-THREAD_FPR0) << 10) | __tmp << 5 | 11)
+	.word (0xb3 << 22 | ((THREAD_FPR12-THREAD_FPR0) << 10) | __tmp << 5 | 12)
+	.word (0xb3 << 22 | ((THREAD_FPR13-THREAD_FPR0) << 10) | __tmp << 5 | 13)
+	.word (0xb3 << 22 | ((THREAD_FPR14-THREAD_FPR0) << 10) | __tmp << 5 | 14)
+	.word (0xb3 << 22 | ((THREAD_FPR15-THREAD_FPR0) << 10) | __tmp << 5 | 15)
+	.word (0xb3 << 22 | ((THREAD_FPR16-THREAD_FPR0) << 10) | __tmp << 5 | 16)
+	.word (0xb3 << 22 | ((THREAD_FPR17-THREAD_FPR0) << 10) | __tmp << 5 | 17)
+	.word (0xb3 << 22 | ((THREAD_FPR18-THREAD_FPR0) << 10) | __tmp << 5 | 18)
+	.word (0xb3 << 22 | ((THREAD_FPR19-THREAD_FPR0) << 10) | __tmp << 5 | 19)
+	.word (0xb3 << 22 | ((THREAD_FPR20-THREAD_FPR0) << 10) | __tmp << 5 | 20)
+	.word (0xb3 << 22 | ((THREAD_FPR21-THREAD_FPR0) << 10) | __tmp << 5 | 21)
+	.word (0xb3 << 22 | ((THREAD_FPR22-THREAD_FPR0) << 10) | __tmp << 5 | 22)
+	.word (0xb3 << 22 | ((THREAD_FPR23-THREAD_FPR0) << 10) | __tmp << 5 | 23)
+	.word (0xb3 << 22 | ((THREAD_FPR24-THREAD_FPR0) << 10) | __tmp << 5 | 24)
+	.word (0xb3 << 22 | ((THREAD_FPR25-THREAD_FPR0) << 10) | __tmp << 5 | 25)
+	.word (0xb3 << 22 | ((THREAD_FPR26-THREAD_FPR0) << 10) | __tmp << 5 | 26)
+	.word (0xb3 << 22 | ((THREAD_FPR27-THREAD_FPR0) << 10) | __tmp << 5 | 27)
+	.word (0xb3 << 22 | ((THREAD_FPR28-THREAD_FPR0) << 10) | __tmp << 5 | 28)
+	.word (0xb3 << 22 | ((THREAD_FPR29-THREAD_FPR0) << 10) | __tmp << 5 | 29)
+	.word (0xb3 << 22 | ((THREAD_FPR30-THREAD_FPR0) << 10) | __tmp << 5 | 30)
+	.word (0xb3 << 22 | ((THREAD_FPR31-THREAD_FPR0) << 10) | __tmp << 5 | 31)
 	.endm
 
 	.macro	lasx_restore_data thread tmp
-	li.w	\tmp, THREAD_FPR0
-	PTR_ADD	\tmp, \thread, \tmp
-	xvld	$xr0, \tmp, THREAD_FPR0  - THREAD_FPR0
-	xvld	$xr1, \tmp, THREAD_FPR1  - THREAD_FPR0
-	xvld	$xr2, \tmp, THREAD_FPR2  - THREAD_FPR0
-	xvld	$xr3, \tmp, THREAD_FPR3  - THREAD_FPR0
-	xvld	$xr4, \tmp, THREAD_FPR4  - THREAD_FPR0
-	xvld	$xr5, \tmp, THREAD_FPR5  - THREAD_FPR0
-	xvld	$xr6, \tmp, THREAD_FPR6  - THREAD_FPR0
-	xvld	$xr7, \tmp, THREAD_FPR7  - THREAD_FPR0
-	xvld	$xr8, \tmp, THREAD_FPR8  - THREAD_FPR0
-	xvld	$xr9, \tmp, THREAD_FPR9  - THREAD_FPR0
-	xvld	$xr10, \tmp, THREAD_FPR10 - THREAD_FPR0
-	xvld	$xr11, \tmp, THREAD_FPR11 - THREAD_FPR0
-	xvld	$xr12, \tmp, THREAD_FPR12 - THREAD_FPR0
-	xvld	$xr13, \tmp, THREAD_FPR13 - THREAD_FPR0
-	xvld	$xr14, \tmp, THREAD_FPR14 - THREAD_FPR0
-	xvld	$xr15, \tmp, THREAD_FPR15 - THREAD_FPR0
-	xvld	$xr16, \tmp, THREAD_FPR16 - THREAD_FPR0
-	xvld	$xr17, \tmp, THREAD_FPR17 - THREAD_FPR0
-	xvld	$xr18, \tmp, THREAD_FPR18 - THREAD_FPR0
-	xvld	$xr19, \tmp, THREAD_FPR19 - THREAD_FPR0
-	xvld	$xr20, \tmp, THREAD_FPR20 - THREAD_FPR0
-	xvld	$xr21, \tmp, THREAD_FPR21 - THREAD_FPR0
-	xvld	$xr22, \tmp, THREAD_FPR22 - THREAD_FPR0
-	xvld	$xr23, \tmp, THREAD_FPR23 - THREAD_FPR0
-	xvld	$xr24, \tmp, THREAD_FPR24 - THREAD_FPR0
-	xvld	$xr25, \tmp, THREAD_FPR25 - THREAD_FPR0
-	xvld	$xr26, \tmp, THREAD_FPR26 - THREAD_FPR0
-	xvld	$xr27, \tmp, THREAD_FPR27 - THREAD_FPR0
-	xvld	$xr28, \tmp, THREAD_FPR28 - THREAD_FPR0
-	xvld	$xr29, \tmp, THREAD_FPR29 - THREAD_FPR0
-	xvld	$xr30, \tmp, THREAD_FPR30 - THREAD_FPR0
-	xvld	$xr31, \tmp, THREAD_FPR31 - THREAD_FPR0
+	parse_r __tmp, \tmp
+	li.w            \tmp, THREAD_FPR0
+	PTR_ADD         \tmp, \thread, \tmp
+	/* xvld opcode is 0xb2 */
+	.word (0xb2 << 22 | ((THREAD_FPR0-THREAD_FPR0) << 10) | __tmp << 5 | 0)
+	.word (0xb2 << 22 | ((THREAD_FPR1-THREAD_FPR0) << 10) | __tmp << 5 | 1)
+	.word (0xb2 << 22 | ((THREAD_FPR2-THREAD_FPR0) << 10) | __tmp << 5 | 2)
+	.word (0xb2 << 22 | ((THREAD_FPR3-THREAD_FPR0) << 10) | __tmp << 5 | 3)
+	.word (0xb2 << 22 | ((THREAD_FPR4-THREAD_FPR0) << 10) | __tmp << 5 | 4)
+	.word (0xb2 << 22 | ((THREAD_FPR5-THREAD_FPR0) << 10) | __tmp << 5 | 5)
+	.word (0xb2 << 22 | ((THREAD_FPR6-THREAD_FPR0) << 10) | __tmp << 5 | 6)
+	.word (0xb2 << 22 | ((THREAD_FPR7-THREAD_FPR0) << 10) | __tmp << 5 | 7)
+	.word (0xb2 << 22 | ((THREAD_FPR8-THREAD_FPR0) << 10) | __tmp << 5 | 8)
+	.word (0xb2 << 22 | ((THREAD_FPR9-THREAD_FPR0) << 10) | __tmp << 5 | 9)
+	.word (0xb2 << 22 | ((THREAD_FPR10-THREAD_FPR0) << 10) | __tmp << 5 | 10)
+	.word (0xb2 << 22 | ((THREAD_FPR11-THREAD_FPR0) << 10) | __tmp << 5 | 11)
+	.word (0xb2 << 22 | ((THREAD_FPR12-THREAD_FPR0) << 10) | __tmp << 5 | 12)
+	.word (0xb2 << 22 | ((THREAD_FPR13-THREAD_FPR0) << 10) | __tmp << 5 | 13)
+	.word (0xb2 << 22 | ((THREAD_FPR14-THREAD_FPR0) << 10) | __tmp << 5 | 14)
+	.word (0xb2 << 22 | ((THREAD_FPR15-THREAD_FPR0) << 10) | __tmp << 5 | 15)
+	.word (0xb2 << 22 | ((THREAD_FPR16-THREAD_FPR0) << 10) | __tmp << 5 | 16)
+	.word (0xb2 << 22 | ((THREAD_FPR17-THREAD_FPR0) << 10) | __tmp << 5 | 17)
+	.word (0xb2 << 22 | ((THREAD_FPR18-THREAD_FPR0) << 10) | __tmp << 5 | 18)
+	.word (0xb2 << 22 | ((THREAD_FPR19-THREAD_FPR0) << 10) | __tmp << 5 | 19)
+	.word (0xb2 << 22 | ((THREAD_FPR20-THREAD_FPR0) << 10) | __tmp << 5 | 20)
+	.word (0xb2 << 22 | ((THREAD_FPR21-THREAD_FPR0) << 10) | __tmp << 5 | 21)
+	.word (0xb2 << 22 | ((THREAD_FPR22-THREAD_FPR0) << 10) | __tmp << 5 | 22)
+	.word (0xb2 << 22 | ((THREAD_FPR23-THREAD_FPR0) << 10) | __tmp << 5 | 23)
+	.word (0xb2 << 22 | ((THREAD_FPR24-THREAD_FPR0) << 10) | __tmp << 5 | 24)
+	.word (0xb2 << 22 | ((THREAD_FPR25-THREAD_FPR0) << 10) | __tmp << 5 | 25)
+	.word (0xb2 << 22 | ((THREAD_FPR26-THREAD_FPR0) << 10) | __tmp << 5 | 26)
+	.word (0xb2 << 22 | ((THREAD_FPR27-THREAD_FPR0) << 10) | __tmp << 5 | 27)
+	.word (0xb2 << 22 | ((THREAD_FPR28-THREAD_FPR0) << 10) | __tmp << 5 | 28)
+	.word (0xb2 << 22 | ((THREAD_FPR29-THREAD_FPR0) << 10) | __tmp << 5 | 29)
+	.word (0xb2 << 22 | ((THREAD_FPR30-THREAD_FPR0) << 10) | __tmp << 5 | 30)
+	.word (0xb2 << 22 | ((THREAD_FPR31-THREAD_FPR0) << 10) | __tmp << 5 | 31)
 	.endm
 
 	.macro	lasx_save_all	thread tmp0 tmp1
@@ -884,57 +901,65 @@
 	/* Nothing */
 	.endm
 
-	.macro	lasx_restore_upper xd base tmp0 tmp1 off
-	vld		\tmp0, \base, (\off+16)
-	xvpermi.q 	\xd,   \tmp1, 0x2
+	.macro lasx_restore_upper xd base tmp off
+	parse_xr __xd, \xd
+	parse_xr __xt, \tmp
+	parse_r __base, \base
+	/* vld opcode is 0xb0 */
+	.word (0xb0 << 22 | (\off+16) << 10 | __base << 5 | __xt)
+	/* xvpermi.q opcode is 0x1dfb */
+	.word (0x1dfb << 18 | 0x2 << 10 | __xt << 5 | __xd)
 	.endm
 
 	.macro	lasx_restore_all_upper thread base tmp
-	li.w		\tmp, THREAD_FPR0
-	PTR_ADD		\base, \thread, \tmp
-	/* Save $vr31 ($xr31 lower bits) with xvpickve2gr */
-	xvpickve2gr.d	$r17, $xr31, 0
-	xvpickve2gr.d	$r18, $xr31, 1
-	lasx_restore_upper $xr0, \base, $vr31, $xr31, (THREAD_FPR0-THREAD_FPR0)
-	lasx_restore_upper $xr1, \base, $vr31, $xr31, (THREAD_FPR1-THREAD_FPR0)
-	lasx_restore_upper $xr2, \base, $vr31, $xr31, (THREAD_FPR2-THREAD_FPR0)
-	lasx_restore_upper $xr3, \base, $vr31, $xr31, (THREAD_FPR3-THREAD_FPR0)
-	lasx_restore_upper $xr4, \base, $vr31, $xr31, (THREAD_FPR4-THREAD_FPR0)
-	lasx_restore_upper $xr5, \base, $vr31, $xr31, (THREAD_FPR5-THREAD_FPR0)
-	lasx_restore_upper $xr6, \base, $vr31, $xr31, (THREAD_FPR6-THREAD_FPR0)
-	lasx_restore_upper $xr7, \base, $vr31, $xr31, (THREAD_FPR7-THREAD_FPR0)
-	lasx_restore_upper $xr8, \base, $vr31, $xr31, (THREAD_FPR8-THREAD_FPR0)
-	lasx_restore_upper $xr9, \base, $vr31, $xr31, (THREAD_FPR9-THREAD_FPR0)
-	lasx_restore_upper $xr10, \base, $vr31, $xr31, (THREAD_FPR10-THREAD_FPR0)
-	lasx_restore_upper $xr11, \base, $vr31, $xr31, (THREAD_FPR11-THREAD_FPR0)
-	lasx_restore_upper $xr12, \base, $vr31, $xr31, (THREAD_FPR12-THREAD_FPR0)
-	lasx_restore_upper $xr13, \base, $vr31, $xr31, (THREAD_FPR13-THREAD_FPR0)
-	lasx_restore_upper $xr14, \base, $vr31, $xr31, (THREAD_FPR14-THREAD_FPR0)
-	lasx_restore_upper $xr15, \base, $vr31, $xr31, (THREAD_FPR15-THREAD_FPR0)
-	lasx_restore_upper $xr16, \base, $vr31, $xr31, (THREAD_FPR16-THREAD_FPR0)
-	lasx_restore_upper $xr17, \base, $vr31, $xr31, (THREAD_FPR17-THREAD_FPR0)
-	lasx_restore_upper $xr18, \base, $vr31, $xr31, (THREAD_FPR18-THREAD_FPR0)
-	lasx_restore_upper $xr19, \base, $vr31, $xr31, (THREAD_FPR19-THREAD_FPR0)
-	lasx_restore_upper $xr20, \base, $vr31, $xr31, (THREAD_FPR20-THREAD_FPR0)
-	lasx_restore_upper $xr21, \base, $vr31, $xr31, (THREAD_FPR21-THREAD_FPR0)
-	lasx_restore_upper $xr22, \base, $vr31, $xr31, (THREAD_FPR22-THREAD_FPR0)
-	lasx_restore_upper $xr23, \base, $vr31, $xr31, (THREAD_FPR23-THREAD_FPR0)
-	lasx_restore_upper $xr24, \base, $vr31, $xr31, (THREAD_FPR24-THREAD_FPR0)
-	lasx_restore_upper $xr25, \base, $vr31, $xr31, (THREAD_FPR25-THREAD_FPR0)
-	lasx_restore_upper $xr26, \base, $vr31, $xr31, (THREAD_FPR26-THREAD_FPR0)
-	lasx_restore_upper $xr27, \base, $vr31, $xr31, (THREAD_FPR27-THREAD_FPR0)
-	lasx_restore_upper $xr28, \base, $vr31, $xr31, (THREAD_FPR28-THREAD_FPR0)
-	lasx_restore_upper $xr29, \base, $vr31, $xr31, (THREAD_FPR29-THREAD_FPR0)
-	lasx_restore_upper $xr30, \base, $vr31, $xr31, (THREAD_FPR30-THREAD_FPR0)
-	lasx_restore_upper $xr31, \base, $vr31, $xr31, (THREAD_FPR31-THREAD_FPR0)
-	/* Restore $vr31 ($xr31 lower bits) with xvinsgr2vr */
-	xvinsgr2vr.d	$xr31, $r17, 0
-	xvinsgr2vr.d	$xr31, $r18, 1
+	li.w	\tmp, THREAD_FPR0
+	PTR_ADD	\base, \thread, \tmp
+	/* Save $vr31, xvpickve2gr opcode is 0x76efe */
+	.word (0x76efe << 12 | 0 << 10 | 31 << 5 | 0x11)
+	.word (0x76efe << 12 | 1 << 10 | 31 << 5 | 0x12)
+	lasx_restore_upper $xr0, \base, $xr31, (THREAD_FPR0-THREAD_FPR0)
+	lasx_restore_upper $xr1, \base, $xr31, (THREAD_FPR1-THREAD_FPR0)
+	lasx_restore_upper $xr2, \base, $xr31, (THREAD_FPR2-THREAD_FPR0)
+	lasx_restore_upper $xr3, \base, $xr31, (THREAD_FPR3-THREAD_FPR0)
+	lasx_restore_upper $xr4, \base, $xr31, (THREAD_FPR4-THREAD_FPR0)
+	lasx_restore_upper $xr5, \base, $xr31, (THREAD_FPR5-THREAD_FPR0)
+	lasx_restore_upper $xr6, \base, $xr31, (THREAD_FPR6-THREAD_FPR0)
+	lasx_restore_upper $xr7, \base, $xr31, (THREAD_FPR7-THREAD_FPR0)
+	lasx_restore_upper $xr8, \base, $xr31, (THREAD_FPR8-THREAD_FPR0)
+	lasx_restore_upper $xr9, \base, $xr31, (THREAD_FPR9-THREAD_FPR0)
+	lasx_restore_upper $xr10, \base, $xr31, (THREAD_FPR10-THREAD_FPR0)
+	lasx_restore_upper $xr11, \base, $xr31, (THREAD_FPR11-THREAD_FPR0)
+	lasx_restore_upper $xr12, \base, $xr31, (THREAD_FPR12-THREAD_FPR0)
+	lasx_restore_upper $xr13, \base, $xr31, (THREAD_FPR13-THREAD_FPR0)
+	lasx_restore_upper $xr14, \base, $xr31, (THREAD_FPR14-THREAD_FPR0)
+	lasx_restore_upper $xr15, \base, $xr31, (THREAD_FPR15-THREAD_FPR0)
+	lasx_restore_upper $xr16, \base, $xr31, (THREAD_FPR16-THREAD_FPR0)
+	lasx_restore_upper $xr17, \base, $xr31, (THREAD_FPR17-THREAD_FPR0)
+	lasx_restore_upper $xr18, \base, $xr31, (THREAD_FPR18-THREAD_FPR0)
+	lasx_restore_upper $xr19, \base, $xr31, (THREAD_FPR19-THREAD_FPR0)
+	lasx_restore_upper $xr20, \base, $xr31, (THREAD_FPR20-THREAD_FPR0)
+	lasx_restore_upper $xr21, \base, $xr31, (THREAD_FPR21-THREAD_FPR0)
+	lasx_restore_upper $xr22, \base, $xr31, (THREAD_FPR22-THREAD_FPR0)
+	lasx_restore_upper $xr23, \base, $xr31, (THREAD_FPR23-THREAD_FPR0)
+	lasx_restore_upper $xr24, \base, $xr31, (THREAD_FPR24-THREAD_FPR0)
+	lasx_restore_upper $xr25, \base, $xr31, (THREAD_FPR25-THREAD_FPR0)
+	lasx_restore_upper $xr26, \base, $xr31, (THREAD_FPR26-THREAD_FPR0)
+	lasx_restore_upper $xr27, \base, $xr31, (THREAD_FPR27-THREAD_FPR0)
+	lasx_restore_upper $xr28, \base, $xr31, (THREAD_FPR28-THREAD_FPR0)
+	lasx_restore_upper $xr29, \base, $xr31, (THREAD_FPR29-THREAD_FPR0)
+	lasx_restore_upper $xr30, \base, $xr31, (THREAD_FPR30-THREAD_FPR0)
+	lasx_restore_upper $xr31, \base, $xr31, (THREAD_FPR31-THREAD_FPR0)
+	/* Restore $vr31, xvinsgr2vr opcode is 0x76ebe */
+	.word (0x76ebe << 12 | 0 << 10 | 0x11 << 5 | 31)
+	.word (0x76ebe << 12 | 1 << 10 | 0x12 << 5 | 31)
 	.endm
 
 	.macro	lasx_init_upper xd tmp
-	xvinsgr2vr.d	\xd, \tmp, 2
-	xvinsgr2vr.d	\xd, \tmp, 3
+	parse_xr __xd, \xd
+	parse_r __tmp, \tmp
+	/* xvinsgr2vr opcode is 0x76ebe */
+	.word	(0x76ebe << 12 | 2 << 10 | __tmp << 5 | __xd)
+	.word	(0x76ebe << 12 | 3 << 10 | __tmp << 5 | __xd)
 	.endm
 
 	.macro	lasx_init_all_upper tmp

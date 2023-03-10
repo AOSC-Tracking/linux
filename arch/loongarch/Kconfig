@@ -270,10 +270,12 @@ config AS_HAS_FCSR_CLASS
 	def_bool $(as-instr,x:movfcsr2gr \$t0$(comma)\$fcsr0)
 
 config CC_HAS_LSX_EXTENSION
-	def_bool $(cc-option,-mlsx)
+	bool
+	default y
 
 config CC_HAS_LASX_EXTENSION
-	def_bool $(cc-option,-mlasx)
+	bool
+	default y
 
 menu "Kernel type and options"
 
