@@ -201,6 +201,8 @@ int c0_compare_int_usable(void)
 	 */
 	if (c0_compare_int_pending()) {
 		cnt = read_c0_count();
+		// Drawdown a little bit in case counter haven't progressed
+		cnt -= COMPARE_INT_SEEN_TICKS;
 		write_c0_compare(cnt);
 		back_to_back_c0_hazard();
 		while (read_c0_count() < (cnt  + COMPARE_INT_SEEN_TICKS))
@@ -229,6 +231,7 @@ int c0_compare_int_usable(void)
 	if (!c0_compare_int_pending())
 		return 0;
 	cnt = read_c0_count();
+	cnt -= COMPARE_INT_SEEN_TICKS;
 	write_c0_compare(cnt);
 	back_to_back_c0_hazard();
 	while (read_c0_count() < (cnt + COMPARE_INT_SEEN_TICKS))
