@@ -20,6 +20,7 @@
 	aliases {
 		bluetooth0 = &bluetooth0;
 		wifi0 = &wifi0;
+		keyboard = &keyboard;
 	};
 
 	led-controller {
@@ -210,7 +211,9 @@
 		firmware-name = "apple/tpmtfw-j413.bin";
 	};
 
-	keyboard {
+	keyboard: keyboard {
+		hid-country-code = <0>;
+		apple,keyboard-layout-id = <0>;
 	};
 
 	stm {

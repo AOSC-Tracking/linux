@@ -25,6 +25,7 @@
 		bluetooth0 = &bluetooth0;
 		touchbar0 = &touchbar0;
 		wifi0 = &wifi0;
+		keyboard = &keyboard;
 	};
 
 	led-controller {
@@ -252,7 +253,9 @@
 		firmware-name = "apple/tpmtfw-j493.bin";
 	};
 
-	keyboard {
+	keyboard: keyboard {
+		hid-country-code = <0>;
+		apple,keyboard-layout-id = <0>;
 	};
 
 	stm {
