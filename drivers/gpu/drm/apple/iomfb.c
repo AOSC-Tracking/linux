@@ -461,7 +461,7 @@ dcpep_cb_get_uint_prop(struct apple_dcp *dcp, struct dcp_get_uint_prop_req *req)
 	    .value = 0
 	};
 
-	if (dcp->has_mini_led &&
+	if (dcp->panel.has_mini_led &&
 	    memcmp(req->obj, "SUMP", sizeof(req->obj)) == 0) { /* "PMUS */
 	    if (strncmp(req->key, "Temperature", sizeof(req->key)) == 0) {
 		/*
