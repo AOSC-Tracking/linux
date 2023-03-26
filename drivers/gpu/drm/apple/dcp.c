@@ -56,14 +56,21 @@ void dcp_drm_crtc_vblank(struct apple_crtc *crtc)
 void dcp_set_dimensions(struct apple_dcp *dcp)
 {
 	int i;
+	int width_mm = dcp->width_mm;
+	int height_mm = dcp->height_mm;
+
+	if (width_mm == 0 || height_mm == 0) {
+		width_mm = dcp->panel.width_mm;
+		height_mm = dcp->panel.height_mm;
+	}
 
 	/* Set the connector info */
 	if (dcp->connector) {
 		struct drm_connector *connector = &dcp->connector->base;
 
 		mutex_lock(&connector->dev->mode_config.mutex);
-		connector->display_info.width_mm = dcp->width_mm;
-		connector->display_info.height_mm = dcp->height_mm;
+		connector->display_info.width_mm = width_mm;
+		connector->display_info.height_mm = height_mm;
 		mutex_unlock(&connector->dev->mode_config.mutex);
 	}
 
@@ -73,8 +80,8 @@ void dcp_set_dimensions(struct apple_dcp *dcp)
 	 * DisplayAttributes, and TimingElements may be sent first
 	 */
 	for (i = 0; i < dcp->nr_modes; ++i) {
-		dcp->modes[i].mode.width_mm = dcp->width_mm;
-		dcp->modes[i].mode.height_mm = dcp->height_mm;
+		dcp->modes[i].mode.width_mm = width_mm;
+		dcp->modes[i].mode.height_mm = height_mm;
 	}
 }
 
@@ -433,7 +440,7 @@ static int dcp_comp_bind(struct device *dev, struct device *main, void *data)
 	dcp->brightness.scale = 65536;
 	panel_np = of_get_compatible_child(dev->of_node, "apple,panel-mini-led");
 	if (panel_np)
-		dcp->has_mini_led = true;
+		dcp->panel.has_mini_led = true;
 	else
 		panel_np = of_get_compatible_child(dev->of_node, "apple,panel");
 
@@ -447,10 +454,10 @@ static int dcp_comp_bind(struct device *dev, struct device *main, void *data)
 				dev_err(dev, "Missing property 'apple,max-brightness'\n");
 		}
 
-		of_property_read_u32(panel_np, "width-mm", &dcp->width_mm);
+		of_property_read_u32(panel_np, "width-mm", &dcp->panel.width_mm);
 		/* use adjusted height as long as the notch is hidden */
 		of_property_read_u32(panel_np, height_prop[!dcp->notch_height],
-				     &dcp->height_mm);
+				     &dcp->panel.height_mm);
 
 		of_node_put(panel_np);
 		dcp->connector_type = DRM_MODE_CONNECTOR_eDP;
