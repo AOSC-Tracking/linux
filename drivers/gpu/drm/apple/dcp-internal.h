@@ -80,6 +80,16 @@ struct dcp_brightness {
 	bool update;
 };
 
+/** laptop/AiO integrated panel parameters from DT */
+struct dcp_panel {
+	/// panel width in millimeter
+	int width_mm;
+	/// panel height in millimeter
+	int height_mm;
+	/// panel has a mini-LED backllight
+	bool has_mini_led;
+};
+
 /* TODO: move IOMFB members to its own struct */
 struct apple_dcp {
 	struct device *dev;
@@ -146,9 +156,6 @@ struct apple_dcp {
 	/* clear all surfaces on init */
 	bool surfaces_cleared;
 
-	/* panel has a mini-LED backllight */
-	bool has_mini_led;
-	
 	/* Modes valid for the connected display */
 	struct dcp_display_mode *modes;
 	unsigned int nr_modes;
@@ -173,6 +180,9 @@ struct apple_dcp {
 	/* Workqueue for updating the initial initial brightness */
 	struct work_struct bl_register_wq;
 	struct mutex bl_register_mutex;
+
+	/* integrated panel if present */
+	struct dcp_panel panel;
 };
 
 int dcp_backlight_register(struct apple_dcp *dcp);
