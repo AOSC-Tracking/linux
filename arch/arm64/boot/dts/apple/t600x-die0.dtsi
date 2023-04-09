@@ -221,7 +221,7 @@
 		power-domains = <&ps_disp0_cpu0>;
 		resets = <&ps_disp0_cpu0>;
 		clocks = <&clk_disp0>;
-		apple,asc-dram-mask = <0x1f0 0x00000000>;
+		apple,asc-dram-mask = <0>;
 		phandle = <&dcp>;
 		// required bus properties for 'piodma' subdevice
 		#address-cells = <2>;
