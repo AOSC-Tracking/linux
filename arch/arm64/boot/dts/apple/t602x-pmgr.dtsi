@@ -2071,6 +2071,7 @@
 		label = DIE_LABEL(mtp_fabric);
 		apple,always-on;
 		power-domains = <&DIE_NODE(ps_nub_fabric)>;
+		status = "disabled";
 	};
 
 	DIE_NODE(ps_nub_sram): power-controller@b8 {
