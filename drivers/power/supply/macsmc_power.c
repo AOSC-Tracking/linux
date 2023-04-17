@@ -72,6 +72,36 @@ static struct macsmc_power *g_power;
 #define ACSt_CAN_BOOT_AP	BIT(2)
 #define ACSt_CAN_BOOT_IBOOT	BIT(1)
 
+static void macsmc_do_dbg(struct macsmc_power *power)
+{
+	int p_in = 0, p_sys = 0, p_3v8 = 0, p_mpmu = 0, p_spmu = 0, p_clvr = 0, p_cpu = 0;
+	s32 p_bat = 0;
+	s16 t_full = 0, t_empty = 0;
+	u8 charge = 0;
+
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PDTR), &p_in, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSTR), &p_sys, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PMVR), &p_3v8, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PHPC), &p_cpu, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSVR), &p_clvr, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPMC), &p_mpmu, 1000);
+	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPSC), &p_spmu, 1000);
+	apple_smc_read_s32(power->smc, SMC_KEY(B0AP), &p_bat);
+	apple_smc_read_s16(power->smc, SMC_KEY(B0TE), &t_empty);
+	apple_smc_read_s16(power->smc, SMC_KEY(B0TF), &t_full);
+	apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &charge);
+
+#define FD3(x) ((x) / 1000), abs((x) % 1000)
+	dev_info(power->dev,
+		 "In %2d.%03dW Sys %2d.%03dW 3V8 %2d.%03dW MPMU %2d.%03dW SPMU %2d.%03dW "
+		 "CLVR %2d.%03dW CPU %2d.%03dW Batt %2d.%03dW %d%% T%s %dm\n",
+		 FD3(p_in), FD3(p_sys), FD3(p_3v8), FD3(p_mpmu), FD3(p_spmu), FD3(p_clvr),
+		 FD3(p_cpu), FD3(p_bat), charge,
+		 t_full >= 0 ? "full" : "empty",
+		 t_full >= 0 ? t_full : t_empty);
+#undef FD3
+}
+
 static int macsmc_battery_get_status(struct macsmc_power *power)
 {
 	u64 nocharge_flags;
@@ -500,34 +530,8 @@ static void macsmc_dbg_work(struct work_struct *wrk)
 {
 	struct macsmc_power *power = container_of(to_delayed_work(wrk),
 						  struct macsmc_power, dbg_log_work);
-	int p_in = 0, p_sys = 0, p_3v8 = 0, p_mpmu = 0, p_spmu = 0, p_clvr = 0, p_cpu = 0;
-	s32 p_bat = 0;
-	s16 t_full = 0, t_empty = 0;
-	u8 charge = 0;
 
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PDTR), &p_in, 1000);
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSTR), &p_sys, 1000);
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PMVR), &p_3v8, 1000);
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PHPC), &p_cpu, 1000);
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PSVR), &p_clvr, 1000);
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPMC), &p_mpmu, 1000);
-	apple_smc_read_f32_scaled(power->smc, SMC_KEY(PPSC), &p_spmu, 1000);
-	apple_smc_read_s32(power->smc, SMC_KEY(B0AP), &p_bat);
-	apple_smc_read_s16(power->smc, SMC_KEY(B0TE), &t_empty);
-	apple_smc_read_s16(power->smc, SMC_KEY(B0TF), &t_full);
-	apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &charge);
-
-#define FD3(x) ((x) / 1000), abs((x) % 1000)
-
-	dev_info(power->dev,
-		 "In %2d.%03dW Sys %2d.%03dW 3V8 %2d.%03dW MPMU %2d.%03dW SPMU %2d.%03dW "
-		 "CLVR %2d.%03dW CPU %2d.%03dW Batt %2d.%03dW %d%% T%s %dm\n",
-		 FD3(p_in), FD3(p_sys), FD3(p_3v8), FD3(p_mpmu), FD3(p_spmu), FD3(p_clvr),
-		 FD3(p_cpu), FD3(p_bat), charge,
-		 t_full >= 0 ? "full" : "empty",
-		 t_full >= 0 ? t_full : t_empty);
-
-#undef FD3
+	macsmc_do_dbg(power);
 
 	if (log_power)
 		schedule_delayed_work(&power->dbg_log_work, POWER_LOG_INTERVAL);
@@ -619,6 +623,12 @@ static int macsmc_power_event(struct notifier_block *nb, unsigned long event, vo
 		return NOTIFY_OK;
 	} else if ((event & 0xff000000) == 0x71000000) {
 		dev_info(power->dev, "Unknown charger event 0x%lx\n", event);
+
+		return NOTIFY_OK;
+	} else if ((event & 0xffff0000) == 0x72010000) {
+		/* Button event handled by macsmc-hid, but let's do a debug print */
+		if (log_power)
+			macsmc_do_dbg(power);
 
 		return NOTIFY_OK;
 	}
