@@ -19,8 +19,7 @@ struct apple_smc_backend_ops {
 	int (*get_key_info)(void *cookie, smc_key key, struct apple_smc_key_info *info);
 };
 
-struct apple_smc *apple_smc_probe(struct device *dev, const struct apple_smc_backend_ops *ops,
-				  void *cookie);
+int apple_smc_probe(struct device *dev, const struct apple_smc_backend_ops *ops, void *cookie);
 void *apple_smc_get_cookie(struct apple_smc *smc);
 int apple_smc_remove(struct apple_smc *smc);
 void apple_smc_event_received(struct apple_smc *smc, uint32_t event);

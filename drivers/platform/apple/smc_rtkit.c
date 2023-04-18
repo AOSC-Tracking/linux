@@ -40,7 +40,6 @@
 
 struct apple_smc_rtkit {
 	struct device *dev;
-	struct apple_smc *core;
 	struct apple_rtkit *rtk;
 
 	struct completion init_done;
@@ -321,6 +320,7 @@ static bool apple_smc_rtkit_recv_early(void *cookie, u8 endpoint, u64 message)
 static void apple_smc_rtkit_recv(void *cookie, u8 endpoint, u64 message)
 {
 	struct apple_smc_rtkit *smc = cookie;
+	struct apple_smc *core = dev_get_drvdata(smc->dev);
 
 	if (endpoint != SMC_ENDPOINT) {
 		dev_err(smc->dev, "Received message for unknown endpoint 0x%x\n", endpoint);
@@ -332,7 +332,7 @@ static void apple_smc_rtkit_recv(void *cookie, u8 endpoint, u64 message)
 		return;
 	}
 
-	apple_smc_event_received(smc->core, FIELD_GET(SMC_DATA, message));
+	apple_smc_event_received(core, FIELD_GET(SMC_DATA, message));
 }
 
 static const struct apple_rtkit_ops apple_smc_rtkit_ops = {
@@ -403,11 +403,9 @@ static int apple_smc_rtkit_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
-	smc->core = apple_smc_probe(dev, &apple_smc_rtkit_be_ops, smc);
-	if (IS_ERR(smc->core)) {
-		ret = PTR_ERR(smc->core);
+	ret = apple_smc_probe(dev, &apple_smc_rtkit_be_ops, smc);
+	if (ret)
 		goto cleanup;
-	}
 
 	return 0;
 
