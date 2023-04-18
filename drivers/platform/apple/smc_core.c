@@ -236,7 +236,7 @@ void *apple_smc_get_cookie(struct apple_smc *smc)
 }
 EXPORT_SYMBOL(apple_smc_get_cookie);
 
-struct apple_smc *apple_smc_probe(struct device *dev, const struct apple_smc_backend_ops *ops, void *cookie)
+int apple_smc_probe(struct device *dev, const struct apple_smc_backend_ops *ops, void *cookie)
 {
 	struct apple_smc *smc;
 	u32 count;
@@ -244,7 +244,7 @@ struct apple_smc *apple_smc_probe(struct device *dev, const struct apple_smc_bac
 
 	smc = devm_kzalloc(dev, sizeof(*smc), GFP_KERNEL);
 	if (!smc)
-		return ERR_PTR(-ENOMEM);
+		return -ENOMEM;
 
 	smc->dev = dev;
 	smc->be_cookie = cookie;
@@ -254,16 +254,18 @@ struct apple_smc *apple_smc_probe(struct device *dev, const struct apple_smc_bac
 
 	ret = apple_smc_read_u32(smc, SMC_KEY(#KEY), &count);
 	if (ret)
-		return ERR_PTR(dev_err_probe(dev, ret, "Failed to get key count"));
+		return dev_err_probe(dev, ret, "Failed to get key count");
 	smc->key_count = be32_to_cpu(count);
 
 	ret = apple_smc_get_key_by_index(smc, 0, &smc->first_key);
 	if (ret)
-		return ERR_PTR(dev_err_probe(dev, ret, "Failed to get first key"));
+		return dev_err_probe(dev, ret, "Failed to get first key");
 
 	ret = apple_smc_get_key_by_index(smc, smc->key_count - 1, &smc->last_key);
 	if (ret)
-		return ERR_PTR(dev_err_probe(dev, ret, "Failed to get last key"));
+		return dev_err_probe(dev, ret, "Failed to get last key");
+
+	dev_set_drvdata(dev, smc);
 
 	/* Enable notifications */
 	apple_smc_write_flag(smc, SMC_KEY(NTAP), 1);
@@ -271,13 +273,11 @@ struct apple_smc *apple_smc_probe(struct device *dev, const struct apple_smc_bac
 	dev_info(dev, "Initialized (%d keys %p4ch..%p4ch)\n",
 		 smc->key_count, &smc->first_key, &smc->last_key);
 
-	dev_set_drvdata(dev, smc);
-
 	ret = mfd_add_devices(dev, -1, apple_smc_devs, ARRAY_SIZE(apple_smc_devs), NULL, 0, NULL);
 	if (ret)
-		return ERR_PTR(dev_err_probe(dev, ret, "Subdevice initialization failed"));
+		return dev_err_probe(dev, ret, "Subdevice initialization failed");
 
-	return smc;
+	return 0;
 }
 EXPORT_SYMBOL(apple_smc_probe);
 
