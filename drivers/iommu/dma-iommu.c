@@ -23,6 +23,7 @@
 #include <linux/memremap.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
+#include <linux/of_iommu.h>
 #include <linux/pci.h>
 #include <linux/scatterlist.h>
 #include <linux/spinlock.h>
@@ -391,6 +392,8 @@ void iommu_dma_get_resv_regions(struct device *dev, struct list_head *list)
 	if (!is_of_node(dev_iommu_fwspec_get(dev)->iommu_fwnode))
 		iort_iommu_get_resv_regions(dev, list);
 
+	if (dev->of_node)
+		of_iommu_get_resv_regions(dev, list);
 }
 EXPORT_SYMBOL(iommu_dma_get_resv_regions);
 
@@ -497,8 +500,13 @@ static int iova_reserve_iommu_regions(struct device *dev,
 		if (region->type == IOMMU_RESV_SW_MSI)
 			continue;
 
-		lo = iova_pfn(iovad, region->start);
-		hi = iova_pfn(iovad, region->start + region->length - 1);
+		if (region->type == IOMMU_RESV_TRANSLATED) {
+			lo = iova_pfn(iovad, region->dva);
+			hi = iova_pfn(iovad, region->dva + region->length - 1);
+		} else {
+			lo = iova_pfn(iovad, region->start);
+			hi = iova_pfn(iovad, region->start + region->length - 1);
+		}
 		reserve_iova(iovad, lo, hi);
 
 		if (region->type == IOMMU_RESV_MSI)

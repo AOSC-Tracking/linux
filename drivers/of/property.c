@@ -1411,7 +1411,9 @@ static const struct supplier_bindings of_supplier_bindings[] = {
 	{ .parse_prop = parse_pwms, },
 	{ .parse_prop = parse_resets, },
 	{ .parse_prop = parse_leds, },
+#ifdef CONFIG_DRM_SIMPLEDRM_BACKLIGHT
 	{ .parse_prop = parse_backlight, },
+#endif
 	{ .parse_prop = parse_gpio_compat, },
 	{ .parse_prop = parse_interrupts, },
 	{ .parse_prop = parse_regulators, },
