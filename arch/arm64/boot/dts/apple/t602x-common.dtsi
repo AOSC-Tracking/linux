@@ -9,6 +9,10 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
+	aliases {
+		gpu = &gpu;
+	};
+
 	cpus {
 		#address-cells = <2>;
 		#size-cells = <0>;
@@ -431,6 +435,80 @@
 			opp-hz = /bits/ 64 <1398000000>;
 			opp-microvolt = GPU_REPEAT(918000);
 			opp-microwatt = <22800000>;
+		};
+	};
+
+	gpu_cs_opp: opp-table-gpu-cs {
+		compatible = "operating-points-v2";
+
+		/*
+		 * NOTE: The voltage and power values are device-specific and
+		 * must be filled in by the bootloader.
+		 */
+		opp00 {
+			opp-hz = /bits/ 64 <24>;
+			opp-microvolt = GPU_DIE_REPEAT(668000);
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <444000000>;
+			opp-microvolt = GPU_DIE_REPEAT(668000);
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <612000000>;
+			opp-microvolt = GPU_DIE_REPEAT(678000);
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <808000000>;
+			opp-microvolt = GPU_DIE_REPEAT(737000);
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <1024000000>;
+			opp-microvolt = GPU_DIE_REPEAT(815000);
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1140000000>;
+			opp-microvolt = GPU_DIE_REPEAT(862000);
+		};
+		opp06 {
+			opp-hz = /bits/ 64 <1236000000>;
+			opp-microvolt = GPU_DIE_REPEAT(893000);
+		};
+	};
+
+	gpu_afr_opp: opp-table-gpu-afr {
+		compatible = "operating-points-v2";
+
+		/*
+		 * NOTE: The voltage and power values are device-specific and
+		 * must be filled in by the bootloader.
+		 */
+		opp00 {
+			opp-hz = /bits/ 64 <24>;
+			opp-microvolt = GPU_DIE_REPEAT(668000);
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = GPU_DIE_REPEAT(668000);
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <552000000>;
+			opp-microvolt = GPU_DIE_REPEAT(678000);
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <760000000>;
+			opp-microvolt = GPU_DIE_REPEAT(737000);
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <980000000>;
+			opp-microvolt = GPU_DIE_REPEAT(815000);
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1098000000>;
+			opp-microvolt = GPU_DIE_REPEAT(862000);
+		};
+		opp06 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = GPU_DIE_REPEAT(893000);
 		};
 	};
 

@@ -21,4 +21,11 @@
 
 &gpu {
 	compatible = "apple,agx-t6020", "apple,agx-g14x";
+
+	apple,avg-power-filter-tc-ms = <302>;
+	apple,avg-power-ki-only = <2.6375>;
+	apple,avg-power-kp = <0.18>;
+	apple,fast-die0-integral-gain = <1350.0>;
+	apple,ppm-filter-time-constant-ms = <32>;
+	apple,ppm-ki = <28.0>;
 };

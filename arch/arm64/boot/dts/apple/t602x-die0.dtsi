@@ -599,8 +599,51 @@
 		apple,firmware-compat = <0 0 0>;
 
 		operating-points-v2 = <&gpu_opp>;
-		/* TODO perf stuff */
+		apple,cs-opp = <&gpu_cs_opp>;
+		apple,afr-opp = <&gpu_afr_opp>;
+
+		apple,min-sram-microvolt = <790000>;
+		apple,csafr-min-sram-microvolt = <812000>;
 		apple,perf-base-pstate = <1>;
+
+		apple,avg-power-min-duty-cycle = <40>;
+		apple,avg-power-target-filter-tc = <1>;
+		apple,fast-die0-proportional-gain = <34.0>;
+		apple,perf-boost-ce-step = <50>;
+		apple,perf-boost-min-util = <90>;
+		apple,perf-filter-drop-threshold = <0>;
+		apple,perf-filter-time-constant = <5>;
+		apple,perf-filter-time-constant2 = <200>;
+		apple,perf-integral-gain = <1.62>;
+		apple,perf-integral-gain2 = <1.62>;
+		apple,perf-integral-min-clamp = <0>;
+		apple,perf-proportional-gain2 = <5.4>;
+		apple,perf-proportional-gain = <5.4>;
+		apple,perf-tgt-utilization = <85>;
+		apple,power-sample-period = <8>;
+		apple,ppm-filter-time-constant-ms = <34>;
+		apple,ppm-ki = <18.0>;
+		apple,ppm-kp = <0.1>;
+		apple,pwr-filter-time-constant = <313>;
+		apple,pwr-integral-gain = <0.0202129>;
+		apple,pwr-integral-min-clamp = <0>;
+		apple,pwr-min-duty-cycle = <40>;
+		apple,pwr-proportional-gain = <5.2831855>;
+		apple,pwr-sample-period-aic-clks = <200000>;
+		apple,se-engagement-criteria = <700>;
+		apple,se-filter-time-constant = <9>;
+		apple,se-filter-time-constant-1 = <3>;
+		apple,se-inactive-threshold = <2500>;
+		apple,se-ki = <-50.0>;
+		apple,se-ki-1 = <-100.0>;
+		apple,se-kp = <-5.0>;
+		apple,se-kp-1 = <-10.0>;
+		apple,se-reset-criteria = <50>;
+
+		apple,core-leak-coef = GPU_REPEAT(1200.0);
+		apple,sram-leak-coef = GPU_REPEAT(20.0);
+		apple,cs-leak-coef = GPU_DIE_REPEAT(400.0);
+		apple,afr-leak-coef = GPU_DIE_REPEAT(200.0);
 	};
 
 	agx_mbox: mbox@406408000 {
