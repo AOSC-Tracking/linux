@@ -620,6 +620,69 @@ struct drm_asahi_cmd_render_user_timestamps {
 	__u32 frg_end_offset;
 };
 
+#define ASAHI_RENDER_UNK_UNK1			(1UL << 0)
+#define ASAHI_RENDER_UNK_SET_TILE_CONFIG	(1UL << 1)
+#define ASAHI_RENDER_UNK_SET_UTILE_CONFIG	(1UL << 2)
+#define ASAHI_RENDER_UNK_SET_AUX_FB_UNK		(1UL << 3)
+#define ASAHI_RENDER_UNK_SET_G14_UNK		(1UL << 4)
+
+#define ASAHI_RENDER_UNK_SET_FRG_UNK_140	(1UL << 20)
+#define ASAHI_RENDER_UNK_SET_FRG_UNK_158	(1UL << 21)
+#define ASAHI_RENDER_UNK_SET_FRG_TILECFG	(1UL << 22)
+#define ASAHI_RENDER_UNK_SET_LOAD_BGOBJVALS	(1UL << 23)
+#define ASAHI_RENDER_UNK_SET_FRG_UNK_38		(1UL << 24)
+#define ASAHI_RENDER_UNK_SET_FRG_UNK_3C		(1UL << 25)
+
+#define ASAHI_RENDER_UNK_SET_RELOAD_ZLSCTRL	(1UL << 27)
+#define ASAHI_RENDER_UNK_SET_UNK_BUF_10		(1UL << 28)
+#define ASAHI_RENDER_UNK_SET_FRG_UNK_MASK	(1UL << 29)
+
+#define ASAHI_RENDER_UNK_SET_IOGPU_UNK54	(1UL << 40)
+#define ASAHI_RENDER_UNK_SET_IOGPU_UNK56	(1UL << 41)
+#define ASAHI_RENDER_UNK_SET_TILING_CONTROL	(1UL << 42)
+#define ASAHI_RENDER_UNK_SET_TILING_CONTROL_2	(1UL << 43)
+#define ASAHI_RENDER_UNK_SET_VTX_UNK_F0		(1UL << 44)
+#define ASAHI_RENDER_UNK_SET_VTX_UNK_F8		(1UL << 45)
+#define ASAHI_RENDER_UNK_SET_VTX_UNK_118	(1UL << 46)
+#define ASAHI_RENDER_UNK_SET_VTX_UNK_MASK	(1UL << 47)
+
+#define ASAHI_RENDER_EXT_UNKNOWNS	0xff00
+
+/* XXX: Do not upstream this struct */
+struct drm_asahi_cmd_render_unknowns {
+	/** @type: Type ID of this extension */
+	__u32 type;
+	__u32 pad;
+	/** @next: Pointer to the next extension struct, if any */
+	__u64 next;
+
+	__u64 flags;
+
+	__u64 tile_config;
+	__u64 utile_config;
+
+	__u64 aux_fb_unk;
+	__u64 g14_unk;
+	__u64 frg_unk_140;
+	__u64 frg_unk_158;
+	__u64 frg_tilecfg;
+	__u64 load_bgobjvals;
+	__u64 frg_unk_38;
+	__u64 frg_unk_3c;
+	__u64 reload_zlsctrl;
+	__u64 unk_buf_10;
+	__u64 frg_unk_mask;
+
+	__u64 iogpu_unk54;
+	__u64 iogpu_unk56;
+	__u64 tiling_control;
+	__u64 tiling_control_2;
+	__u64 vtx_unk_f0;
+	__u64 vtx_unk_f8;
+	__u64 vtx_unk_118;
+	__u64 vtx_unk_mask;
+};
+
 /* XXX check */
 #define ASAHI_COMPUTE_NO_PREEMPTION (1UL << 0)
 
