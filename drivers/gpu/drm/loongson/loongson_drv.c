@@ -46,10 +46,15 @@
 #define PCI_DEVICE_ID_LOONGSON_DC2	0x7a36
 
 bool hw_cursor = false;
+bool poll_connector = false;
+int loongson_modeset = -1;
+
 module_param_named(cursor, hw_cursor, bool, 0600);
 
-bool poll_connector = false;
 module_param_named(poll, poll_connector, bool, 0600);
+
+MODULE_PARM_DESC(modeset, "Disable/Enable modesetting");
+module_param_named(modeset, loongson_modeset, int, 0400);
 
 DEFINE_SPINLOCK(loongson_reglock);
 
@@ -612,6 +617,14 @@ static int __init loongson_drm_init(void)
 {
 	int ret;
 	struct pci_dev *pdev = NULL;
+
+	if (drm_firmware_drivers_only() && loongson_modeset == -1)
+		loongson_modeset = 0;
+
+	if (loongson_modeset == 0)
+		return -EINVAL;
+
+	DRM_INFO("loongson kernel modesetting enabled.\n");
 
 	/* If external graphics card exist, use it as default */
 	while ((pdev = pci_get_class(PCI_CLASS_DISPLAY_VGA << 8, pdev))) {
