@@ -5,7 +5,7 @@
 //! It contains a generic Rust lock and guard that allow for different backends (e.g., mutexes,
 //! spinlocks, raw spinlocks) to be provided with minimal effort.
 
-use super::LockClassKey;
+use super::{lockdep::caller_lock_class, LockClassKey};
 use crate::{
     init::PinInit,
     pin_init,
@@ -131,7 +131,41 @@ unsafe impl<T: ?Sized + Send, B: Backend> Sync for Lock<T, B> {}
 
 impl<T, B: Backend> Lock<T, B> {
     /// Constructs a new lock initialiser.
-    pub fn new(t: T, name: &'static CStr, key: LockClassKey) -> impl PinInit<Self> {
+    #[track_caller]
+    pub fn new(t: T) -> impl PinInit<Self> {
+        let (key, name) = caller_lock_class();
+        Self::new_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser taking an initialiser/
+    #[track_caller]
+    pub fn pin_init<E>(t: impl PinInit<T, E>) -> impl PinInit<Self, E>
+    where
+        E: core::convert::From<core::convert::Infallible>,
+    {
+        let (key, name) = caller_lock_class();
+        Self::pin_init_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser.
+    #[track_caller]
+    pub fn new_named(t: T, name: &'static CStr) -> impl PinInit<Self> {
+        let (key, _) = caller_lock_class();
+        Self::new_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser taking an initialiser/
+    #[track_caller]
+    pub fn pin_init_named<E>(t: impl PinInit<T, E>, name: &'static CStr) -> impl PinInit<Self, E>
+    where
+        E: core::convert::From<core::convert::Infallible>,
+    {
+        let (key, _) = caller_lock_class();
+        Self::pin_init_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser given a particular name and lock class key.
+    pub fn new_with_key(t: T, name: &'static CStr, key: LockClassKey) -> impl PinInit<Self> {
         pin_init!(Self {
             data: UnsafeCell::new(t),
             _pin: PhantomPinned,
@@ -143,8 +177,9 @@ impl<T, B: Backend> Lock<T, B> {
         })
     }
 
-    /// Constructs a new lock initialiser taking an initialiser.
-    pub fn pin_init<E>(
+    /// Constructs a new lock initialiser taking an initialiser given a particular
+    /// name and lock class key.
+    pub fn pin_init_with_key<E>(
         t: impl PinInit<T, E>,
         name: &'static CStr,
         key: LockClassKey,
