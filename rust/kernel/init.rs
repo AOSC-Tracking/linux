@@ -46,7 +46,7 @@
 //! }
 //!
 //! let foo = pin_init!(Foo {
-//!     a <- new_mutex!(42, "Foo::a"),
+//!     a <- Mutex::new_named(42, "Foo::a"),
 //!     b: 24,
 //! });
 //! ```
@@ -65,7 +65,7 @@
 //! #     b: u32,
 //! # }
 //! # let foo = pin_init!(Foo {
-//! #     a <- new_mutex!(42, "Foo::a"),
+//! #     a <- Mutex::new_named(42, "Foo::a"),
 //! #     b: 24,
 //! # });
 //! let foo: Result<Pin<KBox<Foo>>> = KBox::pin_init(foo, GFP_KERNEL);
@@ -98,7 +98,7 @@
 //! impl DriverData {
 //!     fn new() -> impl PinInit<Self, Error> {
 //!         try_pin_init!(Self {
-//!             status <- new_mutex!(0, "DriverData::status"),
+//!             status <- Mutex::new_named(0, "DriverData::status"),
 //!             buffer: KBox::init(kernel::init::zeroed(), GFP_KERNEL)?,
 //!         })
 //!     }
@@ -253,7 +253,7 @@ pub mod macros;
 /// }
 ///
 /// stack_pin_init!(let foo = pin_init!(Foo {
-///     a <- new_mutex!(42),
+///     a <- Mutex::new(42),
 ///     b: Bar {
 ///         x: 64,
 ///     },
@@ -313,7 +313,7 @@ macro_rules! stack_pin_init {
 /// }
 ///
 /// stack_try_pin_init!(let foo: Result<Pin<&mut Foo>, AllocError> = pin_init!(Foo {
-///     a <- new_mutex!(42),
+///     a <- Mutex::new(42),
 ///     b: KBox::new(Bar {
 ///         x: 64,
 ///     }, GFP_KERNEL)?,
@@ -347,7 +347,7 @@ macro_rules! stack_pin_init {
 /// }
 ///
 /// stack_try_pin_init!(let foo: Pin<&mut Foo> =? pin_init!(Foo {
-///     a <- new_mutex!(42),
+///     a <- Mutex::new(42),
 ///     b: KBox::new(Bar {
 ///         x: 64,
 ///     }, GFP_KERNEL)?,
