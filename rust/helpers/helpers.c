@@ -29,6 +29,7 @@
 #include "refcount.c"
 #include "security.c"
 #include "signal.c"
+#include "siphash.c"
 #include "slab.c"
 #include "spinlock.c"
 #include "task.c"
