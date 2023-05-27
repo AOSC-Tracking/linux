@@ -11,7 +11,7 @@
 #[macro_export]
 macro_rules! new_mutex {
     ($inner:expr $(, $name:literal)? $(,)?) => {
-        $crate::sync::Mutex::new(
+        $crate::sync::Mutex::new_with_key(
             $inner, $crate::optional_name!($($name)?), $crate::static_lock_class!())
     };
 }
@@ -25,7 +25,7 @@ pub use new_mutex;
 #[macro_export]
 macro_rules! new_mutex_pinned {
     ($inner:expr $(, $name:literal)? $(,)?) => {
-        $crate::sync::Mutex::pin_init(
+        $crate::sync::Mutex::pin_init_with_key(
             $inner, $crate::optional_name!($($name)?), $crate::static_lock_class!())
     };
 }
