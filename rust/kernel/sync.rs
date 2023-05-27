@@ -24,10 +24,10 @@ pub use condvar::{new_condvar, CondVar, CondVarTimeoutResult};
 pub use lock::global::{global_lock, GlobalGuard, GlobalLock, GlobalLockBackend, GlobalLockedBy};
 pub use lock::mutex::{new_mutex, Mutex};
 pub use lock::spinlock::{new_spinlock, SpinLock};
-pub use lockdep::LockClassKey;
+pub use lockdep::{LockClassKey, StaticLockClassKey};
 pub use locked_by::LockedBy;
 
-impl Default for LockClassKey {
+impl Default for StaticLockClassKey {
     fn default() -> Self {
         Self::new()
     }
@@ -38,8 +38,8 @@ impl Default for LockClassKey {
 #[macro_export]
 macro_rules! static_lock_class {
     () => {{
-        static CLASS: $crate::sync::LockClassKey = $crate::sync::LockClassKey::new();
-        &CLASS
+        static CLASS: $crate::sync::StaticLockClassKey = $crate::sync::StaticLockClassKey::new();
+        CLASS.key()
     }};
 }
 
