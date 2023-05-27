@@ -196,3 +196,46 @@ pub(crate) fn caller_lock_class() -> (LockClassKey, &'static CStr) {
         }
     }
 }
+
+pub(crate) struct LockdepMap(Opaque<bindings::lockdep_map>);
+pub(crate) struct LockdepGuard<'a>(&'a LockdepMap);
+
+#[allow(dead_code)]
+impl LockdepMap {
+    #[track_caller]
+    pub(crate) fn new() -> Self {
+        let map = Opaque::uninit();
+        let (key, name) = caller_lock_class();
+
+        // SAFETY: Just calling the C API
+        unsafe {
+            bindings::lockdep_init_map_type(
+                map.get(),
+                name.as_char_ptr(),
+                key.as_ptr(),
+                0,
+                bindings::lockdep_wait_type_LD_WAIT_INV as _,
+                bindings::lockdep_wait_type_LD_WAIT_INV as _,
+                bindings::lockdep_lock_type_LD_LOCK_NORMAL as _,
+            )
+        };
+
+        LockdepMap(map)
+    }
+
+    #[inline(always)]
+    pub(crate) fn lock(&self) -> LockdepGuard<'_> {
+        // SAFETY: Just calling the C API
+        unsafe { bindings::lock_acquire_ret(self.0.get(), 0, 0, 1, 1, core::ptr::null_mut()) };
+
+        LockdepGuard(self)
+    }
+}
+
+impl<'a> Drop for LockdepGuard<'a> {
+    #[inline(always)]
+    fn drop(&mut self) {
+        // SAFETY: Just calling the C API
+        unsafe { bindings::lock_release_ret(self.0 .0.get()) };
+    }
+}
