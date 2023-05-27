@@ -326,6 +326,14 @@ impl<T> Opaque<T> {
         }
     }
 
+    /// Creates a zeroed value.
+    pub fn zeroed() -> Self {
+        Self {
+            value: UnsafeCell::new(MaybeUninit::zeroed()),
+            _pin: PhantomPinned,
+        }
+    }
+
     /// Create an opaque pin-initializer from the given pin-initializer.
     pub fn pin_init(slot: impl PinInit<T>) -> impl PinInit<Self> {
         Self::ffi_init(|ptr: *mut T| {
