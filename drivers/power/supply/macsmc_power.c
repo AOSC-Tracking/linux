@@ -20,11 +20,13 @@
 struct macsmc_power {
 	struct device *dev;
 	struct apple_smc *smc;
+	struct power_supply_desc batt_desc;
 
 	struct power_supply *batt;
 	char model_name[MAX_STRING_LENGTH];
 	char serial_number[MAX_STRING_LENGTH];
 	char mfg_date[MAX_STRING_LENGTH];
+	bool has_chwa;
 
 	struct power_supply *ac;
 
@@ -62,15 +64,21 @@ static struct macsmc_power *g_power;
 
 #define CH0R_LOWER_FLAGS	GENMASK(15, 0)
 #define CH0R_NOAC_CH0I		BIT(0)
+#define CH0R_NOAC_DISCONNECTED	BIT(4)
 #define CH0R_NOAC_CH0J		BIT(5)
 #define CH0R_BMS_BUSY		BIT(8)
 #define CH0R_NOAC_CH0K		BIT(9)
+#define CH0R_NOAC_CHWA		BIT(11)
 
 #define CH0X_CH0C		BIT(0)
 #define CH0X_CH0B		BIT(1)
 
 #define ACSt_CAN_BOOT_AP	BIT(2)
 #define ACSt_CAN_BOOT_IBOOT	BIT(1)
+
+#define CHWA_FIXED_START_THRESHOLD	75
+#define CHWA_FIXED_END_THRESHOLD	80
+#define CHWA_PROP_WRITE_THRESHOLD	95
 
 static void macsmc_do_dbg(struct macsmc_power *power)
 {
@@ -107,6 +115,7 @@ static int macsmc_battery_get_status(struct macsmc_power *power)
 	u64 nocharge_flags;
 	u32 nopower_flags;
 	u16 ac_current;
+	bool chwa_limit = false;
 	int ret;
 
 	/*
@@ -153,14 +162,29 @@ static int macsmc_battery_get_status(struct macsmc_power *power)
 	else if (ret)
 		return POWER_SUPPLY_STATUS_FULL;
 
+	/*
+	 * If we have charge limits supported and enabled and the SoC is > 75%,
+	 * that means we are not charging for that reason (if not charging).
+	 */
+	if (power->has_chwa && apple_smc_read_flag(power->smc, SMC_KEY(CHWA)) == 1) {
+		u8 buic = 0;
+
+		if (apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &buic) >= 0 &&
+			buic >= CHWA_FIXED_START_THRESHOLD)
+			chwa_limit = true;
+	}
+
 	/* If there are reasons we aren't charging... */
 	ret = apple_smc_read_u64(power->smc, SMC_KEY(CHNC), &nocharge_flags);
 	if (!ret) {
 		/* Perhaps the battery is full after all */
 		if (nocharge_flags & CHNC_BATTERY_FULL)
 			return POWER_SUPPLY_STATUS_FULL;
-		/* Or maybe the BMS is just busy doing something, if so call it charging anyway */
-		else if (nocharge_flags == CHNC_BMS_BUSY)
+		/*
+		 * Or maybe the BMS is just busy doing something, if so call it charging anyway.
+		 * But CHWA limits show up as this, so exclude those.
+		 */
+		else if (nocharge_flags == CHNC_BMS_BUSY && !chwa_limit)
 			return POWER_SUPPLY_STATUS_CHARGING;
 		/* If we have other reasons we aren't charging, say we aren't */
 		else if (nocharge_flags)
@@ -392,6 +416,16 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_MANUFACTURE_DAY:
 		ret = macsmc_battery_get_date(&power->mfg_date[4], &val->intval);
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
+		ret = apple_smc_read_flag(power->smc, SMC_KEY(CHWA));
+		val->intval = ret == 1 ? CHWA_FIXED_START_THRESHOLD : 100;
+		ret = ret < 0 ? ret : 0;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
+		ret = apple_smc_read_flag(power->smc, SMC_KEY(CHWA));
+		val->intval = ret == 1 ? CHWA_FIXED_END_THRESHOLD : 100;
+		ret = ret < 0 ? ret : 0;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -408,6 +442,16 @@ static int macsmc_battery_set_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
 		return macsmc_battery_set_charge_behaviour(power, val->intval);
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
+		/*
+		 * Ignore, we allow writes so userspace isn't confused but this is
+		 * not configurable independently, it always is 75 or 100 depending
+		 * on the end_threshold boolean setting.
+		 */
+		return 0;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
+		return apple_smc_write_flag(power->smc, SMC_KEY(CHWA),
+					    val->intval <= CHWA_PROP_WRITE_THRESHOLD);
 	default:
 		return -EINVAL;
 	}
@@ -416,15 +460,20 @@ static int macsmc_battery_set_property(struct power_supply *psy,
 static int macsmc_battery_property_is_writeable(struct power_supply *psy,
 						enum power_supply_property psp)
 {
+	struct macsmc_power *power = power_supply_get_drvdata(psy);
+
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
 		return true;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
+		return power->has_chwa;
 	default:
 		return false;
 	}
 }
 
-static enum power_supply_property macsmc_battery_props[] = {
+static const enum power_supply_property macsmc_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR,
@@ -453,6 +502,8 @@ static enum power_supply_property macsmc_battery_props[] = {
 	POWER_SUPPLY_PROP_MANUFACTURE_YEAR,
 	POWER_SUPPLY_PROP_MANUFACTURE_MONTH,
 	POWER_SUPPLY_PROP_MANUFACTURE_DAY,
+	POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD,
+	POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD
 };
 
 static const struct power_supply_desc macsmc_battery_desc = {
@@ -650,6 +701,7 @@ static int macsmc_power_probe(struct platform_device *pdev)
 
 	power->dev = &pdev->dev;
 	power->smc = smc;
+	power->batt_desc = macsmc_battery_desc;
 	dev_set_drvdata(&pdev->dev, power);
 
 	/* Ignore devices without a charger/battery */
@@ -665,11 +717,18 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	apple_smc_write_u8(power->smc, SMC_KEY(CH0K), 0);
 	apple_smc_write_u8(power->smc, SMC_KEY(CH0B), 0);
 
+	if (apple_smc_read_flag(power->smc, SMC_KEY(CHWA)) >= 0) {
+		power->has_chwa = true;
+	} else {
+		/* Remove the last 2 properties that control the charge threshold */
+		power->batt_desc.num_properties -= 2;
+	}
+
 	/* Doing one read of this flag enables critical shutdown notifications */
 	apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &val);
 
 	psy_cfg.drv_data = power;
-	power->batt = devm_power_supply_register(&pdev->dev, &macsmc_battery_desc, &psy_cfg);
+	power->batt = devm_power_supply_register(&pdev->dev, &power->batt_desc, &psy_cfg);
 	if (IS_ERR(power->batt)) {
 		dev_err(&pdev->dev, "Failed to register battery\n");
 		ret = PTR_ERR(power->batt);
