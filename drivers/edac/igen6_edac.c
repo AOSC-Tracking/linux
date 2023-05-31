@@ -294,6 +294,13 @@ static int get_mchbar(struct pci_dev *pdev, u64 *mchbar)
 	return 0;
 }
 
+/* Compute die IDs for Raptor Lake-P with IBECC */
+#define DID_RPL_P_SKU1	0xa706
+#define DID_RPL_P_SKU2	0xa707
+#define DID_RPL_P_SKU3	0xa708
+#define DID_RPL_P_SKU4	0xa716
+#define DID_RPL_P_SKU5	0xa718
+
 static bool ehl_ibecc_available(struct pci_dev *pdev)
 {
 	u32 v;
