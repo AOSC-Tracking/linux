@@ -2388,6 +2388,16 @@ static inline int prctl_get_mdwe(unsigned long arg2, unsigned long arg3,
 		PR_MDWE_REFUSE_EXEC_GAIN : 0;
 }
 
+int __weak arch_prctl_mem_model_get(struct task_struct *t)
+{
+	return -EINVAL;
+}
+
+int __weak arch_prctl_mem_model_set(struct task_struct *t, unsigned long val)
+{
+	return -EINVAL;
+}
+
 SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		unsigned long, arg4, unsigned long, arg5)
 {
@@ -2671,6 +2681,16 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		break;
 	case PR_SET_VMA:
 		error = prctl_set_vma(arg2, arg3, arg4, arg5);
+		break;
+	case PR_GET_MEM_MODEL:
+		if (arg2 || arg3 || arg4 || arg5)
+			return -EINVAL;
+		error = arch_prctl_mem_model_get(me);
+		break;
+	case PR_SET_MEM_MODEL:
+		if (arg3 || arg4 || arg5)
+			return -EINVAL;
+		error = arch_prctl_mem_model_set(me, arg2);
 		break;
 	default:
 		error = -EINVAL;

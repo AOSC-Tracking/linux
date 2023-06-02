@@ -19,6 +19,7 @@ enum io_pgtable_fmt {
 	AMD_IOMMU_V2,
 	APPLE_DART,
 	APPLE_DART2,
+	APPLE_UAT,
 	IO_PGTABLE_NUM_FMTS,
 };
 
@@ -85,6 +86,9 @@ struct io_pgtable_cfg {
 	 *
 	 * IO_PGTABLE_QUIRK_ARM_OUTER_WBWA: Override the outer-cacheability
 	 *	attributes set in the TCR for a non-coherent page-table walker.
+	 *
+	 * IO_PGTABLE_QUIRK_APPLE_LOCKED: Cannot modify the TTBR pointer, must
+	 *	inherit mappings from the bootloader.
 	 */
 	#define IO_PGTABLE_QUIRK_ARM_NS			BIT(0)
 	#define IO_PGTABLE_QUIRK_NO_PERMS		BIT(1)
@@ -92,6 +96,7 @@ struct io_pgtable_cfg {
 	#define IO_PGTABLE_QUIRK_ARM_MTK_TTBR_EXT	BIT(4)
 	#define IO_PGTABLE_QUIRK_ARM_TTBR1		BIT(5)
 	#define IO_PGTABLE_QUIRK_ARM_OUTER_WBWA		BIT(6)
+	#define IO_PGTABLE_QUIRK_APPLE_LOCKED		BIT(7)
 	unsigned long			quirks;
 	unsigned long			pgsize_bitmap;
 	unsigned int			ias;
@@ -143,7 +148,12 @@ struct io_pgtable_cfg {
 		struct {
 			u64 ttbr[4];
 			u32 n_ttbrs;
+			u32 n_levels;
 		} apple_dart_cfg;
+
+		struct {
+			u64	ttbr;
+		} apple_uat_cfg;
 	};
 };
 
@@ -258,5 +268,6 @@ extern struct io_pgtable_init_fns io_pgtable_arm_mali_lpae_init_fns;
 extern struct io_pgtable_init_fns io_pgtable_amd_iommu_v1_init_fns;
 extern struct io_pgtable_init_fns io_pgtable_amd_iommu_v2_init_fns;
 extern struct io_pgtable_init_fns io_pgtable_apple_dart_init_fns;
+extern struct io_pgtable_init_fns io_pgtable_apple_uat_init_fns;
 
 #endif /* __IO_PGTABLE_H */

@@ -17,17 +17,27 @@
 
 use crate::{
     bindings,
-    error::Result,
+    error::{self, Error},
+    init::{self, InPlaceInit, Init, PinInit},
+    try_init,
     types::{ForeignOwnable, Opaque},
 };
 use alloc::boxed::Box;
 use core::{
+    alloc::AllocError,
+    fmt,
     marker::{PhantomData, Unsize},
     mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
     pin::Pin,
     ptr::NonNull,
 };
+use macros::pin_data;
+
+#[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+use crate::sync::lockdep::LockdepMap;
+
+mod std_vendor;
 
 /// A reference-counted pointer to an instance of `T`.
 ///
@@ -120,6 +130,18 @@ pub struct Arc<T: ?Sized> {
     _p: PhantomData<ArcInner<T>>,
 }
 
+#[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+#[pin_data]
+#[repr(C)]
+struct ArcInner<T: ?Sized> {
+    refcount: Opaque<bindings::refcount_t>,
+    lockdep_map: LockdepMap,
+    data: T,
+}
+
+// FIXME: pin_data does not work well with cfg attributes within the struct definition.
+#[cfg(not(CONFIG_RUST_EXTRA_LOCKDEP))]
+#[pin_data]
 #[repr(C)]
 struct ArcInner<T: ?Sized> {
     refcount: Opaque<bindings::refcount_t>,
@@ -149,11 +171,14 @@ unsafe impl<T: ?Sized + Sync + Send> Sync for Arc<T> {}
 
 impl<T> Arc<T> {
     /// Constructs a new reference counted instance of `T`.
-    pub fn try_new(contents: T) -> Result<Self> {
+    #[track_caller]
+    pub fn try_new(contents: T) -> Result<Self, AllocError> {
         // INVARIANT: The refcount is initialised to a non-zero value.
         let value = ArcInner {
             // SAFETY: There are no safety requirements for this FFI call.
             refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+            #[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+            lockdep_map: LockdepMap::new(),
             data: contents,
         };
 
@@ -162,6 +187,30 @@ impl<T> Arc<T> {
         // SAFETY: We just created `inner` with a reference count of 1, which is owned by the new
         // `Arc` object.
         Ok(unsafe { Self::from_inner(Box::leak(inner).into()) })
+    }
+
+    /// Use the given initializer to in-place initialize a `T`.
+    ///
+    /// If `T: !Unpin` it will not be able to move afterwards.
+    #[inline]
+    #[track_caller]
+    pub fn pin_init<E>(init: impl PinInit<T, E>) -> error::Result<Self>
+    where
+        Error: From<E>,
+    {
+        UniqueArc::pin_init(init).map(|u| u.into())
+    }
+
+    /// Use the given initializer to in-place initialize a `T`.
+    ///
+    /// This is equivalent to [`pin_init`], since an [`Arc`] is always pinned.
+    #[inline]
+    #[track_caller]
+    pub fn init<E>(init: impl Init<T, E>) -> error::Result<Self>
+    where
+        Error: From<E>,
+    {
+        UniqueArc::init(init).map(|u| u.into())
     }
 }
 
@@ -249,15 +298,46 @@ impl<T: ?Sized> Drop for Arc<T> {
         // freed/invalid memory as long as it is never dereferenced.
         let refcount = unsafe { self.ptr.as_ref() }.refcount.get();
 
+        // SAFETY: By the type invariant, there is necessarily a reference to the object.
+        // We cannot hold the map lock across the reference decrement, as we might race
+        // another thread. Therefore, we lock and immediately drop the guard here. This
+        // only serves to inform lockdep of the dependency up the call stack.
+        #[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+        unsafe { self.ptr.as_ref() }.lockdep_map.lock();
+
         // INVARIANT: If the refcount reaches zero, there are no other instances of `Arc`, and
         // this instance is being dropped, so the broken invariant is not observable.
         // SAFETY: Also by the type invariant, we are allowed to decrement the refcount.
         let is_zero = unsafe { bindings::refcount_dec_and_test(refcount) };
+
         if is_zero {
             // The count reached zero, we must free the memory.
-            //
-            // SAFETY: The pointer was initialised from the result of `Box::leak`.
-            unsafe { Box::from_raw(self.ptr.as_ptr()) };
+
+            // SAFETY: If we get this far, we had the last reference to the object.
+            // That means we are responsible for freeing it, so we can safely lock
+            // the fake lock again. This wraps dropping the inner object, which
+            // informs lockdep of the dependencies down the call stack.
+            #[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+            let guard = unsafe { self.ptr.as_ref() }.lockdep_map.lock();
+
+            // SAFETY: The pointer was initialised from the result of `Box::leak`,
+            // and the value is valid.
+            unsafe { core::ptr::drop_in_place(&mut self.ptr.as_mut().data) };
+
+            // We need to drop the lock guard before freeing the LockdepMap itself
+            #[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+            core::mem::drop(guard);
+
+            // SAFETY: The pointer was initialised from the result of `Box::leak`,
+            // and the lockdep map is valid.
+            #[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+            unsafe {
+                core::ptr::drop_in_place(&mut self.ptr.as_mut().lockdep_map)
+            };
+
+            // SAFETY: The pointer was initialised from the result of `Box::leak`, and
+            // a ManuallyDrop<T> is compatible. We already dropped the contents above.
+            unsafe { Box::from_raw(self.ptr.as_ptr() as *mut ManuallyDrop<ArcInner<T>>) };
         }
     }
 }
@@ -469,7 +549,8 @@ pub struct UniqueArc<T: ?Sized> {
 
 impl<T> UniqueArc<T> {
     /// Tries to allocate a new [`UniqueArc`] instance.
-    pub fn try_new(value: T) -> Result<Self> {
+    #[track_caller]
+    pub fn try_new(value: T) -> Result<Self, AllocError> {
         Ok(Self {
             // INVARIANT: The newly-created object has a ref-count of 1.
             inner: Arc::try_new(value)?,
@@ -477,10 +558,31 @@ impl<T> UniqueArc<T> {
     }
 
     /// Tries to allocate a new [`UniqueArc`] instance whose contents are not initialised yet.
-    pub fn try_new_uninit() -> Result<UniqueArc<MaybeUninit<T>>> {
-        Ok(UniqueArc::<MaybeUninit<T>> {
+    #[track_caller]
+    pub fn try_new_uninit() -> Result<UniqueArc<MaybeUninit<T>>, AllocError> {
+        // INVARIANT: The refcount is initialised to a non-zero value.
+        #[cfg(CONFIG_RUST_EXTRA_LOCKDEP)]
+        let inner = {
+            let map = LockdepMap::new();
+            Box::try_init::<AllocError>(try_init!(ArcInner {
+                // SAFETY: There are no safety requirements for this FFI call.
+                refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+                lockdep_map: map,
+                data <- init::uninit::<T, AllocError>(),
+            }? AllocError))?
+        };
+        // FIXME: try_init!() does not work with cfg attributes.
+        #[cfg(not(CONFIG_RUST_EXTRA_LOCKDEP))]
+        let inner = Box::try_init::<AllocError>(try_init!(ArcInner {
+            // SAFETY: There are no safety requirements for this FFI call.
+            refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+            data <- init::uninit::<T, AllocError>(),
+        }? AllocError))?;
+
+        Ok(UniqueArc {
             // INVARIANT: The newly-created object has a ref-count of 1.
-            inner: Arc::try_new(MaybeUninit::uninit())?,
+            // SAFETY: The pointer from the `Box` is valid.
+            inner: unsafe { Arc::from_inner(Box::leak(inner).into()) },
         })
     }
 }
@@ -489,11 +591,46 @@ impl<T> UniqueArc<MaybeUninit<T>> {
     /// Converts a `UniqueArc<MaybeUninit<T>>` into a `UniqueArc<T>` by writing a value into it.
     pub fn write(mut self, value: T) -> UniqueArc<T> {
         self.deref_mut().write(value);
+        // SAFETY: We just wrote the value to be initialized.
+        unsafe { self.assume_init() }
+    }
+
+    /// Unsafely assume that `self` is initialized.
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees that the value behind this pointer has been initialized. It is
+    /// *immediate* UB to call this when the value is not initialized.
+    pub unsafe fn assume_init(self) -> UniqueArc<T> {
         let inner = ManuallyDrop::new(self).inner.ptr;
         UniqueArc {
             // SAFETY: The new `Arc` is taking over `ptr` from `self.inner` (which won't be
             // dropped). The types are compatible because `MaybeUninit<T>` is compatible with `T`.
             inner: unsafe { Arc::from_inner(inner.cast()) },
+        }
+    }
+
+    /// Initialize `self` using the given initializer.
+    pub fn init_with<E>(mut self, init: impl Init<T, E>) -> core::result::Result<UniqueArc<T>, E> {
+        // SAFETY: The supplied pointer is valid for initialization.
+        match unsafe { init.__init(self.as_mut_ptr()) } {
+            // SAFETY: Initialization completed successfully.
+            Ok(()) => Ok(unsafe { self.assume_init() }),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Pin-initialize `self` using the given pin-initializer.
+    pub fn pin_init_with<E>(
+        mut self,
+        init: impl PinInit<T, E>,
+    ) -> core::result::Result<Pin<UniqueArc<T>>, E> {
+        // SAFETY: The supplied pointer is valid for initialization and we will later pin the value
+        // to ensure it does not move.
+        match unsafe { init.__pinned_init(self.as_mut_ptr()) } {
+            // SAFETY: Initialization completed successfully.
+            Ok(()) => Ok(unsafe { self.assume_init() }.into()),
+            Err(err) => Err(err),
         }
     }
 }
@@ -520,5 +657,29 @@ impl<T: ?Sized> DerefMut for UniqueArc<T> {
         // it is safe to dereference it. Additionally, we know there is only one reference when
         // it's inside a `UniqueArc`, so it is safe to get a mutable reference.
         unsafe { &mut self.inner.ptr.as_mut().data }
+    }
+}
+
+impl<T: fmt::Display + ?Sized> fmt::Display for UniqueArc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.deref(), f)
+    }
+}
+
+impl<T: fmt::Display + ?Sized> fmt::Display for Arc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.deref(), f)
+    }
+}
+
+impl<T: fmt::Debug + ?Sized> fmt::Debug for UniqueArc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.deref(), f)
+    }
+}
+
+impl<T: fmt::Debug + ?Sized> fmt::Debug for Arc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.deref(), f)
     }
 }

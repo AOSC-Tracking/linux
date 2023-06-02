@@ -1293,7 +1293,6 @@
 		#reset-cells = <0>;
 		label = DIE_LABEL(disp0_fe);
 		power-domains = <&DIE_NODE(ps_afnc2_lw0)>;
-		apple,always-on; /* TODO: figure out if we can enable PM here */
 	};
 
 	DIE_NODE(ps_disp0_cpu0): power-controller@350 {
@@ -1303,7 +1302,6 @@
 		#reset-cells = <0>;
 		label = DIE_LABEL(disp0_cpu0);
 		power-domains = <&DIE_NODE(ps_disp0_fe)>;
-		apple,always-on; /* TODO: figure out if we can enable PM here */
 		apple,min-state = <4>;
 	};
 
@@ -1385,12 +1383,6 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = DIE_LABEL(ans2);
-		/*
-		 * The ADT makes ps_apcie_st[1]_sys depend on ps_ans2 instead,
-		 * but we'd rather have a single power domain for the downstream
-		 * device to depend on, so use this node as the child.
-		 * This makes more sense anyway (since ANS2 uses APCIE_ST).
-		 */
 		power-domains = <&DIE_NODE(ps_afnc2_lw0)>;
 	};
 
@@ -1881,6 +1873,7 @@
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = DIE_LABEL(msg);
+		apple,always-on; /* Core AON device? */
 	};
 
 	DIE_NODE(ps_nub_gpio): power-controller@80 {
