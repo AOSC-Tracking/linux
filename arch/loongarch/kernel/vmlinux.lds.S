@@ -136,6 +136,13 @@ SECTIONS
 	DWARF_DEBUG
 	ELF_DETAILS
 
+	/* header symbols */
+	_kernel_asize = _end - _text;
+	_kernel_fsize = _edata - _text;
+	_kernel_vsize = _end - __initdata_begin;
+	_kernel_rsize = _edata - __initdata_begin;
+	_kernel_offset = kernel_offset - _text;
+
 	.gptab.sdata : {
 		*(.gptab.data)
 		*(.gptab.sdata)
