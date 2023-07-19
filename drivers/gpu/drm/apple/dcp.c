@@ -344,8 +344,22 @@ static int dcp_create_piodma_iommu_dev(struct apple_dcp *dcp)
 	}
 	of_node_put(node);
 
-	return 0;
+	dcp->iommu_dom = iommu_paging_domain_alloc(&dcp->piodma->dev);
+	if (IS_ERR(dcp->iommu_dom)) {
+		ret = PTR_ERR(dcp->iommu_dom);
+		goto err_destroy_pdev;
+	}
 
+	ret = iommu_attach_device(dcp->iommu_dom, &dcp->piodma->dev);
+	if (ret) {
+		ret = dev_err_probe(dcp->dev, ret,
+					"Failed to attach IOMMU child domain\n");
+		goto err_free_domain;
+	}
+
+	return 0;
+err_free_domain:
+	iommu_domain_free(dcp->iommu_dom);
 err_destroy_pdev:
 	of_node_put(node);
 	of_platform_device_destroy(&dcp->piodma->dev, NULL);
@@ -561,6 +575,8 @@ static void dcp_comp_unbind(struct device *dev, struct device *main, void *data)
 		iomfb_shutdown(dcp);
 
 	if (dcp->piodma) {
+		iommu_detach_device(dcp->iommu_dom, &dcp->piodma->dev);
+		iommu_domain_free(dcp->iommu_dom);
 		of_platform_device_destroy(&dcp->piodma->dev, NULL);
 		dcp->piodma = NULL;
 	}
