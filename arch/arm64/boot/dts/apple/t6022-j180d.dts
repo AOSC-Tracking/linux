@@ -541,6 +541,22 @@
 	status = "disabled";
 };
 
+&pcie_ge {
+	status = "ok";
+};
+
+&pcie_ge_dart {
+	status = "ok";
+};
+
+&pcie_ge_die1 {
+	status = "ok";
+};
+
+&pcie_ge_dart_die1 {
+	status = "ok";
+};
+
 /* delete unused always-on power-domains on die 1 */
 /delete-node/ &ps_disp0_cpu0_die1;
 /delete-node/ &ps_disp0_fe_die1;
