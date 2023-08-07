@@ -569,14 +569,6 @@
 		#sound-dai-cells = <1>;
 	};
 
-	pmgr_gfx: power-management@404e80000 {
-		compatible = "apple,t6021-pmgr", "apple,pmgr", "syscon", "simple-mfd";
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		reg = <0x4 0x4e80000 0 0x4000>;
-	};
-
 	gpu: gpu@406400000 {
 		compatible = "apple,agx-g14x";
 		reg = <0x4 0x6400000 0 0x40000>,

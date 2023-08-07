@@ -127,6 +127,14 @@
 		#interrupt-cells = <2>;
 	};
 
+	DIE_NODE(pmgr_gfx): power-management@404e80000 {
+		compatible = "apple,t6020-pmgr", "apple,pmgr", "syscon", "simple-mfd";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		reg = <0x4 0x4e80000 0 0x4000>;
+	};
+
 	DIE_NODE(dwc3_0_dart_0): iommu@702f00000 {
 		compatible = "apple,t6020-dart", "apple,t8110-dart";
 		reg = <0x7 0x02f00000 0x0 0x4000>;

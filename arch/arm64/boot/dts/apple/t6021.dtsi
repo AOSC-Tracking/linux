@@ -28,24 +28,6 @@
 / {
 	compatible = "apple,t6001", "apple,arm-platform";
 
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		uat_handoff: uat-handoff {
-			reg = <0 0 0 0>;
-		};
-
-		uat_pagetables: uat-pagetables {
-			reg = <0 0 0 0>;
-		};
-
-		uat_ttbs: uat-ttbs {
-			reg = <0 0 0 0>;
-		};
-	};
-
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;

@@ -5,7 +5,7 @@
  * Copyright The Asahi Linux Contributors
  */
 
-&pmgr {
+&DIE_NODE(pmgr) {
 	DIE_NODE(ps_afi): power-controller@100 {
 		compatible = "apple,t6020-pmgr-pwrstate", "apple,pmgr-pwrstate";
 		reg = <0x100 4>;
@@ -627,7 +627,7 @@
 	};
 };
 
-&pmgr_south {
+&DIE_NODE(pmgr_south) {
 	DIE_NODE(ps_amcc4): power-controller@100 {
 		compatible = "apple,t6020-pmgr-pwrstate", "apple,pmgr-pwrstate";
 		reg = <0x100 4>;
@@ -991,7 +991,7 @@
 	};
 };
 
-&pmgr_east {
+&DIE_NODE(pmgr_east) {
 	DIE_NODE(ps_clvr_spmi0): power-controller@100 {
 		compatible = "apple,t6020-pmgr-pwrstate", "apple,pmgr-pwrstate";
 		reg = <0x100 4>;
@@ -1964,7 +1964,7 @@
 	};
 };
 
-&pmgr_mini {
+&DIE_NODE(pmgr_mini) {
 	DIE_NODE(ps_debug): power-controller@58 {
 		compatible = "apple,t6020-pmgr-pwrstate", "apple,pmgr-pwrstate";
 		reg = <0x58 4>;
@@ -2233,13 +2233,14 @@
 #endif
 };
 
-&pmgr_gfx {
+&DIE_NODE(pmgr_gfx) {
 	DIE_NODE(ps_gpx): power-controller@0 {
 		compatible = "apple,t6020-pmgr-pwrstate", "apple,pmgr-pwrstate";
 		reg = <0x0 4>;
 		#power-domain-cells = <0>;
 		#reset-cells = <0>;
 		label = DIE_LABEL(gpx);
+		apple,min-state = <4>;
 		apple,always-on;
 	};
 
@@ -2250,6 +2251,7 @@
 		#reset-cells = <0>;
 		label = DIE_LABEL(afr);
 		/* Apple Fabric, media stuff: this can power down */
+		apple,min-state = <4>;
 	};
 
 	DIE_NODE(ps_gfx): power-controller@108 {

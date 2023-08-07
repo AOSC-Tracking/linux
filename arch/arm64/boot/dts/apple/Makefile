@@ -87,3 +87,4 @@ dtb-$(CONFIG_ARCH_APPLE) += t6021-j414c.dtb
 dtb-$(CONFIG_ARCH_APPLE) += t6020-j416s.dtb
 dtb-$(CONFIG_ARCH_APPLE) += t6021-j416c.dtb
 dtb-$(CONFIG_ARCH_APPLE) += t6020-j474s.dtb
+dtb-$(CONFIG_ARCH_APPLE) += t6022-j180d.dtb
