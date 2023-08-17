@@ -29,6 +29,10 @@
 	};
 };
 
+&dcp {
+	status = "disabled";
+};
+
 &hpm0 {
 	interrupts = <44 IRQ_TYPE_LEVEL_LOW>;
 };
