@@ -150,11 +150,26 @@ static void panic_on_rcu_stall(void)
  * rcu_cpu_stall_reset - restart stall-warning timeout for current grace period
  *
  * The caller must disable hard irqs.
+ *
+ * The jiffies updating may be delayed for a very long time due to tickless and
+ * irq disabled, especially in the KGDB case, so we need to add the delayed time
+ * (delta) to rcu_state.jiffies_stall.
+ *
+ * This function may be called in NMI context, so we cannot use ktime_get_ns()
+ * and ktime_get_coarse_ns(). Instead, we use their inaccurate but safe friends
+ * ktime_get_mono_fast_ns() and ktime_get_seconds() which will cause rcu_state.
+ * jiffies_stall to be a little large than expected (harmless and safer).
  */
 void rcu_cpu_stall_reset(void)
 {
+	u64 curr, last, delta;
+
+	curr = ktime_get_mono_fast_ns();
+	last = ktime_get_seconds() * NSEC_PER_SEC;
+	delta = nsecs_to_jiffies(curr - last);
+
 	WRITE_ONCE(rcu_state.jiffies_stall,
-		   jiffies + rcu_jiffies_till_stall_check());
+		   jiffies + delta + rcu_jiffies_till_stall_check());
 }
 
 //////////////////////////////////////////////////////////////////////////////
