@@ -27,6 +27,7 @@
 		//bluetooth0 = &bluetooth0;
 		//ethernet0 = &ethernet0;
 		//ethernet1 = &ethernet1;
+		nvram = &nvram;
 		serial0 = &serial0;
 		//wifi0 = &wifi0;
 	};
@@ -481,3 +482,5 @@
 	apple,perf-boost-min-util = <75>;
 	apple,perf-tgt-utilization = <70>;
 };
+
+#include "spi1-nvram.dtsi"
