@@ -687,7 +687,7 @@ int cache_setup_acpi(unsigned int cpu)
  */
 int acpi_pptt_cpu_is_thread(unsigned int cpu)
 {
-	return check_acpi_cpu_flag(cpu, 2, ACPI_PPTT_ACPI_PROCESSOR_IS_THREAD);
+	return check_acpi_cpu_flag(cpu, 1, ACPI_PPTT_ACPI_PROCESSOR_IS_THREAD);
 }
 
 /**
