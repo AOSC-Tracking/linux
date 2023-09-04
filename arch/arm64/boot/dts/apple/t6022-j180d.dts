@@ -10,6 +10,7 @@
 /dts-v1/;
 
 #include "t6022.dtsi"
+#include "t6022-jxxxd.dtsi"
 
 / {
 	compatible = "apple,j180d", "apple,t6022", "apple,arm-platform";
@@ -129,69 +130,9 @@
 		};
 	};
 
-	hpm4: usb-pd@39 {
-		compatible = "apple,cd321x";
-		reg = <0x39>;
-		interrupt-parent = <&pinctrl_ap>;
-		interrupts = <44 IRQ_TYPE_LEVEL_LOW>;
-		interrupt-names = "irq";
+	/* hpm4 included from t6022-jxxxd.dtsi */
 
-		typec4: connector {
-			compatible = "usb-c-connector";
-			label = "USB-C Back 3";
-			power-role = "dual";
-			data-role = "dual";
-
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				port@0 {
-					reg = <0>;
-					typec4_con_hs: endpoint {
-						remote-endpoint = <&typec4_usb_hs>;
-					};
-				};
-				port@1 {
-					reg = <1>;
-					typec4_con_ss: endpoint {
-						remote-endpoint = <&typec4_usb_ss>;
-					};
-				};
-			};
-		};
-	};
-
-	hpm5: usb-pd@3a {
-		compatible = "apple,cd321x";
-		reg = <0x3a>;
-		interrupt-parent = <&pinctrl_ap>;
-		interrupts = <44 IRQ_TYPE_LEVEL_LOW>;
-		interrupt-names = "irq";
-
-		typec5: connector {
-			compatible = "usb-c-connector";
-			label = "USB-C Back 4";
-			power-role = "dual";
-			data-role = "dual";
-
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				port@0 {
-					reg = <0>;
-					typec5_con_hs: endpoint {
-						remote-endpoint = <&typec5_usb_hs>;
-					};
-				};
-				port@1 {
-					reg = <1>;
-					typec5_con_ss: endpoint {
-						remote-endpoint = <&typec5_usb_ss>;
-					};
-				};
-			};
-		};
-	};
+	/* hpm5 included from t6022-jxxxd.dtsi */
 
 	hpm6: usb-pd@3d {
 		compatible = "apple,cd321x";
@@ -256,6 +197,14 @@
 			};
 		};
 	};
+};
+
+&hpm4 {
+	label = "USB-C Back 3";
+};
+
+&hpm5 {
+	label = "USB-C Back 4";
 };
 
 /* USB Type C Front */
@@ -360,22 +309,6 @@
 	};
 };
 
-&dwc3_0_die1 {
-	port {
-		typec4_usb_hs: endpoint {
-			remote-endpoint = <&typec4_con_hs>;
-		};
-	};
-};
-
-&dwc3_1_die1 {
-	port {
-		typec5_usb_hs: endpoint {
-			remote-endpoint = <&typec5_con_hs>;
-		};
-	};
-};
-
 &dwc3_2_die1 {
 	port {
 		typec6_usb_hs: endpoint {
@@ -421,22 +354,6 @@
 	port {
 		typec3_usb_ss: endpoint {
 			remote-endpoint = <&typec3_con_ss>;
-		};
-	};
-};
-
-&atcphy0_die1 {
-	port {
-		typec4_usb_ss: endpoint {
-			remote-endpoint = <&typec4_con_ss>;
-		};
-	};
-};
-
-&atcphy1_die1 {
-	port {
-		typec5_usb_ss: endpoint {
-			remote-endpoint = <&typec5_con_ss>;
 		};
 	};
 };
