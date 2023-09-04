@@ -474,10 +474,6 @@
 	status = "ok";
 };
 
-/* delete unused always-on power-domains on die 1 */
-/delete-node/ &ps_disp0_cpu0_die1;
-/delete-node/ &ps_disp0_fe_die1;
-
 &gpu {
 	apple,idleoff-standby-timer = <3000>;
 	apple,perf-base-pstate = <5>;
