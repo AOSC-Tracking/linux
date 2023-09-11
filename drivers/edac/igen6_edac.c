@@ -307,6 +307,11 @@ static int get_mchbar(struct pci_dev *pdev, u64 *mchbar)
 #define DID_MTL_PS_SKU3	0x7d23
 #define DID_MTL_PS_SKU4	0x7d24
 
+/* Compute die IDs for Meteor Lake-P with IBECC */
+#define DID_MTL_P_SKU1	0x7d01
+#define DID_MTL_P_SKU2	0x7d02
+#define DID_MTL_P_SKU3	0x7d14
+
 static int get_mchbar(struct pci_dev *pdev, u64 *mchbar)
 {
 	union  {
