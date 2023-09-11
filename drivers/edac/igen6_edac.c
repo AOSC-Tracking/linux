@@ -301,6 +301,36 @@ static int get_mchbar(struct pci_dev *pdev, u64 *mchbar)
 #define DID_RPL_P_SKU4	0xa716
 #define DID_RPL_P_SKU5	0xa718
 
+static int get_mchbar(struct pci_dev *pdev, u64 *mchbar)
+{
+	union  {
+		u64 v;
+		struct {
+			u32 v_lo;
+			u32 v_hi;
+		};
+	} u;
+
+	if (pci_read_config_dword(pdev, MCHBAR_OFFSET, &u.v_lo)) {
+		igen6_printk(KERN_ERR, "Failed to read lower MCHBAR\n");
+		return -ENODEV;
+	}
+
+	if (pci_read_config_dword(pdev, MCHBAR_OFFSET + 4, &u.v_hi)) {
+		igen6_printk(KERN_ERR, "Failed to read upper MCHBAR\n");
+		return -ENODEV;
+	}
+
+	if (!(u.v & MCHBAR_EN)) {
+		igen6_printk(KERN_ERR, "MCHBAR is disabled\n");
+		return -ENODEV;
+	}
+
+	*mchbar = MCHBAR_BASE(u.v);
+
+	return 0;
+}
+
 static bool ehl_ibecc_available(struct pci_dev *pdev)
 {
 	u32 v;
