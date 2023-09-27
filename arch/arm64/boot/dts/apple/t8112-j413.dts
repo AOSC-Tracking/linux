@@ -243,3 +243,10 @@
 	tp_accel {
 	};
 };
+
+#include "isp-imx558-cfg0.dtsi"
+
+&isp {
+	apple,platform-id = <14>;
+	apple,temporal-filter = <1>;
+};
