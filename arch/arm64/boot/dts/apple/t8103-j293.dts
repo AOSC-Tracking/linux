@@ -272,3 +272,9 @@
 		};
 	};
 };
+
+#include "isp-imx248.dtsi"
+
+&isp {
+	apple,platform-id = <1>;
+};
