@@ -439,3 +439,9 @@
 };
 
 #include "spi1-nvram.dtsi"
+
+#include "isp-imx558.dtsi"
+
+&isp {
+	apple,platform-id = <3>;
+};
