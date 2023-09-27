@@ -222,4 +222,13 @@ config USB_DWC3_GOOGLE
 	  To compile this driver as a module, choose M here: the
 	  module will be called dwc3-google.ko.
 
+config USB_DWC3_THEAD
+	tristate "T-HEAD Platform"
+	depends on ARCH_THEAD || COMPILE_TEST
+	default USB_DWC3
+	help
+	  Support T-HEAD platform with DesignWare Core USB3 IP.
+	  Only the host mode is currently supported.
+	  Say 'Y' or 'M' here if you have one such device.
+
 endif
