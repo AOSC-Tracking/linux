@@ -338,7 +338,7 @@ static int isp_firmware_boot_stage2(struct apple_isp *isp)
 
 	isp_gpio_write32(isp, ISP_GPIO_0, args_iova);
 	isp_gpio_write32(isp, ISP_GPIO_1, args_iova >> 32);
-	wmb();
+	dma_wmb();
 
 	/* Wait for ISP_GPIO_7 to 0xf7fbdff9 -> 0x8042006 */
 	isp_gpio_write32(isp, ISP_GPIO_7, 0xf7fbdff9);
@@ -500,7 +500,7 @@ static int isp_firmware_boot_stage3(struct apple_isp *isp)
 			memcpy(msg_virt, &msg, sizeof(msg));
 		}
 	}
-	wmb();
+	dma_wmb();
 
 	/* Wait for ISP_GPIO_3 to 0x8042006 -> 0x0 */
 	isp_gpio_write32(isp, ISP_GPIO_3, 0x8042006);
