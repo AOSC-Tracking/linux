@@ -146,6 +146,25 @@ int apple_smc_read_f32_scaled(struct apple_smc *smc, smc_key key, int *p, int sc
 }
 EXPORT_SYMBOL(apple_smc_read_f32_scaled);
 
+/*
+ * ioft is a 48.16 fixed point type
+ */
+int apple_smc_read_ioft_scaled(struct apple_smc *smc, smc_key key, u64 *p,
+			       int scale)
+{
+	u64 val;
+	int ret;
+
+	ret = apple_smc_read_u64(smc, key, &val);
+	if (ret < 0)
+		return ret;
+
+	*p = mult_frac(val, scale, 65536);
+
+	return 0;
+}
+EXPORT_SYMBOL(apple_smc_read_ioft_scaled);
+
 int apple_smc_get_key_by_index(struct apple_smc *smc, int index, smc_key *key)
 {
 	int ret;
