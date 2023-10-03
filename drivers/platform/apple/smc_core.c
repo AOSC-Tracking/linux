@@ -149,6 +149,47 @@ int apple_smc_read_f32_scaled(struct apple_smc *smc, smc_key key, int *p, int sc
 }
 EXPORT_SYMBOL(apple_smc_read_f32_scaled);
 
+#define FLT_SIGN_MASK BIT(31)
+#define FLT_EXP_MASK GENMASK(30, 23)
+#define FLT_MANT_MASK GENMASK(22, 0)
+#define FLT_EXP_BIAS 127
+
+int apple_smc_write_f32_scaled(struct apple_smc *smc, smc_key key, int value,
+			       int scale)
+{
+	u64 val;
+	u32 fval = 0;
+	int exp = 0, neg;
+
+	val = abs(value);
+	neg = val != value;
+
+	if (scale > 1) {
+		val <<= 32;
+		exp = 32;
+		val /= scale;
+	} else if (scale < 1)
+		val *= -scale;
+
+	if (val) {
+		int msb = __fls(val) - exp;
+		if (msb > 23) {
+			val >>= msb - 23;
+			exp -= msb - 23;
+		} else if (msb < 23) {
+			val <<= 23 - msb;
+			exp += msb;
+		}
+
+		fval = FIELD_PREP(FLT_SIGN_MASK, neg) |
+		       FIELD_PREP(FLT_EXP_MASK, exp + FLT_EXP_BIAS) |
+		       FIELD_PREP(FLT_MANT_MASK, val);
+	}
+
+	return apple_smc_write_u32(smc, key, fval);
+}
+EXPORT_SYMBOL(apple_smc_write_f32_scaled);
+
 /*
  * ioft is a 48.16 fixed point type
  */
