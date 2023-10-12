@@ -102,6 +102,8 @@
 		#sound-dai-cells = <0>;
 		interrupt-parent = <&pinctrl_ap>;
 		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <0>;
+		ti,vmon-slot-no = <2>;
 	};
 
 	jack_codec: codec@4b {
