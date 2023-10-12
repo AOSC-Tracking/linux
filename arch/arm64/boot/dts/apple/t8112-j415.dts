@@ -106,6 +106,9 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 1";
+		ti,imon-slot-no = <0>;
+		ti,vmon-slot-no = <2>;
+		ti,sdout-force-zero-mask = <0xf0f0f0>;
 	};
 
 	speaker_left_tweet: codec@39 {
@@ -114,6 +117,8 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Tweeter";
+		ti,imon-slot-no = <8>;
+		ti,vmon-slot-no = <10>;
 	};
 
 	speaker_left_woof2: codec@3a {
@@ -122,6 +127,8 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 2";
+		ti,imon-slot-no = <16>;
+		ti,vmon-slot-no = <18>;
 	};
 };
 
@@ -132,6 +139,9 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 1";
+		ti,imon-slot-no = <4>;
+		ti,vmon-slot-no = <6>;
+		ti,sdout-force-zero-mask = <0x0f0f0f>;
 	};
 
 	speaker_right_tweet: codec@3c {
@@ -140,6 +150,8 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Tweeter";
+		ti,imon-slot-no = <12>;
+		ti,vmon-slot-no = <14>;
 	};
 
 	speaker_right_woof2: codec@3d {
@@ -148,6 +160,8 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 2";
+		ti,imon-slot-no = <20>;
+		ti,vmon-slot-no = <22>;
 	};
 
 	jack_codec: codec@4b {
