@@ -99,6 +99,9 @@
 		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Rear";
+		ti,imon-slot-no = <8>;
+		ti,vmon-slot-no = <10>;
+		ti,pdm-slot-no = <12>;
 	};
 
 	speaker_left_front: codec@32 {
@@ -107,6 +110,10 @@
 		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Front";
+		ti,imon-slot-no = <0>;
+		ti,vmon-slot-no = <2>;
+		ti,pdm-slot-no = <4>;
+		ti,sdout-pull-down;
 	};
 };
 
@@ -132,6 +139,9 @@
 		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Rear";
+		ti,imon-slot-no = <12>;
+		ti,vmon-slot-no = <14>;
+		ti,pdm-slot-no = <16>;
 	};
 
 	speaker_right_front: codec@35 {
@@ -140,6 +150,10 @@
 		shutdown-gpios = <&pinctrl_ap 181 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Front";
+		ti,imon-slot-no = <4>;
+		ti,vmon-slot-no = <6>;
+		ti,pdm-slot-no = <8>;
+		ti,sdout-pull-down;
 	};
 };
 
