@@ -106,6 +106,7 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 1";
+		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <0>;
 		ti,vmon-slot-no = <2>;
 		ti,sdout-force-zero-mask = <0xf0f0f0>;
@@ -117,6 +118,7 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Tweeter";
+		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <8>;
 		ti,vmon-slot-no = <10>;
 	};
@@ -127,6 +129,7 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 2";
+		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <16>;
 		ti,vmon-slot-no = <18>;
 	};
@@ -139,6 +142,7 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 1";
+		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <4>;
 		ti,vmon-slot-no = <6>;
 		ti,sdout-force-zero-mask = <0x0f0f0f>;
@@ -150,6 +154,7 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Tweeter";
+		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <12>;
 		ti,vmon-slot-no = <14>;
 	};
@@ -160,6 +165,7 @@
 		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 2";
+		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
 		ti,imon-slot-no = <20>;
 		ti,vmon-slot-no = <22>;
 	};
