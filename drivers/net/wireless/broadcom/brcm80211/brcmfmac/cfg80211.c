@@ -66,6 +66,8 @@
 #define RSN_CAP_MFPR_MASK		BIT(6)
 #define RSN_CAP_MFPC_MASK		BIT(7)
 #define RSN_PMKID_COUNT_LEN		2
+#define DPP_AKM_SUITE_TYPE		2
+#define WLAN_AKM_SUITE_DPP		SUITE(WLAN_OUI_WFA, DPP_AKM_SUITE_TYPE)
 
 #define VNDR_IE_CMD_LEN			4	/* length of the set command
 						 * string :"add", "del" (+ NUL)
@@ -1840,15 +1842,20 @@ static s32 brcmf_set_wpa_version(struct net_device *ndev,
 	struct brcmf_cfg80211_security *sec;
 	s32 val = 0;
 	s32 err = 0;
-
-	if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_1)
+	if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_1) {
 		val = WPA_AUTH_PSK | WPA_AUTH_UNSPECIFIED;
-	else if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_2)
-		val = WPA2_AUTH_PSK | WPA2_AUTH_UNSPECIFIED;
-	else if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_3)
+	} else if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_2) {
+		if (sme->crypto.akm_suites[0] == WLAN_AKM_SUITE_SAE)
+			val = WPA3_AUTH_SAE_PSK;
+		else if (sme->crypto.akm_suites[0] == WLAN_AKM_SUITE_OWE)
+			val = WPA3_AUTH_OWE;
+		else
+			val = WPA2_AUTH_PSK | WPA2_AUTH_UNSPECIFIED;
+	} else if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_3) {
 		val = WPA3_AUTH_SAE_PSK;
-	else
+	} else {
 		val = WPA_AUTH_DISABLED;
+	}
 	brcmf_dbg(CONN, "setting wpa_auth to 0x%0x\n", val);
 	err = brcmf_fil_bsscfg_int_set(ifp, "wpa_auth", val);
 	if (err) {
@@ -2063,9 +2070,13 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 	u16 rsn_cap;
 	u32 mfp;
 	u16 count;
+	s32 okc_enable;
+	u16 pmkid_count;
+	const u8 *group_mgmt_cs = NULL;
 
 	profile->use_fwsup = BRCMF_PROFILE_FWSUP_NONE;
 	profile->is_ft = false;
+	profile->is_okc = false;
 
 	if (!sme->crypto.n_akm_suites)
 		return 0;
@@ -2082,13 +2093,15 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 			val = WPA_AUTH_UNSPECIFIED;
 			if (sme->want_1x)
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_1X;
+			else
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
 			break;
 		case WLAN_AKM_SUITE_PSK:
 			val = WPA_AUTH_PSK;
 			break;
 		default:
-			bphy_err(drvr, "invalid akm suite (%d)\n",
-				 sme->crypto.akm_suites[0]);
+			bphy_err(drvr, "invalid cipher group (%d)\n",
+				 sme->crypto.cipher_group);
 			return -EINVAL;
 		}
 	} else if (val & (WPA2_AUTH_PSK | WPA2_AUTH_UNSPECIFIED)) {
@@ -2097,11 +2110,15 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 			val = WPA2_AUTH_UNSPECIFIED;
 			if (sme->want_1x)
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_1X;
+			else
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
 			break;
 		case WLAN_AKM_SUITE_8021X_SHA256:
 			val = WPA2_AUTH_1X_SHA256;
 			if (sme->want_1x)
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_1X;
+			else
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
 			break;
 		case WLAN_AKM_SUITE_PSK_SHA256:
 			val = WPA2_AUTH_PSK_SHA256;
@@ -2114,14 +2131,35 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 			profile->is_ft = true;
 			if (sme->want_1x)
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_1X;
+			else
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
 			break;
 		case WLAN_AKM_SUITE_FT_PSK:
 			val = WPA2_AUTH_PSK | WPA2_AUTH_FT;
 			profile->is_ft = true;
+				if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_FWSUP))
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
+			else
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
+			break;
+		case WLAN_AKM_SUITE_DPP:
+			val = WFA_AUTH_DPP;
+			profile->use_fwsup = BRCMF_PROFILE_FWSUP_NONE;
+			break;
+		case WLAN_AKM_SUITE_OWE:
+			val = WPA3_AUTH_OWE;
+			profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
+			break;
+		case WLAN_AKM_SUITE_8021X_SUITE_B_192:
+			val = WPA3_AUTH_1X_SUITE_B_SHA384;
+			if (sme->want_1x)
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_1X;
+			else
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_ROAM;
 			break;
 		default:
-			bphy_err(drvr, "invalid akm suite (%d)\n",
-				 sme->crypto.akm_suites[0]);
+			bphy_err(drvr, "invalid cipher group (%d)\n",
+				 sme->crypto.cipher_group);
 			return -EINVAL;
 		}
 	} else if (val & WPA3_AUTH_SAE_PSK) {
@@ -2142,15 +2180,34 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 			}
 			break;
 		default:
-			bphy_err(drvr, "invalid akm suite (%d)\n",
-				 sme->crypto.akm_suites[0]);
+			bphy_err(drvr, "invalid cipher group (%d)\n",
+				 sme->crypto.cipher_group);
 			return -EINVAL;
 		}
 	}
-
-	if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_1X)
+	if ((profile->use_fwsup == BRCMF_PROFILE_FWSUP_1X) ||
+	    (profile->use_fwsup == BRCMF_PROFILE_FWSUP_ROAM)) {
 		brcmf_dbg(INFO, "using 1X offload\n");
-
+		err = brcmf_fil_bsscfg_int_get(netdev_priv(ndev), "okc_enable",
+					       &okc_enable);
+		if (err) {
+			bphy_err(drvr, "get okc_enable failed (%d)\n", err);
+		} else {
+			brcmf_dbg(INFO, "get okc_enable (%d)\n", okc_enable);
+			profile->is_okc = okc_enable;
+		}
+	} else if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_SAE &&
+		   (val == WPA3_AUTH_SAE_PSK)) {
+		brcmf_dbg(INFO, "not using SAE offload\n");
+		err = brcmf_fil_bsscfg_int_get(netdev_priv(ndev), "okc_enable",
+					       &okc_enable);
+		if (err) {
+			bphy_err(drvr, "get okc_enable failed (%d)\n", err);
+		} else {
+			brcmf_dbg(INFO, "get okc_enable (%d)\n", okc_enable);
+			profile->is_okc = okc_enable;
+		}
+	}
 	if (!brcmf_feat_is_enabled(ifp, BRCMF_FEAT_MFP))
 		goto skip_mfp_config;
 	/* The MFP mode (1 or 2) needs to be determined, parse IEs. The
@@ -2183,14 +2240,47 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 		mfp = BRCMF_MFP_REQUIRED;
 	else if (rsn_cap & RSN_CAP_MFPC_MASK)
 		mfp = BRCMF_MFP_CAPABLE;
+	/* In case of dpp, very low tput is observed if MFPC is set in
+	 * firmmare. Firmware needs to ensure that MFPC is not set when
+	 * MFPR was requested from fmac. However since this change being
+	 * specific to DPP, fmac needs to set wpa_auth prior to mfp, so
+	 * that firmware can use this info to prevent MFPC being set in
+	 * case of dpp.
+	 */
+	if (val == WFA_AUTH_DPP) {
+		brcmf_dbg(CONN, "setting wpa_auth to 0x%0x\n", val);
+		err = brcmf_fil_bsscfg_int_set(netdev_priv(ndev), "wpa_auth",
+					       val);
+		if (err) {
+			bphy_err(drvr, "could not set wpa_auth (%d)\n", err);
+			return err;
+		}
+	}
+
 	brcmf_fil_bsscfg_int_set(netdev_priv(ndev), "mfp", mfp);
+	offset += RSN_CAP_LEN;
+	if (mfp && (ie_len - offset >= RSN_PMKID_COUNT_LEN)) {
+		pmkid_count = ie[offset] + (ie[offset + 1] << 8);
+		offset += RSN_PMKID_COUNT_LEN + (pmkid_count * WLAN_PMKID_LEN);
+		if (ie_len - offset >= WPA_IE_MIN_OUI_LEN) {
+			group_mgmt_cs = &ie[offset];
+			if (memcmp(group_mgmt_cs, RSN_OUI, TLV_OUI_LEN) == 0) {
+				brcmf_fil_bsscfg_data_set(ifp, "bip",
+							  (void *)group_mgmt_cs,
+							  WPA_IE_MIN_OUI_LEN);
+			}
+		}
+	}
 
 skip_mfp_config:
-	brcmf_dbg(CONN, "setting wpa_auth to %d\n", val);
-	err = brcmf_fil_bsscfg_int_set(netdev_priv(ndev), "wpa_auth", val);
-	if (err) {
-		bphy_err(drvr, "could not set wpa_auth (%d)\n", err);
-		return err;
+	if (val != WFA_AUTH_DPP) {
+		brcmf_dbg(CONN, "setting wpa_auth to 0x%0x\n", val);
+		err = brcmf_fil_bsscfg_int_set(netdev_priv(ndev), "wpa_auth",
+					       val);
+		if (err) {
+			bphy_err(drvr, "could not set wpa_auth (%d)\n", err);
+			return err;
+		}
 	}
 
 	return err;
@@ -2439,6 +2529,18 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 				brcmf_dbg(INFO, "using PSK offload\n");
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
 			}
+		}
+
+		if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_NONE) {
+			/* enable firmware supplicant for this interface */
+			err = brcmf_fil_iovar_int_set(ifp, "sup_wpa", 1);
+			if (err < 0) {
+				bphy_err(drvr,
+					 "failed to enable fw supplicant\n");
+				goto done;
+			}
+		} else {
+			err = brcmf_fil_iovar_int_set(ifp, "sup_wpa", 0);
 		}
 
 		if ((profile->use_fwsup == BRCMF_PROFILE_FWSUP_PSK) &&
@@ -5886,17 +5988,29 @@ static int brcmf_cfg80211_set_pmk(struct wiphy *wiphy, struct net_device *dev,
 				  const struct cfg80211_pmk_conf *conf)
 {
 	struct brcmf_if *ifp;
-
+	struct brcmf_pub *drvr;
+	int ret;
 	brcmf_dbg(TRACE, "enter\n");
 
 	/* expect using firmware supplicant for 1X */
 	ifp = netdev_priv(dev);
-	if (WARN_ON(ifp->vif->profile.use_fwsup != BRCMF_PROFILE_FWSUP_1X))
+	drvr = ifp->drvr;
+	if (WARN_ON((ifp->vif->profile.use_fwsup != BRCMF_PROFILE_FWSUP_1X) &&
+		    (ifp->vif->profile.use_fwsup != BRCMF_PROFILE_FWSUP_ROAM) &&
+		    (ifp->vif->profile.is_ft != true) &&
+		    (ifp->vif->profile.is_okc != true)))
 		return -EINVAL;
 
 	if (conf->pmk_len > BRCMF_WSEC_MAX_PSK_LEN)
 		return -ERANGE;
 
+	if (ifp->vif->profile.is_okc) {
+		ret = brcmf_fil_iovar_data_set(ifp, "okc_info_pmk", conf->pmk,
+					       conf->pmk_len);
+		if (ret < 0)
+			bphy_err(drvr, "okc_info_pmk iovar failed: ret=%d\n",
+				 ret);
+	}
 	return brcmf_set_pmk(ifp, conf->pmk, conf->pmk_len);
 }
 
@@ -6333,6 +6447,46 @@ static s32 brcmf_get_assoc_ies(struct brcmf_cfg80211_info *cfg,
 	return err;
 }
 
+static bool brcmf_has_pmkid(const u8 *parse, u32 len)
+{
+	const struct brcmf_tlv *rsn_ie;
+	const u8 *ie;
+	u32 ie_len;
+	u32 offset;
+	u16 count;
+
+	rsn_ie = brcmf_parse_tlvs(parse, len, WLAN_EID_RSN);
+	if (!rsn_ie)
+		goto done;
+	ie = (const u8 *)rsn_ie;
+	ie_len = rsn_ie->len + TLV_HDR_LEN;
+	/* Skip group data cipher suite */
+	offset = TLV_HDR_LEN + WPA_IE_VERSION_LEN + WPA_IE_MIN_OUI_LEN;
+	if (offset + WPA_IE_SUITE_COUNT_LEN >= ie_len)
+		goto done;
+	/* Skip pairwise cipher suite(s) */
+	count = ie[offset] + (ie[offset + 1] << 8);
+	offset += WPA_IE_SUITE_COUNT_LEN + (count * WPA_IE_MIN_OUI_LEN);
+	if (offset + WPA_IE_SUITE_COUNT_LEN >= ie_len)
+		goto done;
+	/* Skip auth key management suite(s) */
+	count = ie[offset] + (ie[offset + 1] << 8);
+	offset += WPA_IE_SUITE_COUNT_LEN + (count * WPA_IE_MIN_OUI_LEN);
+	if (offset + RSN_CAP_LEN >= ie_len)
+		goto done;
+	/* Skip rsn capabilities */
+	offset += RSN_CAP_LEN;
+	if (offset + RSN_PMKID_COUNT_LEN > ie_len)
+		goto done;
+	/* Extract PMKID count */
+	count = ie[offset] + (ie[offset + 1] << 8);
+	if (count)
+		return true;
+
+done:
+	return false;
+}
+
 static s32
 brcmf_bss_roaming_done(struct brcmf_cfg80211_info *cfg,
 		       struct net_device *ndev,
@@ -6403,11 +6557,16 @@ done:
 	cfg80211_roamed(ndev, &roam_info, GFP_KERNEL);
 	brcmf_dbg(CONN, "Report roaming result\n");
 
-	if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_1X && profile->is_ft) {
-		cfg80211_port_authorized(ndev, profile->bssid, NULL, 0, GFP_KERNEL);
+	if (((profile->use_fwsup == BRCMF_PROFILE_FWSUP_1X ||
+	    profile->use_fwsup == BRCMF_PROFILE_FWSUP_ROAM) &&
+	    (brcmf_has_pmkid(roam_info.req_ie, roam_info.req_ie_len) ||
+	     profile->is_ft || profile->is_okc))) {
+		cfg80211_port_authorized(ndev, profile->bssid, NULL, 0,
+					 GFP_KERNEL);
 		brcmf_dbg(CONN, "Report port authorized\n");
 	}
 
+	clear_bit(BRCMF_VIF_STATUS_CONNECTING, &ifp->vif->sme_state);
 	set_bit(BRCMF_VIF_STATUS_CONNECTED, &ifp->vif->sme_state);
 	brcmf_dbg(TRACE, "Exit\n");
 	return err;
