@@ -36,6 +36,8 @@ extern const struct raid6_calls raid6_intx1;
 extern const struct raid6_calls raid6_intx2;
 extern const struct raid6_calls raid6_intx4;
 extern const struct raid6_calls raid6_intx8;
+extern const struct raid6_calls raid6_intx16;
+extern const struct raid6_calls raid6_intx32;
 extern const struct raid6_recov_calls raid6_recov_intx1;
 
 #endif /* _PQ_IMPL_H */

@@ -281,6 +281,10 @@ void __init raid6_algo_add_default(void)
 	raid6_algo_add(&raid6_intx2);
 	raid6_algo_add(&raid6_intx4);
 	raid6_algo_add(&raid6_intx8);
+#if defined(__ia64__)
+	raid6_algo_add(&raid6_intx16);
+	raid6_algo_add(&raid6_intx32);
+#endif
 }
 
 void __init raid6_recov_algo_add(const struct raid6_recov_calls *algo)

@@ -13,7 +13,8 @@ obj-$(CONFIG_RAID6_PQ)		+= raid6_pq.o tests/
 raid6_pq-y			+= algos.o tables.o
 
 # generic integer generation and recovery implementation
-raid6_pq-y			+= int1.o int2.o int4.o int8.o
+raid6_pq-y			+= int1.o int2.o int4.o int8.o \
+				   int16.o int32.o
 raid6_pq-y			+= recov.o
 
 # architecture-specific generation and recovery implementations:
@@ -101,7 +102,7 @@ $(obj)/tables.c: $(obj)/mktables FORCE
 quiet_cmd_unroll = UNROLL  $@
       cmd_unroll = $(AWK) -v N=$* -f $(src)/unroll.awk < $< > $@
 
-targets += int1.c int2.c int4.c int8.c
+targets += int1.c int2.c int4.c int8.c int16.c int32.c
 $(obj)/int%.c: $(src)/int.uc $(src)/unroll.awk FORCE
 	$(call if_changed,unroll)
 
