@@ -380,7 +380,7 @@ enum {
 	DECLARE_VMA_BIT_ALIAS(SHADOW_STACK, HIGH_ARCH_6),
 #endif
 	DECLARE_VMA_BIT_ALIAS(SAO, ARCH_1),		/* Strong Access Ordering (powerpc) */
-	DECLARE_VMA_BIT_ALIAS(GROWSUP, ARCH_1),		/* parisc */
+	DECLARE_VMA_BIT_ALIAS(GROWSUP, ARCH_1),		/* parisc, ia64 */
 	DECLARE_VMA_BIT_ALIAS(SPARC_ADI, ARCH_1),	/* sparc64 */
 	DECLARE_VMA_BIT_ALIAS(ARM64_BTI, ARCH_1),	/* arm64 */
 	DECLARE_VMA_BIT_ALIAS(ARCH_CLEAR, ARCH_1),	/* sparc64, arm64 */
@@ -476,7 +476,7 @@ enum {
 #endif
 #if defined(CONFIG_PPC64)
 #define VM_SAO		INIT_VM_FLAG(SAO)
-#elif defined(CONFIG_PARISC)
+#elif defined(CONFIG_PARISC) || defined(CONFIG_IA64)
 #define VM_GROWSUP	INIT_VM_FLAG(GROWSUP)
 #define VMA_GROWSUP	mk_vma_flags(VMA_GROWSUP_BIT)
 #elif defined(CONFIG_SPARC64)

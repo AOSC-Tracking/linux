@@ -54,6 +54,12 @@ ifneq ($(filter arc openrisc xtensa nios2, $(UAPI_ARCH)),)
 no-header-test += linux/bpf_perf_event.h
 endif
 
+ifeq ($(UAPI_ARCH),ia64)
+no-header-test += asm/setup.h
+no-header-test += asm/sigcontext.h
+no-header-test += linux/if_bonding.h
+endif
+
 ifeq ($(UAPI_ARCH),sparc)
 no-header-test += asm/uctx.h
 no-header-test += asm/fbio.h
