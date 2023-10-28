@@ -412,7 +412,7 @@
 
 / {
 	sound: sound {
-		compatible = "apple,j314-macaudio", "apple,macaudio";
+		/* compatible is set per machine */
 
 		dai-link@0 {
 			link-name = "Speakers";
