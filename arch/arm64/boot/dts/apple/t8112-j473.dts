@@ -27,9 +27,23 @@
 	power-domains = <&ps_disp0_cpu0>, <&ps_dptx_ext_phy>;
 };
 
-/* disable dcp until it is supported */
+&dptxphy {
+	status = "okay";
+};
+
 &dcp {
-	status = "disabled";
+	status = "okay";
+	apple,connector-type = "HDMI-A";
+
+	/*  HDMI HPD gpio, used as interrupt*/
+	hdmi-hpd-gpios = <&pinctrl_aop 49 GPIO_ACTIVE_HIGH>;
+
+	hdmi-pwren-gpios = <&smc_gpio 21 GPIO_ACTIVE_HIGH>;
+	dp2hdmi-pwren-gpios = <&smc_gpio 22 GPIO_ACTIVE_HIGH>;
+
+	phys = <&dptxphy>;
+	phy-names = "dp-phy";
+	apple,dptx-phy = <5>;
 };
 
 /*
