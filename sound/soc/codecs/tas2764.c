@@ -48,7 +48,7 @@ struct tas2764_priv {
 	bool unmuted;
 };
 
-static int apple_quirks;
+static int apple_quirks = 0x3f;
 module_param(apple_quirks, int, 0644);
 MODULE_PARM_DESC(apple_quirks, "Mask of quirks to mimic after Apple's SN012776 driver");
 
