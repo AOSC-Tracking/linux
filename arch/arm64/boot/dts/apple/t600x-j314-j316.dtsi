@@ -185,13 +185,24 @@
 	};
 };
 
+/* Virtual regulator representing the shared shutdown GPIO */
+/ {
+	speaker_sdz: fixed-regulator-sn012776-sdz {
+		compatible = "regulator-fixed";
+		regulator-name = "sn012776-sdz";
+		startup-delay-us = <5000>;
+		gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
 &i2c1 {
 	status = "okay";
 
 	speaker_left_tweet: codec@3a {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3a>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Tweeter";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
@@ -202,7 +213,7 @@
 	speaker_left_woof1: codec@38 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x38>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 1";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
@@ -214,7 +225,7 @@
 	speaker_left_woof2: codec@39 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x39>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Woofer 2";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
@@ -242,7 +253,7 @@
 	speaker_right_tweet: codec@3d {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3d>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Tweeter";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
@@ -253,7 +264,7 @@
 	speaker_right_woof1: codec@3b {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3b>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 1";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
@@ -265,7 +276,7 @@
 	speaker_right_woof2: codec@3c {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3c>;
-		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Woofer 2";
 		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;

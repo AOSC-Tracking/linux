@@ -46,33 +46,32 @@
 	interrupts = <44 IRQ_TYPE_LEVEL_LOW>;
 };
 
+/* Redefine GPIO for SDZ */
+&speaker_sdz {
+	gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
+};
+
 &speaker_left_tweet {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_left_woof1 {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_left_woof2 {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_right_tweet {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_right_woof1 {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 
 &speaker_right_woof2 {
-	shutdown-gpios = <&pinctrl_ap 57 GPIO_ACTIVE_HIGH>;
 	interrupts-extended = <&pinctrl_ap 58 IRQ_TYPE_LEVEL_LOW>;
 };
 

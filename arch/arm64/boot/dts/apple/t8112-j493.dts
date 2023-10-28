@@ -124,11 +124,22 @@
 	label = "USB-C Left-front";
 };
 
+/* Virtual regulator representing the shared shutdown GPIO */
+/ {
+	speaker_sdz: fixed-regulator-sn012776-sdz {
+		compatible = "regulator-fixed";
+		regulator-name = "sn012776-sdz";
+		startup-delay-us = <5000>;
+		gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
 &i2c1 {
 	speaker_left_rear: codec@38 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x38>;
-		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Rear";
 		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
@@ -139,7 +150,7 @@
 	speaker_left_front: codec@39 {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x39>;
-		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Left Front";
 		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
@@ -153,7 +164,7 @@
 	speaker_right_rear: codec@3b {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3b>;
-		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Rear";
 		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
@@ -164,7 +175,7 @@
 	speaker_right_front: codec@3c {
 		compatible = "ti,sn012776", "ti,tas2764";
 		reg = <0x3c>;
-		shutdown-gpios = <&pinctrl_ap 88 GPIO_ACTIVE_HIGH>;
+		SDZ-supply = <&speaker_sdz>;
 		#sound-dai-cells = <0>;
 		sound-name-prefix = "Right Front";
 		interrupts-extended = <&pinctrl_ap 11 IRQ_TYPE_LEVEL_LOW>;
