@@ -654,10 +654,23 @@ static int tas2770_codec_probe(struct snd_soc_component *component)
 
 	if (tas2770->pdm_slot != -1) {
 		ret = tas2770_set_pdm_transmit(tas2770, tas2770->pdm_slot);
-
 		if (ret < 0)
 			return ret;
 	}
+
+	ret = snd_soc_component_update_bits(component, TAS2770_TDM_CFG_REG4,
+					    TAS2770_TDM_CFG_REG4_TX_FILL,
+					    tas2770->sdout_zfill ? 0 :
+					    TAS2770_TDM_CFG_REG4_TX_FILL);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_soc_component_update_bits(component, TAS2770_DIN_PD,
+					    TAS2770_DIN_PD_SDOUT,
+					    tas2770->sdout_pd ?
+					    TAS2770_DIN_PD_SDOUT : 0);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }
@@ -810,6 +823,9 @@ static int tas2770_parse_dt(struct device *dev, struct tas2770_priv *tas2770)
 				      &tas2770->pdm_slot);
 	if (rc)
 		tas2770->pdm_slot = -1;
+
+	tas2770->sdout_pd = fwnode_property_read_bool(dev->fwnode, "ti,sdout-pull-down");
+	tas2770->sdout_zfill = fwnode_property_read_bool(dev->fwnode, "ti,sdout-zero-fill");
 
 	tas2770->sdz_reg = devm_regulator_get(dev, "SDZ");
 	if (IS_ERR(tas2770->sdz_reg))
