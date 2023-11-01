@@ -390,11 +390,7 @@ static const struct file_operations smi_driver_fops = {
 #endif
 
 static struct drm_driver driver = {
-#ifdef PRIME
-	.driver_features = DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED |DRIVER_GEM |DRIVER_PRIME | DRIVER_MODESET,
-#else
 	.driver_features = DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED |DRIVER_GEM | DRIVER_MODESET,
-#endif
 	.load = smi_driver_load,
 	.unload = smi_driver_unload,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0))
