@@ -828,11 +828,6 @@ static void atcphy_configure_lanes(struct apple_atcphy *atcphy,
 
 	trace_atcphy_configure_lanes(mode, mode_cfg);
 
-	if (mode_cfg->set_swap)
-		core_set32(atcphy, ATCPHY_MISC, ATCPHY_MISC_LANE_SWAP);
-	else
-		core_clear32(atcphy, ATCPHY_MISC, ATCPHY_MISC_LANE_SWAP);
-
 	if (mode_cfg->dp_lane[0]) {
 		core_set32(atcphy, LN0_AUSPMA_RX_TOP + LN_AUSPMA_RX_TOP_PMAFSM,
 			   LN_AUSPMA_RX_TOP_PMAFSM_PCS_OV);
@@ -859,15 +854,21 @@ static void atcphy_configure_lanes(struct apple_atcphy *atcphy,
 	core_mask32(atcphy, ACIOPHY_CROSSBAR, ACIOPHY_CROSSBAR_PROTOCOL,
 		    FIELD_PREP(ACIOPHY_CROSSBAR_PROTOCOL, mode_cfg->crossbar));
 
-	core_mask32(atcphy, ACIOPHY_CROSSBAR, ACIOPHY_CROSSBAR_DP_SINGLE_PMA,
-		    FIELD_PREP(ACIOPHY_CROSSBAR_DP_SINGLE_PMA,
-			       mode_cfg->crossbar_dp_single_pma));
+	if (mode_cfg->set_swap)
+		core_set32(atcphy, ATCPHY_MISC, ATCPHY_MISC_LANE_SWAP);
+	else
+		core_clear32(atcphy, ATCPHY_MISC, ATCPHY_MISC_LANE_SWAP);
+
 	if (mode_cfg->crossbar_dp_both_pma)
 		core_set32(atcphy, ACIOPHY_CROSSBAR,
 			   ACIOPHY_CROSSBAR_DP_BOTH_PMA);
 	else
 		core_clear32(atcphy, ACIOPHY_CROSSBAR,
 			     ACIOPHY_CROSSBAR_DP_BOTH_PMA);
+
+	core_mask32(atcphy, ACIOPHY_CROSSBAR, ACIOPHY_CROSSBAR_DP_SINGLE_PMA,
+		    FIELD_PREP(ACIOPHY_CROSSBAR_DP_SINGLE_PMA,
+			       mode_cfg->crossbar_dp_single_pma));
 }
 
 static int atcphy_pipehandler_lock(struct apple_atcphy *atcphy)
