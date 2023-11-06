@@ -47,3 +47,22 @@
 	compatible = "apple,j475-macaudio", "apple,j375-macaudio", "apple,macaudio";
 	model = "Mac Studio J475";
 };
+
+&lpdptxphy {
+	status = "okay";
+};
+
+&dcp {
+	status = "okay";
+	apple,connector-type = "HDMI-A";
+
+	/*  HDMI HPD gpio, used as interrupt*/
+	hdmi-hpd-gpios = <&pinctrl_aop 25 GPIO_ACTIVE_HIGH>;
+
+	hdmi-pwren-gpios = <&smc_gpio 23 GPIO_ACTIVE_HIGH>;
+	dp2hdmi-pwren-gpios = <&smc_gpio 25 GPIO_ACTIVE_HIGH>;
+
+	phys = <&lpdptxphy>;
+	phy-names = "dp-phy";
+	apple,dptx-phy = <4>;
+};
