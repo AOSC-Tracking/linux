@@ -2399,19 +2399,35 @@ static int atcphy_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	atcphy->dp_only = of_property_read_bool(dev->of_node, "apple,mode-fixed-dp");
+
 	atcphy->mode = APPLE_ATCPHY_MODE_OFF;
 	atcphy->pipehandler_state = ATCPHY_PIPEHANDLER_STATE_INVALID;
 
-	ret = atcphy_probe_rcdev(atcphy);
+	if (!atcphy->dp_only) {
+		ret = atcphy_probe_rcdev(atcphy);
+		if (ret)
+			return ret;
+		ret = atcphy_probe_mux(atcphy);
+		if (ret)
+			return ret;
+		ret = atcphy_probe_switch(atcphy);
+		if (ret)
+			return ret;
+	}
+
+	ret = atcphy_probe_phy(atcphy);
 	if (ret)
 		return ret;
-	ret = atcphy_probe_mux(atcphy);
-	if (ret)
-		return ret;
-	ret = atcphy_probe_switch(atcphy);
-	if (ret)
-		return ret;
-	return atcphy_probe_phy(atcphy);
+
+	if (atcphy->dp_only) {
+		atcphy->target_mode = APPLE_ATCPHY_MODE_DP;
+		WARN_ON(!schedule_work(&atcphy->mux_set_work));
+		wait_for_completion_timeout(&atcphy->atcphy_online_event,
+					msecs_to_jiffies(1000));
+	}
+
+	return 0;
 }
 
 static const struct of_device_id atcphy_match[] = {
