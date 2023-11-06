@@ -682,6 +682,7 @@
 			interrupt-parent = <&aic>;
 			interrupts = <AIC_IRQ 553 IRQ_TYPE_LEVEL_HIGH>;
 			power-domains = <&ps_disp0_cpu0>;
+			apple,dma-range = <0x0 0x0 0xf 0xffff0000>;
 			status = "disabled";
 		};
 
@@ -692,6 +693,7 @@
 			interrupt-parent = <&aic>;
 			interrupts = <AIC_IRQ 553 IRQ_TYPE_LEVEL_HIGH>;
 			power-domains = <&ps_disp0_cpu0>;
+			apple,dma-range = <0x8 0x00000000 0x7 0xffff0000>;
 		};
 
 		dcp_mbox: mbox@231c08000 {
@@ -726,7 +728,6 @@
 			power-domains = <&ps_disp0_cpu0>;
 			resets = <&ps_disp0_cpu0>;
 			clocks = <&clk_disp0>;
-			apple,asc-dram-mask = <0x0 0x0>;
 			phandle = <&dcp>;
 			// required bus properties for 'piodma' subdevice
 			#address-cells = <2>;
