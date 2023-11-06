@@ -1829,9 +1829,18 @@ static int atcphy_dpphy_configure(struct phy *phy,
 	if (opts->set_voltages)
 		return -EINVAL;
 
-	/* TODO? or maybe just ack since this mux_set should've done this? */
-	if (opts->set_lanes)
-		return -EINVAL;
+	/*
+	 * Just ack set_lanes for compatibility with (lp)dptx-phy
+	 * The mux_set should've done this anyway
+	 */
+	if (opts->set_lanes) {
+		if (((atcphy->mode == APPLE_ATCPHY_MODE_DP && opts->lanes != 4) ||
+		     (atcphy->mode == APPLE_ATCPHY_MODE_USB3_DP && opts->lanes != 2)) &&
+	            opts->lanes != 0)
+		dev_warn(atcphy->dev, "Unexpected lane count %u for mode %u\n",
+			 opts->lanes, atcphy->mode);
+
+	}
 
 	if (opts->set_rate) {
 		switch (opts->link_rate) {
