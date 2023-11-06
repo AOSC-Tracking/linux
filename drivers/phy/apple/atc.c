@@ -1246,6 +1246,30 @@ atcphy_dp_configure_lane(struct apple_atcphy *atcphy, unsigned int lane,
 	clear32(tx_shm + LN_AUSPMA_TX_SHM_TXA_IMP_REG0, LN_TXA_HIZ);
 	set32(tx_shm + LN_AUSPMA_TX_SHM_TXA_IMP_REG0, LN_TXA_HIZ_OV);
 
+	return 0;
+}
+
+static int
+atcphy_dp_configure_lane2(struct apple_atcphy *atcphy, unsigned int lane,
+			 const struct atcphy_dp_link_rate_configuration *cfg)
+{
+	void __iomem *tx_shm, *rx_shm, *rx_top;
+
+	switch (lane) {
+	case 0:
+		tx_shm = atcphy->regs.core + LN0_AUSPMA_TX_SHM;
+		rx_shm = atcphy->regs.core + LN0_AUSPMA_RX_SHM;
+		rx_top = atcphy->regs.core + LN0_AUSPMA_RX_TOP;
+		break;
+	case 1:
+		tx_shm = atcphy->regs.core + LN1_AUSPMA_TX_SHM;
+		rx_shm = atcphy->regs.core + LN1_AUSPMA_RX_SHM;
+		rx_top = atcphy->regs.core + LN1_AUSPMA_RX_TOP;
+		break;
+	default:
+		return -EINVAL;
+	}
+
 	clear32(rx_shm + LN_AUSPMA_RX_SHM_TJ_RXA_AFE_CTRL1,
 		LN_RX_DIV20_RESET_N);
 	set32(rx_shm + LN_AUSPMA_RX_SHM_TJ_RXA_AFE_CTRL1,
@@ -1511,6 +1535,18 @@ static int atcphy_dp_configure(struct apple_atcphy *atcphy,
 
 	if (mode_cfg->dp_lane[1]) {
 		ret = atcphy_dp_configure_lane(atcphy, 1, cfg);
+		if (ret)
+			return ret;
+	}
+
+	if (mode_cfg->dp_lane[0]) {
+		ret = atcphy_dp_configure_lane2(atcphy, 0, cfg);
+		if (ret)
+			return ret;
+	}
+
+	if (mode_cfg->dp_lane[1]) {
+		ret = atcphy_dp_configure_lane2(atcphy, 1, cfg);
 		if (ret)
 			return ret;
 	}
