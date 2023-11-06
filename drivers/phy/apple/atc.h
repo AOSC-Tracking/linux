@@ -134,6 +134,7 @@ struct apple_atcphy {
 
 	struct work_struct mux_set_work;
 	enum atcphy_mode target_mode;
+	bool dp_only;
 };
 
 #endif
