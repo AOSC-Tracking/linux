@@ -1780,7 +1780,7 @@ static int atcphy_dpphy_set_mode(struct phy *phy, enum phy_mode mode,
 				 int submode)
 {
 	/* nothing to do here since the setup already happened in mux_set */
-	if (mode == PHY_MODE_DP && submode == 0)
+	if (mode == PHY_MODE_DP && submode >= 0 && submode <= 5)
 		return 0;
 	return -EINVAL;
 }
