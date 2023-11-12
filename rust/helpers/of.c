@@ -8,10 +8,13 @@ const struct of_device_id *rust_helper_of_match_device(
 {
 			return of_match_device(matches, dev);
 }
+
+#ifdef CONFIG_OF
 bool rust_helper_of_node_is_root(const struct device_node *np)
 {
 	return of_node_is_root(np);
 }
+#endif
 
 struct device_node *rust_helper_of_parse_phandle(const struct device_node *np,
                const char *phandle_name,
