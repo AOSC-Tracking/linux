@@ -232,7 +232,6 @@ static struct ctl_table kdump_ctl_table[] = {
 		.mode = 0644,
 		.proc_handler = proc_dointvec,
 	},
-	{ }
 };
 #endif
 
