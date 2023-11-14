@@ -245,6 +245,28 @@ SYM_FUNC_START(kvm_restore_fpu)
 	jr                 ra
 SYM_FUNC_END(kvm_restore_fpu)
 
+#ifdef CONFIG_CPU_HAS_LSX
+SYM_FUNC_START(kvm_save_lsx)
+	fpu_save_csr    a0 t1
+	fpu_save_cc     a0 t1 t2
+	lsx_save_data   a0 t1
+	jirl            zero, ra, 0
+SYM_FUNC_END(kvm_save_lsx)
+
+SYM_FUNC_START(kvm_restore_lsx)
+	lsx_restore_data a0 t1
+	fpu_restore_cc   a0 t1 t2
+	fpu_restore_csr  a0 t1 t2
+	jirl             zero, ra, 0
+SYM_FUNC_END(kvm_restore_lsx)
+
+SYM_FUNC_START(kvm_restore_lsx_upper)
+	lsx_restore_all_upper a0 t0 t1
+
+	jirl                  zero, ra, 0
+SYM_FUNC_END(kvm_restore_lsx_upper)
+#endif
+
 	.section ".rodata"
 SYM_DATA(kvm_exception_size, .quad kvm_exc_entry_end - kvm_exc_entry)
 SYM_DATA(kvm_enter_guest_size, .quad kvm_enter_guest_end - kvm_enter_guest)
