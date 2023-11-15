@@ -267,6 +267,22 @@ SYM_FUNC_START(kvm_restore_lsx_upper)
 SYM_FUNC_END(kvm_restore_lsx_upper)
 #endif
 
+#ifdef CONFIG_CPU_HAS_LASX
+SYM_FUNC_START(kvm_save_lasx)
+	fpu_save_csr    a0 t1
+	fpu_save_cc     a0 t1 t2
+	lasx_save_data  a0 t1
+
+	jirl            zero, ra, 0
+SYM_FUNC_END(kvm_save_lasx)
+
+SYM_FUNC_START(kvm_restore_lasx)
+	lasx_restore_data a0 t1
+	fpu_restore_cc    a0 t1 t2
+	fpu_restore_csr   a0 t1 t2
+	jirl    zero, ra, 0
+SYM_FUNC_END(kvm_restore_lasx)
+#endif
 	.section ".rodata"
 SYM_DATA(kvm_exception_size, .quad kvm_exc_entry_end - kvm_exc_entry)
 SYM_DATA(kvm_enter_guest_size, .quad kvm_enter_guest_end - kvm_enter_guest)
