@@ -384,6 +384,10 @@ static int kvm_set_one_reg(struct kvm_vcpu *vcpu,
 				vcpu->arch.cpucfg[id] &= ~CPUCFG2_LSX;
 				ret = -EINVAL;
 			}
+			if (id == 2 && v & CPUCFG2_LASX && !cpu_has_lasx) {
+				vcpu->arch.cpucfg[id] &= ~CPUCFG2_LASX;
+				ret = -EINVAL;
+			}
 		} else
 			ret = -EINVAL;
 		break;
@@ -595,12 +599,49 @@ void kvm_own_lsx(struct kvm_vcpu *vcpu)
 }
 #endif
 
+#ifdef CONFIG_CPU_HAS_LASX
+/* Enable LASX for guest and restore context */
+void kvm_own_lasx(struct kvm_vcpu *vcpu)
+{
+	preempt_disable();
+
+	set_csr_euen(CSR_EUEN_FPEN | CSR_EUEN_LSXEN | CSR_EUEN_LASXEN);
+	switch (vcpu->arch.aux_inuse & (KVM_LARCH_FPU | KVM_LARCH_LSX)) {
+	case KVM_LARCH_LSX | KVM_LARCH_FPU:
+	case KVM_LARCH_LSX:
+		/* Guest LSX state already loaded, only restore upper LASX state */
+		_restore_lasx_upper(&vcpu->arch.fpu);
+		break;
+	case KVM_LARCH_FPU:
+		/* Guest FP state already loaded, only restore 64~256 LASX state */
+		kvm_restore_lsx_upper(&vcpu->arch.fpu);
+		_restore_lasx_upper(&vcpu->arch.fpu);
+		break;
+	default:
+		/* Neither FP or LSX already active, restore full LASX state */
+		kvm_restore_lasx(&vcpu->arch.fpu);
+		break;
+	}
+
+	trace_kvm_aux(vcpu, KVM_TRACE_AUX_RESTORE, KVM_TRACE_AUX_LASX);
+	vcpu->arch.aux_inuse |= KVM_LARCH_LASX | KVM_LARCH_LSX | KVM_LARCH_FPU;
+	preempt_enable();
+}
+#endif
+
 /* Save context and disable FPU */
 void kvm_lose_fpu(struct kvm_vcpu *vcpu)
 {
 	preempt_disable();
 
-	if (vcpu->arch.aux_inuse & KVM_LARCH_LSX) {
+	if (vcpu->arch.aux_inuse & KVM_LARCH_LASX) {
+		kvm_save_lasx(&vcpu->arch.fpu);
+		vcpu->arch.aux_inuse &= ~(KVM_LARCH_LSX | KVM_LARCH_FPU | KVM_LARCH_LASX);
+		trace_kvm_aux(vcpu, KVM_TRACE_AUX_SAVE, KVM_TRACE_AUX_LASX);
+
+		/* Disable LASX & LSX & FPU */
+		clear_csr_euen(CSR_EUEN_FPEN | CSR_EUEN_LSXEN | CSR_EUEN_LASXEN);
+	} else if (vcpu->arch.aux_inuse & KVM_LARCH_LSX) {
 		kvm_save_lsx(&vcpu->arch.fpu);
 		vcpu->arch.aux_inuse &= ~(KVM_LARCH_LSX | KVM_LARCH_FPU);
 		trace_kvm_aux(vcpu, KVM_TRACE_AUX_SAVE, KVM_TRACE_AUX_LSX);
