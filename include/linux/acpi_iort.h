@@ -11,6 +11,8 @@
 #include <linux/fwnode.h>
 #include <linux/irqdomain.h>
 
+struct iommu_fwspec;
+
 #define IORT_IRQ_MASK(irq)		(irq & 0xffffffffULL)
 #define IORT_IRQ_TRIGGER_MASK(irq)	((irq >> 32) & 0xffffffffULL)
 
@@ -40,7 +42,8 @@ void iort_put_rmr_sids(struct fwnode_handle *iommu_fwnode,
 		       struct list_head *head);
 /* IOMMU interface */
 int iort_dma_get_ranges(struct device *dev, u64 *size);
-int iort_iommu_configure_id(struct device *dev, const u32 *id_in);
+int iort_iommu_configure_id(struct iommu_fwspec *fwspec, struct device *dev,
+			    const u32 *id_in);
 void iort_iommu_get_resv_regions(struct device *dev, struct list_head *head);
 phys_addr_t acpi_iort_dma_get_max_cpu_address(void);
 #else
@@ -57,7 +60,8 @@ void iort_put_rmr_sids(struct fwnode_handle *iommu_fwnode, struct list_head *hea
 /* IOMMU interface */
 static inline int iort_dma_get_ranges(struct device *dev, u64 *size)
 { return -ENODEV; }
-static inline int iort_iommu_configure_id(struct device *dev, const u32 *id_in)
+static inline int iort_iommu_configure_id(struct iommu_fwspec *fwspec,
+					  struct device *dev, const u32 *id_in)
 { return -ENODEV; }
 static inline
 void iort_iommu_get_resv_regions(struct device *dev, struct list_head *head)

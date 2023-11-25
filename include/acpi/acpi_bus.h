@@ -14,6 +14,8 @@
 
 /* TBD: Make dynamic */
 #define ACPI_MAX_HANDLES	10
+struct iommu_fwspec;
+
 struct acpi_handle_list {
 	u32 count;
 	acpi_handle handles[ACPI_MAX_HANDLES];
@@ -625,9 +627,9 @@ struct acpi_pci_root {
 
 bool acpi_dma_supported(const struct acpi_device *adev);
 enum dev_dma_attr acpi_get_dma_attr(struct acpi_device *adev);
-int acpi_iommu_fwspec_init(struct device *dev, u32 id,
-			   struct fwnode_handle *fwnode,
-			   const struct iommu_ops *ops);
+int acpi_iommu_fwspec_init(struct iommu_fwspec *fwspec, struct device *dev,
+			   u32 id, struct fwnode_handle *fwnode,
+			   bool iommu_driver_available);
 int acpi_dma_get_range(struct device *dev, const struct bus_dma_region **map);
 int acpi_dma_configure_id(struct device *dev, enum dev_dma_attr attr,
 			   const u32 *input_id);

@@ -8,11 +8,12 @@
 #ifdef CONFIG_ACPI_VIOT
 void __init acpi_viot_early_init(void);
 void __init acpi_viot_init(void);
-int viot_iommu_configure(struct device *dev);
+int viot_iommu_configure(struct iommu_fwspec *fwspec, struct device *dev);
 #else
 static inline void acpi_viot_early_init(void) {}
 static inline void acpi_viot_init(void) {}
-static inline int viot_iommu_configure(struct device *dev)
+static inline int viot_iommu_configure(struct iommu_fwspec *fwspec,
+				       struct device *dev)
 {
 	return -ENODEV;
 }

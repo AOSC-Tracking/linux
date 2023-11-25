@@ -42,6 +42,7 @@
 static struct kset *iommu_group_kset;
 static DEFINE_IDA(iommu_group_ida);
 static DEFINE_IDA(iommu_global_pasid_ida);
+static DEFINE_MUTEX(iommu_probe_device_lock);
 
 static unsigned int iommu_def_domain_type __read_mostly;
 static bool iommu_dma_strict __read_mostly = IS_ENABLED(CONFIG_IOMMU_DEFAULT_DMA_STRICT);
@@ -88,6 +89,7 @@ static const char * const iommu_group_resv_type_string[] = {
 	[IOMMU_RESV_RESERVED]			= "reserved",
 	[IOMMU_RESV_MSI]			= "msi",
 	[IOMMU_RESV_SW_MSI]			= "msi",
+	[IOMMU_RESV_TRANSLATED]			= "translated",
 };
 
 #define IOMMU_CMD_LINE_DMA_API		BIT(0)
@@ -339,6 +341,8 @@ static struct dev_iommu *dev_iommu_get(struct device *dev)
 {
 	struct dev_iommu *param = dev->iommu;
 
+	lockdep_assert_held(&iommu_probe_device_lock);
+
 	if (param)
 		return param;
 
@@ -356,10 +360,8 @@ static void dev_iommu_free(struct device *dev)
 	struct dev_iommu *param = dev->iommu;
 
 	dev->iommu = NULL;
-	if (param->fwspec) {
-		fwnode_handle_put(param->fwspec->iommu_fwnode);
-		kfree(param->fwspec);
-	}
+	if (param->fwspec)
+		iommu_fwspec_dealloc(param->fwspec);
 	kfree(param);
 }
 
@@ -381,18 +383,35 @@ static u32 dev_iommu_get_max_pasids(struct device *dev)
 	return min_t(u32, max_pasids, dev->iommu->iommu_dev->max_pasids);
 }
 
+void dev_iommu_priv_set(struct device *dev, void *priv)
+{
+	/* FSL_PAMU does something weird */
+	if (!IS_ENABLED(CONFIG_FSL_PAMU))
+		lockdep_assert_held(&iommu_probe_device_lock);
+	dev->iommu->priv = priv;
+}
+EXPORT_SYMBOL_GPL(dev_iommu_priv_set);
+
 /*
  * Init the dev->iommu and dev->iommu_group in the struct device and get the
- * driver probed
+ * driver probed. Take ownership of fwspec, it always freed on error
+ * or freed by iommu_deinit_device().
  */
-static int iommu_init_device(struct device *dev, const struct iommu_ops *ops)
+static int iommu_init_device(struct device *dev, struct iommu_fwspec *fwspec,
+			     const struct iommu_ops *ops)
 {
 	struct iommu_device *iommu_dev;
 	struct iommu_group *group;
 	int ret;
 
-	if (!dev_iommu_get(dev))
+	if (!dev_iommu_get(dev)) {
+		iommu_fwspec_dealloc(fwspec);
 		return -ENOMEM;
+	}
+
+	if (dev->iommu->fwspec && dev->iommu->fwspec != fwspec)
+		iommu_fwspec_dealloc(dev->iommu->fwspec);
+	dev->iommu->fwspec = fwspec;
 
 	if (!try_module_get(ops->owner)) {
 		ret = -EINVAL;
@@ -479,16 +498,16 @@ static void iommu_deinit_device(struct device *dev)
 	dev_iommu_free(dev);
 }
 
-static int __iommu_probe_device(struct device *dev, struct list_head *group_list)
+static int __iommu_probe_device(struct device *dev,
+				struct iommu_fwspec *caller_fwspec,
+				struct list_head *group_list)
 {
-	const struct iommu_ops *ops = dev->bus->iommu_ops;
+	struct iommu_fwspec *fwspec = caller_fwspec;
+	const struct iommu_ops *ops;
 	struct iommu_group *group;
-	static DEFINE_MUTEX(iommu_probe_device_lock);
 	struct group_device *gdev;
 	int ret;
 
-	if (!ops)
-		return -ENODEV;
 	/*
 	 * Serialise to avoid races between IOMMU drivers registering in
 	 * parallel and/or the "replay" calls from ACPI/OF code via client
@@ -498,13 +517,25 @@ static int __iommu_probe_device(struct device *dev, struct list_head *group_list
 	 */
 	mutex_lock(&iommu_probe_device_lock);
 
-	/* Device is probed already if in a group */
-	if (dev->iommu_group) {
-		ret = 0;
+	if (!fwspec && dev->iommu)
+		fwspec = dev->iommu->fwspec;
+	if (fwspec)
+		ops = fwspec->ops;
+	else
+		ops = dev->bus->iommu_ops;
+	if (!ops) {
+		ret = -ENODEV;
 		goto out_unlock;
 	}
 
-	ret = iommu_init_device(dev, ops);
+	/* Device is probed already if in a group */
+	if (dev->iommu_group) {
+		ret = 0;
+		iommu_fwspec_dealloc(caller_fwspec);
+		goto out_unlock;
+	}
+
+	ret = iommu_init_device(dev, fwspec, ops);
 	if (ret)
 		goto out_unlock;
 
@@ -562,12 +593,16 @@ out_unlock:
 	return ret;
 }
 
-int iommu_probe_device(struct device *dev)
+/*
+ * Ownership of fwspec always transfers to iommu_probe_device_fwspec(), it will
+ * be free'd even on failure.
+ */
+int iommu_probe_device_fwspec(struct device *dev, struct iommu_fwspec *fwspec)
 {
 	const struct iommu_ops *ops;
 	int ret;
 
-	ret = __iommu_probe_device(dev, NULL);
+	ret = __iommu_probe_device(dev, fwspec, NULL);
 	if (ret)
 		return ret;
 
@@ -1783,7 +1818,7 @@ static int probe_iommu_group(struct device *dev, void *data)
 	struct list_head *group_list = data;
 	int ret;
 
-	ret = __iommu_probe_device(dev, group_list);
+	ret = __iommu_probe_device(dev, NULL, group_list);
 	if (ret == -ENODEV)
 		ret = 0;
 
@@ -2039,6 +2074,15 @@ static int __iommu_attach_device(struct iommu_domain *domain,
 
 	if (unlikely(domain->ops->attach_dev == NULL))
 		return -ENODEV;
+
+	/*
+	 * Ensure we do not try to attach devices to FQ domains if the
+	 * IOMMU does not support them. We can safely fall back to
+	 * non-FQ.
+	 */
+	if (domain->type == IOMMU_DOMAIN_DMA_FQ &&
+	    !device_iommu_capable(dev, IOMMU_CAP_DEFERRED_FLUSH))
+		domain->type = IOMMU_DOMAIN_DMA;
 
 	ret = domain->ops->attach_dev(domain, dev);
 	if (ret)
@@ -2782,10 +2826,11 @@ void iommu_put_resv_regions(struct device *dev, struct list_head *list)
 }
 EXPORT_SYMBOL(iommu_put_resv_regions);
 
-struct iommu_resv_region *iommu_alloc_resv_region(phys_addr_t start,
-						  size_t length, int prot,
-						  enum iommu_resv_type type,
-						  gfp_t gfp)
+struct iommu_resv_region *iommu_alloc_resv_region_tr(phys_addr_t start,
+						     dma_addr_t dva_start,
+						     size_t length, int prot,
+						     enum iommu_resv_type type,
+						     gfp_t gfp)
 {
 	struct iommu_resv_region *region;
 
@@ -2795,10 +2840,24 @@ struct iommu_resv_region *iommu_alloc_resv_region(phys_addr_t start,
 
 	INIT_LIST_HEAD(&region->list);
 	region->start = start;
+	if (type == IOMMU_RESV_TRANSLATED)
+		region->dva = dva_start;
 	region->length = length;
 	region->prot = prot;
 	region->type = type;
 	return region;
+}
+EXPORT_SYMBOL_GPL(iommu_alloc_resv_region_tr);
+
+struct iommu_resv_region *iommu_alloc_resv_region(phys_addr_t start,
+						  size_t length, int prot,
+						  enum iommu_resv_type type,
+						  gfp_t gfp)
+{
+	if (type == IOMMU_RESV_TRANSLATED)
+		return NULL;
+
+	return iommu_alloc_resv_region_tr(start, 0, length, prot, type, gfp);
 }
 EXPORT_SYMBOL_GPL(iommu_alloc_resv_region);
 
@@ -2822,7 +2881,8 @@ bool iommu_default_passthrough(void)
 }
 EXPORT_SYMBOL_GPL(iommu_default_passthrough);
 
-const struct iommu_ops *iommu_ops_from_fwnode(struct fwnode_handle *fwnode)
+static const struct iommu_ops *
+iommu_ops_from_fwnode(struct fwnode_handle *fwnode)
 {
 	const struct iommu_ops *ops = NULL;
 	struct iommu_device *iommu;
@@ -2837,10 +2897,106 @@ const struct iommu_ops *iommu_ops_from_fwnode(struct fwnode_handle *fwnode)
 	return ops;
 }
 
+int iommu_fwspec_assign_iommu(struct iommu_fwspec *fwspec, struct device *dev,
+			      struct fwnode_handle *iommu_fwnode)
+{
+	const struct iommu_ops *ops;
+
+	if (fwspec->iommu_fwnode) {
+		/*
+		 * fwspec->iommu_fwnode is the first iommu's fwnode. In the rare
+		 * case of multiple iommus for one device they must point to the
+		 * same driver, checked via same ops.
+		 */
+		ops = iommu_ops_from_fwnode(iommu_fwnode);
+		if (!ops)
+			return driver_deferred_probe_check_state(dev);
+		if (fwspec->ops != ops)
+			return -EINVAL;
+		return 0;
+	}
+
+	if (!fwspec->ops) {
+		ops = iommu_ops_from_fwnode(iommu_fwnode);
+		if (!ops)
+			return driver_deferred_probe_check_state(dev);
+		fwspec->ops = ops;
+	}
+
+	of_node_get(to_of_node(iommu_fwnode));
+	fwspec->iommu_fwnode = iommu_fwnode;
+	return 0;
+}
+
+int iommu_fwspec_of_xlate(struct iommu_fwspec *fwspec, struct device *dev,
+			  struct fwnode_handle *iommu_fwnode,
+			  struct of_phandle_args *iommu_spec)
+{
+	int ret;
+
+	ret = iommu_fwspec_assign_iommu(fwspec, dev, iommu_fwnode);
+	if (ret == -EPROBE_DEFER) {
+		mutex_lock(&iommu_probe_device_lock);
+		if (dev->iommu)
+			dev_iommu_free(dev);
+		mutex_unlock(&iommu_probe_device_lock);
+	}
+	if (ret)
+		return ret;
+
+	if (fwspec->ops->of_xlate_fwspec)
+		return fwspec->ops->of_xlate_fwspec(fwspec, dev, iommu_spec);
+
+	if (!fwspec->ops->of_xlate)
+		return -ENODEV;
+
+	mutex_lock(&iommu_probe_device_lock);
+	if (!dev_iommu_get(dev)) {
+		mutex_unlock(&iommu_probe_device_lock);
+		return -ENOMEM;
+	}
+
+	/*
+	 * ops->of_xlate() requires the fwspec to be passed through dev->iommu,
+	 * set it temporarily.
+	 */
+	if (dev->iommu->fwspec && dev->iommu->fwspec != fwspec)
+		iommu_fwspec_dealloc(dev->iommu->fwspec);
+	dev->iommu->fwspec = fwspec;
+	ret = fwspec->ops->of_xlate(dev, iommu_spec);
+	if (dev->iommu->fwspec == fwspec)
+		dev->iommu->fwspec = NULL;
+	mutex_unlock(&iommu_probe_device_lock);
+	return ret;
+}
+
+struct iommu_fwspec *iommu_fwspec_alloc(void)
+{
+	struct iommu_fwspec *fwspec;
+
+	fwspec = kzalloc(sizeof(*fwspec), GFP_KERNEL);
+	if (!fwspec)
+		return ERR_PTR(-ENOMEM);
+	return fwspec;
+}
+
+void iommu_fwspec_dealloc(struct iommu_fwspec *fwspec)
+{
+	if (!fwspec)
+		return;
+
+	if (fwspec->iommu_fwnode)
+		fwnode_handle_put(fwspec->iommu_fwnode);
+	kfree(fwspec);
+}
+
 int iommu_fwspec_init(struct device *dev, struct fwnode_handle *iommu_fwnode,
 		      const struct iommu_ops *ops)
 {
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
+	int ret;
+
+	lockdep_assert_held(&iommu_probe_device_lock);
 
 	if (fwspec)
 		return ops == fwspec->ops ? 0 : -EINVAL;
@@ -2848,47 +3004,39 @@ int iommu_fwspec_init(struct device *dev, struct fwnode_handle *iommu_fwnode,
 	if (!dev_iommu_get(dev))
 		return -ENOMEM;
 
-	/* Preallocate for the overwhelmingly common case of 1 ID */
-	fwspec = kzalloc(struct_size(fwspec, ids, 1), GFP_KERNEL);
-	if (!fwspec)
-		return -ENOMEM;
+	fwspec = iommu_fwspec_alloc();
+	if (IS_ERR(fwspec))
+		return PTR_ERR(fwspec);
 
-	of_node_get(to_of_node(iommu_fwnode));
-	fwspec->iommu_fwnode = iommu_fwnode;
 	fwspec->ops = ops;
-	dev_iommu_fwspec_set(dev, fwspec);
+	ret = iommu_fwspec_assign_iommu(fwspec, dev, iommu_fwnode);
+	if (ret) {
+		iommu_fwspec_dealloc(fwspec);
+		return ret;
+	}
+
+	dev->iommu->fwspec = fwspec;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iommu_fwspec_init);
 
-void iommu_fwspec_free(struct device *dev)
+int iommu_fwspec_append_ids(struct iommu_fwspec *fwspec, u32 *ids, int num_ids)
 {
-	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
-
-	if (fwspec) {
-		fwnode_handle_put(fwspec->iommu_fwnode);
-		kfree(fwspec);
-		dev_iommu_fwspec_set(dev, NULL);
-	}
-}
-EXPORT_SYMBOL_GPL(iommu_fwspec_free);
-
-int iommu_fwspec_add_ids(struct device *dev, u32 *ids, int num_ids)
-{
-	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
 	int i, new_num;
 
-	if (!fwspec)
-		return -EINVAL;
-
 	new_num = fwspec->num_ids + num_ids;
-	if (new_num > 1) {
-		fwspec = krealloc(fwspec, struct_size(fwspec, ids, new_num),
-				  GFP_KERNEL);
-		if (!fwspec)
+	if (new_num <= 1) {
+		if (fwspec->ids != &fwspec->single_id)
+			kfree(fwspec->ids);
+		fwspec->ids = &fwspec->single_id;
+	} else if (new_num > fwspec->num_ids) {
+		ids = krealloc_array(
+			fwspec->ids != &fwspec->single_id ? fwspec->ids : NULL,
+			new_num, sizeof(fwspec->ids[0]),
+			GFP_KERNEL | __GFP_ZERO);
+		if (!ids)
 			return -ENOMEM;
-
-		dev_iommu_fwspec_set(dev, fwspec);
+		fwspec->ids = ids;
 	}
 
 	for (i = 0; i < num_ids; i++)
@@ -2896,6 +3044,18 @@ int iommu_fwspec_add_ids(struct device *dev, u32 *ids, int num_ids)
 
 	fwspec->num_ids = new_num;
 	return 0;
+}
+EXPORT_SYMBOL_GPL(iommu_fwspec_append_ids);
+
+int iommu_fwspec_add_ids(struct device *dev, u32 *ids, int num_ids)
+{
+	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
+
+	lockdep_assert_held(&iommu_probe_device_lock);
+
+	if (!fwspec)
+		return -EINVAL;
+	return iommu_fwspec_append_ids(fwspec, ids, num_ids);
 }
 EXPORT_SYMBOL_GPL(iommu_fwspec_add_ids);
 

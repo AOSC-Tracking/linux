@@ -339,6 +339,7 @@ unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8 {
     }
 }
 
+#[cfg(not(version("1.72")))]
 #[cfg_attr(not(test), lang = "box_free")]
 #[inline]
 // This signature has to be the same as `Box`, otherwise an ICE will happen.

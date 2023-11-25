@@ -1027,9 +1027,11 @@ static struct iommu_group *viommu_device_group(struct device *dev)
 		return generic_device_group(dev);
 }
 
-static int viommu_of_xlate(struct device *dev, struct of_phandle_args *args)
+static int viommu_of_xlate_fwspec(struct iommu_fwspec *fwspec,
+				  struct device *dev,
+				  struct of_phandle_args *args)
 {
-	return iommu_fwspec_add_ids(dev, args->args, 1);
+	return iommu_fwspec_append_ids(fwspec, args->args, 1);
 }
 
 static bool viommu_capable(struct device *dev, enum iommu_cap cap)
@@ -1050,7 +1052,7 @@ static struct iommu_ops viommu_ops = {
 	.release_device		= viommu_release_device,
 	.device_group		= viommu_device_group,
 	.get_resv_regions	= viommu_get_resv_regions,
-	.of_xlate		= viommu_of_xlate,
+	.of_xlate_fwspec	= viommu_of_xlate_fwspec,
 	.owner			= THIS_MODULE,
 	.default_domain_ops = &(const struct iommu_domain_ops) {
 		.attach_dev		= viommu_attach_dev,

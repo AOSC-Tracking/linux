@@ -304,11 +304,9 @@ void __init acpi_viot_init(void)
 	acpi_put_table(hdr);
 }
 
-static int viot_dev_iommu_init(struct device *dev, struct viot_iommu *viommu,
-			       u32 epid)
+static int viot_dev_iommu_init(struct iommu_fwspec *fwspec, struct device *dev,
+			       struct viot_iommu *viommu, u32 epid)
 {
-	const struct iommu_ops *ops;
-
 	if (!viommu)
 		return -ENODEV;
 
@@ -316,19 +314,20 @@ static int viot_dev_iommu_init(struct device *dev, struct viot_iommu *viommu,
 	if (device_match_fwnode(dev, viommu->fwnode))
 		return -EINVAL;
 
-	ops = iommu_ops_from_fwnode(viommu->fwnode);
-	if (!ops)
-		return IS_ENABLED(CONFIG_VIRTIO_IOMMU) ?
-			-EPROBE_DEFER : -ENODEV;
-
-	return acpi_iommu_fwspec_init(dev, epid, viommu->fwnode, ops);
+	return acpi_iommu_fwspec_init(fwspec, dev, epid, viommu->fwnode,
+				      IS_ENABLED(CONFIG_VIRTIO_IOMMU));
 }
+
+struct viot_pci_alias_info {
+	struct device *dev;
+	struct iommu_fwspec *fwspec;
+};
 
 static int viot_pci_dev_iommu_init(struct pci_dev *pdev, u16 dev_id, void *data)
 {
 	u32 epid;
 	struct viot_endpoint *ep;
-	struct device *aliased_dev = data;
+	struct viot_pci_alias_info *info = data;
 	u32 domain_nr = pci_domain_nr(pdev->bus);
 
 	list_for_each_entry(ep, &viot_pci_ranges, list) {
@@ -339,14 +338,15 @@ static int viot_pci_dev_iommu_init(struct pci_dev *pdev, u16 dev_id, void *data)
 			epid = ((domain_nr - ep->segment_start) << 16) +
 				dev_id - ep->bdf_start + ep->endpoint_id;
 
-			return viot_dev_iommu_init(aliased_dev, ep->viommu,
-						   epid);
+			return viot_dev_iommu_init(info->fwspec, info->dev,
+						   ep->viommu, epid);
 		}
 	}
 	return -ENODEV;
 }
 
-static int viot_mmio_dev_iommu_init(struct platform_device *pdev)
+static int viot_mmio_dev_iommu_init(struct iommu_fwspec *fwspec,
+				    struct platform_device *pdev)
 {
 	struct resource *mem;
 	struct viot_endpoint *ep;
@@ -357,24 +357,29 @@ static int viot_mmio_dev_iommu_init(struct platform_device *pdev)
 
 	list_for_each_entry(ep, &viot_mmio_endpoints, list) {
 		if (ep->address == mem->start)
-			return viot_dev_iommu_init(&pdev->dev, ep->viommu,
-						   ep->endpoint_id);
+			return viot_dev_iommu_init(fwspec, &pdev->dev,
+						   ep->viommu, ep->endpoint_id);
 	}
 	return -ENODEV;
 }
 
 /**
  * viot_iommu_configure - Setup IOMMU ops for an endpoint described by VIOT
+ * @fwspec: The iommu_fwspec to fill in with fw information about the device
  * @dev: the endpoint
  *
  * Return: 0 on success, <0 on failure
  */
-int viot_iommu_configure(struct device *dev)
+int viot_iommu_configure(struct iommu_fwspec *fwspec, struct device *dev)
 {
-	if (dev_is_pci(dev))
+	if (dev_is_pci(dev)) {
+		struct viot_pci_alias_info info = { .dev = dev,
+						    .fwspec = fwspec };
 		return pci_for_each_dma_alias(to_pci_dev(dev),
-					      viot_pci_dev_iommu_init, dev);
+					      viot_pci_dev_iommu_init, &info);
+	}
 	else if (dev_is_platform(dev))
-		return viot_mmio_dev_iommu_init(to_platform_device(dev));
+		return viot_mmio_dev_iommu_init(fwspec,
+						to_platform_device(dev));
 	return -ENODEV;
 }

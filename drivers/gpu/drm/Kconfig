@@ -293,6 +293,8 @@ config DRM_VKMS
 
 	  If M is selected the module will be called vkms.
 
+source "drivers/gpu/drm/asahi/Kconfig"
+
 source "drivers/gpu/drm/exynos/Kconfig"
 
 source "drivers/gpu/drm/rockchip/Kconfig"
@@ -379,6 +381,8 @@ source "drivers/gpu/drm/mcde/Kconfig"
 
 source "drivers/gpu/drm/tidss/Kconfig"
 
+source "drivers/gpu/drm/adp/Kconfig"
+
 source "drivers/gpu/drm/xlnx/Kconfig"
 
 source "drivers/gpu/drm/gud/Kconfig"
@@ -386,6 +390,8 @@ source "drivers/gpu/drm/gud/Kconfig"
 source "drivers/gpu/drm/solomon/Kconfig"
 
 source "drivers/gpu/drm/sprd/Kconfig"
+
+source "drivers/gpu/drm/apple/Kconfig"
 
 config DRM_HYPERV
 	tristate "DRM Support for Hyper-V synthetic video device"

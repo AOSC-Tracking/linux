@@ -41,6 +41,7 @@ struct notifier_block;
 struct iommu_sva;
 struct iommu_fault_event;
 struct iommu_dma_cookie;
+struct iommu_fwspec;
 
 /* iommu fault flags */
 #define IOMMU_FAULT_READ	0x0
@@ -151,12 +152,18 @@ enum iommu_resv_type {
 	IOMMU_RESV_MSI,
 	/* Software-managed MSI translation window */
 	IOMMU_RESV_SW_MSI,
+	/*
+	 * Memory regions which must be mapped with the specified mapping
+	 * at all times.
+	 */
+	IOMMU_RESV_TRANSLATED,
 };
 
 /**
  * struct iommu_resv_region - descriptor for a reserved memory region
  * @list: Linked list pointers
  * @start: System physical start address of the region
+ * @start: Device virtual start address of the region for IOMMU_RESV_TRANSLATED
  * @length: Length of the region in bytes
  * @prot: IOMMU Protection flags (READ/WRITE/...)
  * @type: Type of the reserved region
@@ -165,6 +172,7 @@ enum iommu_resv_type {
 struct iommu_resv_region {
 	struct list_head	list;
 	phys_addr_t		start;
+	dma_addr_t		dva;
 	size_t			length;
 	int			prot;
 	enum iommu_resv_type	type;
@@ -277,6 +285,8 @@ struct iommu_ops {
 	/* Request/Free a list of reserved regions for a device */
 	void (*get_resv_regions)(struct device *dev, struct list_head *list);
 
+	int (*of_xlate_fwspec)(struct iommu_fwspec *fwspec, struct device *dev,
+			       struct of_phandle_args *args);
 	int (*of_xlate)(struct device *dev, struct of_phandle_args *args);
 	bool (*is_attach_deferred)(struct device *dev);
 
@@ -497,6 +507,9 @@ extern bool iommu_default_passthrough(void);
 extern struct iommu_resv_region *
 iommu_alloc_resv_region(phys_addr_t start, size_t length, int prot,
 			enum iommu_resv_type type, gfp_t gfp);
+extern struct iommu_resv_region *
+iommu_alloc_resv_region_tr(phys_addr_t start, dma_addr_t dva_start, size_t length,
+			   int prot, enum iommu_resv_type type, gfp_t gfp);
 extern int iommu_get_group_resv_regions(struct iommu_group *group,
 					struct list_head *head);
 
@@ -656,7 +669,8 @@ struct iommu_fwspec {
 	struct fwnode_handle	*iommu_fwnode;
 	u32			flags;
 	unsigned int		num_ids;
-	u32			ids[];
+	u32			single_id;
+	u32			*ids;
 };
 
 /* ATS is supported */
@@ -670,11 +684,25 @@ struct iommu_sva {
 	struct iommu_domain		*domain;
 };
 
+struct iommu_fwspec *iommu_fwspec_alloc(void);
+void iommu_fwspec_dealloc(struct iommu_fwspec *fwspec);
+int iommu_fwspec_of_xlate(struct iommu_fwspec *fwspec, struct device *dev,
+			  struct fwnode_handle *iommu_fwnode,
+			  struct of_phandle_args *iommu_spec);
+int iommu_fwspec_assign_iommu(struct iommu_fwspec *fwspec, struct device *dev,
+			      struct fwnode_handle *iommu_fwnode);
+
 int iommu_fwspec_init(struct device *dev, struct fwnode_handle *iommu_fwnode,
 		      const struct iommu_ops *ops);
-void iommu_fwspec_free(struct device *dev);
+static inline void iommu_fwspec_free(struct device *dev)
+{
+	if (!dev->iommu)
+		return;
+	iommu_fwspec_dealloc(dev->iommu->fwspec);
+	dev->iommu->fwspec = NULL;
+}
 int iommu_fwspec_add_ids(struct device *dev, u32 *ids, int num_ids);
-const struct iommu_ops *iommu_ops_from_fwnode(struct fwnode_handle *fwnode);
+int iommu_fwspec_append_ids(struct iommu_fwspec *fwspec, u32 *ids, int num_ids);
 
 static inline struct iommu_fwspec *dev_iommu_fwspec_get(struct device *dev)
 {
@@ -682,12 +710,6 @@ static inline struct iommu_fwspec *dev_iommu_fwspec_get(struct device *dev)
 		return dev->iommu->fwspec;
 	else
 		return NULL;
-}
-
-static inline void dev_iommu_fwspec_set(struct device *dev,
-					struct iommu_fwspec *fwspec)
-{
-	dev->iommu->fwspec = fwspec;
 }
 
 static inline void *dev_iommu_priv_get(struct device *dev)
@@ -698,12 +720,13 @@ static inline void *dev_iommu_priv_get(struct device *dev)
 		return NULL;
 }
 
-static inline void dev_iommu_priv_set(struct device *dev, void *priv)
-{
-	dev->iommu->priv = priv;
-}
+void dev_iommu_priv_set(struct device *dev, void *priv);
 
-int iommu_probe_device(struct device *dev);
+int iommu_probe_device_fwspec(struct device *dev, struct iommu_fwspec *fwspec);
+static inline int iommu_probe_device(struct device *dev)
+{
+	return iommu_probe_device_fwspec(dev, NULL);
+}
 
 int iommu_dev_enable_feature(struct device *dev, enum iommu_dev_features f);
 int iommu_dev_disable_feature(struct device *dev, enum iommu_dev_features f);
@@ -1009,12 +1032,6 @@ static inline int iommu_fwspec_add_ids(struct device *dev, u32 *ids,
 				       int num_ids)
 {
 	return -ENODEV;
-}
-
-static inline
-const struct iommu_ops *iommu_ops_from_fwnode(struct fwnode_handle *fwnode)
-{
-	return NULL;
 }
 
 static inline int
