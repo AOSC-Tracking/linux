@@ -85,6 +85,7 @@ static const char * const iommu_group_resv_type_string[] = {
 	[IOMMU_RESV_RESERVED]			= "reserved",
 	[IOMMU_RESV_MSI]			= "msi",
 	[IOMMU_RESV_SW_MSI]			= "msi",
+	[IOMMU_RESV_TRANSLATED]			= "translated",
 };
 
 #define IOMMU_CMD_LINE_DMA_API		BIT(0)
@@ -333,12 +334,13 @@ static u32 dev_iommu_get_max_pasids(struct device *dev)
 	return min_t(u32, max_pasids, dev->iommu->iommu_dev->max_pasids);
 }
 
+DEFINE_MUTEX(iommu_probe_device_lock);
+
 static int __iommu_probe_device(struct device *dev, struct list_head *group_list)
 {
 	const struct iommu_ops *ops = dev->bus->iommu_ops;
 	struct iommu_device *iommu_dev;
 	struct iommu_group *group;
-	static DEFINE_MUTEX(iommu_probe_device_lock);
 	int ret;
 
 	if (!ops)
@@ -1978,6 +1980,15 @@ static int __iommu_attach_device(struct iommu_domain *domain,
 	if (unlikely(domain->ops->attach_dev == NULL))
 		return -ENODEV;
 
+	/*
+	 * Ensure we do not try to attach devices to FQ domains if the
+	 * IOMMU does not support them. We can safely fall back to
+	 * non-FQ.
+	 */
+	if (domain->type == IOMMU_DOMAIN_DMA_FQ &&
+	    !device_iommu_capable(dev, IOMMU_CAP_DEFERRED_FLUSH))
+		domain->type = IOMMU_DOMAIN_DMA;
+
 	ret = domain->ops->attach_dev(domain, dev);
 	if (ret)
 		return ret;
@@ -2670,10 +2681,11 @@ void iommu_put_resv_regions(struct device *dev, struct list_head *list)
 }
 EXPORT_SYMBOL(iommu_put_resv_regions);
 
-struct iommu_resv_region *iommu_alloc_resv_region(phys_addr_t start,
-						  size_t length, int prot,
-						  enum iommu_resv_type type,
-						  gfp_t gfp)
+struct iommu_resv_region *iommu_alloc_resv_region_tr(phys_addr_t start,
+						     dma_addr_t dva_start,
+						     size_t length, int prot,
+						     enum iommu_resv_type type,
+						     gfp_t gfp)
 {
 	struct iommu_resv_region *region;
 
@@ -2683,10 +2695,24 @@ struct iommu_resv_region *iommu_alloc_resv_region(phys_addr_t start,
 
 	INIT_LIST_HEAD(&region->list);
 	region->start = start;
+	if (type == IOMMU_RESV_TRANSLATED)
+		region->dva = dva_start;
 	region->length = length;
 	region->prot = prot;
 	region->type = type;
 	return region;
+}
+EXPORT_SYMBOL_GPL(iommu_alloc_resv_region_tr);
+
+struct iommu_resv_region *iommu_alloc_resv_region(phys_addr_t start,
+						  size_t length, int prot,
+						  enum iommu_resv_type type,
+						  gfp_t gfp)
+{
+	if (type == IOMMU_RESV_TRANSLATED)
+		return NULL;
+
+	return iommu_alloc_resv_region_tr(start, 0, length, prot, type, gfp);
 }
 EXPORT_SYMBOL_GPL(iommu_alloc_resv_region);
 

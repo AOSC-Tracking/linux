@@ -107,20 +107,30 @@ static int of_iommu_configure_device(struct device_node *master_np,
 		      of_iommu_configure_dev(master_np, dev);
 }
 
+extern struct mutex iommu_probe_device_lock;
+
 const struct iommu_ops *of_iommu_configure(struct device *dev,
 					   struct device_node *master_np,
 					   const u32 *id)
 {
 	const struct iommu_ops *ops = NULL;
-	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
+	struct iommu_fwspec *fwspec;
 	int err = NO_IOMMU;
 
-	if (!master_np)
+	mutex_lock(&iommu_probe_device_lock);
+
+	if (!master_np) {
+		mutex_unlock(&iommu_probe_device_lock);
 		return NULL;
+	}
+
+	fwspec = dev_iommu_fwspec_get(dev);
 
 	if (fwspec) {
-		if (fwspec->ops)
+		if (fwspec->ops) {
+			mutex_unlock(&iommu_probe_device_lock);
 			return fwspec->ops;
+		}
 
 		/* In the deferred case, start again from scratch */
 		iommu_fwspec_free(dev);
@@ -155,6 +165,9 @@ const struct iommu_ops *of_iommu_configure(struct device *dev,
 		fwspec = dev_iommu_fwspec_get(dev);
 		ops    = fwspec->ops;
 	}
+
+	mutex_unlock(&iommu_probe_device_lock);
+
 	/*
 	 * If we have reason to believe the IOMMU driver missed the initial
 	 * probe for dev, replay it to get things in order.
@@ -191,9 +204,7 @@ iommu_resv_region_get_type(struct device *dev,
 	if (start == phys->start && end == phys->end)
 		return IOMMU_RESV_DIRECT;
 
-	dev_warn(dev, "treating non-direct mapping [%pr] -> [%pap-%pap] as reservation\n", &phys,
-		 &start, &end);
-	return IOMMU_RESV_RESERVED;
+	return IOMMU_RESV_TRANSLATED;
 }
 
 /**
@@ -257,8 +268,13 @@ void of_iommu_get_resv_regions(struct device *dev, struct list_head *list)
 				maps = of_translate_dma_region(np, maps, &iova, &length);
 				type = iommu_resv_region_get_type(dev, &phys, iova, length);
 
-				region = iommu_alloc_resv_region(iova, length, prot, type,
+				if (type == IOMMU_RESV_TRANSLATED)
+					region = iommu_alloc_resv_region_tr(phys.start, iova, length, prot, type,
+								    GFP_KERNEL);
+				else
+					region = iommu_alloc_resv_region(iova, length, prot, type,
 								 GFP_KERNEL);
+
 				if (region)
 					list_add_tail(&region->list, list);
 			}

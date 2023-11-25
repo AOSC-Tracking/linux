@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * Mac Mini (M2 Pro, 2023)
+ *
+ * target-type: J474s
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+/dts-v1/;
+
+#include "t6020.dtsi"
+
+#define NO_PCIE_SDHC
+#include "t602x-j474-j475.dtsi"
+
+/ {
+	compatible = "apple,j474s", "apple,t6020", "apple,arm-platform";
+	model = "Apple Mac Mini (M2 Pro, 2023)";
+};
+
+&wifi0 {
+	compatible = "pci14e4,4434";
+	brcm,board-type = "apple,tasmania";
+};
+
+&bluetooth0 {
+	compatible = "pci14e4,5f72";
+	brcm,board-type = "apple,tasmania";
+};
+
+/* PCIe devices */
+&port01 {
+	/*
+	 * TODO: do not enable port without device. This works around a Linux
+	 * bug which results in mismatched iommus on gaps in PCI(e) ports / bus
+	 * numbers.
+	 */
+	bus-range = <2 2>;
+	status = "okay";
+};
+
+&sound {
+	compatible = "apple,j474-macaudio", "apple,j473-macaudio", "apple,macaudio";
+	model = "Mac mini J474";
+};
+
+&gpu {
+	/* Apple does not do this, but they probably should */
+	apple,perf-base-pstate = <3>;
+};

@@ -171,3 +171,8 @@ obj-$(CONFIG_SURFACE_HID_CORE)  += surface-hid/
 
 obj-$(CONFIG_HID_IPTS)          += ipts/
 obj-$(CONFIG_HID_ITHC)          += ithc/
+
+obj-$(CONFIG_SPI_HID_APPLE_CORE)	+= spi-hid/
+
+obj-$(CONFIG_HID_DOCKCHANNEL)	+= dockchannel-hid/
+
