@@ -52,7 +52,40 @@
 	status = "okay";
 };
 
+
+#define USE_DCPEXT0 1
+
+#if USE_DCPEXT0
+/ {
+	aliases {
+		dcpext0 = &dcpext0;
+		/delete-property/ dcp;
+	};
+};
+
+&framebuffer0 {
+	power-domains = <&ps_dispext0_cpu0>, <&ps_dptx_phy_ps>;
+};
+
 &dcp {
+	status = "disabled";
+};
+&display {
+	iommus = <&dispext0_dart 0>;
+};
+&dispext0_dart {
+	status = "okay";
+};
+&dcpext0_dart {
+	status = "okay";
+};
+&dcpext0_mbox {
+	status = "okay";
+};
+&dcpext0 {
+#else
+&dcp {
+#endif
 	status = "okay";
 	apple,connector-type = "HDMI-A";
 

@@ -49,14 +49,20 @@
 	status = "okay";
 };
 
-#define USE_DCPEXT0 0
+#define USE_DCPEXT0 1
 
 #if USE_DCPEXT0
 / {
 	aliases {
 		dcpext0 = &dcpext0;
+		/delete-property/ dcp;
 	};
 };
+
+&framebuffer0 {
+	power-domains = <&ps_dispext0_cpu0>, <&ps_dptx_phy_ps>;
+};
+
 &dcp {
 	status = "disabled";
 };
