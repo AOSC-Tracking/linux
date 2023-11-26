@@ -18,13 +18,15 @@
 
 	aliases {
 		bluetooth0 = &bluetooth0;
+		/delete-property/ dcp;
+		dcpext = &dcpext;
 		ethernet0 = &ethernet0;
 		wifi0 = &wifi0;
 	};
 };
 
 &framebuffer0 {
-	power-domains = <&ps_disp0_cpu0>, <&ps_dptx_ext_phy>;
+	power-domains = <&ps_dispext_cpu0>, <&ps_dptx_ext_phy>;
 };
 
 &dptxphy {
@@ -32,6 +34,22 @@
 };
 
 &dcp {
+	status = "disabled";
+};
+
+&display {
+	iommus = <&dispext0_dart 0>;
+};
+&dispext0_dart {
+	status = "okay";
+};
+&dcpext_dart {
+	status = "okay";
+};
+&dcpext_mbox {
+	status = "okay";
+};
+&dcpext {
 	status = "okay";
 	apple,connector-type = "HDMI-A";
 
