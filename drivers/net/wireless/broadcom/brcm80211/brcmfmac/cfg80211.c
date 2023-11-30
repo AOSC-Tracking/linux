@@ -7849,7 +7849,9 @@ static int brcmf_setup_wiphy(struct wiphy *wiphy, struct brcmf_if *ifp)
 			wiphy_ext_feature_set(wiphy,
 					      NL80211_EXT_FEATURE_SAE_OFFLOAD_AP);
 	}
-	if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE)) {
+
+	/* FIXME: Currently our partial SAE offload is breaking with some AP's */
+	if (0 && brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE)) {
 		wiphy->features |= NL80211_FEATURE_SAE;
 	}
 
