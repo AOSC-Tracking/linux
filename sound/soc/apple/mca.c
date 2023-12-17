@@ -230,7 +230,7 @@ static void mca_fe_early_trigger(struct snd_pcm_substream *substream, int cmd,
 		 * to be needed for that to be reliable, e.g. ensure the
 		 * clock is stable?
 		 */
-		udelay(10);
+		udelay(100);
 		break;
 	default:
 		break;
