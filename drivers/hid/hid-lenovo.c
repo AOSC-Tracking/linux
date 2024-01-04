@@ -686,7 +686,8 @@ static int lenovo_event_cptkbd(struct hid_device *hdev,
 {
 	struct lenovo_drvdata *cptkbd_data = hid_get_drvdata(hdev);
 
-	if (cptkbd_data->middlebutton_state != 3) {
+	if (cptkbd_data->middlebutton_state != 3 ||
+				(usage->code == REL_WHEEL || usage->code == REL_HWHEEL)) {
 		/* REL_X and REL_Y events during middle button pressed
 		 * are only possible on patched, bug-free firmware
 		 * so set middlebutton_state to 3
