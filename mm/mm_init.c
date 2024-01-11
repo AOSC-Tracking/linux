@@ -1525,7 +1525,8 @@ void __init set_pageblock_order(void)
 
 	/*
 	 * Assume the largest contiguous order of interest is a huge page.
-	 * This value may be variable depending on boot parameters on powerpc.
+	 * This value may be variable depending on boot parameters on IA64 and
+	 * powerpc.
 	 */
 	pageblock_order = order;
 }
@@ -1647,8 +1648,9 @@ void __init *memmap_alloc(phys_addr_t size, phys_addr_t align,
 #ifdef CONFIG_FLATMEM
 static void __init alloc_node_mem_map(struct pglist_data *pgdat)
 {
-	unsigned long start, offset, size, end;
-	struct page *map;
+	unsigned long __maybe_unused start = 0;
+	unsigned long __maybe_unused offset = 0;
+	unsigned long end;
 
 	/* Skip empty nodes */
 	if (!pgdat->node_spanned_pages)
@@ -1656,20 +1658,26 @@ static void __init alloc_node_mem_map(struct pglist_data *pgdat)
 
 	start = pgdat->node_start_pfn & ~(MAX_ORDER_NR_PAGES - 1);
 	offset = pgdat->node_start_pfn - start;
-	/*
-	 * The zone's endpoints aren't required to be MAX_PAGE_ORDER
-	 * aligned but the node_mem_map endpoints must be in order
-	 * for the buddy allocator to function correctly.
-	 */
-	end = ALIGN(pgdat_end_pfn(pgdat), MAX_ORDER_NR_PAGES);
-	size =  (end - start) * sizeof(struct page);
-	map = memmap_alloc(size, SMP_CACHE_BYTES, MEMBLOCK_LOW_LIMIT,
-			   pgdat->node_id, false);
-	if (!map)
-		panic("Failed to allocate %ld bytes for node %d memory map\n",
-		      size, pgdat->node_id);
-	pgdat->node_mem_map = map + offset;
-	memmap_boot_pages_add(DIV_ROUND_UP(size, PAGE_SIZE));
+	/* ia64 gets its own node_mem_map, before this, without bootmem */
+	if (!pgdat->node_mem_map) {
+		unsigned long size;
+		struct page *map;
+
+		/*
+		 * The zone's endpoints aren't required to be MAX_PAGE_ORDER
+		 * aligned but the node_mem_map endpoints must be in order
+		 * for the buddy allocator to function correctly.
+		 */
+		end = ALIGN(pgdat_end_pfn(pgdat), MAX_ORDER_NR_PAGES);
+		size =  (end - start) * sizeof(struct page);
+		map = memmap_alloc(size, SMP_CACHE_BYTES, MEMBLOCK_LOW_LIMIT,
+				   pgdat->node_id, false);
+		if (!map)
+			panic("Failed to allocate %ld bytes for node %d memory map\n",
+			      size, pgdat->node_id);
+		pgdat->node_mem_map = map + offset;
+		memmap_boot_pages_add(DIV_ROUND_UP(size, PAGE_SIZE));
+	}
 	pr_debug("%s: node %d, pgdat %08lx, node_mem_map %08lx\n",
 		 __func__, pgdat->node_id, (unsigned long)pgdat,
 		 (unsigned long)pgdat->node_mem_map);
