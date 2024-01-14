@@ -30,7 +30,7 @@ static u64 xelp_ggtt_pte_encode_bo(struct xe_bo *bo, u64 bo_offset,
 {
 	u64 pte;
 
-	pte = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE);
+	pte = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE) & ~XE_PTE_MASK;
 	pte |= XE_PAGE_PRESENT;
 
 	if (xe_bo_is_vram(bo) || xe_bo_is_stolen_devmem(bo))
