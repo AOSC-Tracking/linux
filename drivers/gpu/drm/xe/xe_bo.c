@@ -1250,7 +1250,7 @@ struct xe_bo *___xe_bo_create_locked(struct xe_device *xe, struct xe_bo *bo,
 	};
 	struct ttm_placement *placement;
 	uint32_t alignment;
-	size_t aligned_size;
+	size_t aligned_size = size;
 	int err;
 
 	/* Only kernel objects should set GT */
@@ -1272,13 +1272,13 @@ struct xe_bo *___xe_bo_create_locked(struct xe_device *xe, struct xe_bo *bo,
 		alignment = SZ_64K >> PAGE_SHIFT;
 
 	} else {
-		aligned_size = ALIGN(size, SZ_4K);
+		aligned_size = ALIGN(size, PAGE_SIZE);
 		flags &= ~XE_BO_FLAG_INTERNAL_64K;
-		alignment = SZ_4K >> PAGE_SHIFT;
+		alignment = PAGE_SIZE >> PAGE_SHIFT;
 	}
 
-	if (type == ttm_bo_type_device && aligned_size != size)
-		return ERR_PTR(-EINVAL);
+	// if (type == ttm_bo_type_device && aligned_size != size)
+	// 	return ERR_PTR(-EINVAL);
 
 	if (!bo) {
 		bo = xe_bo_alloc();
@@ -1288,7 +1288,8 @@ struct xe_bo *___xe_bo_create_locked(struct xe_device *xe, struct xe_bo *bo,
 
 	bo->ccs_cleared = false;
 	bo->tile = tile;
-	bo->size = size;
+	//bo->size = size;
+	bo->size = aligned_size;
 	bo->flags = flags;
 	bo->cpu_caching = cpu_caching;
 	bo->ttm.base.funcs = &xe_gem_object_funcs;
@@ -1299,7 +1300,7 @@ struct xe_bo *___xe_bo_create_locked(struct xe_device *xe, struct xe_bo *bo,
 #endif
 	INIT_LIST_HEAD(&bo->vram_userfault_link);
 
-	drm_gem_private_object_init(&xe->drm, &bo->ttm.base, size);
+	drm_gem_private_object_init(&xe->drm, &bo->ttm.base, aligned_size);
 
 	if (resv) {
 		ctx.allow_res_evict = !(flags & XE_BO_FLAG_NO_RESV_EVICT);
