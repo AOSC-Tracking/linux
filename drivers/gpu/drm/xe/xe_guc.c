@@ -75,7 +75,7 @@ static u32 guc_ctl_feature_flags(struct xe_guc *guc)
 
 static u32 guc_ctl_log_params_flags(struct xe_guc *guc)
 {
-	u32 offset = guc_bo_ggtt_addr(guc, guc->log.bo) >> PAGE_SHIFT;
+	u32 offset = guc_bo_ggtt_addr(guc, guc->log.bo) >> XE_PTE_SHIFT;
 	u32 flags;
 
 	#if (((CRASH_BUFFER_SIZE) % SZ_1M) == 0)
@@ -128,7 +128,7 @@ static u32 guc_ctl_log_params_flags(struct xe_guc *guc)
 
 static u32 guc_ctl_ads_flags(struct xe_guc *guc)
 {
-	u32 ads = guc_bo_ggtt_addr(guc, guc->ads.bo) >> PAGE_SHIFT;
+	u32 ads = guc_bo_ggtt_addr(guc, guc->ads.bo) >> XE_PTE_SHIFT;
 	u32 flags = ads << GUC_ADS_ADDR_SHIFT;
 
 	return flags;
