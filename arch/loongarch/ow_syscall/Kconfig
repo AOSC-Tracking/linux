@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Old-world system call compat
+#
+
+config LOONGARCH_OW_SYSCALL
+	tristate "Old-world system call compatibility module"
+	depends on m
+	help
+	  Say M to compile support for old-world system calls
+ 	  as a module. This is needed to run liblol and programs
+	  compiled for old world.
+
+	  If unsure, say N.
+
