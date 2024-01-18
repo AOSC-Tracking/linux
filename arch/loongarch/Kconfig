@@ -711,3 +711,5 @@ source "drivers/acpi/Kconfig"
 endmenu
 
 source "arch/loongarch/kvm/Kconfig"
+
+source "arch/loongarch/ow_syscall/Kconfig"
