@@ -725,3 +725,5 @@ source "drivers/cpufreq/Kconfig"
 endmenu
 
 source "arch/loongarch/kvm/Kconfig"
+
+source "arch/loongarch/ow_syscall/Kconfig"
