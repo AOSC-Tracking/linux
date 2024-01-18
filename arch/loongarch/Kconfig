@@ -657,3 +657,5 @@ source "kernel/power/Kconfig"
 source "drivers/acpi/Kconfig"
 
 endmenu
+
+source "arch/loongarch/ow_syscall/Kconfig"
