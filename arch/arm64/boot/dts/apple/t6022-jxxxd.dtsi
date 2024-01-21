@@ -59,6 +59,7 @@
 /delete-node/ &dcp_dart;
 /delete-node/ &dcp_mbox;
 /delete-node/ &dcp;
+/delete-node/ &dpaudio0;
 
 /* delete unused always-on power-domains */
 /delete-node/ &ps_disp0_cpu0;
