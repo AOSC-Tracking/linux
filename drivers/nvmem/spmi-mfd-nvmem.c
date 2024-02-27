@@ -46,6 +46,7 @@ static int spmi_mfd_nvmem_probe(struct platform_device *pdev)
 		.stride = 1,
 		.reg_read = spmi_mfd_nvmem_read,
 		.reg_write = spmi_mfd_nvmem_write,
+		.add_legacy_fixed_of_cells = true,
 	};
 
 	nvmem = devm_kzalloc(&pdev->dev, sizeof(*nvmem), GFP_KERNEL);
