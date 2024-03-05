@@ -364,7 +364,8 @@ static int dptx_phy_set_link_rate(struct apple_dptx_phy *phy, u32 link_rate)
 
     // MMIO: R.4   0x23c541014 (dptx-phy[0], offset 0x1014) = 0x1
     sts_1014 = readl(phy->regs.dptx + 0x1014);
-    /* TODO: assert(sts_1014 == 0x1); */
+    if (sts_1014 != 0x1)
+	    dev_dbg(phy->dev, "unexpected?: dptx[0x1014]: %02x\n", sts_1014);
 
     // MMIO: R.4   0x23c54100c (dptx-phy[0], offset 0x100c) = 0xf008
     // MMIO: W.4   0x23c54100c (dptx-phy[0], offset 0x100c) = 0xf000
@@ -372,7 +373,8 @@ static int dptx_phy_set_link_rate(struct apple_dptx_phy *phy, u32 link_rate)
 
     // MMIO: R.4   0x23c541008 (dptx-phy[0], offset 0x1008) = 0x1
     sts_1008 = readl(phy->regs.dptx + 0x1008);
-    /* TODO: assert(sts_1008 == 0x1); */
+    if (sts_1008 != 0x1)
+	    dev_dbg(phy->dev, "unexpected?: dptx[0x1008]: %02x\n", sts_1008);
 
     // MMIO: R.4   0x23c542220 (dptx-phy[0], offset 0x2220) = 0x11090a0
     // MMIO: W.4   0x23c542220 (dptx-phy[0], offset 0x2220) = 0x1109020
@@ -469,7 +471,8 @@ static int dptx_phy_set_link_rate(struct apple_dptx_phy *phy, u32 link_rate)
 
     // MMIO: R.4   0x23c541014 (dptx-phy[0], offset 0x1014) = 0x38f
     sts_1014 = readl(phy->regs.dptx + 0x1014);
-    /* TODO: assert(sts_1014 == 0x38f); */
+    if (sts_1014 != 0x38f)
+	    dev_dbg(phy->dev, "unexpected?: dptx[0x1014]: %02x\n", sts_1014);
 
     // MMIO: R.4   0x23c54100c (dptx-phy[0], offset 0x100c) = 0xf00f
     // MMIO: W.4   0x23c54100c (dptx-phy[0], offset 0x100c) = 0xf007
@@ -477,7 +480,8 @@ static int dptx_phy_set_link_rate(struct apple_dptx_phy *phy, u32 link_rate)
 
     // MMIO: R.4   0x23c541008 (dptx-phy[0], offset 0x1008) = 0x9
     sts_1008 = readl(phy->regs.dptx + 0x1008);
-    /* TODO: assert(sts_1008 == 0x9); */
+    if (sts_1008 != 0x9)
+	    dev_dbg(phy->dev, "unexpected?: dptx[0x1008]: %02x\n", sts_1008);
 
     // MMIO: R.4   0x23c542200 (dptx-phy[0], offset 0x2200) = 0x2000
     // MMIO: W.4   0x23c542200 (dptx-phy[0], offset 0x2200) = 0x2002
