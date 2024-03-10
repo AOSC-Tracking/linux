@@ -136,7 +136,7 @@ int xe_guc_ct_init(struct xe_guc_ct *ct)
 	struct xe_bo *bo;
 	int err;
 
-	xe_assert(xe, !(guc_ct_size() % PAGE_SIZE));
+	xe_assert(xe, !(guc_ct_size() % XE_PAGE_SIZE));
 
 	drmm_mutex_init(&xe->drm, &ct->lock);
 	spin_lock_init(&ct->fast_lock);

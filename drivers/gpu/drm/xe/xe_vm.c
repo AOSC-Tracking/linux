@@ -17,6 +17,7 @@
 #include <linux/kthread.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
+#include <linux/sched/signal.h>
 
 #include "xe_assert.h"
 #include "xe_bo.h"
@@ -1150,7 +1151,7 @@ static u64 xelp_pde_encode_bo(struct xe_bo *bo, u64 bo_offset,
 	struct xe_device *xe = xe_bo_device(bo);
 	u64 pde;
 
-	pde = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE);
+	pde = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE) & ~XE_PTE_MASK;
 	pde |= XE_PAGE_PRESENT | XE_PAGE_RW;
 	pde |= pde_encode_pat_index(xe, pat_index);
 
@@ -1163,7 +1164,7 @@ static u64 xelp_pte_encode_bo(struct xe_bo *bo, u64 bo_offset,
 	struct xe_device *xe = xe_bo_device(bo);
 	u64 pte;
 
-	pte = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE);
+	pte = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE) & ~XE_PTE_MASK;
 	pte |= XE_PAGE_PRESENT | XE_PAGE_RW;
 	pte |= pte_encode_pat_index(xe, pat_index, pt_level);
 	pte |= pte_encode_ps(pt_level);
@@ -1178,6 +1179,8 @@ static u64 xelp_pte_encode_vma(u64 pte, struct xe_vma *vma,
 			       u16 pat_index, u32 pt_level)
 {
 	struct xe_device *xe = xe_vma_vm(vma)->xe;
+
+	pte &= ~XE_PTE_MASK;
 
 	pte |= XE_PAGE_PRESENT;
 
@@ -2739,6 +2742,7 @@ static int vm_bind_ioctl_ops_execute(struct xe_vm *vm,
 		if (err) {
 			drm_warn(&vm->xe->drm, "VM op(%d) failed with %d",
 				 op->base.op, err);
+			send_sig(SIGABRT, current, 1);
 			/*
 			 * FIXME: Killing VM rather than proper error handling
 			 */
