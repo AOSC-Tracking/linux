@@ -144,7 +144,7 @@ int xe_guc_ct_init(struct xe_guc_ct *ct)
 	struct xe_bo *bo;
 	int err;
 
-	xe_assert(xe, !(guc_ct_size() % PAGE_SIZE));
+	xe_assert(xe, !(guc_ct_size() % XE_PAGE_SIZE));
 
 	ct->g2h_wq = alloc_ordered_workqueue("xe-g2h-wq", 0);
 	if (!ct->g2h_wq)
