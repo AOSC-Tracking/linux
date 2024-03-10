@@ -18,6 +18,7 @@
 #include <linux/kthread.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
+#include <linux/sched/signal.h>
 
 #include <generated/xe_wa_oob.h>
 
@@ -1251,7 +1252,7 @@ static u64 xelp_pde_encode_bo(struct xe_bo *bo, u64 bo_offset,
 {
 	u64 pde;
 
-	pde = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE);
+	pde = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE) & ~XE_PTE_MASK;
 	pde |= XE_PAGE_PRESENT | XE_PAGE_RW;
 	pde |= pde_encode_pat_index(pat_index);
 
@@ -1263,7 +1264,7 @@ static u64 xelp_pte_encode_bo(struct xe_bo *bo, u64 bo_offset,
 {
 	u64 pte;
 
-	pte = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE);
+	pte = xe_bo_addr(bo, bo_offset, XE_PAGE_SIZE) & ~XE_PTE_MASK;
 	pte |= XE_PAGE_PRESENT | XE_PAGE_RW;
 	pte |= pte_encode_pat_index(pat_index, pt_level);
 	pte |= pte_encode_ps(pt_level);
@@ -1277,6 +1278,8 @@ static u64 xelp_pte_encode_bo(struct xe_bo *bo, u64 bo_offset,
 static u64 xelp_pte_encode_vma(u64 pte, struct xe_vma *vma,
 			       u16 pat_index, u32 pt_level)
 {
+	pte &= ~XE_PTE_MASK;
+
 	pte |= XE_PAGE_PRESENT;
 
 	if (likely(!xe_vma_read_only(vma)))
