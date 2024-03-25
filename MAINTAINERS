@@ -2798,12 +2798,6 @@ S:	Maintained
 W:	http://www.digriz.org.uk/ts78xx/kernel
 F:	arch/arm/mach-orion5x/ts78xx-*
 
-ARM/PHYTIUM SOC SUPPORT
-M:	Chen Baozi <chenbaozi@phytium.com.cn>
-S:	Maintained
-W:	https://www.phytium.com.cn
-F:	drivers/net/ethernet/stmicro/stmmac/dwmac-phytium.c
-
 ARM/QUALCOMM CHROMEBOOK SUPPORT
 R:	cros-qcom-dts-watchers@chromium.org
 F:	arch/arm64/boot/dts/qcom/sc7180*
@@ -18749,10 +18743,8 @@ F:	sound/soc/pxa/
 ARM/PHYTIUM SOC SUPPORT
 M:	Wang Yinfeng <wangyinfeng@phytium.com.cn>
 S:	Maintained
-W:	https://gerrit.b.cpu.ac/c/linux
-F:	Documentation/devicetree/bindings/gpio/phytium,gpio.yaml
-F:	arch/arm64/boot/dts/phytium/*
-F:	drivers/gpio/gpio-phytium*
+W:	https://www.phytium.com.cn
+F:	drivers/net/ethernet/stmicro/stmmac/dwmac-phytium.c
 
 QAT DRIVER
 M:	Giovanni Cabiddu <giovanni.cabiddu@intel.com>
