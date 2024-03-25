@@ -37,8 +37,7 @@ static int phytium_get_mac_mode(struct fwnode_handle *fwnode)
 static int phytium_dwmac_acpi_phy(struct plat_stmmacenet_data *plat,
 				  struct fwnode_handle *np, struct device *dev)
 {
-	plat->mdio_bus_data =
-		devm_kzalloc(dev, sizeof(struct stmmac_mdio_bus_data), GFP_KERNEL);
+	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(struct stmmac_mdio_bus_data), GFP_KERNEL);
 
 	if (!plat->mdio_bus_data)
 		return -ENOMEM;
@@ -60,8 +59,7 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	if (!plat)
 		return -ENOMEM;
 
-	plat->dma_cfg =
-		devm_kzalloc(&pdev->dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
+	plat->dma_cfg = devm_kzalloc(&pdev->dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
 	if (!plat->dma_cfg)
 		return -ENOMEM;
 
@@ -113,12 +111,10 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 				     &plat->unicast_filter_entries))
 		plat->unicast_filter_entries = 1;
 
-	if (fwnode_property_read_u32(fwnode, "tx-fifo-depth",
-				     &plat->tx_fifo_size))
+	if (fwnode_property_read_u32(fwnode, "tx-fifo-depth", &plat->tx_fifo_size))
 		plat->tx_fifo_size = 0x1000;
 
-	if (fwnode_property_read_u32(fwnode, "rx-fifo-depth",
-				     &plat->rx_fifo_size))
+	if (fwnode_property_read_u32(fwnode, "rx-fifo-depth", &plat->rx_fifo_size))
 		plat->rx_fifo_size = 0x1000;
 
 	if (phytium_dwmac_acpi_phy(plat, fwnode, &pdev->dev))
@@ -133,11 +129,9 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 		clk_freq = 125000000;
 
 	/* Set system clock */
-	snprintf(clk_name, sizeof(clk_name), "%s-%d", "stmmaceth",
-		 plat->bus_id);
+	snprintf(clk_name, sizeof(clk_name), "%s-%d", "stmmaceth", plat->bus_id);
 
-	plat->stmmac_clk = clk_register_fixed_rate(&pdev->dev, clk_name, NULL,
-						   0, clk_freq);
+	plat->stmmac_clk = clk_register_fixed_rate(&pdev->dev, clk_name, NULL, 0, clk_freq);
 	if (IS_ERR(plat->stmmac_clk)) {
 		dev_warn(&pdev->dev, "Fail to register stmmac-clk\n");
 		plat->stmmac_clk = NULL;
@@ -158,13 +152,10 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	fwnode_property_read_u32(fwnode, "snps,txpbl", &plat->dma_cfg->txpbl);
 	fwnode_property_read_u32(fwnode, "snps,rxpbl", &plat->dma_cfg->rxpbl);
 
-	plat->dma_cfg->pblx8 =
-		!fwnode_property_read_bool(fwnode, "snps,no-pbl-x8");
+	plat->dma_cfg->pblx8 = !fwnode_property_read_bool(fwnode, "snps,no-pbl-x8");
 	plat->dma_cfg->aal = fwnode_property_read_bool(fwnode, "snps,aal");
-	plat->dma_cfg->fixed_burst =
-		fwnode_property_read_bool(fwnode, "snps,fixed-burst");
-	plat->dma_cfg->mixed_burst =
-		fwnode_property_read_bool(fwnode, "snps,mixed-burst");
+	plat->dma_cfg->fixed_burst = fwnode_property_read_bool(fwnode, "snps,fixed-burst");
+	plat->dma_cfg->mixed_burst = fwnode_property_read_bool(fwnode, "snps,mixed-burst");
 
 	plat->axi->axi_lpi_en = false;
 	plat->axi->axi_xit_frm = false;
@@ -182,10 +173,10 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	stmmac_res.wol_irq = stmmac_res.irq;
 	stmmac_res.lpi_irq = -1;
 
-	return stmmac_dvr_probe(&pdev->dev, plat, &stmmac_res);
+	return  stmmac_dvr_probe(&pdev->dev, plat, &stmmac_res);
 }
 
-void phytium_dwmac_remove(struct platform_device *pdev)
+int phytium_dwmac_remove(struct platform_device *pdev)
 {
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
@@ -193,12 +184,14 @@ void phytium_dwmac_remove(struct platform_device *pdev)
 
 	stmmac_pltfr_remove(pdev);
 	clk_unregister_fixed_rate(plat->stmmac_clk);
+
+	return 0;
 }
 
 #ifdef CONFIG_OF
 static const struct of_device_id phytium_dwmac_of_match[] = {
 	{ .compatible = "phytium,gmac" },
-	{}
+	{ }
 };
 MODULE_DEVICE_TABLE(of, phytium_dwmac_of_match);
 #endif
@@ -213,7 +206,7 @@ MODULE_DEVICE_TABLE(acpi, phytium_dwmac_acpi_ids);
 
 static struct platform_driver phytium_dwmac_driver = {
 	.probe = phytium_dwmac_probe,
-	.remove_new = phytium_dwmac_remove,
+	.remove = phytium_dwmac_remove,
 	.driver = {
 		.name		= "phytium-dwmac",
 		.of_match_table	= of_match_ptr(phytium_dwmac_of_match),
