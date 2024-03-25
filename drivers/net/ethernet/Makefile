@@ -78,6 +78,7 @@ obj-$(CONFIG_NET_VENDOR_OKI) += oki-semi/
 obj-$(CONFIG_ETHOC) += ethoc.o
 obj-$(CONFIG_NET_VENDOR_PACKET_ENGINES) += packetengines/
 obj-$(CONFIG_NET_VENDOR_PASEMI) += pasemi/
+obj-$(CONFIG_NET_VENDOR_PHYTIUM) += phytium/
 obj-$(CONFIG_NET_VENDOR_QLOGIC) += qlogic/
 obj-$(CONFIG_NET_VENDOR_QUALCOMM) += qualcomm/
 obj-$(CONFIG_NET_VENDOR_REALTEK) += realtek/
