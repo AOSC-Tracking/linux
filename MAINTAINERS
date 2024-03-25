@@ -19009,6 +19009,9 @@ ARM/PHYTIUM SOC SUPPORT
 M:	Wang Yinfeng <wangyinfeng@phytium.com.cn>
 S:	Maintained
 W:	https://www.phytium.com.cn
+F:	drivers/net/ethernet/Kconfig
+F:	drivers/net/ethernet/Makefile
+F:	drivers/net/ethernet/phytium/*
 F:	drivers/net/ethernet/stmicro/stmmac/dwmac-phytium.c
 
 QAT DRIVER
