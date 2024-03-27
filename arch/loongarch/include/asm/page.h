@@ -80,11 +80,19 @@ struct page *tlb_virt_to_page(unsigned long kaddr);
 
 #define virt_to_pfn(kaddr)	PFN_DOWN(PHYSADDR(kaddr))
 
+#ifndef CONFIG_KFENCE
+
+#define virt_to_page(kaddr)	pfn_to_page(virt_to_pfn(kaddr))
+
+#else
+
 #define virt_to_page(kaddr)								\
 ({											\
 	(likely((unsigned long)kaddr < vm_map_base)) ?					\
 	dmw_virt_to_page((unsigned long)kaddr) : tlb_virt_to_page((unsigned long)kaddr);\
 })
+
+#endif
 
 extern int __virt_addr_valid(volatile void *kaddr);
 #define virt_addr_valid(kaddr)	__virt_addr_valid((volatile void *)(kaddr))
