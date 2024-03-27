@@ -19,6 +19,14 @@
  */
 #define page_to_phys(page)	((phys_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
+#ifdef CONFIG_KFENCE
+#define virt_to_phys(kaddr)								\
+({											\
+	(likely((unsigned long)kaddr < vm_map_base)) ? __pa((unsigned long)kaddr) :	\
+	page_to_phys(tlb_virt_to_page((unsigned long)kaddr)) + offset_in_page((unsigned long)kaddr);\
+})
+#endif
+
 extern void __init __iomem *early_ioremap(u64 phys_addr, unsigned long size);
 extern void __init early_iounmap(void __iomem *addr, unsigned long size);
 
