@@ -161,6 +161,20 @@ static int phytmac_enable_autoneg(struct phytmac *pdata, int enable)
 	return 0;
 }
 
+static int phytmac_pcs_software_reset(struct phytmac *pdata, int reset)
+{
+	u32 value = PHYTMAC_READ(pdata, PHYTMAC_PCSCTRL);
+
+	if (reset)
+		value |= PHYTMAC_BIT(PCS_RESET);
+	else
+		value &= ~PHYTMAC_BIT(PCS_RESET);
+
+	PHYTMAC_WRITE(pdata, PHYTMAC_PCSCTRL, value);
+
+	return 0;
+}
+
 static int phytmac_mac_linkup(struct phytmac *pdata, phy_interface_t interface,
 			      int speed, int duplex)
 {
@@ -401,6 +415,10 @@ static int phytmac_init_hw(struct phytmac *pdata)
 
 	if (pdata->capacities & PHYTMAC_CAPS_TAILPTR)
 		PHYTMAC_WRITE(pdata, PHYTMAC_TAIL_ENABLE, 0x80000001);
+
+	if (phy_interface_mode_is_8023z(pdata->phy_interface))
+		phytmac_pcs_software_reset(pdata, 1);
+
 	return 0;
 }
 
@@ -1047,9 +1065,16 @@ static void phytmac_mac_interface_config(struct phytmac *pdata, unsigned int mod
 		    | PHYTMAC_BIT(SPEED) | PHYTMAC_BIT(FD) | PHYTMAC_BIT(GM_EN));
 	ctrl &= ~(PHYTMAC_BIT(HIGHSPEED) | PHYTMAC_BIT(2PT5G));
 
-	if (state->interface == PHY_INTERFACE_MODE_SGMII ||
-	    state->interface == PHY_INTERFACE_MODE_2500BASEX) {
+	if (state->interface == PHY_INTERFACE_MODE_SGMII) {
 		config |= PHYTMAC_BIT(SGMII_EN) | PHYTMAC_BIT(PCS_EN);
+		if (state->speed == SPEED_1000)
+			config |= PHYTMAC_BIT(GM_EN);
+		else if (state->speed == SPEED_2500)
+			config |= PHYTMAC_BIT(2PT5G);
+	} else if (state->interface == PHY_INTERFACE_MODE_1000BASEX) {
+		config |= PHYTMAC_BIT(PCS_EN) | PHYTMAC_BIT(GM_EN);
+	} else if (state->interface == PHY_INTERFACE_MODE_2500BASEX) {
+		config |= PHYTMAC_BIT(2PT5G) | PHYTMAC_BIT(PCS_EN);
 	} else if (state->interface == PHY_INTERFACE_MODE_10GBASER ||
 		   state->interface == PHY_INTERFACE_MODE_USXGMII ||
 		   state->interface == PHY_INTERFACE_MODE_5GBASER) {
@@ -1078,15 +1103,17 @@ static void phytmac_mac_interface_config(struct phytmac *pdata, unsigned int mod
 		PHYTMAC_WRITE(pdata, PHYTMAC_NCONFIG, config);
 
 	/* Disable AN for SGMII fixed link configuration, enable otherwise.*/
-	if (state->interface == PHY_INTERFACE_MODE_SGMII ||
-	    state->interface == PHY_INTERFACE_MODE_2500BASEX)
+	if (state->interface == PHY_INTERFACE_MODE_SGMII)
 		phytmac_enable_autoneg(pdata, mode == MLO_AN_FIXED ? 0 : 1);
+	if (state->interface == PHY_INTERFACE_MODE_1000BASEX)
+		phytmac_enable_autoneg(pdata, 1);
 }
 
 static unsigned int phytmac_pcs_get_link(struct phytmac *pdata,
 					 phy_interface_t interface)
 {
 	if (interface == PHY_INTERFACE_MODE_SGMII ||
+	    interface == PHY_INTERFACE_MODE_1000BASEX ||
 	    interface == PHY_INTERFACE_MODE_2500BASEX)
 		return PHYTMAC_READ_BITS(pdata, PHYTMAC_NSTATUS, PCS_LINK);
 	else if (interface == PHY_INTERFACE_MODE_USXGMII ||
