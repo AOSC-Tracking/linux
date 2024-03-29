@@ -1508,7 +1508,7 @@ int phytmac_mdio_register(struct phytmac *pdata)
 	pdata->mii_bus = mdiobus_alloc();
 	if (!pdata->mii_bus) {
 		ret = -ENOMEM;
-		goto free_mdio;
+		goto err_out;
 	}
 
 	pdata->mii_bus->name = "phytmac_mii_bus";
@@ -1519,7 +1519,7 @@ int phytmac_mdio_register(struct phytmac *pdata)
 
 	if (pdata->platdev) {
 		snprintf(pdata->mii_bus->id, MII_BUS_ID_SIZE, "%s-%s",
-			 pdata->mii_bus->name, netdev_name(pdata->ndev));
+			 pdata->mii_bus->name, pdata->platdev->name);
 	} else if (pdata->pcidev) {
 		snprintf(pdata->mii_bus->id, MII_BUS_ID_SIZE, "%s-%s",
 			 pdata->mii_bus->name, pci_name(pdata->pcidev));
@@ -1536,6 +1536,9 @@ int phytmac_mdio_register(struct phytmac *pdata)
 	return mdiobus_register(pdata->mii_bus);
 free_mdio:
 	mdiobus_free(pdata->mii_bus);
+	pdata->mii_bus = NULL;
+
+err_out:
 	return ret;
 }
 
@@ -2043,30 +2046,26 @@ int phytmac_drv_probe(struct phytmac *pdata)
 
 	ret = phytmac_init(pdata);
 	if (ret)
-		goto err_out_free_netdev;
+		goto err_out;
 
 	if (pdata->use_ncsi) {
 		pdata->ncsidev = ncsi_register_dev(ndev, phytmac_ncsi_handler);
 		if (!pdata->ncsidev)
-			goto err_out_free_netdev;
+			goto err_out;
 	}
 
 	netif_carrier_off(ndev);
 	ret = register_netdev(ndev);
 	if (ret) {
 		dev_err(pdata->dev, "Cannot register net device, aborting.\n");
-		goto err_out_free_netdev;
+		goto err_out;
 	}
-
-	if (netif_msg_probe(pdata))
-		dev_dbg(pdata->dev, "probe success!Phytium %s at 0x%08lx irq %d (%pM)\n",
-			"MAC", ndev->base_addr, ndev->irq, ndev->dev_addr);
 
 	if (pdata->use_mii && !pdata->mii_bus) {
 		ret = phytmac_mdio_register(pdata);
 		if (ret) {
 			netdev_err(ndev, "MDIO bus registration failed\n");
-			goto err_phylink_init;
+			goto err_out_free_mdiobus;
 		}
 	}
 
@@ -2076,15 +2075,23 @@ int phytmac_drv_probe(struct phytmac *pdata)
 		goto err_phylink_init;
 	}
 
+	if (netif_msg_probe(pdata))
+		dev_dbg(pdata->dev, "probe successfully! Phytium %s at 0x%08lx irq %d (%pM)\n",
+			"MAC", ndev->base_addr, ndev->irq, ndev->dev_addr);
+
 	return 0;
 
 err_phylink_init:
 	if (pdata->mii_bus)
 		mdiobus_unregister(pdata->mii_bus);
 
-err_out_free_netdev:
-	free_netdev(ndev);
+err_out_free_mdiobus:
+	if (pdata->mii_bus)
+		mdiobus_free(pdata->mii_bus);
 
+	unregister_netdev(ndev);
+
+err_out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(phytmac_drv_probe);
