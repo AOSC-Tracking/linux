@@ -1560,6 +1560,7 @@ static void phytmac_validate(struct phylink_config *config,
 	struct phytmac *pdata = netdev_priv(ndev);
 
 	if (state->interface != PHY_INTERFACE_MODE_SGMII &&
+	    state->interface != PHY_INTERFACE_MODE_1000BASEX &&
 	    state->interface != PHY_INTERFACE_MODE_2500BASEX &&
 	    state->interface != PHY_INTERFACE_MODE_5GBASER &&
 	    state->interface != PHY_INTERFACE_MODE_10GBASER &&
