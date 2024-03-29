@@ -357,8 +357,11 @@ static int phytmac_init_hw(struct phytmac *pdata)
 		config |= PHYTMAC_BIT(PROMISC);
 	if (pdata->ndev->features & NETIF_F_RXCSUM)
 		config |= PHYTMAC_BIT(RCO_EN);
-	if (!(pdata->ndev->flags & IFF_BROADCAST))
+	if (pdata->ndev->flags & IFF_BROADCAST)
+		config &= ~PHYTMAC_BIT(NO_BCAST);
+	else
 		config |= PHYTMAC_BIT(NO_BCAST);
+
 	/* pause enable */
 	config |= PHYTMAC_BIT(PAUSE_EN);
 	/* Rx Fcs remove */
