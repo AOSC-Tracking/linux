@@ -228,6 +228,8 @@ extern struct phytmac_hw_if phytmac_1p0_hw;
 /* PCSCTRL register */
 #define PHYTMAC_AUTONEG_INDEX			12
 #define PHYTMAC_AUTONEG_WIDTH			1
+#define PHYTMAC_PCS_RESET_INDEX			15
+#define PHYTMAC_PCS_RESET_WIDTH			1
 
 /* DEFAULT1 register */
 #define PHYTMAC_DBW_INDEX			25
