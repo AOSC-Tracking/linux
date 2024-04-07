@@ -17,6 +17,10 @@
 	model = "Apple Mac Studio (M1 Max, 2022)";
 };
 
+&dpaudio0 {
+	status = "okay";
+};
+
 &sound {
 	compatible = "apple,j375-macaudio", "apple,macaudio";
 	model = "Mac Studio J375";

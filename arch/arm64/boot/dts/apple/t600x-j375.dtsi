@@ -24,6 +24,7 @@
 		ethernet0 = &ethernet0;
 		nvram = &nvram;
 		serial0 = &serial0;
+		sio = &sio;
 		wifi0 = &wifi0;
 	};
 
