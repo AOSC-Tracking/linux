@@ -23,6 +23,7 @@
 		#endif
 		ethernet0 = &ethernet0;
 		serial0 = &serial0;
+		sio = &sio;
 		wifi0 = &wifi0;
 	};
 
