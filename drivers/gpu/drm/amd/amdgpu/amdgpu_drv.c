@@ -142,7 +142,7 @@ int amdgpu_hw_i2c;
 int amdgpu_pcie_gen2 = -1;
 int amdgpu_msi = -1;
 char amdgpu_lockup_timeout[AMDGPU_MAX_TIMEOUT_PARAM_LENGTH];
-int amdgpu_dpm = -1;
+int amdgpu_dpm = 0;
 int amdgpu_fw_load_type = -1;
 int amdgpu_aspm = -1;
 int amdgpu_runtime_pm = -1;
@@ -338,8 +338,8 @@ module_param_string(lockup_timeout, amdgpu_lockup_timeout, sizeof(amdgpu_lockup_
 /**
  * DOC: dpm (int)
  * Override for dynamic power management setting
- * (0 = disable, 1 = enable)
- * The default is -1 (auto).
+ * (0 = disable, 1 = enable, -1 = auto)
+ * The default is 0 (disable).
  */
 MODULE_PARM_DESC(dpm, "DPM support (1 = enable, 0 = disable, -1 = auto)");
 module_param_named(dpm, amdgpu_dpm, int, 0444);
