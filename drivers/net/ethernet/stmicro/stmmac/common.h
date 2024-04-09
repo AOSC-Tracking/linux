@@ -29,6 +29,7 @@
 /* Synopsys Core versions */
 #define	DWMAC_CORE_3_40		0x34
 #define	DWMAC_CORE_3_50		0x35
+#define	DWMAC_CORE_3_70		0x37
 #define	DWMAC_CORE_4_00		0x40
 #define DWMAC_CORE_4_10		0x41
 #define DWMAC_CORE_5_00		0x50
@@ -258,6 +259,7 @@ struct stmmac_safety_stats {
 #define CSR_F_300M	300000000
 
 #define	MAC_CSR_H_FRQ_MASK	0x20
+#define	MAC_CTRL_PORT_SELECT_10_100	BIT(15)
 
 #define HASH_TABLE_SIZE 64
 #define PAUSE_TIME 0xffff
