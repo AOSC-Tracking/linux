@@ -2124,7 +2124,22 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
 		}
 	}
 #endif
-
+	switch (flags & AMD_ASIC_MASK) {
+		// HACK: Disable amdgpu_dpm for Polaris line of GPUs.
+		case CHIP_POLARIS10:
+		case CHIP_POLARIS11:
+		case CHIP_POLARIS12:
+			if (amdgpu_dpm == -1) {
+				amdgpu_dpm = 0;
+				dev_info(&pdev->dev,
+					 "Polaris-series GPU detected, disabling dynamic power management "
+					 "(DPM) to prevent instability on Loongson 7A platforms!\n");
+				dev_info(&pdev->dev,
+					 "Use amdgpu.dpm=1 to force enable dynamic power management, "
+					 "but your system may not remain stable under heavy load.\n");
+			}
+			break;
+	}
 	adev = devm_drm_dev_alloc(&pdev->dev, &amdgpu_kms_driver, typeof(*adev), ddev);
 	if (IS_ERR(adev))
 		return PTR_ERR(adev);
