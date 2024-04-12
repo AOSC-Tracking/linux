@@ -884,6 +884,9 @@ long kvm_arch_vcpu_async_ioctl(struct file *filp,
 
 int kvm_arch_vcpu_precreate(struct kvm *kvm, unsigned int id)
 {
+	if (id >= kvm->max_vcpus)
+		return -EINVAL;
+
 	return 0;
 }
 
