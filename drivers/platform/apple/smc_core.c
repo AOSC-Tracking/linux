@@ -42,6 +42,9 @@ static const struct mfd_cell apple_smc_devs[] = {
 	{
 		.name = "macsmc-rtc",
 	},
+	{
+		.name = "macsmc_hwmon",
+	},
 };
 
 int apple_smc_read(struct apple_smc *smc, smc_key key, void *buf, size_t size)
