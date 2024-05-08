@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// FIXME
+#![allow(clippy::undocumented_unsafe_blocks)]
 
 //! API to safely and fallibly initialize pinned `struct`s using in-place constructors.
 //!
