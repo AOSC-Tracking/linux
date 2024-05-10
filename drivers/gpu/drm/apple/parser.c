@@ -354,6 +354,7 @@ static int parse_color_modes(struct dcp_parse_ctx *handle,
 	int ret = 0;
 	out->sdr_444.score = -1;
 	out->sdr_rgb.score = -1;
+	out->sdr.score = -1;
 	out->best.score = -1;
 
 	dcp_parse_foreach_in_array(handle, outer_it) {
