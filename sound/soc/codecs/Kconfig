@@ -1172,6 +1172,14 @@ config SND_SOC_FRAMER
 	  To compile this driver as a module, choose M here: the module
 	  will be called snd-soc-framer.
 
+config SND_SOC_ES8336
+	tristate "Everest Semi ES8336 CODEC"
+	depends on I2C
+	select GPIO_PHYTIUM_PCI
+
+config SND_SOC_ES8388
+	tristate "Everest Semi ES8388 CODEC"
+	depends on I2C
 
 config SND_SOC_GTM601
 	tristate 'GTM601 UMTS modem audio codec'
