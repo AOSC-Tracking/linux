@@ -106,3 +106,4 @@ obj-$(CONFIG_NET_VENDOR_XIRCOM) += xircom/
 obj-$(CONFIG_NET_VENDOR_SYNOPSYS) += synopsys/
 obj-$(CONFIG_NET_VENDOR_PENSANDO) += pensando/
 obj-m += motorcomm/
+obj-$(CONFIG_NET_VENDOR_PHYTIUM) += phytium/
