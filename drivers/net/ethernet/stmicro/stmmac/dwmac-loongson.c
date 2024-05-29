@@ -515,6 +515,8 @@ static int loongson_dwmac_acpi_config(struct pci_dev *pdev,
 
 	res->irq = pdev->irq;
 
+	plat->phy_interface = PHY_INTERFACE_MODE_RGMII_ID;
+
 	return 0;
 }
 
