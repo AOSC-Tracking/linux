@@ -2270,6 +2270,7 @@ int dwc3_core_probe(const struct dwc3_probe_data *data)
 
 			dwc->dr_mode = USB_DR_MODE_OTG;
 			dwc->role_switch_reset_quirk = true;
+			dwc->no_early_roothub_poweroff = true;
 		}
 	}
 
