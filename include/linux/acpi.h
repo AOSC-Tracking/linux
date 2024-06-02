@@ -269,6 +269,8 @@ void acpi_numa_rintc_affinity_init(struct acpi_srat_rintc_affinity *pa);
 static inline void acpi_numa_rintc_affinity_init(struct acpi_srat_rintc_affinity *pa) { }
 #endif
 
+int acpi_numa_memory_affinity_init (struct acpi_srat_mem_affinity *ma);
+
 #ifndef PHYS_CPUID_INVALID
 typedef u32 phys_cpuid_t;
 #define PHYS_CPUID_INVALID (phys_cpuid_t)(-1)
