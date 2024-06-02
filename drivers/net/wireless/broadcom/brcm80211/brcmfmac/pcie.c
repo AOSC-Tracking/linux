@@ -1961,7 +1961,7 @@ brcmf_pcie_add_random_seed(struct brcmf_pciedev_info *devinfo, u32 *address)
 	brcmf_dbg(PCIE, "Download random seed\n");
 
 	get_random_bytes(randbuf, BRCMF_RANDOM_SEED_LENGTH);
-	memcpy_toio(devinfo->tcm + address, randbuf, BRCMF_RANDOM_SEED_LENGTH);
+	memcpy_toio(devinfo->tcm + *address, randbuf, BRCMF_RANDOM_SEED_LENGTH);
 
 	return 0;
 }
