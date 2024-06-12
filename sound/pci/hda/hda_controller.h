@@ -46,6 +46,7 @@
 #define AZX_DCAPS_NO_MSI64      (1 << 29)	/* Stick to 32-bit MSIs */
 #define AZX_DCAPS_SEPARATE_STREAM_TAG	(1 << 30) /* capture and playback use separate stream tag */
 #define AZX_DCAPS_PIO_COMMANDS (1 << 31)	/* Use PIO instead of CORB for commands */
+#define AZX_DCAPS_RIRB_PRE_DELAY	(1 << 31) /* Put a delay before read */
 
 enum {
 	AZX_SNOOP_TYPE_NONE,
@@ -143,6 +144,8 @@ struct azx {
 	unsigned int align_buffer_size:1;
 	unsigned int disabled:1; /* disabled by vga_switcheroo */
 	unsigned int pm_prepared:1;
+
+	void __iomem *remap_diu_addr;
 
 	/* GTS present */
 	unsigned int gts_present:1;
