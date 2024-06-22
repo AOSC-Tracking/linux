@@ -17,7 +17,7 @@ use core::{
     slice,
 };
 
-use gem::BaseObject;
+use gem::{BaseObject, IntoGEMObject};
 
 /// Trait which must be implemented by drivers using shmem-backed GEM objects.
 pub trait DriverObject: gem::BaseDriverObject<Object<Self>> {
@@ -72,6 +72,8 @@ pub struct Object<T: DriverObject> {
     // The DRM core ensures the Device exists as long as its objects exist, so we don't need to
     // manage the reference count here.
     dev: *const bindings::drm_device,
+    // Parent object that owns this object's DMA reservation object
+    parent_resv_obj: *const bindings::drm_gem_object,
     #[pin]
     inner: T,
 }
@@ -98,6 +100,7 @@ unsafe extern "C" fn gem_create_object<T: DriverObject>(
         // SAFETY: GEM ensures the device lives as long as its objects live
         inner <- T::new(unsafe { device::Device::borrow(dev)}, size),
         dev,
+        parent_resv_obj: core::ptr::null(),
     });
 
     // SAFETY: p is a valid pointer to an uninitialized Object<T>.
@@ -127,6 +130,15 @@ unsafe extern "C" fn free_callback<T: DriverObject>(obj: *mut bindings::drm_gem_
     // SAFETY: p is never used after this
     unsafe {
         core::ptr::drop_in_place(&mut (*p).inner);
+    }
+
+    // SAFETY: parent_resv_obj is either NULL or a valid reference to the
+    // GEM object owning the DMA reservation for this object, which we drop
+    // here.
+    unsafe {
+        if !(*p).parent_resv_obj.is_null() {
+            bindings::drm_gem_object_put((*p).parent_resv_obj as *const _ as *mut _);
+        }
     }
 
     // SAFETY: This pointer has to be valid, since p is valid
@@ -229,6 +241,25 @@ impl<T: DriverObject> Object<T> {
     /// Should be called before any mappings are made.
     pub fn set_wc(&mut self, map_wc: bool) {
         self.obj.set_map_wc(map_wc);
+    }
+
+    /// Share the dma_resv object from another GEM object.
+    ///
+    /// Should be called before the object is used/shared. Can only be called once.
+    pub fn share_dma_resv(&mut self, from_object: &impl IntoGEMObject) -> Result {
+        let from_obj = from_object.gem_obj();
+        if !self.parent_resv_obj.is_null() {
+            Err(EBUSY)
+        } else {
+            // SAFETY: from_obj is a valid object pointer per the trait Invariant.
+            unsafe {
+                bindings::drm_gem_object_get(from_obj as *const _ as *mut _);
+            }
+            self.parent_resv_obj = from_obj;
+            let gem = self.mut_gem_obj();
+            gem.resv = from_obj.resv;
+            Ok(())
+        }
     }
 }
 
