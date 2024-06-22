@@ -9,7 +9,7 @@
 
 use crate::debug::*;
 use crate::driver::AsahiDevice;
-use crate::{alloc, buffer, driver, gem, mmu, queue, util::RangeExt};
+use crate::{alloc, buffer, driver, gem, hw, mmu, module_parameters, queue, util::RangeExt};
 use core::mem::MaybeUninit;
 use core::ops::Range;
 use kernel::dma_fence::RawDmaFence;
@@ -284,6 +284,10 @@ impl File {
 
         for i in 0..3 {
             params.firmware_version[i] = *gpu.get_dyncfg().firmware_version.get(i).unwrap_or(&0);
+        }
+
+        if *module_parameters::fault_control.get() == 0xb {
+            params.feat_compat |= hw::feat::compat::SOFT_FAULTS;
         }
 
         let size = core::mem::size_of::<uapi::drm_asahi_params_global>().min(data.size.try_into()?);
