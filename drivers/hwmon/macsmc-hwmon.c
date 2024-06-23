@@ -46,11 +46,13 @@ struct macsmc_hwmon_fan {
 };
 
 struct macsmc_hwmon_sensors {
+	struct hwmon_channel_info channel_info;
 	struct macsmc_hwmon_sensor *sensors;
 	u32 n_sensors;
 };
 
 struct macsmc_hwmon_fans {
+	struct hwmon_channel_info channel_info;
 	struct macsmc_hwmon_fan *fans;
 	u32 n_fans;
 };
@@ -59,8 +61,9 @@ struct macsmc_hwmon {
 	struct device *dev;
 	struct apple_smc *smc;
 	struct device *hwmon_dev;
+	struct hwmon_chip_info chip_info;
 	/* Chip + sensor types + NULL */
-	struct hwmon_channel_info channel_infos[1 + NUM_SENSOR_TYPES + 1];
+	const struct hwmon_channel_info *channel_infos[1 + NUM_SENSOR_TYPES + 1];
 	struct macsmc_hwmon_sensors temp;
 	struct macsmc_hwmon_sensors volt;
 	struct macsmc_hwmon_sensors curr;
@@ -224,11 +227,6 @@ static const struct hwmon_ops macsmc_hwmon_ops = {
 	.read = macsmc_hwmon_read,
 	.read_string = macsmc_hwmon_read_label,
 	.write = macsmc_hwmon_write,
-};
-
-static struct hwmon_chip_info macsmc_hwmon_info = {
-	.ops = &macsmc_hwmon_ops,
-	.info = NULL, /* see macsmc_hwmon_create_infos */
 };
 
 /*
@@ -450,99 +448,89 @@ static void macsmc_hwmon_populate_fan_configs(u32 *configs,
 	configs[idx + 1] = 0;
 }
 
-static int macsmc_hwmon_create_infos(struct macsmc_hwmon *hwmon,
-				struct hwmon_channel_info **info_list)
+static const struct hwmon_channel_info * const macsmc_chip_channel_info =
+	HWMON_CHANNEL_INFO(chip, HWMON_C_REGISTER_TZ);
+
+static int macsmc_hwmon_create_infos(struct macsmc_hwmon *hwmon)
 {
 	int i = 0;
+	struct hwmon_channel_info *channel_info;
 
 	/* chip */
-	hwmon->channel_infos[i].type = hwmon_chip;
-	hwmon->channel_infos[i].config = devm_kzalloc(hwmon->dev, sizeof(u32) * 2,
-						GFP_KERNEL);
-	if (!hwmon->channel_infos[i].config)
-		return -ENOMEM;
-	macsmc_hwmon_populate_configs((u32 *)hwmon->channel_infos[i].config, 1,
-				HWMON_C_REGISTER_TZ);
-	info_list[i] = &hwmon->channel_infos[i];
+	hwmon->channel_infos[i++] = macsmc_chip_channel_info;
 
 	if (hwmon->temp.n_sensors) {
-		i++;
-		hwmon->channel_infos[i].type = hwmon_temp;
-		hwmon->channel_infos[i].config = devm_kzalloc(hwmon->dev,
+		channel_info = &hwmon->temp.channel_info;
+		channel_info->type = hwmon_temp;
+		channel_info->config = devm_kzalloc(hwmon->dev,
 						sizeof(u32) * hwmon->temp.n_sensors + 1,
 						GFP_KERNEL);
-		if (!hwmon->channel_infos[i].config)
+		if (!channel_info->config)
 			return -ENOMEM;
 
-		macsmc_hwmon_populate_configs((u32 *)hwmon->channel_infos[i].config,
+		macsmc_hwmon_populate_configs((u32 *)channel_info->config,
 						hwmon->temp.n_sensors,
 						(HWMON_T_INPUT | HWMON_T_LABEL));
-
-		info_list[i] = &hwmon->channel_infos[i];
-
+		hwmon->channel_infos[i++] = channel_info;
 	}
 
 	if (hwmon->volt.n_sensors) {
-		i++;
-		hwmon->channel_infos[i].type = hwmon_in;
-		hwmon->channel_infos[i].config = devm_kzalloc(hwmon->dev,
+		channel_info = &hwmon->volt.channel_info;
+		channel_info->type = hwmon_in;
+		channel_info->config = devm_kzalloc(hwmon->dev,
 						sizeof(u32) * hwmon->volt.n_sensors + 1,
 						GFP_KERNEL);
-		if (!hwmon->channel_infos[i].config)
+		if (!channel_info->config)
 			return -ENOMEM;
 
-		macsmc_hwmon_populate_configs((u32 *)hwmon->channel_infos[i].config,
+		macsmc_hwmon_populate_configs((u32 *)channel_info->config,
 						hwmon->volt.n_sensors,
 						(HWMON_I_INPUT | HWMON_I_LABEL));
-
-		info_list[i] = &hwmon->channel_infos[i];
+		hwmon->channel_infos[i++] = channel_info;
 	}
 
 	if (hwmon->curr.n_sensors) {
-		i++;
-		hwmon->channel_infos[i].type = hwmon_curr;
-		hwmon->channel_infos[i].config = devm_kzalloc(hwmon->dev,
+		channel_info = &hwmon->curr.channel_info;
+		channel_info->type = hwmon_curr;
+		channel_info->config = devm_kzalloc(hwmon->dev,
 						sizeof(u32) * hwmon->curr.n_sensors + 1,
 						GFP_KERNEL);
-		if (!hwmon->channel_infos[i].config)
+		if (!channel_info->config)
 			return -ENOMEM;
 
-		macsmc_hwmon_populate_configs((u32 *)hwmon->channel_infos[i].config,
+		macsmc_hwmon_populate_configs((u32 *)channel_info->config,
 						hwmon->curr.n_sensors,
 						(HWMON_C_INPUT | HWMON_C_LABEL));
-
-		info_list[i] = &hwmon->channel_infos[i];
+		hwmon->channel_infos[i++] = channel_info;
 	}
 
 	if (hwmon->power.n_sensors) {
-		i++;
-		hwmon->channel_infos[i].type = hwmon_power;
-		hwmon->channel_infos[i].config = devm_kzalloc(hwmon->dev,
+		channel_info = &hwmon->power.channel_info;
+		channel_info->type = hwmon_power;
+		channel_info->config = devm_kzalloc(hwmon->dev,
 						sizeof(u32) * hwmon->power.n_sensors + 1,
 						GFP_KERNEL);
-		if (!hwmon->channel_infos[i].config)
+		if (!channel_info->config)
 			return -ENOMEM;
 
-		macsmc_hwmon_populate_configs((u32 *)hwmon->channel_infos[i].config,
+		macsmc_hwmon_populate_configs((u32 *)channel_info->config,
 						hwmon->power.n_sensors,
 						(HWMON_P_INPUT | HWMON_P_LABEL));
-
-		info_list[i] = &hwmon->channel_infos[i];
+		hwmon->channel_infos[i++] = channel_info;
 	}
 
 	if (hwmon->fan.n_fans) {
-		i++;
-		hwmon->channel_infos[i].type = hwmon_fan;
-		hwmon->channel_infos[i].config = devm_kzalloc(hwmon->dev,
+		channel_info = &hwmon->fan.channel_info;
+		channel_info->type = hwmon_fan;
+		channel_info->config = devm_kzalloc(hwmon->dev,
 						sizeof(u32) * hwmon->fan.n_fans + 1,
 						GFP_KERNEL);
-		if (!hwmon->channel_infos[i].config)
+		if (!channel_info->config)
 			return -ENOMEM;
 
-		macsmc_hwmon_populate_fan_configs((u32 *)hwmon->channel_infos[i].config,
+		macsmc_hwmon_populate_fan_configs((u32 *)channel_info->config,
 							hwmon->fan.n_fans, &hwmon->fan);
-
-		info_list[i] = &hwmon->channel_infos[i];
+		hwmon->channel_infos[i++] = channel_info;
 	}
 
 	return 0;
@@ -553,7 +541,6 @@ static int macsmc_hwmon_probe(struct platform_device *pdev)
 	struct apple_smc *smc = dev_get_drvdata(pdev->dev.parent);
 	struct macsmc_hwmon *hwmon;
 	struct device_node *hwmon_node;
-	struct hwmon_channel_info **macsmc_chip_info = NULL;
 	int ret = 0;
 
 	hwmon = devm_kzalloc(&pdev->dev, sizeof(struct macsmc_hwmon), GFP_KERNEL);
@@ -582,21 +569,16 @@ static int macsmc_hwmon_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	macsmc_chip_info = devm_kzalloc(hwmon->dev,
-			sizeof(struct hwmon_channel_info *) * (1 + NUM_SENSOR_TYPES + 1),
-			GFP_KERNEL);
-	if (!macsmc_chip_info)
-		return -ENOMEM;
-
-	ret = macsmc_hwmon_create_infos(hwmon, macsmc_chip_info);
+	ret = macsmc_hwmon_create_infos(hwmon);
 	if (ret)
 		return ret;
 
-	macsmc_hwmon_info.info = (const struct hwmon_channel_info **)macsmc_chip_info;
+	hwmon->chip_info.ops = &macsmc_hwmon_ops;
+	hwmon->chip_info.info = (const struct hwmon_channel_info *const *)&hwmon->channel_infos;
 
 	hwmon->hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
 						"macsmc_hwmon", hwmon,
-						&macsmc_hwmon_info, NULL);
+						&hwmon->chip_info, NULL);
 	if (IS_ERR(hwmon->hwmon_dev))
 		return dev_err_probe(hwmon->dev, PTR_ERR(hwmon->hwmon_dev),
 				     "Probing SMC hwmon device failed!\n");
