@@ -176,7 +176,7 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	return  stmmac_dvr_probe(&pdev->dev, plat, &stmmac_res);
 }
 
-int phytium_dwmac_remove(struct platform_device *pdev)
+static int phytium_dwmac_remove(struct platform_device *pdev)
 {
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
