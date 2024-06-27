@@ -1231,7 +1231,7 @@ static int phytium_jpeg_setup_video(struct phytium_jpeg_dev *jpeg_dev)
 	dst_vq->drv_priv = jpeg_dev;
 	dst_vq->buf_struct_size = sizeof(struct phytium_jpeg_buffer);
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
-	dst_vq->min_buffers_needed = CAPTURE_BUF_NUMBER;
+	dst_vq->min_queued_buffers = CAPTURE_BUF_NUMBER;
 	ret = vb2_queue_init(dst_vq);
 	if (ret) {
 		dev_err(jpeg_dev->dev, "Failed to init vb2 queue\n");
