@@ -296,13 +296,12 @@ static int phytium_pcie_ep_send_msi_irq(struct phytium_pcie_ep *priv, u8 fn,
 }
 
 static int phytium_pcie_ep_raise_irq(struct pci_epc *epc, u8 fn, u8 vfn,
-				     enum pci_epc_irq_type type,
-				     u16 interrupt_num)
+				     unsigned int type, u16 interrupt_num)
 {
 	struct phytium_pcie_ep *priv = epc_get_drvdata(epc);
 
 	switch (type) {
-	case PCI_EPC_IRQ_MSI:
+	case PCI_IRQ_MSI:
 		return phytium_pcie_ep_send_msi_irq(priv, fn, interrupt_num);
 
 	default:
