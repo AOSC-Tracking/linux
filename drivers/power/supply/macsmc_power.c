@@ -17,6 +17,17 @@
 
 #define MAX_STRING_LENGTH 256
 
+/*
+ * This number is not reported anywhere by SMC, but seems to be a good
+ * conversion factor for charge to energy across machines. We need this
+ * to convert in the driver, since if we don't userspace will try to do
+ * the conversion with a randomly guessed voltage and get it wrong.
+ *
+ * Ideally there would be a power supply prop to inform userspace of this
+ * number, but there isn't, only min/max.
+ */
+#define MACSMC_NOMINAL_CELL_VOLTAGE_MV 3800
+
 struct macsmc_power {
 	struct device *dev;
 	struct apple_smc *smc;
@@ -27,6 +38,8 @@ struct macsmc_power {
 	char serial_number[MAX_STRING_LENGTH];
 	char mfg_date[MAX_STRING_LENGTH];
 	bool has_chwa;
+	u8 num_cells;
+	int nominal_voltage_mv;
 
 	struct power_supply *ac;
 
@@ -352,6 +365,29 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(BITV), &vu16);
 		val->intval = vu16 * 1000;
 		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+		/*
+		 * Battery cell max voltage? BVV* seem to return per-cell voltages,
+		 * BVV[NOP] are probably the max voltages for the 3 cells but we don't
+		 * know what will happen if they ever change the number of cells.
+		 * So go with BVVN and multiply by the cell count (BNCB).
+		 * BVVL seems to be the per-cell limit adjusted dynamically.
+		 * Guess: BVVL = Limit, BVVN = Nominal, and the other cells got filled
+		 * in around nearby letters?
+		 */
+		ret = apple_smc_read_u16(power->smc, SMC_KEY(BVVN), &vu16);
+		val->intval = vu16 * 1000 * power->num_cells;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MIN:
+		/* Lifetime min */
+		ret = apple_smc_read_s16(power->smc, SMC_KEY(BLPM), &vs16);
+		val->intval = vs16 * 1000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		/* Lifetime max */
+		ret = apple_smc_read_s16(power->smc, SMC_KEY(BLPX), &vs16);
+		val->intval = vs16 * 1000;
+		break;
 	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0RC), &vu16);
 		val->intval = vu16 * 1000;
@@ -379,6 +415,18 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_NOW:
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0RM), &vu16);
 		val->intval = swab16(vu16) * 1000;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
+		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0DC), &vu16);
+		val->intval = vu16 * power->nominal_voltage_mv;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL:
+		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0FC), &vu16);
+		val->intval = vu16 * power->nominal_voltage_mv;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_NOW:
+		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0RM), &vu16);
+		val->intval = swab16(vu16) * power->nominal_voltage_mv;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0AT), &vu16);
@@ -485,6 +533,9 @@ static const enum power_supply_property macsmc_battery_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_POWER_NOW,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
+	POWER_SUPPLY_PROP_VOLTAGE_MIN,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
@@ -492,6 +543,9 @@ static const enum power_supply_property macsmc_battery_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN,
+	POWER_SUPPLY_PROP_ENERGY_FULL,
+	POWER_SUPPLY_PROP_ENERGY_NOW,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
@@ -726,6 +780,9 @@ static int macsmc_power_probe(struct platform_device *pdev)
 		/* Remove the last 2 properties that control the charge threshold */
 		power->batt_desc.num_properties -= 2;
 	}
+
+	apple_smc_read_u8(power->smc, SMC_KEY(BNCB), &power->num_cells);
+	power->nominal_voltage_mv = MACSMC_NOMINAL_CELL_VOLTAGE_MV * power->num_cells;
 
 	/* Doing one read of this flag enables critical shutdown notifications */
 	apple_smc_read_u32(power->smc, SMC_KEY(BCF0), &val);
