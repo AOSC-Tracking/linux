@@ -74,7 +74,7 @@ static irqreturn_t phytium_ps2_irq(int irq, void *devid)
 	return IRQ_HANDLED;
 }
 
-int phytium_ps2_write(struct serio *serio, unsigned char val)
+static int phytium_ps2_write(struct serio *serio, unsigned char val)
 {
 	struct phytium_ps2_data *ps2if = serio->port_data;
 	unsigned int stat;
@@ -89,7 +89,7 @@ int phytium_ps2_write(struct serio *serio, unsigned char val)
 	return 0;
 }
 
-int phytium_ps2_open(struct serio *io)
+static int phytium_ps2_open(struct serio *io)
 {
 	struct phytium_ps2_data *ps2if = io->port_data;
 
@@ -101,7 +101,7 @@ int phytium_ps2_open(struct serio *io)
 	return 0;
 }
 
-void phytium_ps2_close(struct serio *io)
+static void phytium_ps2_close(struct serio *io)
 {
 	struct phytium_ps2_data *ps2if = io->port_data;
 
