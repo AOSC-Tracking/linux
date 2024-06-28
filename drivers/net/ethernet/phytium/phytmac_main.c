@@ -1599,7 +1599,7 @@ static int phytmac_phylink_connect(struct phytmac *pdata)
 	return 0;
 }
 
-int phytmac_pcs_config(struct phylink_pcs *pcs, unsigned int mode,
+static int phytmac_pcs_config(struct phylink_pcs *pcs, unsigned int mode,
 		       phy_interface_t interface,
 		       const unsigned long *advertising,
 		       bool permit_pause_to_mac)
@@ -1607,7 +1607,7 @@ int phytmac_pcs_config(struct phylink_pcs *pcs, unsigned int mode,
 	return 0;
 }
 
-void phytmac_pcs_link_up(struct phylink_pcs *pcs, unsigned int mode,
+static void phytmac_pcs_link_up(struct phylink_pcs *pcs, unsigned int mode,
 			 phy_interface_t interface, int speed, int duplex)
 {
 	struct phytmac *pdata = container_of(pcs, struct phytmac, phylink_pcs);
@@ -1752,7 +1752,7 @@ static void phytmac_mac_link_up(struct phylink_config *config,
 	netif_tx_wake_all_queues(ndev);
 }
 
-int phytmac_mdio_register(struct phytmac *pdata)
+static int phytmac_mdio_register(struct phytmac *pdata)
 {
 	struct phytmac_hw_if *hw_if = pdata->hw_if;
 	int ret;
@@ -2258,7 +2258,7 @@ static int phytmac_init(struct phytmac *pdata)
 	return 0;
 }
 
-void phytmac_default_config(struct phytmac *pdata)
+static void phytmac_default_config(struct phytmac *pdata)
 {
 	struct net_device *ndev = pdata->ndev;
 
