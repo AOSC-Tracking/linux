@@ -361,6 +361,7 @@ static int ttm_bo_kmap_ttm(struct ttm_buffer_object *bo,
 		return ret;
 
 	if (num_pages == 1 && ttm->caching == ttm_cached &&
+	    bo->bdev->dma_coherent &&
 	    !(man->use_tt && (ttm->page_flags & TTM_TT_FLAG_DECRYPTED))) {
 		/*
 		 * We're mapping a single page, and the desired
