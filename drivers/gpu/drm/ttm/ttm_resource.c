@@ -867,7 +867,12 @@ ttm_kmap_iter_linear_io_init(struct ttm_kmap_iter_linear_io *iter_io,
 			     struct ttm_device *bdev,
 			     struct ttm_resource *mem)
 {
+	enum ttm_caching caching = mem->bus.caching;
 	int ret;
+
+	/* Downgrade cached mapping for non-snooping devices */
+	if (!bdev->dma_coherent && caching == ttm_cached)
+		caching = ttm_write_combined;
 
 	ret = ttm_mem_io_reserve(bdev, mem);
 	if (ret)
@@ -883,11 +888,11 @@ ttm_kmap_iter_linear_io_init(struct ttm_kmap_iter_linear_io *iter_io,
 	} else {
 		iter_io->needs_unmap = true;
 		memset(&iter_io->dmap, 0, sizeof(iter_io->dmap));
-		if (mem->bus.caching == ttm_write_combined)
+		if (caching == ttm_write_combined)
 			iosys_map_set_vaddr_iomem(&iter_io->dmap,
 						  ioremap_wc(mem->bus.offset,
 							     mem->size));
-		else if (mem->bus.caching == ttm_cached)
+		else if (caching == ttm_cached)
 			iosys_map_set_vaddr(&iter_io->dmap,
 					    memremap(mem->bus.offset, mem->size,
 						     MEMREMAP_WB |
