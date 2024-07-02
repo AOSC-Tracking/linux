@@ -89,7 +89,7 @@ static void ipmi_ls2k500_cleanup(struct si_sm_io *io)
 {
 }
 
-int ipmi_si_sim_setup(struct si_sm_io *io)
+static int ipmi_si_sim_setup(struct si_sm_io *io)
 {
 	io->inputb = intf_sim_inb;
 	io->outputb = intf_sim_outb;
