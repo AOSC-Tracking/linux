@@ -253,7 +253,7 @@ out:
 	priv->running = 0;
 }
 
-irqreturn_t ls2k500sfb_interrupt(int irq, void *arg)
+static irqreturn_t ls2k500sfb_interrupt(int irq, void *arg)
 {
 	struct ls2k500sfb_struct *priv = arg;
 	struct pci_dev *pdev = priv->dev;
