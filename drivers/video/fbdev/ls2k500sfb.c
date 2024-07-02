@@ -287,6 +287,7 @@ static int get_gpio_irq_from_acpi_table(int gpio)
 {
 	struct gpio_chip *chip;
 	struct gpio_desc *desc;
+	chip = NULL;
 
 	chip->gpiodev = gpio_device_find_by_label("LOON0007:00");
 	if (!chip->gpiodev)
