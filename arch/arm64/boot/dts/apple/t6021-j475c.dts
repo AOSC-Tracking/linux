@@ -122,3 +122,5 @@
 	apple,perf-boost-min-util = <75>;
 	apple,perf-tgt-utilization = <70>;
 };
+
+#include "hwmon-fan-dual.dtsi"
