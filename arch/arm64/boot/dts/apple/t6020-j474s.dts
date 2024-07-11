@@ -106,3 +106,5 @@
 	/* Apple does not do this, but they probably should */
 	apple,perf-base-pstate = <3>;
 };
+
+#include "hwmon-mini.dtsi"
