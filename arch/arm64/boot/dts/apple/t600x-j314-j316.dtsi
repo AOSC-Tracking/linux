@@ -519,3 +519,7 @@
 &isp {
 	apple,platform-id = <3>;
 };
+
+#include "hwmon-common.dtsi"
+#include "hwmon-fan-dual.dtsi"
+#include "hwmon-laptop.dtsi"

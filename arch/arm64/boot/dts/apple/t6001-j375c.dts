@@ -41,3 +41,5 @@
 		line-name = "usb-hub-rst";
 	};
 };
+
+#include "hwmon-fan-dual.dtsi"
