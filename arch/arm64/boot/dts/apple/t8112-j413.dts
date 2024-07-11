@@ -248,3 +248,5 @@
 	apple,platform-id = <14>;
 	apple,temporal-filter = <1>;
 };
+
+#include "hwmon-laptop.dtsi"
