@@ -58,3 +58,5 @@
 	apple,ppm-ki = <5.8>;
 	apple,ppm-kp = <0.355>;
 };
+
+#include "hwmon-fan-dual.dtsi"
