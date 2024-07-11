@@ -172,3 +172,5 @@
 &isp {
 	apple,platform-id = <1>;
 };
+
+#include "hwmon-laptop.dtsi"
