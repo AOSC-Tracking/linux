@@ -48,10 +48,6 @@ EXPORT_SYMBOL(cpu_sibling_map);
 /* Representing the core map of multi-core chips of each logical CPU */
 cpumask_t cpu_core_map[NR_CPUS] __read_mostly;
 EXPORT_SYMBOL(cpu_core_map);
-
-static DECLARE_COMPLETION(cpu_starting);
-static DECLARE_COMPLETION(cpu_running);
-
 /*
  * A logcal cpu mask containing only one VPE per core to
  * reduce the number of IPIs on large MT systems.
@@ -65,7 +61,6 @@ static cpumask_t cpu_sibling_setup_map;
 /* representing cpus for which core maps can be computed */
 static cpumask_t cpu_core_setup_map;
 
-struct secondary_data cpuboot_data;
 static DEFINE_PER_CPU(int, cpu_state);
 
 static const char *ipi_types[NR_IPI] __tracepoint_string = {
@@ -344,19 +339,23 @@ void __init loongson_prepare_cpus(unsigned int max_cpus)
 /*
  * Setup the PC, SP, and TP of a secondary processor and start it running!
  */
-void loongson_boot_secondary(int cpu, struct task_struct *idle)
+int arch_cpuhp_kick_ap_alive(unsigned int cpu, struct task_struct *tidle)
 {
-	unsigned long entry;
+	unsigned long entry, stack, thread_info;
 
 	pr_info("Booting CPU#%d...\n", cpu);
 
 	entry = __pa_symbol((unsigned long)&smpboot_entry);
-	cpuboot_data.stack = (unsigned long)__KSTK_TOS(idle);
-	cpuboot_data.thread_info = (unsigned long)task_thread_info(idle);
+	stack = (unsigned long)__KSTK_TOS(tidle);
+	thread_info = (unsigned long)task_thread_info(tidle);
 
+	csr_mail_send(thread_info, cpu_logical_map(cpu), 2);
+	csr_mail_send(stack, cpu_logical_map(cpu), 1);
 	csr_mail_send(entry, cpu_logical_map(cpu), 0);
 
 	loongson_send_ipi_single(cpu, ACTION_BOOT_CPU);
+
+	return 0;
 }
 
 /*
@@ -533,23 +532,6 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 #endif
 }
 
-int __cpu_up(unsigned int cpu, struct task_struct *tidle)
-{
-	loongson_boot_secondary(cpu, tidle);
-
-	/* Wait for CPU to start and be ready to sync counters */
-	if (!wait_for_completion_timeout(&cpu_starting,
-					 msecs_to_jiffies(5000))) {
-		pr_crit("CPU%u: failed to start\n", cpu);
-		return -EIO;
-	}
-
-	/* Wait for CPU to finish startup & mark itself online before return */
-	wait_for_completion(&cpu_running);
-
-	return 0;
-}
-
 /*
  * First C code run on the secondary CPUs after being started up by
  * the master.
@@ -569,21 +551,13 @@ asmlinkage void start_secondary(void)
 	set_cpu_sibling_map(cpu);
 	set_cpu_core_map(cpu);
 
+	cpuhp_ap_sync_alive();
 	notify_cpu_starting(cpu);
-
-	/* Notify boot CPU that we're starting */
-	complete(&cpu_starting);
 
 	/* The CPU is running, now mark it online */
 	set_cpu_online(cpu, true);
 
 	calculate_cpu_foreign_map();
-
-	/*
-	 * Notify boot CPU that we're up & online and it can safely return
-	 * from __cpu_up()
-	 */
-	complete(&cpu_running);
 
 	/*
 	 * irq will be enabled in loongson_smp_finish(), enabling it too
