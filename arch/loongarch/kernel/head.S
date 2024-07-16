@@ -137,9 +137,10 @@ SYM_CODE_START(smpboot_entry)
 	li.w		t0, 0x00		# FPE=0, SXE=0, ASXE=0, BTE=0
 	csrwr		t0, LOONGARCH_CSR_EUEN
 
-	la.pcrel	t0, cpuboot_data
-	ld.d		sp, t0, CPU_BOOT_STACK
-	ld.d		tp, t0, CPU_BOOT_TINFO
+	li.w		t0, LOONGARCH_IOCSR_MBUF1
+	iocsrrd.d	sp, t0
+	li.w		t0, LOONGARCH_IOCSR_MBUF2
+	iocsrrd.d	tp, t0
 
 	bl		start_secondary
 	ASM_BUG()
