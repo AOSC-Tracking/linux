@@ -257,16 +257,6 @@ static void __used output_signal_defines(void)
 	BLANK();
 }
 
-#ifdef CONFIG_SMP
-static void __used output_smpboot_defines(void)
-{
-	COMMENT("Linux smp cpu boot offsets.");
-	OFFSET(CPU_BOOT_STACK, secondary_data, stack);
-	OFFSET(CPU_BOOT_TINFO, secondary_data, thread_info);
-	BLANK();
-}
-#endif
-
 #ifdef CONFIG_HIBERNATION
 static void __used output_pbe_defines(void)
 {
