@@ -23,6 +23,8 @@ struct exit_boot_struct {
 	int			runtime_entry_count;
 };
 
+static int is_oldworld = 0;
+
 static efi_status_t exit_boot_func(struct efi_boot_memmap *map, void *priv)
 {
 	struct exit_boot_struct *p = priv;
@@ -35,7 +37,23 @@ static efi_status_t exit_boot_func(struct efi_boot_memmap *map, void *priv)
 	efi_get_virtmap(map->map, map->map_size, map->desc_size,
 			p->runtime_map, &p->runtime_entry_count);
 
+	if (is_oldworld) {
+		for(int l = 0; l < p->runtime_entry_count * map->desc_size; l += map->desc_size) {
+			efi_memory_desc_t *entry = (void *)(p->runtime_map) + l;
+			entry->virt_addr = TO_UNCACHE(entry->virt_addr);
+		}
+	}
+
 	return EFI_SUCCESS;
+}
+
+static void detect_oldworld(void)
+{
+	is_oldworld = !!(csr_read64(LOONGARCH_CSR_DMWIN1) & CSR_DMW1_PLV0);
+	efi_debug("is_oldworld: %d\n", is_oldworld);
+	if(is_oldworld) {
+		efi_info("Booting on OldWorld firmware\n");
+	}
 }
 
 unsigned long __weak kernel_entry_address(unsigned long kernel_addr,
@@ -52,6 +70,8 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 	unsigned long desc_size;
 	efi_status_t status;
 	u32 desc_ver;
+
+	detect_oldworld();
 
 	status = efi_alloc_virtmap(&priv.runtime_map, &desc_size, &desc_ver);
 	if (status != EFI_SUCCESS) {
