@@ -72,6 +72,7 @@ efi_zboot_entry(efi_handle_t handle, efi_system_table_t *systab)
 	int ret;
 
 	WRITE_ONCE(efi_system_table, systab);
+	efi_debug("efi_system_table=%p\n", efi_system_table);
 
 	free_mem_ptr = (unsigned long)&zboot_heap;
 	free_mem_end_ptr = free_mem_ptr + sizeof(zboot_heap);
@@ -82,6 +83,7 @@ efi_zboot_entry(efi_handle_t handle, efi_system_table_t *systab)
 		error("Failed to locate parent's loaded image protocol");
 		return status;
 	}
+	efi_debug("image=%p\n", image);
 
 	status = efi_handle_cmdline(image, &cmdline_ptr);
 	if (status != EFI_SUCCESS)
@@ -96,6 +98,7 @@ efi_zboot_entry(efi_handle_t handle, efi_system_table_t *systab)
 	 // If the architecture has a preferred address for the image,
 	 // try that first.
 	image_base = alloc_preferred_address(alloc_size);
+	efi_debug("image_base=%p\n", (void *)image_base);
 	if (image_base == ULONG_MAX) {
 		unsigned long min_kimg_align = efi_get_kimg_min_align();
 		u32 seed = U32_MAX;
@@ -124,9 +127,11 @@ efi_zboot_entry(efi_handle_t handle, efi_system_table_t *systab)
 			efi_err("Failed to allocate memory\n");
 			goto free_cmdline;
 		}
+		efi_debug("2:image_base=%p\n", (void *)image_base);
 	}
 
 	// Decompress the payload into the newly allocated buffer.
+	efi_debug("_gzdata_start=%p\n", _gzdata_start);
 	ret = __decompress(_gzdata_start, compressed_size, NULL, NULL,
 			   (void *)image_base, alloc_size, NULL, error);
 	if (ret	< 0) {

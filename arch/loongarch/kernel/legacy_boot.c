@@ -533,9 +533,11 @@ static void __init init_acpi_arch_os_table_override (struct acpi_table_header *e
 
 	// 1. Core APIC 0x11
 	struct acpi_subtable_header *new_entry = (struct acpi_subtable_header *)(new_madt + 1);
+	pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 
 	memcpy(new_entry, core_pics, local_apic_count * sizeof(core_pics[0]));
 	new_entry = (struct acpi_subtable_header *)((void *)new_entry + local_apic_count * sizeof(core_pics[0]));
+	pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 
 	// 2. LIO PIC 0x12
 	{
@@ -550,6 +552,7 @@ static void __init init_acpi_arch_os_table_override (struct acpi_table_header *e
 		lio_pic->cascade_map[0] = 0x00FFFFFF;
 		lio_pic->cascade_map[1] = 0xFF000000;
 		new_entry = (struct acpi_subtable_header *)((void *)new_entry + sizeof(*lio_pic));
+		pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 	}
 	// 3. HT PIC 0x13
 	if (!cpu_has_extioi) {
@@ -558,12 +561,15 @@ static void __init init_acpi_arch_os_table_override (struct acpi_table_header *e
 		// 4. EIO PIC 0x14
 		memcpy(new_entry, eio_pics, io_apic_count * sizeof(eio_pics[0]));
 		new_entry = (struct acpi_subtable_header *)((void *)new_entry + io_apic_count * sizeof(eio_pics[0]));
+		pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 		// 5. MSI PIC 0x15
 		memcpy(new_entry, msi_pics, io_apic_count * sizeof(msi_pics[0]));
 		new_entry = (struct acpi_subtable_header *)((void *)new_entry + io_apic_count * sizeof(msi_pics[0]));
+		pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 		// 6. BIO PIC 0x16
 		memcpy(new_entry, bio_pics, io_apic_count * sizeof(bio_pics[0]));
 		new_entry = (struct acpi_subtable_header *)((void *)new_entry + io_apic_count * sizeof(bio_pics[0]));
+		pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 		// 7. LPC PIC 0x17
 		{
 			struct acpi_madt_lpc_pic *lpc_pic = (struct acpi_madt_lpc_pic *)new_entry;
@@ -574,12 +580,15 @@ static void __init init_acpi_arch_os_table_override (struct acpi_table_header *e
 			lpc_pic->size = SZ_4K;
 			lpc_pic->cascade = 19;
 			new_entry = (struct acpi_subtable_header *)((void *)new_entry + sizeof(*lpc_pic));
+			pr_info("new_entry = %lx\n", (unsigned long)new_entry);
 		}
 	}
 	if((void *)new_entry != (void *)new_madt + new_madt_size) {
+		pr_err("BPI: new_madt=%lx new_entry=%lx new_madt_size=%ld\n", (unsigned long)new_madt, (unsigned long)new_entry, new_madt_size);
 		panic("BPI: missing bytes while constructing new MADT\n");
 	}
 	if((void *)mcfg_entry != (void *)new_mcfg + new_mcfg_size) {
+		pr_err("BPI: new_mcfg=%lx mcfg_entry=%lx new_mcfg_size=%ld\n", (unsigned long)new_mcfg, (unsigned long)mcfg_entry, new_mcfg_size);
 		panic("BPI: missing bytes while constructing new MCFG\n");
 	}
 	new_madt->header.checksum = 0 - ext_listhdr_checksum((u8 *)new_madt, new_madt_size);

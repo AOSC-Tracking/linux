@@ -109,6 +109,8 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
+#include <uartout.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/initcall.h>
 
@@ -758,6 +760,9 @@ static int __init do_early_param(char *param, char *val,
 		    (strcmp(param, "console") == 0 &&
 		     strcmp(p->str, "earlycon") == 0)
 		) {
+			loong_uart_puts("will_do_early_param: ");
+			loong_uart_puts(param);
+			loong_uart_puts("\n");
 			if (p->setup_func(val) != 0)
 				pr_warn("Malformed early option '%s'\n", param);
 		}
@@ -905,6 +910,8 @@ void start_kernel(void)
 	char *command_line;
 	char *after_dashes;
 
+	loong_uart_puts("start_kernel!!\n");
+
 	set_task_stack_end_magic(&init_task);
 	smp_setup_processor_id();
 	debug_objects_early_init();
@@ -923,15 +930,23 @@ void start_kernel(void)
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	early_security_init();
+	loong_uart_puts("will_setup_arch!!\n");
 	setup_arch(&command_line);
+	loong_uart_puts("will_setup_boot_config!!\n");
 	setup_boot_config();
+	loong_uart_puts("will_setup_command_line!!\n");
 	setup_command_line(command_line);
+	loong_uart_puts("will_setup_nr_cpu_ids!!\n");
 	setup_nr_cpu_ids();
+	loong_uart_puts("will_setup_per_cpu_areas!!\n");
 	setup_per_cpu_areas();
+	loong_uart_puts("will_prepare_boot_cpu!!\n");
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
 	early_numa_node_init();
+	loong_uart_puts("will_boot_cpu_hp_init!!\n");
 	boot_cpu_hotplug_init();
 
+	loong_uart_puts("will_print_cmdline!!\n");
 	pr_notice("Kernel command line: %s\n", saved_command_line);
 	/* parameters may set static keys */
 	jump_label_init();

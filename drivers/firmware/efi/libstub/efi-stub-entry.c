@@ -64,6 +64,7 @@ efi_status_t __efiapi efi_pe_entry(efi_handle_t handle,
 
 	efi_info("Booting Linux Kernel...\n");
 
+	efi_debug("image_addr=%p\n", (void *)image_addr);
 	status = handle_kernel_image(&image_addr, &image_size,
 				     &reserve_addr,
 				     &reserve_size,
@@ -72,6 +73,7 @@ efi_status_t __efiapi efi_pe_entry(efi_handle_t handle,
 		efi_err("Failed to relocate kernel\n");
 		return status;
 	}
+	efi_debug("after: image_addr=%p\n", (void *)image_addr);
 
 	screen_info_offset = image_addr - (unsigned long)image->image_base;
 
