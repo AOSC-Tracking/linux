@@ -33,6 +33,8 @@
 #include <asm/setup.h>
 #include <asm/time.h>
 
+#include <uartout.h>
+
 #include "legacy_boot.h"
 
 int __cpu_number_map[NR_CPUS];   /* Map physical to logical */
@@ -285,15 +287,26 @@ static void __init fdt_smp_setup(void)
 
 void __init loongson_smp_setup(void)
 {
+	loong_uart_puts("will_fdt_smp_setup\n");
 	fdt_smp_setup();
+	loong_uart_puts("done_fdt_smp_setup\n");
+	static char __initdata buf[128] = {};
+	snprintf(buf, sizeof(buf), "loongson_sysconf.cores_per_package = %d\n", loongson_sysconf.cores_per_package);
+	loong_uart_puts(buf);
+	snprintf(buf, sizeof(buf), "loongson_sysconf.nr_cpus = %d\n", loongson_sysconf.nr_cpus);
+	loong_uart_puts(buf);
 
 	if (loongson_sysconf.cores_per_package == 0)
 		loongson_sysconf.cores_per_package = num_processors;
 
+	snprintf(buf, sizeof(buf), "cpu_logical_map(0)=%x\n", cpu_logical_map(0));
+	loong_uart_puts(buf);
 	cpu_data[0].core = cpu_logical_map(0) % loongson_sysconf.cores_per_package;
 	cpu_data[0].package = cpu_logical_map(0) / loongson_sysconf.cores_per_package;
 
+	loong_uart_puts("will_iocsr_write IPI_EN\n");
 	iocsr_write32(0xffffffff, LOONGARCH_IOCSR_IPI_EN);
+	loong_uart_puts("done_iocsr_write IPI_EN\n");
 	pr_info("Detected %i available CPU(s)\n", loongson_sysconf.nr_cpus);
 }
 

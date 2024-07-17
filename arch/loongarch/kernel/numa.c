@@ -26,6 +26,8 @@
 #include <asm/sections.h>
 #include <asm/time.h>
 
+#include <uartout.h>
+
 #include "legacy_boot.h"
 
 int numa_off;
@@ -288,6 +290,9 @@ static void __init init_node_memblock(void)
 		mem_size = md->num_pages << EFI_PAGE_SHIFT;
 		mem_end = mem_start + mem_size;
 
+			pr_info("memDesc: mem_type:%d, mem_start:0x%llx, mem_size:0x%llx Bytes\n",
+					mem_type, mem_start, mem_size);
+
 		switch (mem_type) {
 		case EFI_LOADER_CODE:
 		case EFI_LOADER_DATA:
@@ -371,21 +376,33 @@ int __init init_numa_memory(void)
 	if (WARN_ON(nodes_empty(node_possible_map)))
 		return -EINVAL;
 
+	loong_uart_puts("will_init_node_memblock\n");
 	init_node_memblock();
+	loong_uart_puts("done_init_node_memblock\n");
+	loong_uart_puts("will_bpi_init_node_memblock\n");
 	bpi_init_node_memblock(add_numamem_region);
+	loong_uart_puts("done_bpi_init_node_memblock\n");
+	loong_uart_puts("will_memblock_validate_numa_coverage\n");
 	if (!memblock_validate_numa_coverage(SZ_1M))
 		return -EINVAL;
+	loong_uart_puts("done_memblock_validate_numa_coverage\n");
 
 	for_each_node_mask(node, node_possible_map) {
+		loong_uart_puts("will_node_mem_init\n");
 		node_mem_init(node);
+		loong_uart_puts("will_node_set_online\n");
 		node_set_online(node);
+		loong_uart_puts("done_node_set_online\n");
 	}
+	loong_uart_puts("will_memblock_end_of_DRAM\n");
 	max_low_pfn = PHYS_PFN(memblock_end_of_DRAM());
 
+	loong_uart_puts("will_setup_nr_node_ids\n");
 	setup_nr_node_ids();
 	loongson_sysconf.nr_nodes = nr_node_ids;
 	loongson_sysconf.cores_per_node = cpumask_weight(&phys_cpus_on_node[0]);
 
+	loong_uart_puts("done_init_numa_memory\n");
 	return 0;
 }
 

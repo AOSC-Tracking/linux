@@ -49,6 +49,8 @@
 #include <asm/time.h>
 #include <asm/unwind.h>
 
+#include <uartout.h>
+
 #include "legacy_boot.h"
 
 #define SMBIOS_BIOSSIZE_OFFSET		0x09
@@ -350,28 +352,45 @@ out:
 
 void __init platform_init(void)
 {
+	loong_uart_puts("will_reserve_vmcore!!\n");
 	arch_reserve_vmcore();
+	loong_uart_puts("will_reserve_carshker!!\n");
 	arch_reserve_crashkernel();
 
 #ifdef CONFIG_ACPI_TABLE_UPGRADE
+	loong_uart_puts("will_acpi_table_upgrade!!\n");
 	acpi_table_upgrade();
 #endif
+	loong_uart_puts("done_acpi_table_upgrade!!\n");
 #ifdef CONFIG_ACPI
 	acpi_gbl_use_default_register_widths = false;
+	loong_uart_puts("will_acpi_boot_table_init!!\n");
 	acpi_boot_table_init();
+	loong_uart_puts("done_acpi_boot_table_init!!\n");
 #endif
 
+	loong_uart_puts("will_fdt_scan_rsv_mem!!\n");
 	early_init_fdt_scan_reserved_mem();
+	loong_uart_puts("will_cpdt!!\n");
 	unflatten_and_copy_device_tree();
 
 #ifdef CONFIG_NUMA
+	loong_uart_puts("will_init_numa_mem!!\n");
 	init_numa_memory();
 #endif
+	loong_uart_puts("done_init_numa_mem!!\n");
+	loong_uart_puts("will_dmi_setup!!\n");
 	dmi_setup();
+	loong_uart_puts("will_smbios_parse!!\n");
 	smbios_parse();
+	loong_uart_puts("bios ver:");
+	loong_uart_puts(b_info.bios_version);
+	loong_uart_puts("\n");
 	pr_info("The BIOS Version: %s\n", b_info.bios_version);
 
+	loong_uart_puts("will_efi_runtime_init!!\n");
 	efi_runtime_init();
+	loong_uart_puts("done_platform_init!!\n");
 }
 
 static void __init check_kernel_sections_mem(void)
@@ -589,31 +608,49 @@ static void __init prefill_possible_map(void)
 
 void __init setup_arch(char **cmdline_p)
 {
+	loong_uart_puts("will_cpu_probe!!\n");
 	cpu_probe();
 	unwind_init();
 
+	loong_uart_puts("will_init_environ!!\n");
 	init_environ();
+	loong_uart_puts("will_efi_init!!\n");
 	efi_init();
+	loong_uart_puts("will_fdt_setup!!\n");
 	fdt_setup();
+	loong_uart_puts("will_bpi_init!!\n");
 	bpi_init();
+	loong_uart_puts("will_memblock_init!!\n");
 	memblock_init();
+	loong_uart_puts("will_pagetable_init!!\n");
 	pagetable_init();
+	loong_uart_puts("will_bootcmdline_init!!\n");
 	bootcmdline_init(cmdline_p);
+	loong_uart_puts("will_parse_early_param!!\n");
 	parse_early_param();
+	loong_uart_puts("will_reserve_initrd_mem!!\n");
 	reserve_initrd_mem();
 
+	loong_uart_puts("will_platform_init!!\n");
 	platform_init();
+	loong_uart_puts("will_arch_mem_init!!\n");
 	arch_mem_init(cmdline_p);
 
+	loong_uart_puts("will_resource_init!!\n");
 	resource_init();
+	loong_uart_puts("will_plat_smp_setup!!\n");
 #ifdef CONFIG_SMP
 	plat_smp_setup();
+	loong_uart_puts("will_prefill_possible_map!!\n");
 	prefill_possible_map();
 #endif
 
+	loong_uart_puts("will_paging_init!!\n");
 	paging_init();
 
+	loong_uart_puts("will_ksasn_init!!\n");
 #ifdef CONFIG_KASAN
 	kasan_init();
 #endif
+	loong_uart_puts("done_setup_arch!!\n");
 }

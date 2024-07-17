@@ -63,6 +63,7 @@ void __init efi_runtime_init(void)
 	}
 
 	efi.runtime = (efi_runtime_services_t *)efi_systab->runtime;
+	pr_info("efi_systab->runtime=0x%lx\n", (unsigned long) efi_systab->runtime);
 	efi.runtime_version = (unsigned int)efi.runtime->hdr.revision;
 
 	efi_native_runtime_setup();

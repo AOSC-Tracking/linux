@@ -10,6 +10,8 @@
 #include "efistub.h"
 #include "loongarch-stub.h"
 
+#include <uartout.h>
+
 typedef void __noreturn (*kernel_entry_t)(bool efi, unsigned long cmdline,
 					  unsigned long systab);
 
@@ -40,7 +42,12 @@ static efi_status_t exit_boot_func(struct efi_boot_memmap *map, void *priv)
 	if (is_oldworld) {
 		for(int l = 0; l < p->runtime_entry_count * map->desc_size; l += map->desc_size) {
 			efi_memory_desc_t *entry = (void *)(p->runtime_map) + l;
+			char buf[256];
+			snprintf(buf, sizeof(buf), "virt_map_bfr: phys=%llx, virt=%llx\n", entry->phys_addr, entry->virt_addr);
+			loong_uart_puts(buf);
 			entry->virt_addr = TO_UNCACHE(entry->virt_addr);
+			snprintf(buf, sizeof(buf), "virt_map_aft: phys=%llx, virt=%llx\n", entry->phys_addr, entry->virt_addr);
+			loong_uart_puts(buf);
 		}
 	}
 
@@ -51,6 +58,10 @@ static void detect_oldworld(void)
 {
 	is_oldworld = !!(csr_read64(LOONGARCH_CSR_DMWIN1) & CSR_DMW1_PLV0);
 	efi_debug("is_oldworld: %d\n", is_oldworld);
+	efi_debug("dmwin0: %lx\n", csr_read64(LOONGARCH_CSR_DMWIN0));
+	efi_debug("dmwin1: %lx\n", csr_read64(LOONGARCH_CSR_DMWIN1));
+	efi_debug("dmwin2: %lx\n", csr_read64(LOONGARCH_CSR_DMWIN2));
+	efi_debug("dmwin3: %lx\n", csr_read64(LOONGARCH_CSR_DMWIN3));
 	if(is_oldworld) {
 		efi_info("Booting on OldWorld firmware\n");
 	}
@@ -79,6 +90,10 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 		return status;
 	}
 
+	efi_debug("kernel_addr=%p\n", (void *)kernel_addr);
+	efi_debug("image=%p\n", image);
+	efi_debug("real_kernel_entry=%p\n", (void *)kernel_entry_address(kernel_addr, image));
+	efi_debug("*(kernel_addr + 8)=%p\n", *(void **)(kernel_addr + 8));
 	efi_info("Exiting boot services\n");
 
 	efi_novamap = false;
