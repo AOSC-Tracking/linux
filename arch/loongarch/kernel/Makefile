@@ -80,3 +80,4 @@ obj-$(CONFIG_JUMP_LABEL)	+= jump_label.o
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)
 
 obj-y				+= legacy_boot.o
+obj-y				+= early_printk.o
