@@ -27,6 +27,8 @@
 #include <asm/sections.h>
 #include <asm/time.h>
 
+#include "legacy_boot.h"
+
 int numa_off;
 cpumask_t cpus_on_node[MAX_NUMNODES];
 cpumask_t phys_cpus_on_node[MAX_NUMNODES];
@@ -308,6 +310,14 @@ int __init init_numa_memory(void)
 		return ret;
 
 	info_node_memblock();
+
+	node_possible_map = numa_nodes_parsed;
+	if (WARN_ON(nodes_empty(node_possible_map)))
+		return -EINVAL;
+
+	init_node_memblock();
+	bpi_init_node_memblock(add_numamem_region);
+
 	if (!memblock_validate_numa_coverage(SZ_1M))
 		return -EINVAL;
 
