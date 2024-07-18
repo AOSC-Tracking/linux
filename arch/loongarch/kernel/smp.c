@@ -35,6 +35,8 @@
 #include <asm/setup.h>
 #include <asm/time.h>
 
+#include "legacy_boot.h"
+
 int __cpu_number_map[NR_CPUS];   /* Map physical to logical */
 EXPORT_SYMBOL(__cpu_number_map);
 
@@ -346,6 +348,8 @@ int arch_cpuhp_kick_ap_alive(unsigned int cpu, struct task_struct *tidle)
 	pr_info("Booting CPU#%d...\n", cpu);
 
 	entry = __pa_symbol((unsigned long)&smpboot_entry);
+	if (loongarch_have_legacy_bpi())
+		entry = (unsigned long)&smpboot_entry;
 	stack = (unsigned long)__KSTK_TOS(tidle);
 	thread_info = (unsigned long)task_thread_info(tidle);
 
