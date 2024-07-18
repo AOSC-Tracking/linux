@@ -26,6 +26,8 @@
 #include <asm/sections.h>
 #include <asm/time.h>
 
+#include "legacy_boot.h"
+
 int numa_off;
 unsigned char node_distances[MAX_NUMNODES][MAX_NUMNODES];
 EXPORT_SYMBOL(node_distances);
@@ -349,6 +351,7 @@ int __init init_numa_memory(void)
 		return -EINVAL;
 
 	init_node_memblock();
+	bpi_init_node_memblock(add_numamem_region);
 	if (!memblock_validate_numa_coverage(SZ_1M))
 		return -EINVAL;
 
