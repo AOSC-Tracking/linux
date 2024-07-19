@@ -42,6 +42,11 @@ extern void acpi_add_early_pio(void);
 extern void acpi_remove_early_pio(void);
 extern int __init parse_acpi_topology(void);
 
+#define ACPI_HAVE_ARCH_TABLE_OVERRIDE
+extern void acpi_arch_os_table_override (struct acpi_table_header *existing_table, struct acpi_table_header **new_table);
+#define ACPI_HAVE_ARCH_TABLE_INIT_COMPLETE
+extern void acpi_arch_table_init_complete(void);
+
 #endif /* !CONFIG_ACPI */
 
 #define ACPI_TABLE_UPGRADE_MAX_PHYS ARCH_LOW_ADDRESS_LIMIT
