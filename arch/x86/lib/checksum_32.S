@@ -62,6 +62,7 @@ SYM_FUNC_START(csum_partial)
 	jl 8f
 	movzbl (%esi), %ebx
 	adcl %ebx, %eax
+	adcl $0, %eax
 	roll $8, %eax
 	inc %esi
 	testl $2, %esi
