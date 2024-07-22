@@ -281,12 +281,15 @@ int __init pch_msi_acpi_init(struct irq_domain *parent,
 	int ret;
 	struct fwnode_handle *domain_handle;
 
+	pr_info("pch_msi_acpi_init, entry=%lx, msg_addr=%llx\n", (unsigned long)acpi_pchmsi, acpi_pchmsi->msg_address);
+
 	domain_handle = irq_domain_alloc_fwnode(&acpi_pchmsi->msg_address);
 	ret = pch_msi_init(acpi_pchmsi->msg_address, acpi_pchmsi->start,
 				acpi_pchmsi->count, parent, domain_handle);
 	if (ret < 0)
 		irq_domain_free_fwnode(domain_handle);
 
+	pr_info("pch_msi_acpi_init, entry=%lx, msg_addr=%llx, ret=%d\n", (unsigned long)acpi_pchmsi, acpi_pchmsi->msg_address, ret);
 	return ret;
 }
 #endif

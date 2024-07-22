@@ -37,21 +37,29 @@ static struct fwnode_handle *lpic_get_gsi_domain_id(u32 gsi)
 	int id;
 	struct fwnode_handle *domain_handle = NULL;
 
+
+	pr_info("lpic_get_gsi_domain_id: gsi=%d\n", gsi);
 	switch (gsi) {
 	case GSI_MIN_CPU_IRQ ... GSI_MAX_CPU_IRQ:
 		if (liointc_handle)
 			domain_handle = liointc_handle;
+		else
+			pr_info("liointc_handle is NULL\n");
 		break;
 
 	case GSI_MIN_LPC_IRQ ... GSI_MAX_LPC_IRQ:
 		if (pch_lpc_handle)
 			domain_handle = pch_lpc_handle;
+		else
+			pr_info("pch_lpc_handle is NULL\n");
 		break;
 
 	case GSI_MIN_PCH_IRQ ... GSI_MAX_PCH_IRQ:
 		id = find_pch_pic(gsi);
 		if (id >= 0 && pch_pic_handle[id])
 			domain_handle = pch_pic_handle[id];
+		else
+			pr_info("pch_pic_handle[%d] is NULL\n", id);
 		break;
 	}
 
@@ -156,6 +164,8 @@ static int __init cpuintc_acpi_init(union acpi_subtable_headers *header,
 	if (irq_domain)
 		return 0;
 
+	pr_info("cpuintc_acpi_init: entry=%lx\n", (unsigned long)header);
+
 	/* Mask interrupts. */
 	clear_csr_ecfg(ECFG0_IM);
 	clear_csr_estat(ESTATF_IP);
@@ -171,6 +181,8 @@ static int __init cpuintc_acpi_init(union acpi_subtable_headers *header,
 	acpi_set_irq_model(ACPI_IRQ_MODEL_LPIC, lpic_get_gsi_domain_id);
 	acpi_set_gsi_to_irq_fallback(lpic_gsi_to_irq);
 	ret = acpi_cascade_irqdomain_init();
+
+	pr_info("cpuintc_acpi_init: entry=%lx, ret=%d\n", (unsigned long)header, ret);
 
 	return ret;
 }

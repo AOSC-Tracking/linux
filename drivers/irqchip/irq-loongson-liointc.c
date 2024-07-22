@@ -400,6 +400,8 @@ int __init liointc_acpi_init(struct irq_domain *parent, struct acpi_madt_lio_pic
 	int ret;
 	struct fwnode_handle *domain_handle;
 
+	pr_info("liointc_acpi_init: entry=%lx, node=%llx\n", (unsigned long)acpi_liointc, acpi_liointc->address);
+
 	parent_int_map[0] = acpi_liointc->cascade_map[0];
 	parent_int_map[1] = acpi_liointc->cascade_map[1];
 
@@ -419,6 +421,7 @@ int __init liointc_acpi_init(struct irq_domain *parent, struct acpi_madt_lio_pic
 	else
 		irq_domain_free_fwnode(domain_handle);
 
+	pr_info("liointc_acpi_init: entry=%lx, node=%llx, ret=%d\n", (unsigned long)acpi_liointc, acpi_liointc->address, ret);
 	return ret;
 }
 #endif
