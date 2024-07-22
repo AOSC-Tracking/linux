@@ -177,6 +177,8 @@ int __init pch_lpc_acpi_init(struct irq_domain *parent,
 	struct irq_fwspec fwspec;
 	struct fwnode_handle *irq_handle;
 
+	pr_info("pch_lpc_acpi_init: entry=%lx, address=%llx\n", (unsigned long)acpi_pchlpc, acpi_pchlpc->address);
+
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
@@ -217,6 +219,8 @@ int __init pch_lpc_acpi_init(struct irq_domain *parent,
 	pch_lpc_handle = irq_handle;
 	register_syscore_ops(&pch_lpc_syscore_ops);
 
+	pr_info("pch_lpc_acpi_init: entry=%lx, address=%llx, ret=0\n", (unsigned long)acpi_pchlpc, acpi_pchlpc->address);
+
 	return 0;
 
 free_irq_handle:
@@ -225,6 +229,8 @@ iounmap_base:
 	iounmap(priv->base);
 free_priv:
 	kfree(priv);
+
+	pr_info("pch_lpc_acpi_init: entry=%lx, address=%llx, ret=-ENOMEM\n", (unsigned long)acpi_pchlpc, acpi_pchlpc->address);
 
 	return -ENOMEM;
 }

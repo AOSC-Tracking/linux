@@ -410,6 +410,8 @@ int __init eiointc_acpi_init(struct irq_domain *parent,
 	struct eiointc_priv *priv;
 	int node;
 
+	pr_info("eiointc_acpi_init: entry=%lx, node=%d\n", (unsigned long) acpi_eiointc, acpi_eiointc->node);
+
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
@@ -441,6 +443,7 @@ int __init eiointc_acpi_init(struct irq_domain *parent,
 	if (ret < 0)
 		goto out_free_handle;
 
+	pr_info("eiointc_acpi_init: entry=%lx, node=%d, ret=%d\n", (unsigned long) acpi_eiointc, acpi_eiointc->node, ret);
 	return ret;
 
 out_free_handle:
@@ -449,6 +452,7 @@ out_free_handle:
 out_free_priv:
 	kfree(priv);
 
+	pr_info("eiointc_acpi_init: entry=%lx, node=%d, ret=-ENOMEM\n", (unsigned long) acpi_eiointc, acpi_eiointc->node);
 	return -ENOMEM;
 }
 

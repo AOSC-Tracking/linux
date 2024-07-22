@@ -364,12 +364,19 @@ int find_pch_pic(u32 gsi)
 {
 	int i;
 
+	pr_info("find_pch_pic: gsi=%d, nr_pics=%d\n", gsi, nr_pics);
+
 	/* Find the PCH_PIC that manages this GSI. */
 	for (i = 0; i < MAX_IO_PICS; i++) {
 		struct pch_pic *priv = pch_pic_priv[i];
 
+		pr_info("find_pch_pic: gsi=%d, pch_pic_priv[%d]=%lx\n", gsi, i, (unsigned long)priv);
+
 		if (!priv)
 			return -1;
+
+		pr_info("find_pch_pic: pch_pic_priv[%d]: gsi_base=%d, vec_count=%d\n",
+			i, priv->gsi_base, priv->vec_count);
 
 		if (gsi >= priv->gsi_base && gsi < (priv->gsi_base + priv->vec_count))
 			return i;
@@ -404,6 +411,9 @@ int __init pch_pic_acpi_init(struct irq_domain *parent,
 	int ret;
 	struct fwnode_handle *domain_handle;
 
+	pr_info("pch_pic_acpi_init: entry=%lx, gsi_base=%d, id=%d\n",
+		(unsigned long)acpi_pchpic, acpi_pchpic->gsi_base, acpi_pchpic->id);
+
 	if (find_pch_pic(acpi_pchpic->gsi_base) >= 0)
 		return 0;
 
@@ -424,6 +434,8 @@ int __init pch_pic_acpi_init(struct irq_domain *parent,
 	if (acpi_pchpic->id == 0)
 		ret = acpi_cascade_irqdomain_init();
 
+	pr_info("pch_pic_acpi_init: entry=%lx, gsi_base=%d, ret=%d\n",
+		(unsigned long)acpi_pchpic, acpi_pchpic->gsi_base, ret);
 	return ret;
 }
 #endif

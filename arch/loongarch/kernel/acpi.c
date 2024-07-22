@@ -98,6 +98,9 @@ acpi_parse_processor(union acpi_subtable_headers *header, const unsigned long en
 		return -EINVAL;
 
 	acpi_table_print_madt_entry(&header->common);
+	pr_info("acpi_parse_processor: from entry 0x%lx, processor_id = %d, flags = %d, core_id = %d\n",
+		(unsigned long)processor,
+		processor->processor_id, processor->flags, processor->core_id);
 #ifdef CONFIG_SMP
 	acpi_core_pic[processor->core_id] = *processor;
 	set_processor_mask(processor->core_id, processor->flags);
@@ -116,6 +119,9 @@ acpi_parse_eio_master(union acpi_subtable_headers *header, const unsigned long e
 	if (BAD_MADT_ENTRY(eiointc, end))
 		return -EINVAL;
 
+
+	pr_info("acpi_parse_eio_master: from entry 0x%lx, node=%d\n",
+		(unsigned long)eiointc, eiointc->node);
 	core = eiointc->node * CORES_PER_EIO_NODE;
 	set_bit(core, loongson_sysconf.cores_io_master);
 
