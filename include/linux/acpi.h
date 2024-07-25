@@ -1539,6 +1539,10 @@ void acpi_arm_init(void);
 static inline void acpi_arm_init(void) { }
 #endif
 
+#ifndef ACPI_HAVE_ARCH_INIT
+static inline void acpi_arch_init(void) {}
+#endif
+
 #ifdef CONFIG_ACPI_PCC
 void acpi_init_pcc(void);
 #else
