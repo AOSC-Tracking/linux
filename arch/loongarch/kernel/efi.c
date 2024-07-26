@@ -76,6 +76,11 @@ struct screen_info screen_info __section(".data");
 EXPORT_SYMBOL_GPL(screen_info);
 #endif
 
+bool efi_poweroff_required(void)
+{
+	return efi_enabled(EFI_RUNTIME_SERVICES);
+}
+
 static void __init init_screen_info(void)
 {
 	struct screen_info *si;
