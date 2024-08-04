@@ -112,6 +112,12 @@ struct apple_dcp_hw_data {
 	u32 num_dptx_ports;
 };
 
+enum dcp_hdp_state {
+	DCP_HPD_UNKNOWN,
+	DCP_HPD_OOB_CONNECTED,
+	DCP_HPD_OOB_DISCONNECTED,
+};
+
 /* TODO: move IOMFB members to its own struct */
 struct apple_dcp {
 	struct device *dev;
@@ -257,6 +263,12 @@ struct apple_dcp {
 	struct gpio_desc *dp2hdmi_pwren;
 
 	struct mutex hpd_mutex;
+	struct mutex hpd_deferred_mutex;
+	struct delayed_work hpd_wq;
+	struct {
+		enum dcp_hdp_state state;
+		u32 port;
+	} hpd;
 
 	u32 dptx_phy;
 	u32 dptx_die;
