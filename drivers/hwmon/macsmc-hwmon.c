@@ -30,6 +30,10 @@
 #define MAX_LABEL_LENGTH 32
 #define NUM_SENSOR_TYPES 5 /* temp, volt, current, power, fan */
 
+static bool melt_my_mac;
+module_param_unsafe(melt_my_mac, bool, 0644);
+MODULE_PARM_DESC(melt_my_mac, "Override the SMC to set your own fan speeds on supported machines");
+
 struct macsmc_hwmon_sensor {
 	struct apple_smc_key_info info;
 	smc_key macsmc_key;
@@ -41,8 +45,10 @@ struct macsmc_hwmon_fan {
 	struct macsmc_hwmon_sensor min;
 	struct macsmc_hwmon_sensor max;
 	struct macsmc_hwmon_sensor set;
+	struct macsmc_hwmon_sensor mode;
 	char label[MAX_LABEL_LENGTH];
 	u32 attrs;
+	bool manual;
 };
 
 struct macsmc_hwmon_sensors {
@@ -152,6 +158,21 @@ static int macsmc_hwmon_read_key(struct apple_smc *smc,
 	return 0;
 }
 
+static int macsmc_hwmon_write_key(struct apple_smc *smc,
+				  struct macsmc_hwmon_sensor *sensor, long val,
+				  int scale)
+{
+	switch (sensor->info.type_code) {
+	/* 32-bit IEEE 754 float */
+	case __SMC_KEY('f', 'l', 't', ' '):
+		return apple_smc_write_f32_scaled(smc, sensor->macsmc_key, val, scale);
+	case __SMC_KEY('u', 'i', '8', ' '):
+		return apple_smc_write_u8(smc, sensor->macsmc_key, val);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
 static int macsmc_hwmon_read_fan(struct macsmc_hwmon *hwmon, u32 attr, int chan, long *val)
 {
 	if (!(hwmon->fan.fans[chan].attrs & BIT(attr)))
@@ -173,6 +194,61 @@ static int macsmc_hwmon_read_fan(struct macsmc_hwmon *hwmon, u32 attr, int chan,
 	default:
 		return -EINVAL;
 	}
+}
+
+static int macsmc_hwmon_write_fan(struct device *dev, u32 attr, int channel, long val)
+{
+	struct macsmc_hwmon *hwmon = dev_get_drvdata(dev);
+	int ret = 0;
+	long min = 0;
+	long max = 0;
+
+	if (!melt_my_mac ||
+	    hwmon->fan.fans[channel].mode.macsmc_key == 0)
+		return -EOPNOTSUPP;
+
+	if ((channel >= hwmon->fan.n_fans) ||
+	    !(hwmon->fan.fans[channel].attrs & BIT(attr)) ||
+	    (attr != hwmon_fan_target))
+		return -EINVAL;
+
+	/*
+	 * The SMC does no sanity checks on requested fan speeds, so we need to.
+	 */
+	ret = macsmc_hwmon_read_key(hwmon->smc, &hwmon->fan.fans[channel].min, 1, &min);
+	if (ret)
+		return ret;
+	ret = macsmc_hwmon_read_key(hwmon->smc, &hwmon->fan.fans[channel].max, 1, &max);
+	if (ret)
+		return ret;
+
+	if (val >= min && val <= max) {
+		if (!hwmon->fan.fans[channel].manual) {
+			/* Write 1 to mode key for manual control */
+			ret = macsmc_hwmon_write_key(hwmon->smc, &hwmon->fan.fans[channel].mode, 1, 1);
+			if (ret < 0)
+				return ret;
+
+			hwmon->fan.fans[channel].manual = true;
+			dev_info(dev, "Fan %d now under manual control! Set target speed to 0 for automatic control.\n",
+				channel + 1);
+		}
+		return macsmc_hwmon_write_key(hwmon->smc, &hwmon->fan.fans[channel].set, val, 1);
+	} else if (!val) {
+		if (hwmon->fan.fans[channel].manual) {
+			dev_info(dev, "Returning control of fan %d to SMC.\n", channel + 1);
+			ret = macsmc_hwmon_write_key(hwmon->smc, &hwmon->fan.fans[channel].mode, 0, 1);
+			if (ret < 0)
+				return ret;
+
+			hwmon->fan.fans[channel].manual = false;
+		}
+	} else {
+		dev_err(dev, "Requested fan speed %ld out of range [%ld, %ld]", val, min, max);
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int macsmc_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
@@ -212,13 +288,38 @@ static int macsmc_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 static int macsmc_hwmon_write(struct device *dev, enum hwmon_sensor_types type,
 			u32 attr, int channel, long val)
 {
-	return -EOPNOTSUPP;
+	switch (type) {
+	case hwmon_fan:
+		return macsmc_hwmon_write_fan(dev, attr, channel, val);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+static umode_t macsmc_hwmon_fan_is_visible(const void *data, u32 attr, int channel)
+{
+	const struct macsmc_hwmon *hwmon = data;
+
+	if (channel >= hwmon->fan.n_fans)
+		return -EINVAL;
+
+	if (melt_my_mac && attr == hwmon_fan_target && hwmon->fan.fans[channel].mode.macsmc_key != 0)
+		return 0644;
+
+	return 0444;
 }
 
 static umode_t macsmc_hwmon_is_visible(const void *data,
 				enum hwmon_sensor_types type, u32 attr,
 				int channel)
 {
+	switch (type) {
+	case hwmon_fan:
+		return macsmc_hwmon_fan_is_visible(data, attr, channel);
+	default:
+		break;
+	}
+
 	return 0444;
 }
 
@@ -292,6 +393,7 @@ static int macsmc_hwmon_create_fan(struct device *dev, struct apple_smc *smc,
 	const char *min;
 	const char *max;
 	const char *set;
+	const char *mode;
 	int ret = 0;
 
 	ret = of_property_read_string(fan_node, "apple,key-id", &now);
@@ -334,6 +436,18 @@ static int macsmc_hwmon_create_fan(struct device *dev, struct apple_smc *smc,
 		if (!macsmc_hwmon_parse_key(dev, smc, &fan->set, set))
 			fan->attrs |= HWMON_F_TARGET;
 	}
+
+	ret = of_property_read_string(fan_node, "apple,fan-mode", &mode);
+	if (ret)
+		dev_warn(dev, "No fan mode key for %s", fan->label);
+	else {
+		ret = macsmc_hwmon_parse_key(dev, smc, &fan->mode, mode);
+		if (ret)
+			return ret;
+	}
+
+	/* Initialise fan control mode to automatic */
+	fan->manual = false;
 
 	return 0;
 }
