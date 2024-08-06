@@ -311,11 +311,13 @@ static int loongson3_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	return 0;
 }
 
-static void loongson3_cpufreq_cpu_exit(struct cpufreq_policy *policy)
+static int loongson3_cpufreq_cpu_exit(struct cpufreq_policy *policy)
 {
 	int cpu = policy->cpu;
 
 	loongson3_cpufreq_target(policy, per_cpu(freq_data, cpu)->def_freq_level);
+
+	return 0;
 }
 
 static int loongson3_cpufreq_cpu_online(struct cpufreq_policy *policy)
