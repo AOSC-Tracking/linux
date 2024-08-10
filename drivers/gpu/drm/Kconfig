@@ -253,6 +253,7 @@ config DRM_EXEC
 config DRM_GPUVM
 	tristate
 	depends on DRM
+	select DRM_EXEC
 	help
 	  GPU-VM representation providing helpers to manage a GPUs virtual
 	  address space
@@ -323,6 +324,8 @@ config DRM_VGEM
 	  If M is selected the module will be called vgem.
 
 source "drivers/gpu/drm/vkms/Kconfig"
+
+source "drivers/gpu/drm/asahi/Kconfig"
 
 source "drivers/gpu/drm/exynos/Kconfig"
 
