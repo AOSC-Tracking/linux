@@ -72,6 +72,9 @@ static inline void vcpu_reset_hcr(struct kvm_vcpu *vcpu)
 	vcpu->arch.hcr_el2 = HCR_GUEST_FLAGS;
 	if (has_vhe() || has_hvhe())
 		vcpu->arch.hcr_el2 |= HCR_E2H;
+	if (IS_ENABLED(CONFIG_ARM64_ACTLR_STATE) &&
+		alternative_has_cap_unlikely(ARM64_HAS_TSO_APPLE))
+		vcpu->arch.hcr_el2 &= ~HCR_TACR;
 	if (cpus_have_final_cap(ARM64_HAS_RAS_EXTN)) {
 		/* route synchronous external abort exceptions to EL2 */
 		vcpu->arch.hcr_el2 |= HCR_TEA;
