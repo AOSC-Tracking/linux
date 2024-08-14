@@ -132,7 +132,8 @@ static int macsmc_battery_get_status(struct macsmc_power *power)
 	u64 nocharge_flags;
 	u32 nopower_flags;
 	u16 ac_current;
-	bool chwa_limit = false;
+	int charge_limit = 0;
+	bool limited = false;
 	int ret;
 
 	/*
@@ -180,15 +181,25 @@ static int macsmc_battery_get_status(struct macsmc_power *power)
 		return POWER_SUPPLY_STATUS_FULL;
 
 	/*
-	 * If we have charge limits supported and enabled and the SoC is > 75%,
-	 * that means we are not charging for that reason (if not charging).
+	 * If we have charge limits supported and enabled and the SoC is above
+	 * the start threshold, that means we are not charging for that reason
+	 * (if not charging).
 	 */
-	if (power->has_chwa && apple_smc_read_flag(power->smc, SMC_KEY(CHWA)) == 1) {
-		u8 buic = 0;
+	if (power->has_chls) {
+		u16 vu16;
+		ret = apple_smc_read_u16(power->smc, SMC_KEY(CHLS), &vu16);
+		if (ret == sizeof(vu16) && (vu16 & 0xff) >= CHLS_MIN_END_THRESHOLD)
+			charge_limit = (vu16 & 0xff) - CHWA_CHLS_FIXED_START_OFFSET;
+	} else if (power->has_chwa &&
+		   apple_smc_read_flag(power->smc, SMC_KEY(CHWA)) == 1) {
+		charge_limit = CHWA_FIXED_END_THRESHOLD - CHWA_CHLS_FIXED_START_OFFSET;
+	}
 
+	if (charge_limit > 0) {
+		u8 buic = 0;
 		if (apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &buic) >= 0 &&
-			buic >= (CHWA_FIXED_END_THRESHOLD - CHWA_CHLS_FIXED_START_OFFSET))
-			chwa_limit = true;
+			buic >= charge_limit)
+			limited = true;
 	}
 
 	/* If there are reasons we aren't charging... */
@@ -201,7 +212,7 @@ static int macsmc_battery_get_status(struct macsmc_power *power)
 		 * Or maybe the BMS is just busy doing something, if so call it charging anyway.
 		 * But CHWA limits show up as this, so exclude those.
 		 */
-		else if (nocharge_flags == CHNC_BMS_BUSY && !chwa_limit)
+		else if (nocharge_flags == CHNC_BMS_BUSY && !limited)
 			return POWER_SUPPLY_STATUS_CHARGING;
 		/* If we have other reasons we aren't charging, say we aren't */
 		else if (nocharge_flags)
