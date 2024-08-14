@@ -320,7 +320,6 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 	int ret = 0;
 	u8 vu8;
 	u16 vu16;
-	u32 vu32;
 	s16 vs16;
 	s32 vs32;
 	s64 vs64;
@@ -395,10 +394,6 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0RC), &vu16);
 		val->intval = vu16 * 1000;
-		break;
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
-		ret = apple_smc_read_u32(power->smc, SMC_KEY(CSIL), &vu32);
-		val->intval = vu32 * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
 		ret = apple_smc_read_u16(power->smc, SMC_KEY(B0RI), &vu16);
@@ -562,7 +557,6 @@ static const enum power_supply_property macsmc_battery_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MIN,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT,
-	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
