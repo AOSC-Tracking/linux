@@ -38,6 +38,7 @@ struct macsmc_power {
 	char serial_number[MAX_STRING_LENGTH];
 	char mfg_date[MAX_STRING_LENGTH];
 	bool has_chwa;
+	bool has_chls;
 	u8 num_cells;
 	int nominal_voltage_mv;
 
@@ -72,6 +73,7 @@ static struct macsmc_power *g_power;
 #define CHNC_NOCHG_CH0B_CH0K	BIT(15)
 #define CHNC_BATTERY_FULL_2	BIT(18)
 #define CHNC_BMS_BUSY		BIT(23)
+#define CHNC_CHLS_LIMIT		BIT(24)
 #define CHNC_NOAC_CH0J		BIT(53)
 #define CHNC_NOAC_CH0I		BIT(54)
 
@@ -89,7 +91,9 @@ static struct macsmc_power *g_power;
 #define ACSt_CAN_BOOT_AP	BIT(2)
 #define ACSt_CAN_BOOT_IBOOT	BIT(1)
 
-#define CHWA_FIXED_START_THRESHOLD	75
+#define CHWA_CHLS_FIXED_START_OFFSET	5
+#define CHLS_MIN_END_THRESHOLD		10
+#define CHLS_FORCE_DISCHARGE		0x100
 #define CHWA_FIXED_END_THRESHOLD	80
 #define CHWA_PROP_WRITE_THRESHOLD	95
 
@@ -183,7 +187,7 @@ static int macsmc_battery_get_status(struct macsmc_power *power)
 		u8 buic = 0;
 
 		if (apple_smc_read_u8(power->smc, SMC_KEY(BUIC), &buic) >= 0 &&
-			buic >= CHWA_FIXED_START_THRESHOLD)
+			buic >= (CHWA_FIXED_END_THRESHOLD - CHWA_CHLS_FIXED_START_OFFSET))
 			chwa_limit = true;
 	}
 
@@ -465,14 +469,23 @@ static int macsmc_battery_get_property(struct power_supply *psy,
 		ret = macsmc_battery_get_date(&power->mfg_date[4], &val->intval);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
-		ret = apple_smc_read_flag(power->smc, SMC_KEY(CHWA));
-		val->intval = ret == 1 ? CHWA_FIXED_START_THRESHOLD : 100;
-		ret = ret < 0 ? ret : 0;
-		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
-		ret = apple_smc_read_flag(power->smc, SMC_KEY(CHWA));
-		val->intval = ret == 1 ? CHWA_FIXED_END_THRESHOLD : 100;
-		ret = ret < 0 ? ret : 0;
+		if (power->has_chls) {
+			ret = apple_smc_read_u16(power->smc, SMC_KEY(CHLS), &vu16);
+			val->intval = vu16 & 0xff;
+			if (val->intval < CHLS_MIN_END_THRESHOLD || val->intval >= 100)
+				val->intval = 100;
+		}
+		else if (power->has_chwa) {
+			ret = apple_smc_read_flag(power->smc, SMC_KEY(CHWA));
+			val->intval = ret == 1 ? CHWA_FIXED_END_THRESHOLD : 100;
+			ret = ret < 0 ? ret : 0;
+		} else {
+			return -EINVAL;
+		}
+		if (psp == POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD &&
+		    ret >= 0 && val->intval < 100 && val->intval >= CHLS_MIN_END_THRESHOLD)
+			val->intval -= CHWA_CHLS_FIXED_START_OFFSET;
 		break;
 	default:
 		return -EINVAL;
@@ -493,13 +506,25 @@ static int macsmc_battery_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
 		/*
 		 * Ignore, we allow writes so userspace isn't confused but this is
-		 * not configurable independently, it always is 75 or 100 depending
-		 * on the end_threshold boolean setting.
+		 * not configurable independently, it always is end - 5 or 100 depending
+		 * on the end_threshold setting.
 		 */
 		return 0;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
-		return apple_smc_write_flag(power->smc, SMC_KEY(CHWA),
-					    val->intval <= CHWA_PROP_WRITE_THRESHOLD);
+		if (power->has_chls) {
+			u16 kval = 0;
+			/* TODO: Make CHLS_FORCE_DISCHARGE configurable */
+			if (val->intval < CHLS_MIN_END_THRESHOLD)
+				kval = CHLS_FORCE_DISCHARGE | CHLS_MIN_END_THRESHOLD;
+			else if (val->intval < 100)
+				kval = CHLS_FORCE_DISCHARGE | (val->intval & 0xff);
+			return apple_smc_write_u16(power->smc, SMC_KEY(CHLS), kval);
+		} else if (power->has_chwa) {
+			return apple_smc_write_flag(power->smc, SMC_KEY(CHWA),
+						    val->intval <= CHWA_PROP_WRITE_THRESHOLD);
+		} else {
+			return -EINVAL;
+		}
 	default:
 		return -EINVAL;
 	}
@@ -515,7 +540,7 @@ static int macsmc_battery_property_is_writeable(struct power_supply *psy,
 		return true;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_START_THRESHOLD:
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
-		return power->has_chwa;
+		return power->has_chwa || power->has_chls;
 	default:
 		return false;
 	}
@@ -750,6 +775,7 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	struct power_supply_config psy_cfg = {};
 	struct macsmc_power *power;
 	u32 val;
+	u16 vu16;
 	int ret;
 
 	power = devm_kzalloc(&pdev->dev, sizeof(*power), GFP_KERNEL);
@@ -774,8 +800,14 @@ static int macsmc_power_probe(struct platform_device *pdev)
 	apple_smc_write_u8(power->smc, SMC_KEY(CH0K), 0);
 	apple_smc_write_u8(power->smc, SMC_KEY(CH0B), 0);
 
+	/*
+	 * Prefer CHWA as the SMC firmware from iBoot-10151.1.1 is not compatible with
+	 * this CHLS usage.
+	 */
 	if (apple_smc_read_flag(power->smc, SMC_KEY(CHWA)) >= 0) {
 		power->has_chwa = true;
+	} else if (apple_smc_read_u16(power->smc, SMC_KEY(CHLS), &vu16) >= 0) {
+		power->has_chls = true;
 	} else {
 		/* Remove the last 2 properties that control the charge threshold */
 		power->batt_desc.num_properties -= 2;
