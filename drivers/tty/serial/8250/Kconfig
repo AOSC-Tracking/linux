@@ -569,6 +569,15 @@ config SERIAL_8250_BCM7271
 	  including DMA support and high accuracy BAUD rates, say
 	  Y to this option. If unsure, say N.
 
+config SERIAL_8250_LOONGSON
+	tristate "Loongson 8250 serial port support"
+	default SERIAL_8250
+	depends on SERIAL_8250
+	depends on LOONGARCH
+	help
+	  If you have machine with Loongson and want to use this serial driver,
+	  say Y to this option. If unsure, say N.
+
 config SERIAL_OF_PLATFORM
 	tristate "Devicetree based probing for 8250 ports"
 	depends on SERIAL_8250 && OF
