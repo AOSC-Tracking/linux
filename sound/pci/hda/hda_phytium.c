@@ -30,6 +30,7 @@
 #include <linux/acpi.h>
 #include <linux/dma-map-ops.h>
 #include <sound/hda_codec.h>
+#include <linux/platform_device.h>
 #include "hda_controller.h"
 #include "hda_phytium.h"
 
