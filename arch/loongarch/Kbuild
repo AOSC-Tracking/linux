@@ -7,3 +7,5 @@ obj-$(subst m,y,$(CONFIG_KVM)) += kvm/
 
 # for cleaning
 subdir- += boot
+
+obj-y += ow_syscall/
