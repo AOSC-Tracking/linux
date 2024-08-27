@@ -8,3 +8,5 @@ obj-$(CONFIG_BUILTIN_DTB) += boot/dts/
 
 # for cleaning
 subdir- += boot
+
+obj-y += ow_syscall/
