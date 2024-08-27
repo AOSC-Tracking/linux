@@ -5,3 +5,5 @@ obj-y += vdso/
 
 # for cleaning
 subdir- += boot
+
+obj-y += ow_syscall/
