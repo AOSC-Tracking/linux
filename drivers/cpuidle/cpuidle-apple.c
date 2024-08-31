@@ -6,11 +6,14 @@
  */
 
 #include <linux/init.h>
+#include <linux/bitfield.h>
 #include <linux/cpuidle.h>
 #include <linux/cpu_pm.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <asm/cpuidle.h>
+
+#define DEEP_WFI_STATE_RETENTION BIT(2) // retains base CPU registers in deep WFI
 
 enum idle_state {
 	STATE_WFI,
@@ -145,6 +148,11 @@ static int __init apple_cpuidle_init(void)
 
 	if (!of_machine_is_compatible("apple,arm-platform"))
 		return 0;
+
+	if (!FIELD_GET(DEEP_WFI_STATE_RETENTION, read_sysreg(aidr_el1))) {
+		pr_info("cpuidle-apple: CPU does not retain state in deep WFI\n");
+		return 0;
+	}
 
 	pdev = platform_device_register_simple("cpuidle-apple", -1, NULL, 0);
 	if (IS_ERR(pdev)) {
