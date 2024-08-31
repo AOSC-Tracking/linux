@@ -51,6 +51,7 @@
 #define THEAD_PWM_FP(n)			(THEAD_PWM_CHN_BASE(n) + 0x0c)
 #define THEAD_PWM_STATUS(n)		(THEAD_PWM_CHN_BASE(n) + 0x10)
 #define  THEAD_PWM_STATUS_CYCLE		GENMASK(7, 0)
+#define  THEAD_PWM_STATUS_BUSY		BIT(8)
 
 struct thead_pwm_chip {
 	void __iomem *mmio_base;
@@ -165,8 +166,8 @@ static int thead_pwm_get_state(struct pwm_chip *chip, struct pwm_device *pwm,
 	 */
 	state->period = DIV64_U64_ROUND_UP((u64)val * NSEC_PER_SEC, rate);
 
-	val = readl(priv->mmio_base + THEAD_PWM_FP(pwm->hwpwm));
-	state->enabled = !!val;
+	val = readl(priv->mmio_base + THEAD_PWM_STATUS(pwm->hwpwm));
+	state->enabled = !!(val & THEAD_PWM_STATUS_BUSY);
 	/*
 	 * val 32 bits, multiply NSEC_PER_SEC, won't overflow.
 	 */
