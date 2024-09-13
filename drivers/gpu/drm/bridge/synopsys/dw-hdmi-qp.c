@@ -18,6 +18,7 @@
 #include <drm/bridge/dw_hdmi_qp.h>
 #include <drm/display/drm_hdmi_helper.h>
 #include <drm/display/drm_hdmi_state_helper.h>
+#include <drm/display/drm_scdc_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
@@ -31,6 +32,8 @@
 
 #define DDC_CI_ADDR		0x37
 #define DDC_SEGMENT_ADDR	0x30
+
+#define SCDC_MIN_SOURCE_VERSION	0x1
 
 #define HDMI14_MAX_TMDSCLK	340000000
 
@@ -58,6 +61,10 @@ struct dw_hdmi_qp {
 		const struct dw_hdmi_qp_phy_ops *ops;
 		void *data;
 	} phy;
+
+	struct drm_connector *connector;
+	struct delayed_work scramb_work;
+	bool scramb_enabled;
 
 	struct regmap *regm;
 };
@@ -361,27 +368,99 @@ static int dw_hdmi_qp_config_drm_infoframe(struct dw_hdmi_qp *hdmi,
 	return 0;
 }
 
+static bool dw_hdmi_qp_supports_scrambling(struct dw_hdmi_qp *hdmi)
+{
+	struct drm_display_info *display = &hdmi->connector->display_info;
+
+	if (!display->is_hdmi)
+		return false;
+
+	if (!display->hdmi.scdc.supported ||
+	    !display->hdmi.scdc.scrambling.supported)
+		return false;
+
+	return true;
+}
+
+static void dw_hdmi_qp_set_scramb(struct dw_hdmi_qp *hdmi)
+{
+	dev_dbg(hdmi->dev, "set scrambling\n");
+
+	drm_scdc_set_high_tmds_clock_ratio(hdmi->connector, true);
+	drm_scdc_set_scrambling(hdmi->connector, true);
+
+	schedule_delayed_work(&hdmi->scramb_work,
+			      msecs_to_jiffies(SCRAMB_POLL_DELAY_MS));
+}
+
+static void dw_hdmi_qp_scramb_work(struct work_struct *work)
+{
+	struct dw_hdmi_qp *hdmi = container_of(to_delayed_work(work),
+					       struct dw_hdmi_qp,
+					       scramb_work);
+	if (!drm_scdc_get_scrambling_status(hdmi->connector))
+		dw_hdmi_qp_set_scramb(hdmi);
+}
+
+static void dw_hdmi_qp_enable_scramb(struct dw_hdmi_qp *hdmi)
+{
+	u8 ver;
+
+	if (!dw_hdmi_qp_supports_scrambling(hdmi))
+		return;
+
+	drm_scdc_readb(hdmi->bridge.ddc, SCDC_SINK_VERSION, &ver);
+	drm_scdc_writeb(hdmi->bridge.ddc, SCDC_SOURCE_VERSION,
+			min_t(u8, ver, SCDC_MIN_SOURCE_VERSION));
+
+	dw_hdmi_qp_set_scramb(hdmi);
+	dw_hdmi_qp_write(hdmi, 1, SCRAMB_CONFIG0);
+
+	hdmi->scramb_enabled = true;
+}
+
+static void dw_hdmi_qp_disable_scramb(struct dw_hdmi_qp *hdmi)
+{
+	if (!hdmi->scramb_enabled)
+		return;
+
+	dev_dbg(hdmi->dev, "disable scrambling\n");
+
+	hdmi->scramb_enabled = false;
+	cancel_delayed_work_sync(&hdmi->scramb_work);
+
+	dw_hdmi_qp_write(hdmi, 0, SCRAMB_CONFIG0);
+
+	if (hdmi->connector->status != connector_status_disconnected) {
+		drm_scdc_set_scrambling(hdmi->connector, false);
+		drm_scdc_set_high_tmds_clock_ratio(hdmi->connector, false);
+	}
+}
+
 static void dw_hdmi_qp_bridge_atomic_enable(struct drm_bridge *bridge,
 					    struct drm_bridge_state *old_state)
 {
 	struct dw_hdmi_qp *hdmi = bridge->driver_private;
 	struct drm_atomic_state *state = old_state->base.state;
 	struct drm_connector_state *conn_state;
-	struct drm_connector *connector;
 	unsigned int op_mode;
 
-	connector = drm_atomic_get_new_connector_for_encoder(state, bridge->encoder);
-	if (WARN_ON(!connector))
+	hdmi->connector = drm_atomic_get_new_connector_for_encoder(state,
+								   bridge->encoder);
+	if (WARN_ON(!hdmi->connector))
 		return;
 
-	conn_state = drm_atomic_get_new_connector_state(state, connector);
+	conn_state = drm_atomic_get_new_connector_state(state, hdmi->connector);
 	if (WARN_ON(!conn_state))
 		return;
 
-	if (connector->display_info.is_hdmi) {
+	if (hdmi->connector->display_info.is_hdmi) {
 		dev_dbg(hdmi->dev, "%s mode=HDMI rate=%llu\n",
 			__func__, conn_state->hdmi.tmds_char_rate);
 		op_mode = 0;
+
+		if (conn_state->hdmi.tmds_char_rate > HDMI14_MAX_TMDSCLK)
+			dw_hdmi_qp_enable_scramb(hdmi);
 	} else {
 		dev_dbg(hdmi->dev, "%s mode=DVI\n", __func__);
 		op_mode = OPMODE_DVI;
@@ -392,7 +471,7 @@ static void dw_hdmi_qp_bridge_atomic_enable(struct drm_bridge *bridge,
 	dw_hdmi_qp_mod(hdmi, HDCP2_BYPASS, HDCP2_BYPASS, HDCP2LOGIC_CONFIG0);
 	dw_hdmi_qp_mod(hdmi, op_mode, OPMODE_DVI, LINK_CONFIG0);
 
-	drm_atomic_helper_connector_hdmi_update_infoframes(connector, state);
+	drm_atomic_helper_connector_hdmi_update_infoframes(hdmi->connector, state);
 }
 
 static void dw_hdmi_qp_bridge_atomic_disable(struct drm_bridge *bridge,
@@ -400,6 +479,9 @@ static void dw_hdmi_qp_bridge_atomic_disable(struct drm_bridge *bridge,
 {
 	struct dw_hdmi_qp *hdmi = bridge->driver_private;
 
+	dw_hdmi_qp_disable_scramb(hdmi);
+
+	hdmi->connector = NULL;
 	hdmi->phy.ops->disable(hdmi, hdmi->phy.data);
 }
 
@@ -407,8 +489,37 @@ static enum drm_connector_status
 dw_hdmi_qp_bridge_detect(struct drm_bridge *bridge)
 {
 	struct dw_hdmi_qp *hdmi = bridge->driver_private;
+	enum drm_connector_status status;
+	const struct drm_edid *drm_edid;
 
-	return hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
+	status = hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
+
+	dev_dbg(hdmi->dev, "%s conn=%d scramb=%d\n", __func__,
+		status == connector_status_connected, hdmi->scramb_enabled);
+
+	if (hdmi->scramb_enabled)
+		cancel_delayed_work_sync(&hdmi->scramb_work);
+
+	if (status == connector_status_disconnected || !hdmi->connector)
+		return status;
+
+	drm_edid = drm_edid_read_ddc(hdmi->connector, bridge->ddc);
+
+	drm_edid_connector_update(hdmi->connector, drm_edid);
+
+	if (!drm_edid)
+		return status;
+
+	drm_edid_free(drm_edid);
+
+	if (!hdmi->scramb_enabled || !dw_hdmi_qp_supports_scrambling(hdmi) ||
+	    drm_scdc_get_scrambling_status(hdmi->connector))
+		return status;
+
+	//FIXME: disable output before scramb setup - see vc4_hdmi_reset_link()
+	dw_hdmi_qp_set_scramb(hdmi);
+
+	return status;
 }
 
 static const struct drm_edid *
@@ -423,21 +534,6 @@ dw_hdmi_qp_bridge_edid_read(struct drm_bridge *bridge,
 		dev_dbg(hdmi->dev, "failed to get edid\n");
 
 	return drm_edid;
-}
-
-static enum drm_mode_status
-dw_hdmi_qp_bridge_tmds_char_rate_valid(const struct drm_bridge *bridge,
-				       const struct drm_display_mode *mode,
-				       unsigned long long rate)
-{
-	struct dw_hdmi_qp *hdmi = bridge->driver_private;
-
-	if (rate > HDMI14_MAX_TMDSCLK) {
-		dev_dbg(hdmi->dev, "Unsupported TMDS char rate: %lld\n", rate);
-		return MODE_CLOCK_HIGH;
-	}
-
-	return MODE_OK;
 }
 
 static int dw_hdmi_qp_bridge_clear_infoframe(struct drm_bridge *bridge,
@@ -491,7 +587,6 @@ static const struct drm_bridge_funcs dw_hdmi_qp_bridge_funcs = {
 	.atomic_disable = dw_hdmi_qp_bridge_atomic_disable,
 	.detect = dw_hdmi_qp_bridge_detect,
 	.edid_read = dw_hdmi_qp_bridge_edid_read,
-	.hdmi_tmds_char_rate_valid = dw_hdmi_qp_bridge_tmds_char_rate_valid,
 	.hdmi_clear_infoframe = dw_hdmi_qp_bridge_clear_infoframe,
 	.hdmi_write_infoframe = dw_hdmi_qp_bridge_write_infoframe,
 };
@@ -564,6 +659,8 @@ struct dw_hdmi_qp *dw_hdmi_qp_bind(struct platform_device *pdev,
 	hdmi = devm_kzalloc(dev, sizeof(*hdmi), GFP_KERNEL);
 	if (!hdmi)
 		return ERR_PTR(-ENOMEM);
+
+	INIT_DELAYED_WORK(&hdmi->scramb_work, dw_hdmi_qp_scramb_work);
 
 	hdmi->dev = dev;
 
