@@ -790,6 +790,10 @@
 
 /* usb3 controller is muxed with sata1 */
 &usb_host1_xhci {
+	phys = <&usb2phy1_otg>;
+	phy-names = "usb2-phy";
+	extcon = <&usb2phy1>;
+	maximum-speed = "high-speed";
 	status = "okay";
 };
 
@@ -803,7 +807,7 @@
 };
 
 &usb2phy0_otg {
-	phy-supply = <&vcc5v0_usb20_otg>;
+	phy-supply = <&vcc5v0_usb20_host>;
 	status = "okay";
 };
 
