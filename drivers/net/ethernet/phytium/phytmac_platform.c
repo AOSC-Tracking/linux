@@ -313,14 +313,12 @@ err_alloc:
 	return ret;
 }
 
-static int phytmac_plat_remove(struct platform_device *pdev)
+static void phytmac_plat_remove(struct platform_device *pdev)
 {
 	struct phytmac *pdata = platform_get_drvdata(pdev);
 
 	phytmac_drv_remove(pdata);
 	phytmac_free_pdata(pdata);
-
-	return 0;
 }
 
 static void phytmac_plat_shutdown(struct platform_device *pdev)
