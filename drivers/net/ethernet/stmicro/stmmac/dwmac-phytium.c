@@ -199,7 +199,7 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	return  stmmac_dvr_probe(&pdev->dev, plat, &stmmac_res);
 }
 
-static int phytium_dwmac_remove(struct platform_device *pdev)
+static void phytium_dwmac_remove(struct platform_device *pdev)
 {
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
@@ -207,8 +207,6 @@ static int phytium_dwmac_remove(struct platform_device *pdev)
 
 	stmmac_pltfr_remove(pdev);
 	clk_unregister_fixed_rate(plat->stmmac_clk);
-
-	return 0;
 }
 
 #ifdef CONFIG_OF
