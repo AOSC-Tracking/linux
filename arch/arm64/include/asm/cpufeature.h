@@ -873,6 +873,15 @@ static __always_inline bool system_supports_mpam_hcr(void)
 	return alternative_has_cap_unlikely(ARM64_MPAM_HCR);
 }
 
+#ifdef CONFIG_ARM64_MPAM
+bool mpam_detect_is_enabled(void);
+#else
+static inline bool mpam_detect_is_enabled(void)
+{
+	return false;
+}
+#endif
+
 int do_emulate_mrs(struct pt_regs *regs, u32 sys_reg, u32 rt);
 bool try_emulate_mrs(struct pt_regs *regs, u32 isn);
 
