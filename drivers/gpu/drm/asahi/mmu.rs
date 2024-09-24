@@ -12,6 +12,7 @@
 
 use core::fmt::Debug;
 use core::mem::size_of;
+use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::sync::atomic::{fence, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use core::time::Duration;
@@ -1430,6 +1431,14 @@ impl Uat {
 
         if binding.binding.is_none() {
             assert_eq!(binding.active_users, 0);
+
+            let isolation = *module_parameters::robust_isolation.get() != 0;
+
+            self.slots.set_limit(if isolation {
+                NonZeroUsize::new(1)
+            } else {
+                None
+            });
 
             let slot = self.slots.get(binding.bind_token)?;
             if slot.changed() {
