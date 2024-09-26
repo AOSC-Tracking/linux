@@ -850,14 +850,7 @@ static __always_inline bool system_supports_mpam_hcr(void)
 	return alternative_has_cap_unlikely(ARM64_MPAM_HCR);
 }
 
-#ifdef CONFIG_ARM64_MPAM
 bool mpam_detect_is_enabled(void);
-#else
-static inline bool mpam_detect_is_enabled(void)
-{
-	return false;
-}
-#endif
 
 static inline bool system_supports_pmuv3(void)
 {
