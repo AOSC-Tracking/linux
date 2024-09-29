@@ -59,7 +59,7 @@ MODULE_LICENSE("GPL");
 #define MAX_CORES_PER_PACKAGE		64
 #define CPU_ID_FIELD			0xf
 #define VOLTAGE_COMMAND			0x21
-#define MAX_READY_TIMEOUT		200000000
+#define MAX_READY_TIMEOUT		800000000
 #define RESERVED_FREQ			3
 
 #define LOONGSON_BOOST_FREQ_MASK		(0x7 << 8)
@@ -1320,11 +1320,13 @@ static int __init loongson3_cpufreq_early_init(void)
 	acpi_perf_data = alloc_percpu(struct acpi_processor_performance);
 	if (!acpi_perf_data)
 		return -ENOMEM;
+	pr_info("acpi_perf_data okay!\n");
 	for_each_possible_cpu(i) {
 		if (!zalloc_cpumask_var_node(
 					&per_cpu_ptr(acpi_perf_data, i)->shared_cpu_map,
 					GFP_KERNEL, cpu_to_node(i))) {
 			free_acpi_perf_data();
+			pr_info("free_acpi_perf_data okay on %d!\n", i);
 			return -ENOMEM;
 		}
 	}
@@ -1478,23 +1480,44 @@ static int cpufreq_supported_detect(void)
 static int __init loongson3_cpufreq_init(void)
 {
 	int ret;
+	uint32_t val;
+
+	val = iocsr_read32(0x420);
+	/* Eanble LS132 */
+	val &= ~(1 << 2);
+	val |= 1 << 19;
+	val |= 0xf << 12;
+	/* Assert resetn */
+	val &= ~(1 << 8);
+	iocsr_write32(val, 0x420);
+
+	mdelay(10);
+	val = iocsr_read32(0x420);
+	/* Desert resetn */
+	val |= 1 << 8;
+	iocsr_write32(val, 0x420);
 
 	if (!cpu_has_csr || !cpu_has_scalefreq)
 		return -ENODEV;
+	pr_info("cpu_has_csr okay!\n");
 
 	/* don't keep reloading if cpufreq_driver exists */
 	if (cpufreq_get_current_driver())
 		return -EEXIST;
+	pr_info("cpufreq_get_current_driver okay!\n");
 
 	if (cpufreq_supported_detect()) {
 		pr_info("%s failed!\n", __func__);
 		return -ENODEV;
 	}
+	pr_info("timeout okay!\n");
 
 	ret = loongson3_cpufreq_early_init();
 	if (ret)
 		return ret;
+	pr_info("loongson3_cpufreq_early_init okay!\n");
 	loongson3_cpufreq_boost_init();
+	pr_info("loongson3_cpufreq_boost_init okay!\n");
 
 	cpufreq_register_notifier(&loongson3_cpufreq_notifier_block,
 			CPUFREQ_TRANSITION_NOTIFIER);
@@ -1502,6 +1525,7 @@ static int __init loongson3_cpufreq_init(void)
 	cpufreq_kthread_create();
 	if (ret)
 		free_acpi_perf_data();
+	pr_info("loongson3_cpufreq_boost_init okay!\n");
 
 	return ret;
 }
@@ -1513,7 +1537,7 @@ static void __exit loongson3_cpufreq_exit(void)
 	cpufreq_kthread_stop();
 }
 
-late_initcall(loongson3_cpufreq_init);
+late_initcall_sync(loongson3_cpufreq_init);
 module_exit(loongson3_cpufreq_exit);
 
 static const struct acpi_device_id processor_device_ids[] = {
