@@ -1624,6 +1624,7 @@ static int atcphy_usb3_power_on(struct phy *phy)
 
 	if (atcphy->mode != atcphy->target_mode) {
 		dev_err(atcphy->dev, "ATCPHY did not come up; won't allow dwc3 to come up.\n");
+		mutex_unlock(&atcphy->lock);
 		return -EINVAL;
 	}
 
