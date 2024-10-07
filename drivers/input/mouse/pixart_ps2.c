@@ -69,7 +69,16 @@ static int pixart_read_tp_type(struct ps2dev *ps2dev, u8 *type)
 	if (error)
 		return error;
 
-	*type = param[0] == 0x0e ? PIXART_TYPE_TOUCHPAD : PIXART_TYPE_CLICKPAD;
+	switch (param[0]) {
+		case (0x0e):
+			*type = PIXART_TYPE_TOUCHPAD;
+			break;
+		case (0x0c):
+			*type = PIXART_TYPE_CLICKPAD;
+			break;
+		default:
+			return -ENODEV;
+	}
 
 	return 0;
 }
@@ -237,8 +246,16 @@ int pixart_detect(struct psmouse *psmouse, bool set_properties)
 
 	if (set_properties) {
 		psmouse->vendor = "PixArt";
-		psmouse->name = (type == PIXART_TYPE_TOUCHPAD) ?
-				"touchpad" : "clickpad";
+		switch (type) {
+			case (PIXART_TYPE_TOUCHPAD):
+				psmouse->name = "touchpad";
+				break;
+			case (PIXART_TYPE_CLICKPAD):
+				psmouse->name = "clickpad";
+				break;
+			default:
+				return -ENODEV;
+		}
 	}
 
 	return 0;
