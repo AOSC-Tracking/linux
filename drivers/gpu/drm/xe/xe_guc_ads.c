@@ -144,7 +144,7 @@ static size_t guc_ads_golden_lrc_size(struct xe_guc_ads *ads)
 
 static u32 guc_ads_waklv_size(struct xe_guc_ads *ads)
 {
-	return PAGE_ALIGN(ads->ads_waklv_size);
+	return ALIGN(ads->ads_waklv_size, XE_PAGE_SIZE);
 }
 
 static size_t guc_ads_capture_size(struct xe_guc_ads *ads)
@@ -200,7 +200,7 @@ static size_t guc_ads_capture_offset(struct xe_guc_ads *ads)
 	offset = guc_ads_waklv_offset(ads) +
 		 guc_ads_waklv_size(ads);
 
-	return PAGE_ALIGN(offset);
+	return ALIGN(offset, XE_PAGE_SIZE);
 }
 
 static size_t guc_ads_um_queues_offset(struct xe_guc_ads *ads)
