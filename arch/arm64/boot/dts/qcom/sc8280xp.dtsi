@@ -4592,8 +4592,12 @@
 				      "core";
 			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
 			interconnects = <&mmss_noc MASTER_MDP0 0 &mc_virt SLAVE_EBI1 0>,
-					<&mmss_noc MASTER_MDP1 0 &mc_virt SLAVE_EBI1 0>;
-			interconnect-names = "mdp0-mem", "mdp1-mem";
+					<&mmss_noc MASTER_MDP1 0 &mc_virt SLAVE_EBI1 0>,
+					<&gem_noc MASTER_APPSS_PROC 3
+					 &config_noc SLAVE_DISPLAY_CFG 3>;
+			interconnect-names = "mdp0-mem",
+					     "mdp1-mem",
+					     "cpu-cfg";
 			iommus = <&apps_smmu 0x1000 0x402>;
 			power-domains = <&dispcc0 MDSS_GDSC>;
 			resets = <&dispcc0 DISP_CC_MDSS_CORE_BCR>;
