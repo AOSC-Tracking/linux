@@ -122,7 +122,6 @@ impl<T: drm::drv::Driver> Device<T> {
     /// # Safety
     ///
     /// Must be called only once after device creation.
-    #[expect(unused)]
     pub(crate) unsafe fn set_raw_data(&self, ptr: *const ffi::c_void) {
         // SAFETY: Safe as by the safety precondition.
         unsafe { &mut *self.as_raw() }.dev_private = ptr as _;
