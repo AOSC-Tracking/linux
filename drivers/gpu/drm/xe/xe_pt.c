@@ -1244,7 +1244,7 @@ __xe_pt_bind_vma(struct xe_tile *tile, struct xe_vma *vma, struct xe_exec_queue 
 	xe_bo_assert_held(xe_vma_bo(vma));
 	xe_vm_assert_held(vm);
 
-	vm_dbg(&xe_vma_vm(vma)->xe->drm,
+	drm_info(&xe_vma_vm(vma)->xe->drm,
 	       "Preparing bind, with range [%llx...%llx) engine %p.\n",
 	       xe_vma_start(vma), xe_vma_end(vma), q);
 
