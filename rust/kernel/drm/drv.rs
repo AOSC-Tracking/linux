@@ -55,14 +55,12 @@ pub struct DriverInfo {
 ///
 /// See `kernel::drm::gem` and `kernel::drm::gem::shmem`.
 pub struct AllocOps {
-    #[expect(unused)]
     pub(crate) gem_create_object: Option<
         unsafe extern "C" fn(
             dev: *mut bindings::drm_device,
             size: usize,
         ) -> *mut bindings::drm_gem_object,
     >,
-    #[expect(unused)]
     pub(crate) prime_handle_to_fd: Option<
         unsafe extern "C" fn(
             dev: *mut bindings::drm_device,
@@ -72,7 +70,6 @@ pub struct AllocOps {
             prime_fd: *mut core::ffi::c_int,
         ) -> core::ffi::c_int,
     >,
-    #[expect(unused)]
     pub(crate) prime_fd_to_handle: Option<
         unsafe extern "C" fn(
             dev: *mut bindings::drm_device,
@@ -81,14 +78,12 @@ pub struct AllocOps {
             handle: *mut u32,
         ) -> core::ffi::c_int,
     >,
-    #[expect(unused)]
     pub(crate) gem_prime_import: Option<
         unsafe extern "C" fn(
             dev: *mut bindings::drm_device,
             dma_buf: *mut bindings::dma_buf,
         ) -> *mut bindings::drm_gem_object,
     >,
-    #[expect(unused)]
     pub(crate) gem_prime_import_sg_table: Option<
         unsafe extern "C" fn(
             dev: *mut bindings::drm_device,
@@ -96,7 +91,6 @@ pub struct AllocOps {
             sgt: *mut bindings::sg_table,
         ) -> *mut bindings::drm_gem_object,
     >,
-    #[expect(unused)]
     pub(crate) dumb_create: Option<
         unsafe extern "C" fn(
             file_priv: *mut bindings::drm_file,
@@ -104,7 +98,6 @@ pub struct AllocOps {
             args: *mut bindings::drm_mode_create_dumb,
         ) -> core::ffi::c_int,
     >,
-    #[expect(unused)]
     pub(crate) dumb_map_offset: Option<
         unsafe extern "C" fn(
             file_priv: *mut bindings::drm_file,
