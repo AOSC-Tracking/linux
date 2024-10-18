@@ -24,9 +24,6 @@ quiet_cmd_relocs = RELOCS  $@
 
 vmlinux: FORCE
 	@true
-ifeq ($(CONFIG_CPU_LOONGSON3_WORKAROUNDS),y)
-	$(call if_changed,ls3_llsc)
-endif
 ifeq ($(CONFIG_RELOCATABLE),y)
 	$(call if_changed,relocs)
 endif
