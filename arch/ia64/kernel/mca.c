@@ -487,6 +487,12 @@ ia64_mca_log_sal_error_record(int sal_info_type)
 		ia64_sal_clear_state_info(sal_info_type);
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+int
+search_mca_table (const struct mca_table_entry *first,
+                const struct mca_table_entry *last,
+                unsigned long ip);
+
 /*
  * search_mca_table
  *  See if the MCA surfaced in an instruction range
@@ -591,6 +597,9 @@ out:
 
 	return IRQ_HANDLED;
 }
+
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_mca_register_cpev (int cpev);
 
 /*
  * ia64_mca_register_cpev
@@ -1259,6 +1268,11 @@ static void mca_insert_tr(u64 iord)
 	}
 	ia64_set_psr(psr);
 }
+
+/* workaround for a warning with -Wmissing-prototypes */
+void
+ia64_mca_handler(struct pt_regs *regs, struct switch_stack *sw,
+		 struct ia64_sal_os_state *sos);
 
 /*
  * ia64_mca_handler

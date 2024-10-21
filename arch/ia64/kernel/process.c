@@ -151,6 +151,10 @@ show_regs (struct pt_regs *regs)
 		show_stack(NULL, NULL, KERN_DEFAULT);
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void console_print(const char *s);
+void do_notify_resume_user(sigset_t *unused, struct sigscratch *scr, long in_syscall);
+
 /* local support for deprecated console_print */
 void
 console_print(const char *s)
@@ -402,6 +406,11 @@ copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 	return retval;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+asmlinkage long ia64_clone(unsigned long clone_flags, unsigned long stack_start,
+			   unsigned long stack_size, unsigned long parent_tidptr,
+			   unsigned long child_tidptr, unsigned long tls);
+
 asmlinkage long ia64_clone(unsigned long clone_flags, unsigned long stack_start,
 			   unsigned long stack_size, unsigned long parent_tidptr,
 			   unsigned long child_tidptr, unsigned long tls)
@@ -554,6 +563,9 @@ __get_wchan (struct task_struct *p)
 	} while (count++ < 16);
 	return 0;
 }
+
+/* workaround for a warning with -Wmissing-prototypes */
+void cpu_halt (void);
 
 void
 cpu_halt (void)

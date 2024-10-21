@@ -261,6 +261,9 @@ iosapic_nop (struct irq_data *data)
 
 
 #ifdef CONFIG_KEXEC
+/* workaround for a warning with -Wmissing-prototypes */
+void kexec_disable_iosapic(void);
+
 void
 kexec_disable_iosapic(void)
 {

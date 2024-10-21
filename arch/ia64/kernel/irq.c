@@ -125,6 +125,9 @@ static void migrate_irqs(void)
 	}
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void fixup_irqs(void);
+
 void fixup_irqs(void)
 {
 	unsigned int irq;
