@@ -147,6 +147,9 @@ mca_page_isolate(unsigned long paddr)
 	return ISOLATE_OK;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void mca_handler_bh(unsigned long paddr, void *iip, unsigned long ipsr);
+
 /**
  * mca_hanlder_bh - Kill the process which occurred memory read error
  * @paddr:	poisoned address received from MCA Handler
@@ -764,6 +767,10 @@ mca_try_to_recover(void *rec, struct ia64_sal_os_state *sos)
 /*
  * =============================================================================
  */
+
+/* workaround for a warning with -Wmissing-prototypes */
+int __init mca_external_handler_init(void);
+void __exit mca_external_handler_exit(void);
 
 int __init mca_external_handler_init(void)
 {

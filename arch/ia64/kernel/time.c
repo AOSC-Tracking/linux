@@ -256,6 +256,8 @@ static int __init nojitter_setup(char *str)
 
 __setup("nojitter", nojitter_setup);
 
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_init_itm(void);
 
 void ia64_init_itm(void)
 {

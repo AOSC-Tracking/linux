@@ -186,6 +186,9 @@ static void fix_b0_for_bsp(void)
 #endif
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void sync_master (void *arg);
+
 void
 sync_master (void *arg)
 {
@@ -238,6 +241,9 @@ get_delta (long *rt, long *master)
 		++tcenter;
 	return tcenter - best_tm;
 }
+
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_sync_itc (unsigned int master);
 
 /*
  * Synchronize ar.itc of the current (slave) CPU with the ar.itc of the MASTER CPU
@@ -427,6 +433,8 @@ smp_callin (void)
 	Dprintk("Stack on CPU %d at about %p\n",cpuid, &cpuid);
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+int start_secondary (void *unused);
 
 /*
  * Activate a secondary processor.  head.S calls this.
@@ -588,6 +596,9 @@ remove_siblinginfo(int cpu)
 }
 
 extern void fixup_irqs(void);
+
+/* workaround for a warning with -Wmissing-prototypes */
+int migrate_platform_irqs(unsigned int cpu);
 
 int migrate_platform_irqs(unsigned int cpu)
 {

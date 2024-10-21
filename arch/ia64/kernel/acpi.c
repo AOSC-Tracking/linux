@@ -908,6 +908,9 @@ EXPORT_SYMBOL(acpi_unregister_ioapic);
  */
 int acpi_suspend_lowlevel(void) { return 0; }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void acpi_proc_quirk_mwait_check(void);
+
 void acpi_proc_quirk_mwait_check(void)
 {
 }

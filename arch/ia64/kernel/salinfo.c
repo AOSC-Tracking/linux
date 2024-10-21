@@ -197,6 +197,9 @@ shift1_data_saved (struct salinfo_data *data, int shift)
 	       sizeof(data->data_saved[0]));
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void salinfo_log_wakeup(int type, u8 *buffer, u64 size, int irqsafe);
+
 /* This routine is invoked in interrupt context.  Note: mca.c enables
  * interrupts before calling this code for CMC/CPE.  MCA and INIT events are
  * not irq safe, do not call any routines that use spinlocks, they may deadlock.

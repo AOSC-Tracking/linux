@@ -962,6 +962,9 @@ efi_uart_console_only(void)
 	return 0;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+struct kern_memdesc * find_memmap_space (void);
+
 /*
  * Look for the first granule aligned memory descriptor memory
  * that is big enough to hold EFI memory map. Make sure this

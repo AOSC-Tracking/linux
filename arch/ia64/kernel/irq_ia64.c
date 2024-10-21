@@ -420,6 +420,10 @@ void destroy_irq(unsigned int irq)
 #	define IS_RESCHEDULE(vec)	(0)
 #	define IS_LOCAL_TLB_FLUSH(vec)	(0)
 #endif
+
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_handle_irq (ia64_vector vector, struct pt_regs *regs);
+
 /*
  * That's where the IVT branches when we get an external
  * interrupt. This branches to the correct hardware IRQ handler via
@@ -505,6 +509,10 @@ ia64_handle_irq (ia64_vector vector, struct pt_regs *regs)
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
+
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_process_pending_intr(void);
+
 /*
  * This function emulates a interrupt processing when a cpu is about to be
  * brought down.
@@ -582,6 +590,9 @@ static irqreturn_t dummy_handler (int irq, void *dev_id)
  */
 
 #endif
+
+/* workaround for a warning with -Wmissing-prototypes */
+void register_percpu_irq(ia64_vector vec, irq_handler_t handler, unsigned long flags, const char *name);
 
 void
 register_percpu_irq(ia64_vector vec, irq_handler_t handler, unsigned long flags,

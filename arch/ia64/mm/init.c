@@ -161,6 +161,9 @@ free_initmem (void)
 			   -1, "unused kernel");
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void __init free_initrd_mem (unsigned long start, unsigned long end);
+
 void __init
 free_initrd_mem (unsigned long start, unsigned long end)
 {
@@ -309,6 +312,9 @@ int in_gate_area(struct mm_struct *mm, unsigned long addr)
 {
 	return in_gate_area_no_mm(addr);
 }
+
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_mmu_init(void *my_cpu_data);
 
 void ia64_mmu_init(void *my_cpu_data)
 {

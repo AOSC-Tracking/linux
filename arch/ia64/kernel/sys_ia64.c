@@ -67,6 +67,11 @@ arch_get_unmapped_area (struct file *filp, unsigned long addr, unsigned long len
 	return vm_unmapped_area(&info);
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+asmlinkage long ia64_getpriority (int which, int who);
+asmlinkage unsigned long sys_getpagesize (void);
+asmlinkage unsigned long ia64_brk (unsigned long brk);
+
 asmlinkage long
 ia64_getpriority (int which, int who)
 {
@@ -156,6 +161,13 @@ sys_mmap (unsigned long addr, unsigned long len, int prot, int flags, int fd, lo
 		force_successful_syscall_return();
 	return addr;
 }
+
+/* workaround for a warning with -Wmissing-prototypes */
+asmlinkage unsigned long
+ia64_mremap (unsigned long addr, unsigned long old_len, unsigned long new_len, unsigned long flags,
+	     unsigned long new_addr);
+asmlinkage long
+ia64_clock_getres(const clockid_t which_clock, struct __kernel_timespec __user *tp);
 
 asmlinkage unsigned long
 ia64_mremap (unsigned long addr, unsigned long old_len, unsigned long new_len, unsigned long flags,

@@ -1310,6 +1310,9 @@ emulate_store_float (unsigned long ifa, load_store_t ld, struct pt_regs *regs,
  */
 static DEFINE_RATELIMIT_STATE(logging_rate_limit, 5 * HZ, 5);
 
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_handle_unaligned (unsigned long ifa, struct pt_regs *regs);
+
 void
 ia64_handle_unaligned (unsigned long ifa, struct pt_regs *regs)
 {

@@ -2280,6 +2280,9 @@ unw_init (void)
 			  __start_unwind, __end_unwind);
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+asmlinkage long sys_getunwind (void __user *buf, size_t buf_size);
+
 /*
  * DEPRECATED DEPRECATED DEPRECATED DEPRECATED DEPRECATED DEPRECATED DEPRECATED
  *
