@@ -6,6 +6,11 @@
 
 #include <asm/elf.h>
 
+/* workaround for a warning with -Wmissing-prototypes */
+Elf64_Half elf_core_extra_phdrs(struct coredump_params *cprm);
+int elf_core_write_extra_phdrs(struct coredump_params *cprm, loff_t offset);
+int elf_core_write_extra_data(struct coredump_params *cprm);
+size_t elf_core_extra_data_size(struct coredump_params *cprm);
 
 Elf64_Half elf_core_extra_phdrs(struct coredump_params *cprm)
 {

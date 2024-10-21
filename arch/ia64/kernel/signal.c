@@ -104,6 +104,9 @@ restore_sigcontext (struct sigcontext __user *sc, struct sigscratch *scr)
 	return err;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+long ia64_rt_sigreturn (struct sigscratch *scr);
+
 long
 ia64_rt_sigreturn (struct sigscratch *scr)
 {
