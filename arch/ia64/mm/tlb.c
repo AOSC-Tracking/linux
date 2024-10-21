@@ -366,6 +366,9 @@ void flush_tlb_range(struct vm_area_struct *vma,
 }
 EXPORT_SYMBOL(flush_tlb_range);
 
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_tlb_init(void);
+
 void ia64_tlb_init(void)
 {
 	ia64_ptce_info_t ptce_info;

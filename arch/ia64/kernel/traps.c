@@ -31,6 +31,12 @@
 fpswa_interface_t *fpswa_interface;
 EXPORT_SYMBOL(fpswa_interface);
 
+/* workaround for a warning with -Wmissing-prototypes */
+void __init trap_init (void);
+int die (const char *str, struct pt_regs *regs, long err);
+int die_if_kernel (char *str, struct pt_regs *regs, long err);
+void __kprobes ia64_bad_break (unsigned long break_num, struct pt_regs *regs);
+
 void __init
 trap_init (void)
 {
@@ -382,6 +388,16 @@ handle_fpu_swa (int fp_fault, struct pt_regs *regs, unsigned long isr)
 struct illegal_op_return {
 	unsigned long fkt, arg1, arg2, arg3;
 };
+
+/* workaround for a warning with -Wmissing-prototypes */
+struct illegal_op_return
+ia64_illegal_op_fault (unsigned long ec, long arg1, long arg2, long arg3,
+		       long arg4, long arg5, long arg6, long arg7,
+		       struct pt_regs regs);
+void __kprobes
+ia64_fault (unsigned long vector, unsigned long isr, unsigned long ifa,
+	    unsigned long iim, unsigned long itir, long arg5, long arg6,
+	    long arg7, struct pt_regs regs);
 
 struct illegal_op_return
 ia64_illegal_op_fault (unsigned long ec, long arg1, long arg2, long arg3,

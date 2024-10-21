@@ -241,6 +241,9 @@ patch_plt (struct module *mod, struct plt_entry *plt, long target_ip, unsigned l
 	return 0;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+unsigned long plt_target (struct plt_entry *plt);
+
 unsigned long
 plt_target (struct plt_entry *plt)
 {
