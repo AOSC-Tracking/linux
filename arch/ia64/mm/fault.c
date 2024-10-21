@@ -62,6 +62,9 @@ mapped_kernel_page_is_present (unsigned long address)
 #	define VM_WRITE_BIT	1
 #	define VM_EXEC_BIT	2
 
+/* workaround for a warning with -Wmissing-prototypes */
+void __kprobes ia64_do_page_fault (unsigned long address, unsigned long isr, struct pt_regs *regs);
+
 void __kprobes
 ia64_do_page_fault (unsigned long address, unsigned long isr, struct pt_regs *regs)
 {
