@@ -11,6 +11,9 @@
 #include <asm/errno.h>
 #include <asm/processor.h>
 
+/* workaround for a warning with -Wmissing-prototypes */
+void ia64_handle_exception (struct pt_regs *regs, const struct exception_table_entry *e);
+
 void
 ia64_handle_exception (struct pt_regs *regs, const struct exception_table_entry *e)
 {

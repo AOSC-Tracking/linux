@@ -20,6 +20,9 @@
 #include "../kernel/sigframe.h"
 #include "../kernel/fsyscall_gtod_data.h"
 
+/* workaround for a warning with -Wmissing-prototypes */
+void foo(void);
+
 void foo(void)
 {
 	DEFINE(IA64_TASK_SIZE, sizeof (struct task_struct));

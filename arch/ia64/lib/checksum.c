@@ -30,6 +30,9 @@ from64to16 (unsigned long x)
 	return x;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+__sum16 csum_tcpudp_magic(__be32 saddr, __be32 daddr, __u32 len, __u8 proto, __wsum sum);
+
 /*
  * computes the checksum of the TCP/UDP pseudo-header
  * returns a 16-bit checksum, already complemented.
@@ -44,6 +47,9 @@ csum_tcpudp_magic(__be32 saddr, __be32 daddr, __u32 len,
 }
 
 EXPORT_SYMBOL(csum_tcpudp_magic);
+
+/* workaround for a warning with -Wmissing-prototypes */
+__wsum csum_tcpudp_nofold(__be32 saddr, __be32 daddr, __u32 len, __u8 proto, __wsum sum);
 
 __wsum
 csum_tcpudp_nofold(__be32 saddr, __be32 daddr, __u32 len,
@@ -64,6 +70,9 @@ csum_tcpudp_nofold(__be32 saddr, __be32 daddr, __u32 len,
 EXPORT_SYMBOL(csum_tcpudp_nofold);
 
 extern unsigned long do_csum (const unsigned char *, long);
+
+/* workaround for a warning with -Wmissing-prototypes */
+__wsum csum_partial(const void *buff, int len, __wsum sum);
 
 /*
  * computes the checksum of a memory block at buff, length len,
@@ -89,6 +98,9 @@ __wsum csum_partial(const void *buff, int len, __wsum sum)
 }
 
 EXPORT_SYMBOL(csum_partial);
+
+/* workaround for a warning with -Wmissing-prototypes */
+__sum16 ip_compute_csum (const void *buff, int len);
 
 /*
  * this routine is used for miscellaneous IP-like checksums, mainly

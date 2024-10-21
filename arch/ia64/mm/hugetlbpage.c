@@ -91,6 +91,10 @@ int prepare_hugepage_range(struct file *file,
 	return 0;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+int pmd_huge(pmd_t pmd);
+int pud_huge(pud_t pud);
+
 int pmd_huge(pmd_t pmd)
 {
 	return 0;

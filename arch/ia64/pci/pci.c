@@ -323,6 +323,9 @@ int pcibios_root_bridge_prepare(struct pci_host_bridge *bridge)
 	return 0;
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+void pcibios_fixup_device_resources(struct pci_dev *dev);
+
 void pcibios_fixup_device_resources(struct pci_dev *dev)
 {
 	int idx;

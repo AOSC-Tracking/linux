@@ -1151,6 +1151,15 @@ arch_ptrace (struct task_struct *child, long request,
 	}
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+asmlinkage long
+syscall_trace_enter (long arg0, long arg1, long arg2, long arg3,
+		     long arg4, long arg5, long arg6, long arg7,
+		     struct pt_regs regs);
+asmlinkage void
+syscall_trace_leave (long arg0, long arg1, long arg2, long arg3,
+		     long arg4, long arg5, long arg6, long arg7,
+		     struct pt_regs regs);
 
 /* "asmlinkage" so the input arguments are preserved... */
 
