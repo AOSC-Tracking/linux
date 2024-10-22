@@ -1514,14 +1514,37 @@ sigill:
 	force_sig(SIGILL);
 }
 
+static inline bool addr_legal(unsigned long addr, bool user)
+{
+	if (addr < TASK_SIZE)
+		return true;
+
+	if (user)
+		return false;
+
+	if (addr >= CKSEG3)
+		return true;
+
+#ifdef CONFIG_64BIT
+	if (addr >= XKPHYS && addr < CKSSEG)
+		return true;
+#else
+	if (addr >= CKSEG0 && addr < CKSEG2)
+		return true;
+#endif
+
+	return false;
+}
+
 asmlinkage void do_ade(struct pt_regs *regs)
 {
 	enum ctx_state prev_state;
 	unsigned int *pc;
 
 	prev_state = exception_enter();
-	perf_sw_event(PERF_COUNT_SW_ALIGNMENT_FAULTS,
-			1, regs, regs->cp0_badvaddr);
+
+	if (!addr_legal(regs->cp0_badvaddr, user_mode(regs)))
+		goto sigbus;
 
 #ifdef CONFIG_64BIT
 	/*
@@ -1544,6 +1567,9 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 */
 	if (regs->cp0_badvaddr == regs->cp0_epc)
 		goto sigbus;
+
+	perf_sw_event(PERF_COUNT_SW_ALIGNMENT_FAULTS,
+			1, regs, regs->cp0_badvaddr);
 
 	if (user_mode(regs) && !test_thread_flag(TIF_FIXADE))
 		goto sigbus;
