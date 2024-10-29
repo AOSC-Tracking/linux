@@ -1523,22 +1523,71 @@ static void amdgpu_dm_plane_panic_flush(struct drm_plane *plane)
 	for (i = 0; i < dc->res_pool->pipe_count; i++) {
 		struct pipe_ctx *pipe_ctx = &dc->current_state->res_ctx.pipe_ctx[i];
 		struct hubp *hubp;
+		struct mem_input *mi;
 
 		if (!pipe_ctx)
 			continue;
 
-		hubp = pipe_ctx->plane_res.hubp;
-		if (!hubp)
-			continue;
+		switch (dc->ctx->dce_version) {
+#if defined(CONFIG_DRM_AMD_DC_SI)
+		case DCE_VERSION_6_0:
+		case DCE_VERSION_6_1:
+		case DCE_VERSION_6_4:
+#endif
+		case DCE_VERSION_8_0:
+		case DCE_VERSION_8_1:
+		case DCE_VERSION_8_3:
+		case DCE_VERSION_10_0:
+		case DCE_VERSION_11_0:
+		case DCE_VERSION_11_2:
+		case DCE_VERSION_11_22:
+		case DCE_VERSION_12_0:
+		case DCE_VERSION_12_1:
+			mi = pipe_ctx->plane_res.mi;
+			if (!mi)
+				continue;
+			/* if framebuffer is tiled, disable tiling */
+			if (fb->modifier && mi->funcs->mem_input_clear_tiling)
+				mi->funcs->mem_input_clear_tiling(mi);
 
-		/* if framebuffer is tiled, disable tiling */
-		if (fb->modifier && hubp->funcs->hubp_clear_tiling)
-			hubp->funcs->hubp_clear_tiling(hubp);
+			/* force page flip to see the new content of the framebuffer */
+			mi->funcs->mem_input_program_surface_flip_and_addr(mi,
+									   &dc_plane_state->address,
+									   true);
+			break;
+		case DCN_VERSION_1_0:
+		case DCN_VERSION_1_01:
+		case DCN_VERSION_2_0:
+		case DCN_VERSION_2_01:
+		case DCN_VERSION_2_1:
+		case DCN_VERSION_3_0:
+		case DCN_VERSION_3_01:
+		case DCN_VERSION_3_02:
+		case DCN_VERSION_3_03:
+		case DCN_VERSION_3_1:
+		case DCN_VERSION_3_14:
+		case DCN_VERSION_3_16:
+		case DCN_VERSION_3_15:
+		case DCN_VERSION_3_2:
+		case DCN_VERSION_3_21:
+		case DCN_VERSION_3_5:
+		case DCN_VERSION_3_51:
+		case DCN_VERSION_4_01:
+			hubp = pipe_ctx->plane_res.hubp;
+			if (!hubp)
+				continue;
+			/* if framebuffer is tiled, disable tiling */
+			if (fb->modifier && hubp->funcs->hubp_clear_tiling)
+				hubp->funcs->hubp_clear_tiling(hubp);
 
-		/* force page flip to see the new content of the framebuffer */
-		hubp->funcs->hubp_program_surface_flip_and_addr(hubp,
-								&dc_plane_state->address,
-								true);
+			/* force page flip to see the new content of the framebuffer */
+			hubp->funcs->hubp_program_surface_flip_and_addr(hubp,
+									&dc_plane_state->address,
+									true);
+			break;
+		default:
+			break;;
+		}
 	}
 }
 
