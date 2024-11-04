@@ -10,7 +10,7 @@
 #ifndef _TOOLS_LINUX_ASM_RISCV_BARRIER_H
 #define _TOOLS_LINUX_ASM_RISCV_BARRIER_H
 
-#include <asm/fence.h>
+#include "fence.h"
 #include <linux/compiler.h>
 
 /* These barriers need to enforce ordering on both devices and memory. */
