@@ -28,6 +28,13 @@ struct saved_registers {
 };
 static struct saved_registers saved_regs;
 
+void arch_suspend_disable_irqs(void)
+{
+	enable_gpe_wakeup();
+	enable_pci_wakeup();
+	local_irq_disable();
+}
+
 void loongarch_common_suspend(void)
 {
 	save_counter();
@@ -61,9 +68,6 @@ void loongarch_common_resume(void)
 
 int loongarch_acpi_suspend(void)
 {
-	enable_gpe_wakeup();
-	enable_pci_wakeup();
-
 	loongarch_common_suspend();
 
 	/* processor specific suspend */
