@@ -460,7 +460,7 @@ where
     /// If `new_len` is greater than len, the Vec is extended by the difference,
     /// with each additional slot filled with `value`.
     /// If `new_len` is less than len, the Vec is simply truncated.
-    fn resize(&mut self, new_len: usize, value: T, flags: Flags) -> Result<(), AllocError>
+    pub fn resize(&mut self, new_len: usize, value: T, flags: Flags) -> Result<(), AllocError>
     where
         T: Clone,
     {
@@ -623,6 +623,26 @@ where
                 iter: range_slice.iter(),
                 vec: NonNull::from(self),
             }
+        }
+    }
+    /// Removes an element from the vector and returns it.
+    ///
+    /// The removed element is replaced by the last element of the vector.
+    ///
+    /// This does not preserve ordering of the remaining elements, but is *O*(1).
+    /// If you need to preserve the element order, use [`remove`] instead.
+    pub fn swap_remove(&mut self, index: usize) -> T {
+        if index > self.len() {
+            panic!("Index out of range");
+        }
+        // SAFETY: index is in range
+        // self.len() - 1 is in range since at last 1 element exists
+        unsafe {
+            let old = ptr::read(self.as_ptr().add(index));
+            let last = ptr::read(self.as_ptr().add(self.len() - 1));
+            ptr::write(self.as_mut_ptr().add(index), last);
+            self.set_len(self.len - 1);
+            old
         }
     }
 }
