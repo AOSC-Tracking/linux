@@ -182,6 +182,103 @@
 		};
 	};
 
+	aop_mbox: mbox@293408000 {
+		compatible = "apple,t6000-asc-mailbox", "apple,asc-mailbox-v4";
+		reg = <0x2 0x93408000 0x0 0x4000>;
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 582 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 583 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 584 IRQ_TYPE_LEVEL_HIGH>,
+			<AIC_IRQ 0 585 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "send-empty", "send-not-empty",
+			"recv-empty", "recv-not-empty";
+		#mbox-cells = <0>;
+		status = "disabled";
+	};
+
+	aop_dart: iommu@293808000 {
+		compatible = "apple,t6000-dart";
+		reg = <0x2 0x93808000 0x0 0x4000>;
+		#iommu-cells = <1>;
+		interrupt-parent = <&aic>;
+		interrupts = <AIC_IRQ 0 597 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+	};
+
+	aop_admac: dma-controller@293980000 {
+		/*
+		 * Use "admac2" until commit "dmaengine: apple-admac: Avoid
+		 * accessing registers in probe" is long enough upstream (not
+		 * yet as of 2024-12-30)
+		 */
+		// compatible = "apple,t6000-admac", "apple,admac";
+		compatible = "apple,t6000-admac2", "apple,admac2";
+		reg = <0x2 0x93980000 0x0 0x34000>;
+		#dma-cells = <1>;
+		dma-channels = <16>;
+		interrupts-extended = <0>,
+				      <0>,
+				      <&aic AIC_IRQ 0 600 IRQ_TYPE_LEVEL_HIGH>,
+				      <0>;
+		iommus = <&aop_dart 7>;
+		status = "disabled";
+	};
+
+	aop: aop@293c00000 {
+		compatible = "apple,aop";
+		reg = <0x2 0x93c00000 0x0 0x250000>,
+		      <0x2 0x93400000 0x0 0x6C000>;
+		mboxes = <&aop_mbox>;
+		mbox-names = "mbox";
+		iommus = <&aop_dart 0>;
+
+		apple,aop-target = <0>;
+		apple,aop-alignment = <64>;
+		status = "disabled";
+
+		aop_audio: audio {
+			dmas = <&aop_admac 1>;
+			dma-names = "dma";
+			apple,bytes-per-sample = <2>;
+			apple,clock-source = <0x706c6c20>; // 'pll '
+			apple,pdm-frequency = <2400000>;
+			apple,pdmc-frequency = <24000000>;
+			apple,slow-clock-speed = <24000000>;
+			apple,fast-clock-speed = <24000000>;
+			apple,channel-polarity-select = <256>;
+			apple,channel-phase-select = <0>;
+			apple,mic-turn-on-time-ms = <20>;
+			apple,mic-settle-time-ms = <50>;
+
+			apple,filter-lengths = <0x542c47>;
+			apple,decm-ratios = [0f 05 02];
+			apple,decm-latency = <15>;
+			apple,coefficients = <
+				0x88030000 0x82080000 0x51120000 0x0a230000 0xce3d0000 0x97660000
+				0x43a20000 0x9cf60000 0x536a0100 0xe6040200 0x7ece0200 0xaecf0300
+				0x2e110500 0x7d9b0600 0x75760800 0xd8a80a00 0xd2370d00 0x82261000
+				0x86751300 0x97221700 0x39281b00 0x897d1f00 0x2e162400 0x69e22800
+				0x56cf2d00 0x51c73200 0x80b23700 0x87773c00 0x4cfc4000 0xd9264500
+				0x47de4800 0xa00b4c00 0xc19a4e00 0x1f7b5000 0x68a05100 0x06035200
+				0x4a250000 0x4caf0000 0xc0070200 0x45990400 0x9a840800 0x7d380d00
+				0x5f1a1100 0xd9811100 0x80440b00 0x8ee5fbff 0xca32e3ff 0x52c7c4ff
+				0xa6bca8ff 0x83e69aff 0xb85ba8ff 0x6baedbff 0xe7d83800 0x2442ba00
+				0x33205001 0x6edce201 0x42235802 0x2c509902 0xcffaffff 0x530affff
+				0x6623fbff 0xa03ef4ff 0xe668f0ff 0xb835f7ff 0x56ec0400 0x37a30900
+				0x00d4feff 0x78a3f5ff 0x03bffeff 0x84d50b00 0xbe0b0400 0x5254f2ff
+				0x6d3ff8ff 0xc57f0f00 0xe69e0c00 0x7903efff 0xd533edff 0xecd11100
+				0x7d691a00 0xd655eeff 0x8866dcff 0x57261000 0xc78d2e00 0x822ef3ff
+				0x6369c4ff 0xcd080700 0x35344b00 0xaf210200 0x83b6a1ff 0xe2d5efff
+				0x949b7600 0xf3d72500 0xfffc67ff 0xe3acb6ff 0x521bcc00 0x3c8a8b00
+				0x9f0ccdfe 0x5c68ccfe 0x4dc59802 0x82cffb06>;
+		};
+
+		aop_als: als {
+			// intentionally empty
+		};
+
+	};
+
 	disp0_dart: iommu@38b304000 {
 		compatible = "apple,t6000-dart";
 		reg = <0x3 0x8b304000 0x0 0x4000>;
