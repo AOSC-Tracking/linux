@@ -455,6 +455,33 @@ where
         Ok(())
     }
 
+    /// Resizes the Vec in-place so that `len` is equal to `new_len`.
+    ///
+    /// If `new_len` is greater than len, the Vec is extended by the difference,
+    /// with each additional slot filled with `value`.
+    /// If `new_len` is less than len, the Vec is simply truncated.
+    fn resize(&mut self, new_len: usize, value: T, flags: Flags) -> Result<(), AllocError>
+    where
+        T: Clone,
+    {
+        if new_len < self.len() {
+            self.truncate(new_len);
+            return Ok(());
+        }
+        if new_len == self.len() {
+            return Ok(());
+        }
+        self.reserve(new_len - self.len(), flags)?;
+        for u in self.spare_capacity_mut() {
+            u.write(value.clone());
+        }
+        // SAFETY: we just initialized them above
+        unsafe {
+            self.set_len(new_len);
+        }
+        Ok(())
+    }
+
     /// Clears the vector, removing all values.
     ///
     /// Note that this method has no effect on the allocated capacity
