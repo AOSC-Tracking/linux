@@ -61,7 +61,7 @@ impl Device {
     }
 
     /// Obtain the raw `struct device *`.
-    pub(crate) fn as_raw(&self) -> *mut bindings::device {
+    pub fn as_raw(&self) -> *mut bindings::device {
         self.0.get()
     }
 
@@ -74,6 +74,13 @@ impl Device {
         }
         // SAFETY: if the parent pointer is not null it points to a valid device
         unsafe { Some(Self::get_device(pdev)) }
+    }
+
+    /// Returns the driver_data pointer.
+    pub fn get_drvdata<T>(&self) -> *mut T {
+        // SAFETY: dev_get_drvdata returns a field of the device,
+        //   pointer to which is valid by type invariant
+        unsafe { bindings::dev_get_drvdata(self.as_raw()) as *mut T }
     }
 
     /// Convert a raw C `struct device` pointer to a `&'a Device`.
