@@ -23,6 +23,11 @@ void rust_helper_memcpy_fromio(void *to, const volatile void __iomem *from, long
 	memcpy_fromio(to, from, count);
 }
 
+void rust_helper_memcpy_toio(volatile void __iomem *to, const void *from, size_t count)
+{
+	memcpy_toio(to, from, count);
+}
+
 u8 rust_helper_readb(const volatile void __iomem *addr)
 {
 	return readb(addr);
