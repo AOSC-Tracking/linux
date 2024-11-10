@@ -4,6 +4,7 @@
 
 use super::{
     allocator::{KVmalloc, Kmalloc, Vmalloc},
+    drain::Drain,
     layout::ArrayLayout,
     AllocError, Allocator, Box, Flags,
 };
@@ -15,6 +16,7 @@ use core::{
     ops::DerefMut,
     ops::Index,
     ops::IndexMut,
+    ops::{Range, RangeBounds},
     ptr,
     ptr::NonNull,
     slice,
@@ -544,6 +546,56 @@ where
             let s = ptr::slice_from_raw_parts_mut(self.as_mut_ptr().add(len), remaining_len);
             self.len = len;
             ptr::drop_in_place(s);
+        }
+    }
+
+    /// Removes the specified range from the vector in bulk, returning all
+    /// removed elements as an iterator. If the iterator is dropped before
+    /// being fully consumed, it drops the remaining removed elements.
+    ///
+    /// The returned iterator keeps a mutable borrow on the vector to optimize
+    /// its implementation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point is greater than the end point or if
+    /// the end point is greater than the length of the vector.
+    ///
+    /// # Leaking
+    ///
+    /// If the returned iterator goes out of scope without being dropped (due to
+    /// [`mem::forget`], for example), the vector may have lost and leaked
+    /// elements arbitrarily, including elements outside the range.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut v = vec![1, 2, 3];
+    /// let u: Vec<_> = v.drain(1..).collect();
+    /// assert_eq!(v, &[1]);
+    /// assert_eq!(u, &[2, 3]);
+    ///
+    /// // A full range clears the vector, like `clear()` does
+    /// v.drain(..);
+    /// assert_eq!(v, &[]);
+    /// ```
+    pub fn drain<R>(&mut self, range: R) -> Drain<'_, T, A>
+    where
+        R: RangeBounds<usize>,
+    {
+        let len = self.len();
+        let Range { start, end } = slice::range(range, ..len);
+
+        unsafe {
+            // set self.vec length's to start, to be safe in case Drain is leaked
+            self.set_len(start);
+            let range_slice = slice::from_raw_parts(self.as_ptr().add(start), end - start);
+            Drain {
+                tail_start: end,
+                tail_len: len - end,
+                iter: range_slice.iter(),
+                vec: NonNull::from(self),
+            }
         }
     }
 }
