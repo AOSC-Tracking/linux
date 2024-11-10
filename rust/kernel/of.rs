@@ -211,6 +211,41 @@ impl Node {
         }
     }
 
+    /// Parse a phandle property and return the Node referenced at a given name, if any.
+    ///
+    /// Used only for phandle properties with no arguments.
+    #[allow(unused_variables)]
+    pub fn parse_phandle_by_name(
+        &self,
+        prop: &CStr,
+        propnames: &CStr,
+        name: &CStr,
+    ) -> Option<Node> {
+        #[cfg(not(CONFIG_OF))]
+        {
+            None
+        }
+        #[cfg(CONFIG_OF)]
+        // SAFETY: `raw_node` is valid per the type invariant. `of_parse_phandle` returns an
+        // owned reference.
+        unsafe {
+            let index = bindings::of_property_match_string(
+                self.raw_node,
+                propnames.as_char_ptr(),
+                name.as_char_ptr(),
+            );
+            if index < 0 {
+                return None;
+            };
+
+            Node::from_raw(bindings::of_parse_phandle(
+                self.raw_node,
+                prop.as_char_ptr(),
+                index.try_into().ok()?,
+            ))
+        }
+    }
+
     #[allow(unused_variables)]
     /// Look up a node property by name, returning a `Property` object if found.
     pub fn find_property(&self, propname: &CStr) -> Option<Property<'_>> {
