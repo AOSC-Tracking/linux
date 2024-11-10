@@ -14,6 +14,7 @@
 #include "cred.c"
 #include "device.c"
 #include "dma.c"
+#include "dma-mapping.c"
 #include "err.c"
 #include "fs.c"
 #include "io.c"
