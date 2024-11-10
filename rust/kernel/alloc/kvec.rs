@@ -452,6 +452,100 @@ where
 
         Ok(())
     }
+
+    /// Clears the vector, removing all values.
+    ///
+    /// Note that this method has no effect on the allocated capacity
+    /// of the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut v = vec![1, 2, 3];
+    ///
+    /// v.clear();
+    ///
+    /// assert!(v.is_empty());
+    /// ```
+    #[inline]
+    pub fn clear(&mut self) {
+        let elems: *mut [T] = self.as_mut_slice();
+
+        // SAFETY:
+        // - `elems` comes directly from `as_mut_slice` and is therefore valid.
+        // - Setting `self.len` before calling `drop_in_place` means that,
+        //   if an element's `Drop` impl panics, the vector's `Drop` impl will
+        //   do nothing (leaking the rest of the elements) instead of dropping
+        //   some twice.
+        unsafe {
+            self.len = 0;
+            ptr::drop_in_place(elems);
+        }
+    }
+
+    /// Shortens the vector, keeping the first `len` elements and dropping
+    /// the rest.
+    ///
+    /// If `len` is greater or equal to the vector's current length, this has
+    /// no effect.
+    ///
+    /// The [`drain`] method can emulate `truncate`, but causes the excess
+    /// elements to be returned instead of dropped.
+    ///
+    /// Note that this method has no effect on the allocated capacity
+    /// of the vector.
+    ///
+    /// # Examples
+    ///
+    /// Truncating a five element vector to two elements:
+    ///
+    /// ```
+    /// let mut vec = vec![1, 2, 3, 4, 5];
+    /// vec.truncate(2);
+    /// assert_eq!(vec, [1, 2]);
+    /// ```
+    ///
+    /// No truncation occurs when `len` is greater than the vector's current
+    /// length:
+    ///
+    /// ```
+    /// let mut vec = vec![1, 2, 3];
+    /// vec.truncate(8);
+    /// assert_eq!(vec, [1, 2, 3]);
+    /// ```
+    ///
+    /// Truncating when `len == 0` is equivalent to calling the [`clear`]
+    /// method.
+    ///
+    /// ```
+    /// let mut vec = vec![1, 2, 3];
+    /// vec.truncate(0);
+    /// assert_eq!(vec, []);
+    /// ```
+    ///
+    /// [`clear`]: Vec::clear
+    /// [`drain`]: Vec::drain
+    pub fn truncate(&mut self, len: usize) {
+        // This is safe because:
+        //
+        // * the slice passed to `drop_in_place` is valid; the `len > self.len`
+        //   case avoids creating an invalid slice, and
+        // * the `len` of the vector is shrunk before calling `drop_in_place`,
+        //   such that no value will be dropped twice in case `drop_in_place`
+        //   were to panic once (if it panics twice, the program aborts).
+        unsafe {
+            // Note: It's intentional that this is `>` and not `>=`.
+            //       Changing it to `>=` has negative performance
+            //       implications in some cases. See #78884 for more.
+            if len > self.len {
+                return;
+            }
+            let remaining_len = self.len - len;
+            let s = ptr::slice_from_raw_parts_mut(self.as_mut_ptr().add(len), remaining_len);
+            self.len = len;
+            ptr::drop_in_place(s);
+        }
+    }
 }
 
 impl<T: Clone, A: Allocator> Vec<T, A> {
