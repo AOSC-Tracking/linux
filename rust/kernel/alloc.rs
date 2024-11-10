@@ -4,6 +4,7 @@
 
 #[cfg(not(any(test, testlib)))]
 pub mod allocator;
+pub mod drain;
 pub mod kbox;
 pub mod kvec;
 pub mod layout;
