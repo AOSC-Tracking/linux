@@ -8,8 +8,12 @@ use super::{AllocError, Allocator, Flags};
 use core::alloc::Layout;
 use core::fmt;
 use core::marker::PhantomData;
+#[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
+use core::marker::Unsize;
 use core::mem::ManuallyDrop;
 use core::mem::MaybeUninit;
+#[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
+use core::ops::CoerceUnsized;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
@@ -485,6 +489,10 @@ where
         unsafe { A::free(self.0.cast(), layout) };
     }
 }
+
+//#[unstable(feature = "coerce_unsized", issue = "18598")]
+#[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
+impl<T: ?Sized + Unsize<U>, U: ?Sized, A: Allocator> CoerceUnsized<Box<U, A>> for Box<T, A> {}
 
 impl<T, A> AsRef<T> for Box<T, A>
 where
