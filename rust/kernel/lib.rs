@@ -16,6 +16,21 @@
 // Please see https://github.com/Rust-for-Linux/linux/issues/2 for details on
 // the unstable features in use.
 //
+// ============ start asahi downstream features ===========
+#![feature(associated_type_defaults)]
+//
+#![feature(cfg_version)]
+//
+// Stable since Rust 1.87.0.
+#![feature(ptr_sub_ptr)]
+//
+#![feature(sized_type_properties)]
+//
+#![feature(slice_range)]
+//
+#![cfg_attr(CONFIG_RUSTC_HAS_COERCE_POINTEE, feature(pin_coerce_unsized_trait))]
+// ============ end asahi dowanstream features ============
+//
 // Stable since Rust 1.79.0.
 #![feature(inline_const)]
 //
