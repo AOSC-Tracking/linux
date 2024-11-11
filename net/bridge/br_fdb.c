@@ -73,13 +73,6 @@ static inline int has_expired(const struct net_bridge *br,
 	       time_before_eq(fdb->updated + hold_time(br), jiffies);
 }
 
-static void fdb_rcu_free(struct rcu_head *head)
-{
-	struct net_bridge_fdb_entry *ent
-		= container_of(head, struct net_bridge_fdb_entry, rcu);
-	kmem_cache_free(br_fdb_cache, ent);
-}
-
 static int fdb_to_nud(const struct net_bridge *br,
 		      const struct net_bridge_fdb_entry *fdb)
 {
@@ -329,7 +322,7 @@ static void fdb_delete(struct net_bridge *br, struct net_bridge_fdb_entry *f,
 	if (test_and_clear_bit(BR_FDB_DYNAMIC_LEARNED, &f->flags))
 		atomic_dec(&br->fdb_n_learned);
 	fdb_notify(br, f, RTM_DELNEIGH, swdev_notify);
-	call_rcu(&f->rcu, fdb_rcu_free);
+	kfree_rcu(f, rcu);
 }
 
 /* Delete a local entry if no other port had the same address.
@@ -1326,7 +1319,6 @@ int br_fdb_delete(struct ndmsg *ndm, struct nlattr *tb[],
 {
 	struct net_bridge_vlan_group *vg;
 	struct net_bridge_port *p = NULL;
-	struct net_bridge_vlan *v;
 	struct net_bridge *br;
 	int err;
 
@@ -1345,14 +1337,10 @@ int br_fdb_delete(struct ndmsg *ndm, struct nlattr *tb[],
 	}
 
 	if (vid) {
-		v = br_vlan_find(vg, vid);
-		if (!v) {
-			pr_info("bridge: RTM_DELNEIGH with unconfigured vlan %d on %s\n", vid, dev->name);
-			return -EINVAL;
-		}
-
 		err = __br_fdb_delete(br, p, addr, vid);
 	} else {
+		struct net_bridge_vlan *v;
+
 		err = -ENOENT;
 		err &= __br_fdb_delete(br, p, addr, 0);
 		if (!vg || !vg->num_vlans)
