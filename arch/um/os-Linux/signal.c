@@ -26,7 +26,7 @@ void (*sig_info[NSIG])(int, struct siginfo *, struct uml_pt_regs *) = {
 	[SIGFPE]	= relay_signal,
 	[SIGILL]	= relay_signal,
 	[SIGWINCH]	= winch,
-	[SIGBUS]	= bus_handler,
+	[SIGBUS]	= relay_signal,
 	[SIGSEGV]	= segv_handler,
 	[SIGIO]		= sigio_handler,
 };
@@ -65,7 +65,7 @@ static void sig_handler_common(int sig, struct siginfo *si, mcontext_t *mc)
 #define SIGALRM_MASK (1 << SIGALRM_BIT)
 
 int signals_enabled;
-#ifdef UML_CONFIG_UML_TIME_TRAVEL_SUPPORT
+#if IS_ENABLED(CONFIG_UML_TIME_TRAVEL_SUPPORT)
 static int signals_blocked, signals_blocked_pending;
 #endif
 static unsigned int signals_pending;
@@ -75,7 +75,7 @@ static void sig_handler(int sig, struct siginfo *si, mcontext_t *mc)
 {
 	int enabled = signals_enabled;
 
-#ifdef UML_CONFIG_UML_TIME_TRAVEL_SUPPORT
+#if IS_ENABLED(CONFIG_UML_TIME_TRAVEL_SUPPORT)
 	if ((signals_blocked ||
 	     __atomic_load_n(&signals_blocked_pending, __ATOMIC_SEQ_CST)) &&
 	    (sig == SIGIO)) {
@@ -297,7 +297,7 @@ void unblock_signals(void)
 		return;
 
 	signals_enabled = 1;
-#ifdef UML_CONFIG_UML_TIME_TRAVEL_SUPPORT
+#if IS_ENABLED(CONFIG_UML_TIME_TRAVEL_SUPPORT)
 	deliver_time_travel_irqs();
 #endif
 
@@ -389,7 +389,7 @@ int um_set_signals_trace(int enable)
 	return ret;
 }
 
-#ifdef UML_CONFIG_UML_TIME_TRAVEL_SUPPORT
+#if IS_ENABLED(CONFIG_UML_TIME_TRAVEL_SUPPORT)
 void mark_sigio_pending(void)
 {
 	/*
@@ -487,11 +487,3 @@ void unblock_signals_hard(void)
 	unblocking = false;
 }
 #endif
-
-int os_is_signal_stack(void)
-{
-	stack_t ss;
-	sigaltstack(NULL, &ss);
-
-	return ss.ss_flags & SS_ONSTACK;
-}

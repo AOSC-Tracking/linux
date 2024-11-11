@@ -116,7 +116,7 @@ void new_thread_handler(void)
 	 * callback returns only if the kernel thread execs a process
 	 */
 	fn(arg);
-	userspace(&current->thread.regs.regs, current_thread_info()->aux_fp_regs);
+	userspace(&current->thread.regs.regs);
 }
 
 /* Called magically, see new_thread_handler above */
@@ -133,7 +133,7 @@ static void fork_handler(void)
 
 	current->thread.prev_sched = NULL;
 
-	userspace(&current->thread.regs.regs, current_thread_info()->aux_fp_regs);
+	userspace(&current->thread.regs.regs);
 }
 
 int copy_thread(struct task_struct * p, const struct kernel_clone_args *args)
@@ -185,6 +185,13 @@ void initial_thread_cb(void (*proc)(void *), void *arg)
 	kmalloc_ok = 0;
 	initial_thread_cb_skas(proc, arg);
 	kmalloc_ok = save_kmalloc_ok;
+}
+
+int arch_dup_task_struct(struct task_struct *dst,
+			 struct task_struct *src)
+{
+	memcpy(dst, src, arch_task_struct_size);
+	return 0;
 }
 
 void um_idle_sleep(void)
@@ -287,11 +294,3 @@ unsigned long __get_wchan(struct task_struct *p)
 
 	return 0;
 }
-
-int elf_core_copy_task_fpregs(struct task_struct *t, elf_fpregset_t *fpu)
-{
-	int cpu = current_thread_info()->cpu;
-
-	return save_i387_registers(userspace_pid[cpu], (unsigned long *) fpu);
-}
-
