@@ -67,6 +67,7 @@
 #include <rdma/bnxt_re-abi.h>
 #include "bnxt.h"
 #include "hw_counters.h"
+#include "debugfs.h"
 
 static char version[] =
 		BNXT_RE_DESC "\n";
@@ -873,6 +874,253 @@ static const struct attribute_group bnxt_re_dev_attr_group = {
 	.attrs = bnxt_re_attributes,
 };
 
+static int bnxt_re_fill_res_mr_entry(struct sk_buff *msg, struct ib_mr *ib_mr)
+{
+	struct bnxt_qplib_hwq *mr_hwq;
+	struct nlattr *table_attr;
+	struct bnxt_re_mr *mr;
+
+	table_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_DRIVER);
+	if (!table_attr)
+		return -EMSGSIZE;
+
+	mr = container_of(ib_mr, struct bnxt_re_mr, ib_mr);
+	mr_hwq = &mr->qplib_mr.hwq;
+
+	if (rdma_nl_put_driver_u32(msg, "page_size",
+				   mr_hwq->qe_ppg * mr_hwq->element_size))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "max_elements", mr_hwq->max_elements))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "element_size", mr_hwq->element_size))
+		goto err;
+	if (rdma_nl_put_driver_u64_hex(msg, "hwq", (unsigned long)mr_hwq))
+		goto err;
+	if (rdma_nl_put_driver_u64_hex(msg, "va", mr->qplib_mr.va))
+		goto err;
+
+	nla_nest_end(msg, table_attr);
+	return 0;
+
+err:
+	nla_nest_cancel(msg, table_attr);
+	return -EMSGSIZE;
+}
+
+static int bnxt_re_fill_res_mr_entry_raw(struct sk_buff *msg, struct ib_mr *ib_mr)
+{
+	struct bnxt_re_dev *rdev;
+	struct bnxt_re_mr *mr;
+	int err, len;
+	void *data;
+
+	mr = container_of(ib_mr, struct bnxt_re_mr, ib_mr);
+	rdev = mr->rdev;
+
+	err = bnxt_re_read_context_allowed(rdev);
+	if (err)
+		return err;
+
+	len = bnxt_qplib_is_chip_gen_p7(rdev->chip_ctx) ? BNXT_RE_CONTEXT_TYPE_MRW_SIZE_P7 :
+							  BNXT_RE_CONTEXT_TYPE_MRW_SIZE_P5;
+	data = kzalloc(len, GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	err = bnxt_qplib_read_context(&rdev->rcfw, CMDQ_READ_CONTEXT_TYPE_MRW,
+				      mr->qplib_mr.lkey, len, data);
+	if (!err)
+		err = nla_put(msg, RDMA_NLDEV_ATTR_RES_RAW, len, data);
+
+	kfree(data);
+	return err;
+}
+
+static int bnxt_re_fill_res_cq_entry(struct sk_buff *msg, struct ib_cq *ib_cq)
+{
+	struct bnxt_qplib_hwq *cq_hwq;
+	struct nlattr *table_attr;
+	struct bnxt_re_cq *cq;
+
+	cq = container_of(ib_cq, struct bnxt_re_cq, ib_cq);
+	cq_hwq = &cq->qplib_cq.hwq;
+
+	table_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_DRIVER);
+	if (!table_attr)
+		return -EMSGSIZE;
+
+	if (rdma_nl_put_driver_u32(msg, "cq_depth", cq_hwq->depth))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "max_elements", cq_hwq->max_elements))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "element_size", cq_hwq->element_size))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "max_wqe", cq->qplib_cq.max_wqe))
+		goto err;
+
+	nla_nest_end(msg, table_attr);
+	return 0;
+
+err:
+	nla_nest_cancel(msg, table_attr);
+	return -EMSGSIZE;
+}
+
+static int bnxt_re_fill_res_cq_entry_raw(struct sk_buff *msg, struct ib_cq *ib_cq)
+{
+	struct bnxt_re_dev *rdev;
+	struct bnxt_re_cq *cq;
+	int err, len;
+	void *data;
+
+	cq = container_of(ib_cq, struct bnxt_re_cq, ib_cq);
+	rdev = cq->rdev;
+
+	err = bnxt_re_read_context_allowed(rdev);
+	if (err)
+		return err;
+
+	len = bnxt_qplib_is_chip_gen_p7(rdev->chip_ctx) ? BNXT_RE_CONTEXT_TYPE_CQ_SIZE_P7 :
+					BNXT_RE_CONTEXT_TYPE_CQ_SIZE_P5;
+	data = kzalloc(len, GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	err = bnxt_qplib_read_context(&rdev->rcfw,
+				      CMDQ_READ_CONTEXT_TYPE_CQ,
+				      cq->qplib_cq.id, len, data);
+	if (!err)
+		err = nla_put(msg, RDMA_NLDEV_ATTR_RES_RAW, len, data);
+
+	kfree(data);
+	return err;
+}
+
+static int bnxt_re_fill_res_qp_entry(struct sk_buff *msg, struct ib_qp *ib_qp)
+{
+	struct bnxt_qplib_qp *qplib_qp;
+	struct nlattr *table_attr;
+	struct bnxt_re_qp *qp;
+
+	table_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_DRIVER);
+	if (!table_attr)
+		return -EMSGSIZE;
+
+	qp = container_of(ib_qp, struct bnxt_re_qp, ib_qp);
+	qplib_qp = &qp->qplib_qp;
+
+	if (rdma_nl_put_driver_u32(msg, "sq_max_wqe", qplib_qp->sq.max_wqe))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "sq_max_sge", qplib_qp->sq.max_sge))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "sq_wqe_size", qplib_qp->sq.wqe_size))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "sq_swq_start", qplib_qp->sq.swq_start))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "sq_swq_last", qplib_qp->sq.swq_last))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "rq_max_wqe", qplib_qp->rq.max_wqe))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "rq_max_sge", qplib_qp->rq.max_sge))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "rq_wqe_size", qplib_qp->rq.wqe_size))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "rq_swq_start", qplib_qp->rq.swq_start))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "rq_swq_last", qplib_qp->rq.swq_last))
+		goto err;
+	if (rdma_nl_put_driver_u32(msg, "timeout", qplib_qp->timeout))
+		goto err;
+
+	nla_nest_end(msg, table_attr);
+	return 0;
+
+err:
+	nla_nest_cancel(msg, table_attr);
+	return -EMSGSIZE;
+}
+
+static int bnxt_re_fill_res_qp_entry_raw(struct sk_buff *msg, struct ib_qp *ibqp)
+{
+	struct bnxt_re_dev *rdev = to_bnxt_re_dev(ibqp->device, ibdev);
+	int err, len;
+	void *data;
+
+	err = bnxt_re_read_context_allowed(rdev);
+	if (err)
+		return err;
+
+	len = bnxt_qplib_is_chip_gen_p7(rdev->chip_ctx) ? BNXT_RE_CONTEXT_TYPE_QPC_SIZE_P7 :
+							  BNXT_RE_CONTEXT_TYPE_QPC_SIZE_P5;
+	data = kzalloc(len, GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	err = bnxt_qplib_read_context(&rdev->rcfw, CMDQ_READ_CONTEXT_TYPE_QPC,
+				      ibqp->qp_num, len, data);
+	if (!err)
+		err = nla_put(msg, RDMA_NLDEV_ATTR_RES_RAW, len, data);
+
+	kfree(data);
+	return err;
+}
+
+static int bnxt_re_fill_res_srq_entry(struct sk_buff *msg, struct ib_srq *ib_srq)
+{
+	struct nlattr *table_attr;
+	struct bnxt_re_srq *srq;
+
+	table_attr = nla_nest_start(msg, RDMA_NLDEV_ATTR_DRIVER);
+	if (!table_attr)
+		return -EMSGSIZE;
+
+	srq = container_of(ib_srq, struct bnxt_re_srq, ib_srq);
+
+	if (rdma_nl_put_driver_u32_hex(msg, "wqe_size", srq->qplib_srq.wqe_size))
+		goto err;
+	if (rdma_nl_put_driver_u32_hex(msg, "max_wqe", srq->qplib_srq.max_wqe))
+		goto err;
+	if (rdma_nl_put_driver_u32_hex(msg, "max_sge", srq->qplib_srq.max_sge))
+		goto err;
+
+	nla_nest_end(msg, table_attr);
+	return 0;
+
+err:
+	nla_nest_cancel(msg, table_attr);
+	return -EMSGSIZE;
+}
+
+static int bnxt_re_fill_res_srq_entry_raw(struct sk_buff *msg, struct ib_srq *ib_srq)
+{
+	struct bnxt_re_dev *rdev;
+	struct bnxt_re_srq *srq;
+	int err, len;
+	void *data;
+
+	srq = container_of(ib_srq, struct bnxt_re_srq, ib_srq);
+	rdev = srq->rdev;
+
+	err = bnxt_re_read_context_allowed(rdev);
+	if (err)
+		return err;
+
+	len = bnxt_qplib_is_chip_gen_p7(rdev->chip_ctx) ? BNXT_RE_CONTEXT_TYPE_SRQ_SIZE_P7 :
+							  BNXT_RE_CONTEXT_TYPE_SRQ_SIZE_P5;
+
+	data = kzalloc(len, GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	err = bnxt_qplib_read_context(&rdev->rcfw, CMDQ_READ_CONTEXT_TYPE_SRQ,
+				      srq->qplib_srq.id, len, data);
+	if (!err)
+		err = nla_put(msg, RDMA_NLDEV_ATTR_RES_RAW, len, data);
+
+	kfree(data);
+	return err;
+}
+
 static const struct ib_device_ops bnxt_re_dev_ops = {
 	.owner = THIS_MODULE,
 	.driver_id = RDMA_DRIVER_BNXT_RE,
@@ -914,6 +1162,7 @@ static const struct ib_device_ops bnxt_re_dev_ops = {
 	.post_srq_recv = bnxt_re_post_srq_recv,
 	.query_ah = bnxt_re_query_ah,
 	.query_device = bnxt_re_query_device,
+	.modify_device = bnxt_re_modify_device,
 	.query_pkey = bnxt_re_query_pkey,
 	.query_port = bnxt_re_query_port,
 	.query_qp = bnxt_re_query_qp,
@@ -928,6 +1177,17 @@ static const struct ib_device_ops bnxt_re_dev_ops = {
 	INIT_RDMA_OBJ_SIZE(ib_qp, bnxt_re_qp, ib_qp),
 	INIT_RDMA_OBJ_SIZE(ib_srq, bnxt_re_srq, ib_srq),
 	INIT_RDMA_OBJ_SIZE(ib_ucontext, bnxt_re_ucontext, ib_uctx),
+};
+
+static const struct ib_device_ops restrack_ops = {
+	.fill_res_cq_entry = bnxt_re_fill_res_cq_entry,
+	.fill_res_cq_entry_raw = bnxt_re_fill_res_cq_entry_raw,
+	.fill_res_qp_entry = bnxt_re_fill_res_qp_entry,
+	.fill_res_qp_entry_raw = bnxt_re_fill_res_qp_entry_raw,
+	.fill_res_mr_entry = bnxt_re_fill_res_mr_entry,
+	.fill_res_mr_entry_raw = bnxt_re_fill_res_mr_entry_raw,
+	.fill_res_srq_entry = bnxt_re_fill_res_srq_entry,
+	.fill_res_srq_entry_raw = bnxt_re_fill_res_srq_entry_raw,
 };
 
 static int bnxt_re_register_ib(struct bnxt_re_dev *rdev)
@@ -951,6 +1211,7 @@ static int bnxt_re_register_ib(struct bnxt_re_dev *rdev)
 		ibdev->driver_def = bnxt_re_uapi_defs;
 
 	ib_set_device_ops(ibdev, &bnxt_re_dev_ops);
+	ib_set_device_ops(ibdev, &restrack_ops);
 	ret = ib_device_set_netdev(&rdev->ibdev, rdev->netdev, 1);
 	if (ret)
 		return ret;
@@ -990,6 +1251,15 @@ static struct bnxt_re_dev *bnxt_re_dev_add(struct auxiliary_device *adev,
 	atomic_set(&rdev->stats.res.pd_count, 0);
 	rdev->cosq[0] = 0xFFFF;
 	rdev->cosq[1] = 0xFFFF;
+	rdev->cq_coalescing.buf_maxtime = BNXT_QPLIB_CQ_COAL_DEF_BUF_MAXTIME;
+	if (bnxt_re_chip_gen_p7(en_dev->chip_num)) {
+		rdev->cq_coalescing.normal_maxbuf = BNXT_QPLIB_CQ_COAL_DEF_NORMAL_MAXBUF_P7;
+		rdev->cq_coalescing.during_maxbuf = BNXT_QPLIB_CQ_COAL_DEF_DURING_MAXBUF_P7;
+	} else {
+		rdev->cq_coalescing.normal_maxbuf = BNXT_QPLIB_CQ_COAL_DEF_NORMAL_MAXBUF_P5;
+		rdev->cq_coalescing.during_maxbuf = BNXT_QPLIB_CQ_COAL_DEF_DURING_MAXBUF_P5;
+	}
+	rdev->cq_coalescing.en_ring_idle_mode = BNXT_QPLIB_CQ_COAL_DEF_EN_RING_IDLE_MODE;
 
 	return rdev;
 }
@@ -1595,6 +1865,8 @@ static void bnxt_re_dev_uninit(struct bnxt_re_dev *rdev, u8 op_type)
 	u8 type;
 	int rc;
 
+	bnxt_re_debugfs_rem_pdev(rdev);
+
 	if (test_and_clear_bit(BNXT_RE_FLAG_QOS_WORK_REG, &rdev->flags))
 		cancel_delayed_work_sync(&rdev->worker);
 
@@ -1794,6 +2066,8 @@ static int bnxt_re_dev_init(struct bnxt_re_dev *rdev, u8 op_type)
 	hash_init(rdev->cq_hash);
 	if (rdev->chip_ctx->modes.toggle_bits & BNXT_QPLIB_SRQ_TOGGLE_BIT)
 		hash_init(rdev->srq_hash);
+
+	bnxt_re_debugfs_add_pdev(rdev);
 
 	return 0;
 free_sctx:
@@ -2112,18 +2386,24 @@ static int __init bnxt_re_mod_init(void)
 	int rc;
 
 	pr_info("%s: %s", ROCE_DRV_MODULE_NAME, version);
+	bnxt_re_register_debugfs();
+
 	rc = auxiliary_driver_register(&bnxt_re_driver);
 	if (rc) {
 		pr_err("%s: Failed to register auxiliary driver\n",
 			ROCE_DRV_MODULE_NAME);
-		return rc;
+		goto err_debug;
 	}
 	return 0;
+err_debug:
+	bnxt_re_unregister_debugfs();
+	return rc;
 }
 
 static void __exit bnxt_re_mod_exit(void)
 {
 	auxiliary_driver_unregister(&bnxt_re_driver);
+	bnxt_re_unregister_debugfs();
 }
 
 module_init(bnxt_re_mod_init);

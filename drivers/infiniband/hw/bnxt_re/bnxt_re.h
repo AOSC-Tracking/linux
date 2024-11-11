@@ -156,6 +156,13 @@ struct bnxt_re_pacing {
 
 #define MAX_CQ_HASH_BITS		(16)
 #define MAX_SRQ_HASH_BITS		(16)
+
+static inline bool bnxt_re_chip_gen_p7(u16 chip_num)
+{
+	return (chip_num == CHIP_NUM_58818 ||
+		chip_num == CHIP_NUM_57608);
+}
+
 struct bnxt_re_dev {
 	struct ib_device		ibdev;
 	struct list_head		list;
@@ -195,6 +202,7 @@ struct bnxt_re_dev {
 	struct bnxt_qplib_ctx		qplib_ctx;
 	struct bnxt_qplib_res		qplib_res;
 	struct bnxt_qplib_dpi		dpi_privileged;
+	struct bnxt_qplib_cq_coal_param	cq_coalescing;
 
 	struct mutex			qp_lock;	/* protect qp list */
 	struct list_head		qp_list;
@@ -213,6 +221,8 @@ struct bnxt_re_dev {
 	struct delayed_work dbq_pacing_work;
 	DECLARE_HASHTABLE(cq_hash, MAX_CQ_HASH_BITS);
 	DECLARE_HASHTABLE(srq_hash, MAX_SRQ_HASH_BITS);
+	struct dentry			*dbg_root;
+	struct dentry			*qp_debugfs;
 };
 
 #define to_bnxt_re_dev(ptr, member)	\
@@ -239,4 +249,23 @@ static inline void bnxt_re_set_pacing_dev_state(struct bnxt_re_dev *rdev)
 	rdev->qplib_res.pacing_data->dev_err_state =
 		test_bit(BNXT_RE_FLAG_ERR_DEVICE_DETACHED, &rdev->flags);
 }
+
+static inline int bnxt_re_read_context_allowed(struct bnxt_re_dev *rdev)
+{
+	if (!bnxt_qplib_is_chip_gen_p5_p7(rdev->chip_ctx) ||
+	    rdev->rcfw.res->cctx->hwrm_intf_ver < HWRM_VERSION_READ_CTX)
+		return -EOPNOTSUPP;
+	return 0;
+}
+
+#define BNXT_RE_CONTEXT_TYPE_QPC_SIZE_P5	1088
+#define BNXT_RE_CONTEXT_TYPE_CQ_SIZE_P5		128
+#define BNXT_RE_CONTEXT_TYPE_MRW_SIZE_P5	128
+#define BNXT_RE_CONTEXT_TYPE_SRQ_SIZE_P5	192
+
+#define BNXT_RE_CONTEXT_TYPE_QPC_SIZE_P7	1088
+#define BNXT_RE_CONTEXT_TYPE_CQ_SIZE_P7		192
+#define BNXT_RE_CONTEXT_TYPE_MRW_SIZE_P7	192
+#define BNXT_RE_CONTEXT_TYPE_SRQ_SIZE_P7	192
+
 #endif
