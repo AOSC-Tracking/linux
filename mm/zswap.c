@@ -709,12 +709,11 @@ static void zswap_lru_add(struct list_lru *list_lru, struct zswap_entry *entry)
 
 	/*
 	 * Note that it is safe to use rcu_read_lock() here, even in the face of
-	 * concurrent memcg offlining. Thanks to the memcg->kmemcg_id indirection
-	 * used in list_lru lookup, only two scenarios are possible:
+	 * concurrent memcg offlining:
 	 *
-	 * 1. list_lru_add() is called before memcg->kmemcg_id is updated. The
+	 * 1. list_lru_add() is called before list_lru_one is dead. The
 	 *    new entry will be reparented to memcg's parent's list_lru.
-	 * 2. list_lru_add() is called after memcg->kmemcg_id is updated. The
+	 * 2. list_lru_add() is called after list_lru_one is dead. The
 	 *    new entry will be added directly to memcg's parent's list_lru.
 	 *
 	 * Similar reasoning holds for list_lru_del().
@@ -1103,7 +1102,7 @@ static int zswap_writeback_entry(struct zswap_entry *entry,
  *    for reclaim by this ratio.
  */
 static enum lru_status shrink_memcg_cb(struct list_head *item, struct list_lru_one *l,
-				       spinlock_t *lock, void *arg)
+				       void *arg)
 {
 	struct zswap_entry *entry = container_of(item, struct zswap_entry, lru);
 	bool *encountered_page_in_swapcache = (bool *)arg;
@@ -1159,7 +1158,7 @@ static enum lru_status shrink_memcg_cb(struct list_head *item, struct list_lru_o
 	 * It's safe to drop the lock here because we return either
 	 * LRU_REMOVED_RETRY or LRU_RETRY.
 	 */
-	spin_unlock(lock);
+	spin_unlock(&l->lock);
 
 	writeback_result = zswap_writeback_entry(entry, swpentry);
 
@@ -1180,7 +1179,6 @@ static enum lru_status shrink_memcg_cb(struct list_head *item, struct list_lru_o
 		zswap_written_back_pages++;
 	}
 
-	spin_lock(lock);
 	return ret;
 }
 
