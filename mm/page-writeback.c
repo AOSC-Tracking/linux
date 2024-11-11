@@ -54,7 +54,7 @@
 #define DIRTY_POLL_THRESH	(128 >> (PAGE_SHIFT - 10))
 
 /*
- * Estimate write bandwidth at 200ms intervals.
+ * Estimate write bandwidth or update dirty limit at 200ms intervals.
  */
 #define BANDWIDTH_INTERVAL	max(HZ/5, 1)
 
@@ -586,7 +586,7 @@ static void wb_domain_writeout_add(struct wb_domain *dom,
 	/* First event after period switching was turned off? */
 	if (unlikely(!dom->period_time)) {
 		/*
-		 * We can race with other __bdi_writeout_inc calls here but
+		 * We can race with other wb_domain_writeout_add calls here but
 		 * it does not cause any harm since the resulting time when
 		 * timer will fire and what is in writeout_period_time will be
 		 * roughly the same.
@@ -2925,25 +2925,25 @@ bool folio_mark_dirty(struct folio *folio)
 EXPORT_SYMBOL(folio_mark_dirty);
 
 /*
- * set_page_dirty() is racy if the caller has no reference against
- * page->mapping->host, and if the page is unlocked.  This is because another
- * CPU could truncate the page off the mapping and then free the mapping.
+ * folio_mark_dirty() is racy if the caller has no reference against
+ * folio->mapping->host, and if the folio is unlocked.  This is because another
+ * CPU could truncate the folio off the mapping and then free the mapping.
  *
- * Usually, the page _is_ locked, or the caller is a user-space process which
+ * Usually, the folio _is_ locked, or the caller is a user-space process which
  * holds a reference on the inode by having an open file.
  *
- * In other cases, the page should be locked before running set_page_dirty().
+ * In other cases, the folio should be locked before running folio_mark_dirty().
  */
-int set_page_dirty_lock(struct page *page)
+bool folio_mark_dirty_lock(struct folio *folio)
 {
-	int ret;
+	bool ret;
 
-	lock_page(page);
-	ret = set_page_dirty(page);
-	unlock_page(page);
+	folio_lock(folio);
+	ret = folio_mark_dirty(folio);
+	folio_unlock(folio);
 	return ret;
 }
-EXPORT_SYMBOL(set_page_dirty_lock);
+EXPORT_SYMBOL(folio_mark_dirty_lock);
 
 /*
  * This cancels just the dirty bit on the kernel page itself, it does NOT

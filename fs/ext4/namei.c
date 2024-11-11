@@ -1747,7 +1747,7 @@ static struct buffer_head * ext4_dx_find_entry(struct inode *dir,
 #endif
 	frame = dx_probe(fname, dir, NULL, frames);
 	if (IS_ERR(frame))
-		return (struct buffer_head *) frame;
+		return ERR_CAST(frame);
 	do {
 		block = dx_get_block(frame->at);
 		bh = ext4_read_dirblock(dir, block, DIRENT_HTREE);
@@ -1952,7 +1952,7 @@ static struct ext4_dir_entry_2 *do_split(handle_t *handle, struct inode *dir,
 	if (IS_ERR(bh2)) {
 		brelse(*bh);
 		*bh = NULL;
-		return (struct ext4_dir_entry_2 *) bh2;
+		return ERR_CAST(bh2);
 	}
 
 	BUFFER_TRACE(*bh, "get_write_access");
@@ -2405,11 +2405,8 @@ static int ext4_add_entry(handle_t *handle, struct dentry *dentry,
 	if (fscrypt_is_nokey_name(dentry))
 		return -ENOKEY;
 
-#if IS_ENABLED(CONFIG_UNICODE)
-	if (sb_has_strict_encoding(sb) && IS_CASEFOLDED(dir) &&
-	    utf8_validate(sb->s_encoding, &dentry->d_name))
+	if (!generic_ci_validate_strict_name(dir, &dentry->d_name))
 		return -EINVAL;
-#endif
 
 	retval = ext4_fname_setup_filename(dir, &dentry->d_name, 0, &fname);
 	if (retval)
