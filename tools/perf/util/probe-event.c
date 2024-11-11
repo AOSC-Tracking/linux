@@ -51,6 +51,9 @@
 
 #define PERFPROBE_GROUP "probe"
 
+/* Defined in kernel/trace/trace.h */
+#define MAX_EVENT_NAME_LEN	64
+
 bool probe_event_dry_run;	/* Dry run flag */
 struct probe_conf probe_conf = { .magic_num = DEFAULT_PROBE_MAGIC_NUM };
 
@@ -342,7 +345,7 @@ elf_err:
 	return mod_name;
 }
 
-#ifdef HAVE_DWARF_SUPPORT
+#ifdef HAVE_LIBDW_SUPPORT
 
 static int kernel_get_module_dso(const char *module, struct dso **pdso)
 {
@@ -1250,7 +1253,7 @@ out:
 	return ret;
 }
 
-#else	/* !HAVE_DWARF_SUPPORT */
+#else	/* !HAVE_LIBDW_SUPPORT */
 
 static void debuginfo_cache__exit(void)
 {
@@ -2757,7 +2760,10 @@ static int get_new_event_name(char *buf, size_t len, const char *base,
 	/* Try no suffix number */
 	ret = e_snprintf(buf, len, "%s%s", nbase, ret_event ? "__return" : "");
 	if (ret < 0) {
-		pr_warning("snprintf() failed: %d; the event name nbase='%s' is too long\n", ret, nbase);
+		pr_warning("snprintf() failed: %d; the event name '%s' is too long\n"
+			   "  Hint: Set a shorter event with syntax \"EVENT=PROBEDEF\"\n"
+			   "        EVENT: Event name (max length: %d bytes).\n",
+			   ret, nbase, MAX_EVENT_NAME_LEN);
 		goto out;
 	}
 	if (!strlist__has_entry(namelist, buf))
@@ -2777,7 +2783,10 @@ static int get_new_event_name(char *buf, size_t len, const char *base,
 	for (i = 1; i < MAX_EVENT_INDEX; i++) {
 		ret = e_snprintf(buf, len, "%s_%d", nbase, i);
 		if (ret < 0) {
-			pr_debug("snprintf() failed: %d\n", ret);
+			pr_warning("Add suffix failed: %d; the event name '%s' is too long\n"
+				   "  Hint: Set a shorter event with syntax \"EVENT=PROBEDEF\"\n"
+				   "        EVENT: Event name (max length: %d bytes).\n",
+				   ret, nbase, MAX_EVENT_NAME_LEN);
 			goto out;
 		}
 		if (!strlist__has_entry(namelist, buf))
@@ -2841,7 +2850,7 @@ static int probe_trace_event__set_name(struct probe_trace_event *tev,
 				       bool allow_suffix)
 {
 	const char *event, *group;
-	char buf[64];
+	char buf[MAX_EVENT_NAME_LEN];
 	int ret;
 
 	/* If probe_event or trace_event already have the name, reuse it */
@@ -2864,6 +2873,12 @@ static int probe_trace_event__set_name(struct probe_trace_event *tev,
 		group = tev->group;
 	else
 		group = PERFPROBE_GROUP;
+
+	if (strlen(group) >= MAX_EVENT_NAME_LEN) {
+		pr_err("Probe group string='%s' is too long (>= %d bytes)\n",
+			group, MAX_EVENT_NAME_LEN);
+		return -ENOMEM;
+	}
 
 	/* Get an unused new event name */
 	ret = get_new_event_name(buf, sizeof(buf), event, namelist,
@@ -3703,24 +3718,6 @@ void cleanup_perf_probe_events(struct perf_probe_event *pevs, int npevs)
 		nsinfo__zput(pev->nsi);
 		clear_perf_probe_event(&pevs[i]);
 	}
-}
-
-int add_perf_probe_events(struct perf_probe_event *pevs, int npevs)
-{
-	int ret;
-
-	ret = init_probe_symbol_maps(pevs->uprobes);
-	if (ret < 0)
-		return ret;
-
-	ret = convert_perf_probe_events(pevs, npevs);
-	if (ret == 0)
-		ret = apply_perf_probe_events(pevs, npevs);
-
-	cleanup_perf_probe_events(pevs, npevs);
-
-	exit_probe_symbol_maps();
-	return ret;
 }
 
 int del_perf_probe_events(struct strfilter *filter)
