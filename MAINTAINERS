@@ -15849,7 +15849,6 @@ S:	Maintained
 T:	git git://linuxtv.org/media_tree.git
 F:	Documentation/devicetree/bindings/media/i2c/aptina,mt9p031.yaml
 F:	drivers/media/i2c/mt9p031.c
-F:	include/media/i2c/mt9p031.h
 
 MT9T112 APTINA CAMERA SENSOR
 M:	Jacopo Mondi <jacopo@jmondi.org>
@@ -16951,14 +16950,6 @@ S:	Maintained
 F:	Documentation/devicetree/bindings/i2c/ti,omap4-i2c.yaml
 F:	drivers/i2c/busses/i2c-omap.c
 
-OMAP IMAGING SUBSYSTEM (OMAP3 ISP and OMAP4 ISS)
-M:	Laurent Pinchart <laurent.pinchart@ideasonboard.com>
-L:	linux-media@vger.kernel.org
-S:	Maintained
-F:	Documentation/devicetree/bindings/media/ti,omap3isp.txt
-F:	drivers/media/platform/ti/omap3isp/
-F:	drivers/staging/media/omap4iss/
-
 OMAP MMC SUPPORT
 M:	Aaro Koskinen <aaro.koskinen@iki.fi>
 L:	linux-omap@vger.kernel.org
@@ -17092,6 +17083,7 @@ L:	linux-media@vger.kernel.org
 S:	Maintained
 T:	git git://linuxtv.org/media_tree.git
 F:	drivers/media/i2c/ov08x40.c
+F:	Documentation/devicetree/bindings/media/i2c/ovti,ov08x40.yaml
 
 OMNIVISION OV13858 SENSOR DRIVER
 M:	Sakari Ailus <sakari.ailus@linux.intel.com>
@@ -19408,6 +19400,13 @@ S:	Maintained
 F:	Documentation/devicetree/bindings/media/raspberrypi,pispbe.yaml
 F:	drivers/media/platform/raspberrypi/pisp_be/
 F:	include/uapi/linux/media/raspberrypi/
+
+RASPBERRY PI PISP CAMERA FRONT END
+M:	Tomi Valkeinen <tomi.valkeinen@ideasonboard.com>
+M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
+S:	Maintained
+F:	Documentation/devicetree/bindings/media/raspberrypi,rp1-cfe.yaml
+F:	drivers/media/platform/raspberrypi/rp1-cfe/
 
 RC-CORE / LIRC FRAMEWORK
 M:	Sean Young <sean@mess.org>
@@ -23320,7 +23319,7 @@ F:	Documentation/devicetree/bindings/net/ti,icss*.yaml
 F:	drivers/net/ethernet/ti/icssg/*
 
 TI J721E CSI2RX DRIVER
-M:	Jai Luthra <j-luthra@ti.com>
+M:	Jai Luthra <jai.luthra@linux.dev>
 L:	linux-media@vger.kernel.org
 S:	Maintained
 F:	Documentation/devicetree/bindings/media/ti,j721e-csi2rx-shim.yaml
