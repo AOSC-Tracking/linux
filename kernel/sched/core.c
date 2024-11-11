@@ -3734,28 +3734,38 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
  */
 static int ttwu_runnable(struct task_struct *p, int wake_flags)
 {
-	struct rq_flags rf;
-	struct rq *rq;
-	int ret = 0;
+	CLASS(__task_rq_lock, rq_guard)(p);
+	struct rq *rq = rq_guard.rq;
 
-	rq = __task_rq_lock(p, &rf);
-	if (task_on_rq_queued(p)) {
-		update_rq_clock(rq);
-		if (p->se.sched_delayed)
-			enqueue_task(rq, p, ENQUEUE_NOCLOCK | ENQUEUE_DELAYED);
-		if (!task_on_cpu(rq, p)) {
-			/*
-			 * When on_rq && !on_cpu the task is preempted, see if
-			 * it should preempt the task that is current now.
-			 */
-			wakeup_preempt(rq, p, wake_flags);
+	if (!task_on_rq_queued(p))
+		return 0;
+
+	update_rq_clock(rq);
+	if (p->se.sched_delayed) {
+		int queue_flags = ENQUEUE_DELAYED | ENQUEUE_NOCLOCK;
+
+		/*
+		 * Since sched_delayed means we cannot be current anywhere,
+		 * dequeue it here and have it fall through to the
+		 * select_task_rq() case further along the ttwu() path.
+		 */
+		if (rq->nr_running > 1 && p->nr_cpus_allowed > 1) {
+			dequeue_task(rq, p, DEQUEUE_SLEEP | queue_flags);
+			return 0;
 		}
-		ttwu_do_wakeup(p);
-		ret = 1;
-	}
-	__task_rq_unlock(rq, &rf);
 
-	return ret;
+		enqueue_task(rq, p, queue_flags);
+	}
+	if (!task_on_cpu(rq, p)) {
+		/*
+		 * When on_rq && !on_cpu the task is preempted, see if
+		 * it should preempt the task that is current now.
+		 */
+		wakeup_preempt(rq, p, wake_flags);
+	}
+	ttwu_do_wakeup(p);
+
+	return 1;
 }
 
 #ifdef CONFIG_SMP
