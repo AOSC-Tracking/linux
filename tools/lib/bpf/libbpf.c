@@ -133,6 +133,7 @@ static const char * const attach_type_name[] = {
 	[BPF_NETKIT_PRIMARY]		= "netkit_primary",
 	[BPF_NETKIT_PEER]		= "netkit_peer",
 	[BPF_TRACE_KPROBE_SESSION]	= "trace_kprobe_session",
+	[BPF_TRACE_UPROBE_SESSION]	= "trace_uprobe_session",
 };
 
 static const char * const link_type_name[] = {
@@ -694,6 +695,8 @@ struct bpf_object {
 	/* Information when doing ELF related work. Only valid if efile.elf is not NULL */
 	struct elf_state efile;
 
+	unsigned char byteorder;
+
 	struct btf *btf;
 	struct btf_ext *btf_ext;
 
@@ -938,6 +941,20 @@ bpf_object__add_programs(struct bpf_object *obj, Elf_Data *sec_data,
 	}
 
 	return 0;
+}
+
+static void bpf_object_bswap_progs(struct bpf_object *obj)
+{
+	struct bpf_program *prog = obj->programs;
+	struct bpf_insn *insn;
+	int p, i;
+
+	for (p = 0; p < obj->nr_programs; p++, prog++) {
+		insn = prog->insns;
+		for (i = 0; i < prog->insns_cnt; i++, insn++)
+			bpf_insn_bswap(insn);
+	}
+	pr_debug("converted %zu BPF programs to native byte order\n", obj->nr_programs);
 }
 
 static const struct btf_member *
@@ -1506,6 +1523,7 @@ static void bpf_object__elf_finish(struct bpf_object *obj)
 
 	elf_end(obj->efile.elf);
 	obj->efile.elf = NULL;
+	obj->efile.ehdr = NULL;
 	obj->efile.symbols = NULL;
 	obj->efile.arena_data = NULL;
 
@@ -1571,6 +1589,16 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 		goto errout;
 	}
 
+	/* Validate ELF object endianness... */
+	if (ehdr->e_ident[EI_DATA] != ELFDATA2LSB &&
+	    ehdr->e_ident[EI_DATA] != ELFDATA2MSB) {
+		err = -LIBBPF_ERRNO__ENDIAN;
+		pr_warn("elf: '%s' has unknown byte order\n", obj->path);
+		goto errout;
+	}
+	/* and save after bpf_object_open() frees ELF data */
+	obj->byteorder = ehdr->e_ident[EI_DATA];
+
 	if (elf_getshdrstrndx(elf, &obj->efile.shstrndx)) {
 		pr_warn("elf: failed to get section names section index for %s: %s\n",
 			obj->path, elf_errmsg(-1));
@@ -1599,19 +1627,15 @@ errout:
 	return err;
 }
 
-static int bpf_object__check_endianness(struct bpf_object *obj)
+static bool is_native_endianness(struct bpf_object *obj)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	if (obj->efile.ehdr->e_ident[EI_DATA] == ELFDATA2LSB)
-		return 0;
+	return obj->byteorder == ELFDATA2LSB;
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	if (obj->efile.ehdr->e_ident[EI_DATA] == ELFDATA2MSB)
-		return 0;
+	return obj->byteorder == ELFDATA2MSB;
 #else
 # error "Unrecognized __BYTE_ORDER__"
 #endif
-	pr_warn("elf: endianness mismatch in %s.\n", obj->path);
-	return -LIBBPF_ERRNO__ENDIAN;
 }
 
 static int
@@ -3581,11 +3605,12 @@ static int bpf_object__sanitize_and_load_btf(struct bpf_object *obj)
 report:
 	if (err) {
 		btf_mandatory = kernel_needs_btf(obj);
-		pr_warn("Error loading .BTF into kernel: %d. %s\n", err,
-			btf_mandatory ? "BTF is mandatory, can't proceed."
-				      : "BTF is optional, ignoring.");
-		if (!btf_mandatory)
+		if (btf_mandatory) {
+			pr_warn("Error loading .BTF into kernel: %d. BTF is mandatory, can't proceed.\n", err);
+		} else {
+			pr_info("Error loading .BTF into kernel: %d. BTF is optional, ignoring.\n", err);
 			err = 0;
+		}
 	}
 	return err;
 }
@@ -3953,6 +3978,10 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 		return -LIBBPF_ERRNO__FORMAT;
 	}
 
+	/* change BPF program insns to native endianness for introspection */
+	if (!is_native_endianness(obj))
+		bpf_object_bswap_progs(obj);
+
 	/* sort BPF programs by section name and in-section instruction offset
 	 * for faster search
 	 */
@@ -3985,7 +4014,7 @@ static bool sym_is_subprog(const Elf64_Sym *sym, int text_shndx)
 		return true;
 
 	/* global function */
-	return bind == STB_GLOBAL && type == STT_FUNC;
+	return (bind == STB_GLOBAL || bind == STB_WEAK) && type == STT_FUNC;
 }
 
 static int find_extern_btf_id(const struct btf *btf, const char *ext_name)
@@ -4389,7 +4418,7 @@ static int bpf_object__collect_externs(struct bpf_object *obj)
 
 static bool prog_is_subprog(const struct bpf_object *obj, const struct bpf_program *prog)
 {
-	return prog->sec_idx == obj->efile.text_shndx && obj->nr_programs > 1;
+	return prog->sec_idx == obj->efile.text_shndx;
 }
 
 struct bpf_program *
@@ -5094,6 +5123,7 @@ bpf_object__populate_internal_map(struct bpf_object *obj, struct bpf_map *map)
 	enum libbpf_map_type map_type = map->libbpf_type;
 	char *cp, errmsg[STRERR_BUFSIZE];
 	int err, zero = 0;
+	size_t mmap_sz;
 
 	if (obj->gen_loader) {
 		bpf_gen__map_update_elem(obj->gen_loader, map - obj->maps,
@@ -5107,8 +5137,8 @@ bpf_object__populate_internal_map(struct bpf_object *obj, struct bpf_map *map)
 	if (err) {
 		err = -errno;
 		cp = libbpf_strerror_r(err, errmsg, sizeof(errmsg));
-		pr_warn("Error setting initial map(%s) contents: %s\n",
-			map->name, cp);
+		pr_warn("map '%s': failed to set initial contents: %s\n",
+			bpf_map__name(map), cp);
 		return err;
 	}
 
@@ -5118,11 +5148,43 @@ bpf_object__populate_internal_map(struct bpf_object *obj, struct bpf_map *map)
 		if (err) {
 			err = -errno;
 			cp = libbpf_strerror_r(err, errmsg, sizeof(errmsg));
-			pr_warn("Error freezing map(%s) as read-only: %s\n",
-				map->name, cp);
+			pr_warn("map '%s': failed to freeze as read-only: %s\n",
+				bpf_map__name(map), cp);
 			return err;
 		}
 	}
+
+	/* Remap anonymous mmap()-ed "map initialization image" as
+	 * a BPF map-backed mmap()-ed memory, but preserving the same
+	 * memory address. This will cause kernel to change process'
+	 * page table to point to a different piece of kernel memory,
+	 * but from userspace point of view memory address (and its
+	 * contents, being identical at this point) will stay the
+	 * same. This mapping will be released by bpf_object__close()
+	 * as per normal clean up procedure.
+	 */
+	mmap_sz = bpf_map_mmap_sz(map);
+	if (map->def.map_flags & BPF_F_MMAPABLE) {
+		void *mmaped;
+		int prot;
+
+		if (map->def.map_flags & BPF_F_RDONLY_PROG)
+			prot = PROT_READ;
+		else
+			prot = PROT_READ | PROT_WRITE;
+		mmaped = mmap(map->mmaped, mmap_sz, prot, MAP_SHARED | MAP_FIXED, map->fd, 0);
+		if (mmaped == MAP_FAILED) {
+			err = -errno;
+			pr_warn("map '%s': failed to re-mmap() contents: %d\n",
+				bpf_map__name(map), err);
+			return err;
+		}
+		map->mmaped = mmaped;
+	} else if (map->mmaped) {
+		munmap(map->mmaped, mmap_sz);
+		map->mmaped = NULL;
+	}
+
 	return 0;
 }
 
@@ -5439,8 +5501,7 @@ retry:
 				err = bpf_object__populate_internal_map(obj, map);
 				if (err < 0)
 					goto err_out;
-			}
-			if (map->def.type == BPF_MAP_TYPE_ARENA) {
+			} else if (map->def.type == BPF_MAP_TYPE_ARENA) {
 				map->mmaped = mmap((void *)(long)map->map_extra,
 						   bpf_map_mmap_sz(map), PROT_READ | PROT_WRITE,
 						   map->map_extra ? MAP_SHARED | MAP_FIXED : MAP_SHARED,
@@ -7352,8 +7413,14 @@ static int libbpf_prepare_prog_load(struct bpf_program *prog,
 		opts->prog_flags |= BPF_F_XDP_HAS_FRAGS;
 
 	/* special check for usdt to use uprobe_multi link */
-	if ((def & SEC_USDT) && kernel_supports(prog->obj, FEAT_UPROBE_MULTI_LINK))
+	if ((def & SEC_USDT) && kernel_supports(prog->obj, FEAT_UPROBE_MULTI_LINK)) {
+		/* for BPF_TRACE_UPROBE_MULTI, user might want to query expected_attach_type
+		 * in prog, and expected_attach_type we set in kernel is from opts, so we
+		 * update both.
+		 */
 		prog->expected_attach_type = BPF_TRACE_UPROBE_MULTI;
+		opts->expected_attach_type = BPF_TRACE_UPROBE_MULTI;
+	}
 
 	if ((def & SEC_ATTACH_BTF) && !prog->attach_btf_id) {
 		int btf_obj_fd = 0, btf_type_id = 0, err;
@@ -7443,6 +7510,7 @@ static int bpf_object_load_prog(struct bpf_object *obj, struct bpf_program *prog
 	load_attr.attach_btf_id = prog->attach_btf_id;
 	load_attr.kern_version = kern_version;
 	load_attr.prog_ifindex = prog->prog_ifindex;
+	load_attr.expected_attach_type = prog->expected_attach_type;
 
 	/* specify func_info/line_info only if kernel supports them */
 	if (obj->btf && btf__fd(obj->btf) >= 0 && kernel_supports(obj, FEAT_BTF_FUNC)) {
@@ -7473,9 +7541,6 @@ static int bpf_object_load_prog(struct bpf_object *obj, struct bpf_program *prog
 		insns = prog->insns;
 		insns_cnt = prog->insns_cnt;
 	}
-
-	/* allow prog_prepare_load_fn to change expected_attach_type */
-	load_attr.expected_attach_type = prog->expected_attach_type;
 
 	if (obj->gen_loader) {
 		bpf_gen__prog_load(obj->gen_loader, prog->type, prog->name,
@@ -7992,7 +8057,6 @@ static struct bpf_object *bpf_object_open(const char *path, const void *obj_buf,
 	}
 
 	err = bpf_object__elf_init(obj);
-	err = err ? : bpf_object__check_endianness(obj);
 	err = err ? : bpf_object__elf_collect(obj);
 	err = err ? : bpf_object__collect_externs(obj);
 	err = err ? : bpf_object_fixup_btf(obj);
@@ -8498,8 +8562,15 @@ static int bpf_object_load(struct bpf_object *obj, int extra_log_level, const ch
 		return libbpf_err(-EINVAL);
 	}
 
-	if (obj->gen_loader)
+	/* Disallow kernel loading programs of non-native endianness but
+	 * permit cross-endian creation of "light skeleton".
+	 */
+	if (obj->gen_loader) {
 		bpf_gen__init(obj->gen_loader, extra_log_level, obj->nr_programs, obj->nr_maps);
+	} else if (!is_native_endianness(obj)) {
+		pr_warn("object '%s': loading non-native endianness is unsupported\n", obj->name);
+		return libbpf_err(-LIBBPF_ERRNO__ENDIAN);
+	}
 
 	err = bpf_object_prepare_token(obj);
 	err = err ? : bpf_object__probe_loading(obj);
@@ -9096,6 +9167,7 @@ int bpf_object__gen_loader(struct bpf_object *obj, struct gen_loader_opts *opts)
 	if (!gen)
 		return -ENOMEM;
 	gen->opts = opts;
+	gen->swapped_endian = !is_native_endianness(obj);
 	obj->gen_loader = gen;
 	return 0;
 }
@@ -9370,8 +9442,10 @@ static const struct bpf_sec_def section_defs[] = {
 	SEC_DEF("kprobe.session+",	KPROBE,	BPF_TRACE_KPROBE_SESSION, SEC_NONE, attach_kprobe_session),
 	SEC_DEF("uprobe.multi+",	KPROBE,	BPF_TRACE_UPROBE_MULTI, SEC_NONE, attach_uprobe_multi),
 	SEC_DEF("uretprobe.multi+",	KPROBE,	BPF_TRACE_UPROBE_MULTI, SEC_NONE, attach_uprobe_multi),
+	SEC_DEF("uprobe.session+",	KPROBE,	BPF_TRACE_UPROBE_SESSION, SEC_NONE, attach_uprobe_multi),
 	SEC_DEF("uprobe.multi.s+",	KPROBE,	BPF_TRACE_UPROBE_MULTI, SEC_SLEEPABLE, attach_uprobe_multi),
 	SEC_DEF("uretprobe.multi.s+",	KPROBE,	BPF_TRACE_UPROBE_MULTI, SEC_SLEEPABLE, attach_uprobe_multi),
+	SEC_DEF("uprobe.session.s+",	KPROBE,	BPF_TRACE_UPROBE_SESSION, SEC_SLEEPABLE, attach_uprobe_multi),
 	SEC_DEF("ksyscall+",		KPROBE,	0, SEC_NONE, attach_ksyscall),
 	SEC_DEF("kretsyscall+",		KPROBE, 0, SEC_NONE, attach_ksyscall),
 	SEC_DEF("usdt+",		KPROBE,	0, SEC_USDT, attach_usdt),
@@ -11693,7 +11767,9 @@ static int attach_uprobe_multi(const struct bpf_program *prog, long cookie, stru
 		ret = 0;
 		break;
 	case 3:
+		opts.session = str_has_pfx(probe_type, "uprobe.session");
 		opts.retprobe = str_has_pfx(probe_type, "uretprobe.multi");
+
 		*link = bpf_program__attach_uprobe_multi(prog, -1, binary_path, func_name, &opts);
 		ret = libbpf_get_error(*link);
 		break;
@@ -11942,10 +12018,12 @@ bpf_program__attach_uprobe_multi(const struct bpf_program *prog,
 	const unsigned long *ref_ctr_offsets = NULL, *offsets = NULL;
 	LIBBPF_OPTS(bpf_link_create_opts, lopts);
 	unsigned long *resolved_offsets = NULL;
+	enum bpf_attach_type attach_type;
 	int err = 0, link_fd, prog_fd;
 	struct bpf_link *link = NULL;
 	char errmsg[STRERR_BUFSIZE];
 	char full_path[PATH_MAX];
+	bool retprobe, session;
 	const __u64 *cookies;
 	const char **syms;
 	size_t cnt;
@@ -12016,12 +12094,20 @@ bpf_program__attach_uprobe_multi(const struct bpf_program *prog,
 		offsets = resolved_offsets;
 	}
 
+	retprobe = OPTS_GET(opts, retprobe, false);
+	session  = OPTS_GET(opts, session, false);
+
+	if (retprobe && session)
+		return libbpf_err_ptr(-EINVAL);
+
+	attach_type = session ? BPF_TRACE_UPROBE_SESSION : BPF_TRACE_UPROBE_MULTI;
+
 	lopts.uprobe_multi.path = path;
 	lopts.uprobe_multi.offsets = offsets;
 	lopts.uprobe_multi.ref_ctr_offsets = ref_ctr_offsets;
 	lopts.uprobe_multi.cookies = cookies;
 	lopts.uprobe_multi.cnt = cnt;
-	lopts.uprobe_multi.flags = OPTS_GET(opts, retprobe, false) ? BPF_F_UPROBE_MULTI_RETURN : 0;
+	lopts.uprobe_multi.flags = retprobe ? BPF_F_UPROBE_MULTI_RETURN : 0;
 
 	if (pid == 0)
 		pid = getpid();
@@ -12035,7 +12121,7 @@ bpf_program__attach_uprobe_multi(const struct bpf_program *prog,
 	}
 	link->detach = &bpf_link__detach_fd;
 
-	link_fd = bpf_link_create(prog_fd, 0, BPF_TRACE_UPROBE_MULTI, &lopts);
+	link_fd = bpf_link_create(prog_fd, 0, attach_type, &lopts);
 	if (link_fd < 0) {
 		err = -errno;
 		pr_warn("prog '%s': failed to attach multi-uprobe: %s\n",
@@ -12760,7 +12846,7 @@ struct bpf_link *bpf_program__attach_freplace(const struct bpf_program *prog,
 	}
 
 	if (prog->type != BPF_PROG_TYPE_EXT) {
-		pr_warn("prog '%s': only BPF_PROG_TYPE_EXT can attach as freplace",
+		pr_warn("prog '%s': only BPF_PROG_TYPE_EXT can attach as freplace\n",
 			prog->name);
 		return libbpf_err_ptr(-EINVAL);
 	}
@@ -13834,7 +13920,7 @@ int bpf_object__open_subskeleton(struct bpf_object_subskeleton *s)
 		map_type = btf__type_by_id(btf, map_type_id);
 
 		if (!btf_is_datasec(map_type)) {
-			pr_warn("type for map '%1$s' is not a datasec: %2$s",
+			pr_warn("type for map '%1$s' is not a datasec: %2$s\n",
 				bpf_map__name(map),
 				__btf_kind_str(btf_kind(map_type)));
 			return libbpf_err(-EINVAL);
@@ -13877,46 +13963,11 @@ int bpf_object__load_skeleton(struct bpf_object_skeleton *s)
 	for (i = 0; i < s->map_cnt; i++) {
 		struct bpf_map_skeleton *map_skel = (void *)s->maps + i * s->map_skel_sz;
 		struct bpf_map *map = *map_skel->map;
-		size_t mmap_sz = bpf_map_mmap_sz(map);
-		int prot, map_fd = map->fd;
-		void **mmaped = map_skel->mmaped;
 
-		if (!mmaped)
+		if (!map_skel->mmaped)
 			continue;
 
-		if (!(map->def.map_flags & BPF_F_MMAPABLE)) {
-			*mmaped = NULL;
-			continue;
-		}
-
-		if (map->def.type == BPF_MAP_TYPE_ARENA) {
-			*mmaped = map->mmaped;
-			continue;
-		}
-
-		if (map->def.map_flags & BPF_F_RDONLY_PROG)
-			prot = PROT_READ;
-		else
-			prot = PROT_READ | PROT_WRITE;
-
-		/* Remap anonymous mmap()-ed "map initialization image" as
-		 * a BPF map-backed mmap()-ed memory, but preserving the same
-		 * memory address. This will cause kernel to change process'
-		 * page table to point to a different piece of kernel memory,
-		 * but from userspace point of view memory address (and its
-		 * contents, being identical at this point) will stay the
-		 * same. This mapping will be released by bpf_object__close()
-		 * as per normal clean up procedure, so we don't need to worry
-		 * about it from skeleton's clean up perspective.
-		 */
-		*mmaped = mmap(map->mmaped, mmap_sz, prot, MAP_SHARED | MAP_FIXED, map_fd, 0);
-		if (*mmaped == MAP_FAILED) {
-			err = -errno;
-			*mmaped = NULL;
-			pr_warn("failed to re-mmap() map '%s': %d\n",
-				 bpf_map__name(map), err);
-			return libbpf_err(err);
-		}
+		*map_skel->mmaped = map->mmaped;
 	}
 
 	return 0;
