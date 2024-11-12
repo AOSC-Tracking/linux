@@ -876,7 +876,6 @@ static const struct dc_debug_options debug_defaults_drv = {
 	.replay_skip_crtc_disabled = true,
 	.disable_dmcu = true,
 	.force_abm_enable = false,
-	.timing_trace = false,
 	.clock_trace = true,
 	.disable_dpp_power_gate = false,
 	.disable_hubp_power_gate = false,
@@ -1149,7 +1148,7 @@ static struct link_encoder *dcn31_link_encoder_create(
 	struct dcn20_link_encoder *enc20 =
 		kzalloc(sizeof(struct dcn20_link_encoder), GFP_KERNEL);
 
-	if (!enc20)
+	if (!enc20 || enc_init_data->hpd_source >= ARRAY_SIZE(link_enc_hpd_regs))
 		return NULL;
 
 	dcn31_link_encoder_construct(enc20,
