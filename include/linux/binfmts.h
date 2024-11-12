@@ -55,6 +55,7 @@ struct linux_binprm {
 				   of the time same as filename, but could be
 				   different for binfmt_{misc,script} */
 	const char *fdpath;	/* generated filename for execveat */
+	const char *argv0;	/* argv0 from execveat */
 	unsigned interp_flags;
 	int execfd;		/* File descriptor of the executable */
 	unsigned long loader, exec;
