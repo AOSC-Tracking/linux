@@ -40,6 +40,7 @@
 #define AMDGPU_MES_VERSION_MASK		0x00000fff
 #define AMDGPU_MES_API_VERSION_MASK	0x00fff000
 #define AMDGPU_MES_FEAT_VERSION_MASK	0xff000000
+#define AMDGPU_MES_MSCRATCH_SIZE	0x8000
 
 enum amdgpu_mes_priority_level {
 	AMDGPU_MES_PRIORITY_LEVEL_LOW       = 0,
@@ -120,9 +121,6 @@ struct amdgpu_mes {
 	uint32_t			query_status_fence_offs[AMDGPU_MAX_MES_PIPES];
 	uint64_t			query_status_fence_gpu_addr[AMDGPU_MAX_MES_PIPES];
 	uint64_t			*query_status_fence_ptr[AMDGPU_MAX_MES_PIPES];
-	uint32_t                        read_val_offs;
-	uint64_t			read_val_gpu_addr;
-	uint32_t			*read_val_ptr;
 
 	uint32_t			saved_flags;
 
