@@ -178,6 +178,7 @@ void string_stream_destroy(struct string_stream *stream)
 
 	string_stream_clear(stream);
 	kfree(stream);
+	stream = NULL;
 }
 
 static void resource_free_string_stream(void *p)
