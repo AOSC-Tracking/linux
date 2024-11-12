@@ -466,7 +466,7 @@ static void pwm_apply_debug(struct pwm_device *pwm,
 	    state->duty_cycle < state->period)
 		dev_warn(pwmchip_parent(chip), ".apply ignored .polarity\n");
 
-	if (state->enabled &&
+	if (state->enabled && s2.enabled &&
 	    last->polarity == state->polarity &&
 	    last->period > s2.period &&
 	    last->period <= state->period)
@@ -474,7 +474,11 @@ static void pwm_apply_debug(struct pwm_device *pwm,
 			 ".apply didn't pick the best available period (requested: %llu, applied: %llu, possible: %llu)\n",
 			 state->period, s2.period, last->period);
 
-	if (state->enabled && state->period < s2.period)
+	/*
+	 * Rounding period up is fine only if duty_cycle is 0 then, because a
+	 * flat line doesn't have a characteristic period.
+	 */
+	if (state->enabled && s2.enabled && state->period < s2.period && s2.duty_cycle)
 		dev_warn(pwmchip_parent(chip),
 			 ".apply is supposed to round down period (requested: %llu, applied: %llu)\n",
 			 state->period, s2.period);
@@ -490,7 +494,7 @@ static void pwm_apply_debug(struct pwm_device *pwm,
 			 s2.duty_cycle, s2.period,
 			 last->duty_cycle, last->period);
 
-	if (state->enabled && state->duty_cycle < s2.duty_cycle)
+	if (state->enabled && s2.enabled && state->duty_cycle < s2.duty_cycle)
 		dev_warn(pwmchip_parent(chip),
 			 ".apply is supposed to round down duty_cycle (requested: %llu/%llu, applied: %llu/%llu)\n",
 			 state->duty_cycle, state->period,
@@ -718,11 +722,29 @@ int pwm_apply_atomic(struct pwm_device *pwm, const struct pwm_state *state)
 }
 EXPORT_SYMBOL_GPL(pwm_apply_atomic);
 
-static int pwm_get_state_hw(struct pwm_device *pwm, struct pwm_state *state)
+/**
+ * pwm_get_state_hw() - get the current PWM state from hardware
+ * @pwm: PWM device
+ * @state: state to fill with the current PWM state
+ *
+ * Similar to pwm_get_state() but reads the current PWM state from hardware
+ * instead of the requested state.
+ *
+ * Returns: 0 on success or a negative error code on failure.
+ * Context: May sleep.
+ */
+int pwm_get_state_hw(struct pwm_device *pwm, struct pwm_state *state)
 {
 	struct pwm_chip *chip = pwm->chip;
 	const struct pwm_ops *ops = chip->ops;
 	int ret = -EOPNOTSUPP;
+
+	might_sleep();
+
+	guard(pwmchip)(chip);
+
+	if (!chip->operational)
+		return -ENODEV;
 
 	if (ops->read_waveform) {
 		char wfhw[WFHWSIZE];
@@ -730,28 +752,24 @@ static int pwm_get_state_hw(struct pwm_device *pwm, struct pwm_state *state)
 
 		BUG_ON(WFHWSIZE < ops->sizeof_wfhw);
 
-		scoped_guard(pwmchip, chip) {
+		ret = __pwm_read_waveform(chip, pwm, &wfhw);
+		if (ret)
+			return ret;
 
-			ret = __pwm_read_waveform(chip, pwm, &wfhw);
-			if (ret)
-				return ret;
-
-			ret = __pwm_round_waveform_fromhw(chip, pwm, &wfhw, &wf);
-			if (ret)
-				return ret;
-		}
+		ret = __pwm_round_waveform_fromhw(chip, pwm, &wfhw, &wf);
+		if (ret)
+			return ret;
 
 		pwm_wf2state(&wf, state);
 
 	} else if (ops->get_state) {
-		scoped_guard(pwmchip, chip)
-			ret = ops->get_state(chip, pwm, state);
-
+		ret = ops->get_state(chip, pwm, state);
 		trace_pwm_get(pwm, state, ret);
 	}
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(pwm_get_state_hw);
 
 /**
  * pwm_adjust_config() - adjust the current PWM config to the PWM arguments
@@ -852,9 +870,7 @@ static struct pwm_chip *pwmchip_find_by_name(const char *name)
 	guard(mutex)(&pwm_lock);
 
 	idr_for_each_entry_ul(&pwm_chips, chip, tmp, id) {
-		const char *chip_name = dev_name(pwmchip_parent(chip));
-
-		if (chip_name && strcmp(chip_name, name) == 0)
+		if (device_match_name(pwmchip_parent(chip), name))
 			return chip;
 	}
 
