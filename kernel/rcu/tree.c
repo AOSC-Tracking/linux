@@ -5224,6 +5224,7 @@ void rcutree_migrate_callbacks(int cpu)
 	struct rcu_data *rdp = per_cpu_ptr(&rcu_data, cpu);
 	bool needwake;
 
+	WARN_ON_ONCE(1);
 	if (rcu_rdp_is_offloaded(rdp))
 		return;
 
