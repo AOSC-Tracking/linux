@@ -602,7 +602,7 @@ static int rockchip_gpiolib_register(struct rockchip_pin_bank *bank)
 	 * files which don't set the "gpio-ranges" property or systems that
 	 * utilize ACPI the driver has to call gpiochip_add_pin_range().
 	 */
-	if (!of_property_read_bool(bank->of_node, "gpio-ranges")) {
+	if (!of_property_present(bank->of_node, "gpio-ranges")) {
 		struct device_node *pctlnp = of_get_parent(bank->of_node);
 		struct pinctrl_dev *pctldev = NULL;
 
@@ -795,7 +795,7 @@ static const struct of_device_id rockchip_gpio_match[] = {
 
 static struct platform_driver rockchip_gpio_driver = {
 	.probe		= rockchip_gpio_probe,
-	.remove_new	= rockchip_gpio_remove,
+	.remove		= rockchip_gpio_remove,
 	.driver		= {
 		.name	= "rockchip-gpio",
 		.of_match_table = rockchip_gpio_match,
