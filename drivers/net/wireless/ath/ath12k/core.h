@@ -63,6 +63,13 @@
 #define ATH12K_RECONFIGURE_TIMEOUT_HZ		(10 * HZ)
 #define ATH12K_RECOVER_START_TIMEOUT_HZ		(20 * HZ)
 
+#define ATH12K_MAX_SOCS 3
+#define ATH12K_INVALID_GROUP_ID  0xFF
+#define ATH12K_INVALID_DEVICE_ID 0xFF
+
+#define ATH12K_MAX_MLO_PEERS            256
+#define ATH12K_MLO_PEER_ID_INVALID      0xFFFF
+
 enum ath12k_bdf_search {
 	ATH12K_BDF_SEARCH_DEFAULT,
 	ATH12K_BDF_SEARCH_BUS_AND_BOARD,
@@ -469,6 +476,9 @@ struct ath12k_link_sta {
 	struct ath12k_link_vif *arvif;
 	struct ath12k_sta *ahsta;
 
+	/* link address similar to ieee80211_link_sta */
+	u8 addr[ETH_ALEN];
+
 	/* the following are protected by ar->data_lock */
 	u32 changed; /* IEEE80211_RC_* */
 	u32 bw;
@@ -485,14 +495,22 @@ struct ath12k_link_sta {
 	struct ath12k_rx_peer_stats *rx_stats;
 	struct ath12k_wbm_tx_stats *wbm_tx_stats;
 	u32 bw_prev;
+
+	/* For now the assoc link will be considered primary */
+	bool is_assoc_link;
+
+	 /* for firmware use only */
+	u8 link_idx;
 };
 
 struct ath12k_sta {
+	struct ath12k_vif *ahvif;
 	enum hal_pn_type pn_type;
 	struct ath12k_link_sta deflink;
 	struct ath12k_link_sta __rcu *link[IEEE80211_MLD_MAX_NUM_LINKS];
 	/* indicates bitmap of link sta created in FW */
 	u16 links_map;
+	u16 ml_peer_id;
 };
 
 #define ATH12K_MIN_5G_FREQ 4150
@@ -688,6 +706,8 @@ struct ath12k {
 
 struct ath12k_hw {
 	struct ieee80211_hw *hw;
+	struct device *dev;
+
 	/* Protect the write operation of the hardware state ath12k_hw::state
 	 * between hardware start<=>reconfigure<=>stop transitions.
 	 */
@@ -697,6 +717,11 @@ struct ath12k_hw {
 	bool use_6ghz_regd;
 
 	u8 num_radio;
+
+	DECLARE_BITMAP(free_ml_peer_id_map, ATH12K_MAX_MLO_PEERS);
+
+	/* protected by wiphy_lock() */
+	struct list_head ml_peers;
 
 	/* Keep last */
 	struct ath12k radio[] __aligned(sizeof(void *));
