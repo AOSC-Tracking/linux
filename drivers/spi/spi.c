@@ -419,7 +419,7 @@ static int spi_probe(struct device *dev)
 	if (dev->of_node) {
 		spi->irq = of_irq_get(dev->of_node, 0);
 		if (spi->irq == -EPROBE_DEFER)
-			return -EPROBE_DEFER;
+			return dev_err_probe(dev, -EPROBE_DEFER, "Failed to get irq\n");
 		if (spi->irq < 0)
 			spi->irq = 0;
 	}
@@ -2454,7 +2454,7 @@ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
 			nc, rc);
 		return rc;
 	}
-	if ((of_property_read_bool(nc, "parallel-memories")) &&
+	if ((of_property_present(nc, "parallel-memories")) &&
 	    (!(ctlr->flags & SPI_CONTROLLER_MULTI_CS))) {
 		dev_err(&ctlr->dev, "SPI controller doesn't support multi CS\n");
 		return -EINVAL;
@@ -2926,7 +2926,7 @@ static void spi_controller_release(struct device *dev)
 	kfree(ctlr);
 }
 
-static struct class spi_master_class = {
+static const struct class spi_master_class = {
 	.name		= "spi_master",
 	.dev_release	= spi_controller_release,
 	.dev_groups	= spi_master_groups,
@@ -3016,7 +3016,7 @@ static const struct attribute_group *spi_slave_groups[] = {
 	NULL,
 };
 
-static struct class spi_slave_class = {
+static const struct class spi_slave_class = {
 	.name		= "spi_slave",
 	.dev_release	= spi_controller_release,
 	.dev_groups	= spi_slave_groups,
@@ -3238,9 +3238,9 @@ static int spi_controller_id_alloc(struct spi_controller *ctlr, int start, int e
 }
 
 /**
- * spi_register_controller - register SPI master or slave controller
- * @ctlr: initialized master, originally from spi_alloc_master() or
- *	spi_alloc_slave()
+ * spi_register_controller - register SPI host or target controller
+ * @ctlr: initialized controller, originally from spi_alloc_host() or
+ *	spi_alloc_target()
  * Context: can sleep
  *
  * SPI controllers connect to their drivers using some non-SPI bus,
@@ -3390,11 +3390,11 @@ static void devm_spi_unregister(struct device *dev, void *res)
 }
 
 /**
- * devm_spi_register_controller - register managed SPI master or slave
+ * devm_spi_register_controller - register managed SPI host or target
  *	controller
  * @dev:    device managing SPI controller
- * @ctlr: initialized controller, originally from spi_alloc_master() or
- *	spi_alloc_slave()
+ * @ctlr: initialized controller, originally from spi_alloc_host() or
+ *	spi_alloc_target()
  * Context: can sleep
  *
  * Register a SPI device as with spi_register_controller() which will
@@ -3478,7 +3478,7 @@ void spi_unregister_controller(struct spi_controller *ctlr)
 
 	/*
 	 * Release the last reference on the controller if its driver
-	 * has not yet been converted to devm_spi_alloc_master/slave().
+	 * has not yet been converted to devm_spi_alloc_host/target().
 	 */
 	if (!ctlr->devm_allocated)
 		put_device(&ctlr->dev);
