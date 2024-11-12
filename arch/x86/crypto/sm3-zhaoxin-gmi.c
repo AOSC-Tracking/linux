@@ -18,7 +18,7 @@
 #include <crypto/sm3_base.h>
 #include <linux/bitops.h>
 #include <asm/byteorder.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/cpufeature.h>
 #include <linux/processor.h>
 

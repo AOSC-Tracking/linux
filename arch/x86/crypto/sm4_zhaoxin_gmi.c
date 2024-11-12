@@ -19,7 +19,7 @@
 #include <crypto/internal/skcipher.h>
 #include <linux/workqueue.h>
 #include <crypto/sm4.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/processor.h>
 #include <linux/cpufeature.h>
 
