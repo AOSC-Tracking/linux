@@ -1021,7 +1021,7 @@ out_free:
 	return err;
 }
 
-static int hda_ft_remove(struct platform_device *pdev)
+static void hda_ft_remove(struct platform_device *pdev)
 {
 	struct snd_card *card = dev_get_drvdata(&pdev->dev);
 	struct azx *chip;
@@ -1035,9 +1035,8 @@ static int hda_ft_remove(struct platform_device *pdev)
 		clear_bit(chip->dev_index, probed_devs);
 
 		snd_card_free(card);
-		return 0;
+		return;
 	}
-	return 0;
 }
 
 static void hda_ft_shutdown(struct platform_device *pdev)
