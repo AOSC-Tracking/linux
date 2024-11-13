@@ -290,7 +290,7 @@ exit_reset:
 	return ret;
 }
 
-static int phytium_i2c_plat_remove(struct platform_device *pdev)
+static void phytium_i2c_plat_remove(struct platform_device *pdev)
 {
 	struct phytium_i2c_dev *dev = platform_get_drvdata(pdev);
 
@@ -306,8 +306,6 @@ static int phytium_i2c_plat_remove(struct platform_device *pdev)
 
 	if (!IS_ERR_OR_NULL(dev->rst))
 		reset_control_assert(dev->rst);
-
-	return 0;
 }
 
 #ifdef CONFIG_OF
