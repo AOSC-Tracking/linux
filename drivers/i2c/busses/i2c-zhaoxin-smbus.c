@@ -349,15 +349,13 @@ static int zxsmb_probe(struct platform_device *pdev)
 	return i2c_add_adapter(&smb->adap);
 }
 
-static int zxsmb_remove(struct platform_device *pdev)
+static void zxsmb_remove(struct platform_device *pdev)
 {
 	struct zxsmb *smb = platform_get_drvdata(pdev);
 
 	i2c_del_adapter(&(smb->adap));
 	platform_set_drvdata(pdev, NULL);
 	devm_kfree(&pdev->dev, smb);
-
-	return 0;
 }
 
 static const struct acpi_device_id zxsmb_acpi_match[] = {
@@ -368,7 +366,7 @@ MODULE_DEVICE_TABLE(acpi, zxsmb_acpi_match);
 
 static struct platform_driver zxsmb_driver = {
 	.probe  = zxsmb_probe,
-	.remove = zxsmb_remove,
+	.remove_new = zxsmb_remove,
 	.driver = {
 		.name = ZXSMB_NAME,
 		.acpi_match_table = ACPI_PTR(zxsmb_acpi_match),
