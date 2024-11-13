@@ -173,7 +173,7 @@ static __maybe_unused int phytium_can_plat_resume(struct device *dev)
 	return phytium_can_resume(dev);
 }
 
-static int phytium_can_plat_remove(struct platform_device *pdev)
+static void phytium_can_plat_remove(struct platform_device *pdev)
 {
 	struct net_device *dev = platform_get_drvdata(pdev);
 	struct phytium_can_dev *cdev = netdev_priv(dev);
@@ -181,8 +181,6 @@ static int phytium_can_plat_remove(struct platform_device *pdev)
 	phytium_can_unregister(cdev);
 
 	phytium_can_free_dev(cdev->net);
-
-	return 0;
 }
 
 static int __maybe_unused phytium_can_runtime_suspend(struct device *dev)
