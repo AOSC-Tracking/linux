@@ -498,14 +498,12 @@ static int phytium_keypad_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int phytium_keypad_remove(struct platform_device *pdev)
+static void phytium_keypad_remove(struct platform_device *pdev)
 {
 	struct phytium_keypad *keypad = platform_get_drvdata(pdev);
 
 	input_unregister_device(keypad->input_dev);
 	devm_kfree(&pdev->dev, keypad);
-
-	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
