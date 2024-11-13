@@ -1395,10 +1395,9 @@ failed_get_dai_name:
 	return ret;
 }
 
-static int phytium_i2s_remove(struct platform_device *pdev)
+static void phytium_i2s_remove(struct platform_device *pdev)
 {
 	pm_runtime_disable(&pdev->dev);
-	return 0;
 }
 
 static const struct of_device_id phytium_i2s_of_match[] = {
