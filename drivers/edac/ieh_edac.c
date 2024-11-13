@@ -536,8 +536,8 @@ static struct notifier_block ieh_mce_dec = {
 };
 
 static const struct x86_cpu_id ieh_cpuids[] = {
-	X86_MATCH_INTEL_FAM6_MODEL(TIGERLAKE_L,	&tgl_u_cfg),
-	X86_MATCH_INTEL_FAM6_MODEL(TIGERLAKE,	&tgl_h_cfg),
+	X86_MATCH_VFM(INTEL_TIGERLAKE_L, &tgl_u_cfg),
+	X86_MATCH_VFM(INTEL_TIGERLAKE, &tgl_h_cfg),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, ieh_cpuids);
