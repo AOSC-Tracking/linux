@@ -19,5 +19,6 @@ kvm-y += timer.o
 kvm-y += tlb.o
 kvm-y += vcpu.o
 kvm-y += vm.o
+kvm-y += intc/ipi.o
 
 CFLAGS_exit.o	+= $(call cc-disable-warning, override-init)
