@@ -184,13 +184,12 @@ exit_remove:
 	return err;
 }
 
-static int zhaoxin_cputemp_remove(struct platform_device *pdev)
+static void zhaoxin_cputemp_remove(struct platform_device *pdev)
 {
 	struct zhaoxin_cputemp_data *data = platform_get_drvdata(pdev);
 
 	hwmon_device_unregister(data->hwmon_dev);
 	sysfs_remove_group(&pdev->dev.kobj, &zhaoxin_cputemp_group);
-	return 0;
 }
 
 static struct platform_driver zhaoxin_cputemp_driver = {
@@ -198,7 +197,7 @@ static struct platform_driver zhaoxin_cputemp_driver = {
 		.name = DRVNAME,
 	},
 	.probe = zhaoxin_cputemp_probe,
-	.remove = zhaoxin_cputemp_remove,
+	.remove_new = zhaoxin_cputemp_remove,
 };
 
 struct pdev_entry {
