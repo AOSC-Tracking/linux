@@ -400,7 +400,7 @@ static int phytium_kcs_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int phytium_kcs_remove(struct platform_device *pdev)
+static void phytium_kcs_remove(struct platform_device *pdev)
 {
 	struct phytium_kcs_bmc *priv = platform_get_drvdata(pdev);
 	struct kcs_bmc_device *kcs_bmc = &priv->kcs_bmc;
@@ -413,7 +413,6 @@ static int phytium_kcs_remove(struct platform_device *pdev)
 	priv->obe.remove = true;
 	spin_unlock_irq(&priv->obe.lock);
 	del_timer_sync(&priv->obe.timer);
-	return 0;
 }
 
 static const struct of_device_id phytium_kcs_bmc_match[] = {
