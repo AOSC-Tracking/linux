@@ -1344,7 +1344,7 @@ static int phytium_jpeg_probe(struct platform_device *pdev)
 }
 
 #define to_phytium_jpeg(x) container_of((x), struct phytium_jpeg_dev, v4l2_dev)
-static int phytium_jpeg_remove(struct platform_device *pdev)
+static void phytium_jpeg_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct v4l2_device *v4l2_dev = dev_get_drvdata(dev);
@@ -1359,8 +1359,6 @@ static int phytium_jpeg_remove(struct platform_device *pdev)
 	v4l2_device_unregister(v4l2_dev);
 
 	of_reserved_mem_device_release(dev);
-
-	return 0;
 }
 
 static struct platform_driver phytium_jpeg_driver = {
