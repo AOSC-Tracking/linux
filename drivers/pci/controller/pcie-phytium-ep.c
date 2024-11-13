@@ -437,15 +437,13 @@ err_alloc_irq_mem:
 	return ret;
 }
 
-static int phytium_pcie_ep_remove(struct platform_device *pdev)
+static void phytium_pcie_ep_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct phytium_pcie_ep *priv = dev_get_drvdata(dev);
 	struct pci_epc *epc = priv->epc;
 
 	pci_epc_mem_exit(epc);
-
-	return 0;
 }
 
 static const struct of_device_id phytium_pcie_ep_of_match[] = {
