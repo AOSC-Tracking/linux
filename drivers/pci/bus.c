@@ -322,10 +322,10 @@ void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
 void __weak pcibios_bus_add_device(struct pci_dev *pdev) { }
 
 /*
- * Create pwrctl devices (if required) for the PCI devices to handle the power
+ * Create pwrctrl devices (if required) for the PCI devices to handle the power
  * state.
  */
-static void pci_pwrctl_create_devices(struct pci_dev *dev)
+static void pci_pwrctrl_create_devices(struct pci_dev *dev)
 {
 	struct device_node *np = dev_of_node(&dev->dev);
 	struct device *parent = &dev->dev;
@@ -337,23 +337,24 @@ static void pci_pwrctl_create_devices(struct pci_dev *dev)
 	 */
 	if (np && pci_is_bridge(dev)) {
 		/*
-		 * Now look for the child PCI device nodes and create pwrctl
-		 * devices for them. The pwrctl device drivers will manage the
+		 * Now look for the child PCI device nodes and create pwrctrl
+		 * devices for them. The pwrctrl device drivers will manage the
 		 * power state of the devices.
 		 */
 		for_each_available_child_of_node_scoped(np, child) {
 			/*
-			 * First check whether the pwrctl device really needs to
-			 * be created or not. This is decided based on at least
-			 * one of the power supplies being defined in the
-			 * devicetree node of the device.
+			 * First check whether the pwrctrl device really
+			 * needs to be created or not. This is decided
+			 * based on at least one of the power supplies
+			 * being defined in the devicetree node of the
+			 * device.
 			 */
 			if (!of_pci_is_supply_present(child)) {
 				pci_dbg(dev, "skipping OF node: %s\n", child->name);
 				return;
 			}
 
-			/* Now create the pwrctl device */
+			/* Now create the pwrctrl device */
 			pdev = of_platform_device_create(child, NULL, parent);
 			if (!pdev)
 				pci_err(dev, "failed to create OF node: %s\n", child->name);
@@ -385,11 +386,11 @@ void pci_bus_add_device(struct pci_dev *dev)
 	pci_proc_attach_device(dev);
 	pci_bridge_d3_update(dev);
 
-	pci_pwrctl_create_devices(dev);
+	pci_pwrctrl_create_devices(dev);
 
 	/*
-	 * Create a device link between the PCI device and pwrctl device (if
-	 * exists). This ensures that the pwrctl drivers are probed before the
+	 * Create a device link between the PCI device and pwrctrl device (if
+	 * exists). This ensures that the pwrctrl drivers are probed before the
 	 * PCI client drivers.
 	 */
 	pdev = of_find_device_by_node(dn);
