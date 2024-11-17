@@ -65,6 +65,17 @@ impl Device {
         self.0.get()
     }
 
+    /// Returns the parent device
+    pub fn parent(&self) -> Option<ARef<Self>> {
+        // SAFETY: pointer is valid by type invariant
+        let pdev = unsafe { (*self.as_raw()).parent };
+        if pdev == ptr::null_mut() {
+            return None;
+        }
+        // SAFETY: if the parent pointer is not null it points to a valid device
+        unsafe { Some(Self::get_device(pdev)) }
+    }
+
     /// Convert a raw C `struct device` pointer to a `&'a Device`.
     ///
     /// # Safety
