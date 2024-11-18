@@ -153,7 +153,6 @@ static void kh40000_dma_direct_unmap_resource(struct device *dev, dma_addr_t add
 }
 
 const struct dma_map_ops kh40000_dma_direct_ops = {
-	.flags			= DMA_F_PCI_P2PDMA_SUPPORTED,
 	.alloc			= kh40000_dma_direct_alloc,
 	.sync_sg_for_cpu	= kh40000_dma_direct_sync_sg_for_cpu,
 	.unmap_page		= kh40000_dma_direct_unmap_page,
@@ -207,19 +206,6 @@ static void kh40000_dma_common_free_pages(struct device *dev, size_t size, struc
 		dma_addr_t dma_handle, enum dma_data_direction dir)
 {
 	iommu_dma_ops->free_pages(dev, size, page, dma_handle, dir);
-}
-
-static struct sg_table *kh40000_iommu_dma_alloc_noncontiguous(struct device *dev,
-		size_t size, enum dma_data_direction dir, gfp_t gfp,
-		unsigned long attrs)
-{
-	return iommu_dma_ops->alloc_noncontiguous(dev, size, dir, gfp, attrs);
-}
-
-static void kh40000_iommu_dma_free_noncontiguous(struct device *dev, size_t size,
-		struct sg_table *sgt, enum dma_data_direction dir)
-{
-	return iommu_dma_ops->free_noncontiguous(dev, size, sgt, dir);
 }
 
 static int kh40000_iommu_dma_mmap(struct device *dev, struct vm_area_struct *vma,
@@ -323,14 +309,11 @@ static size_t kh40000_iommu_dma_opt_mapping_size(void)
 }
 
 const struct dma_map_ops kh40000_dma_iommu_ops = {
-	.flags			= DMA_F_PCI_P2PDMA_SUPPORTED,
 	.alloc			= kh40000_iommu_dma_alloc,
 	.free			= kh40000_iommu_dma_free,
 	.unmap_page		= kh40000_iommu_dma_unmap_page,
 	.alloc_pages_op		= kh40000_dma_common_alloc_pages,
 	.free_pages		= kh40000_dma_common_free_pages,
-	.alloc_noncontiguous	= kh40000_iommu_dma_alloc_noncontiguous,
-	.free_noncontiguous	= kh40000_iommu_dma_free_noncontiguous,
 	.mmap			= kh40000_iommu_dma_mmap,
 	.get_sgtable		= kh40000_iommu_dma_get_sgtable,
 	.map_page		= kh40000_iommu_dma_map_page,
