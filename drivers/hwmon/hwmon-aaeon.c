@@ -49,7 +49,7 @@ static ssize_t name_show(struct device *dev, struct device_attribute *devattr,
 			 char *buf);
 static int aaeon_get_version(void);
 static int aaeon_hwmon_probe(struct platform_device *pdev);
-static int aaeon_hwmon_remove(struct platform_device *pdev);
+static void aaeon_hwmon_remove(struct platform_device *pdev);
 
 static const char * const temp_sensors_name_table[] = {
 			"CPU_Temp",
@@ -409,7 +409,7 @@ aaeon_hwmon_remove_sysfs_files(struct platform_device *pdev,
 				data->bfpi_version);
 }
 
-static int aaeon_hwmon_remove(struct platform_device *pdev)
+static void aaeon_hwmon_remove(struct platform_device *pdev)
 {
 	struct aaeon_hwmon_data *data = platform_get_drvdata(pdev);
 
@@ -417,8 +417,6 @@ static int aaeon_hwmon_remove(struct platform_device *pdev)
 		hwmon_device_unregister(data->hwmon_dev);
 
 	aaeon_hwmon_remove_sysfs_files(pdev, data);
-
-	return 0;
 }
 
 static int aaeon_get_version(void)
@@ -556,7 +554,7 @@ static struct platform_driver aaeon_hwmon_driver = {
 		.owner = THIS_MODULE,
 	},
 	.probe = aaeon_hwmon_probe,
-	.remove = aaeon_hwmon_remove,
+	.remove_new = aaeon_hwmon_remove,
 };
 
 module_platform_driver_probe(aaeon_hwmon_driver, aaeon_hwmon_probe);
