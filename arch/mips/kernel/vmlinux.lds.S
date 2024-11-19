@@ -60,6 +60,7 @@ SECTIONS
 	. = LINKER_LOAD_ADDRESS;
 	/* read-only */
 	_text = .;	/* Text and read-only data */
+	_stext = .;
 	.text : {
 		TEXT_TEXT
 		SCHED_TEXT

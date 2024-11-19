@@ -67,8 +67,6 @@
 	.fill	0x400
 #endif
 
-EXPORT(_stext)
-
 #ifdef CONFIG_BOOT_RAW
 	/*
 	 * Give us a fighting chance of running if execution beings at the
