@@ -699,7 +699,7 @@ isolate_fail:
 	 * pages requested were isolated. If there were any failures, 0 is
 	 * returned and CMA will fail.
 	 */
-	if (strict && blockpfn < end_pfn)
+	if (strict && (blockpfn < end_pfn || total_isolated != nr_scanned))
 		total_isolated = 0;
 
 	cc->total_free_scanned += nr_scanned;
