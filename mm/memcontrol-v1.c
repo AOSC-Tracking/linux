@@ -848,6 +848,8 @@ static int mem_cgroup_move_account(struct folio *folio,
 	css_get(&to->css);
 	css_put(&from->css);
 
+	/* Warning should never happen, so don't worry about refcount non-0 */
+	WARN_ON_ONCE(folio_unqueue_deferred_split(folio));
 	folio->memcg_data = (unsigned long)to;
 
 	__folio_memcg_unlock(from);
@@ -1217,7 +1219,9 @@ static int mem_cgroup_move_charge_pte_range(pmd_t *pmd,
 	enum mc_target_type target_type;
 	union mc_target target;
 	struct folio *folio;
+	bool tried_split_before = false;
 
+retry_pmd:
 	ptl = pmd_trans_huge_lock(pmd, vma);
 	if (ptl) {
 		if (mc.precharge < HPAGE_PMD_NR) {
@@ -1227,6 +1231,27 @@ static int mem_cgroup_move_charge_pte_range(pmd_t *pmd,
 		target_type = get_mctgt_type_thp(vma, addr, *pmd, &target);
 		if (target_type == MC_TARGET_PAGE) {
 			folio = target.folio;
+			/*
+			 * Deferred split queue locking depends on memcg,
+			 * and unqueue is unsafe unless folio refcount is 0:
+			 * split or skip if on the queue? first try to split.
+			 */
+			if (!list_empty(&folio->_deferred_list)) {
+				spin_unlock(ptl);
+				if (!tried_split_before)
+					split_folio(folio);
+				folio_unlock(folio);
+				folio_put(folio);
+				if (tried_split_before)
+					return 0;
+				tried_split_before = true;
+				goto retry_pmd;
+			}
+			/*
+			 * So long as that pmd lock is held, the folio cannot
+			 * be racily added to the _deferred_list, because
+			 * __folio_remove_rmap() will find !partially_mapped.
+			 */
 			if (folio_isolate_lru(folio)) {
 				if (!mem_cgroup_move_account(folio, true,
 							     mc.from, mc.to)) {
@@ -1911,8 +1936,6 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	struct mem_cgroup_event *event;
 	struct cgroup_subsys_state *cfile_css;
 	unsigned int efd, cfd;
-	struct fd efile;
-	struct fd cfile;
 	struct dentry *cdentry;
 	const char *name;
 	char *endp;
@@ -1936,6 +1959,12 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	else
 		return -EINVAL;
 
+	CLASS(fd, efile)(efd);
+	if (fd_empty(efile))
+		return -EBADF;
+
+	CLASS(fd, cfile)(cfd);
+
 	event = kzalloc(sizeof(*event), GFP_KERNEL);
 	if (!event)
 		return -ENOMEM;
@@ -1946,20 +1975,13 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	init_waitqueue_func_entry(&event->wait, memcg_event_wake);
 	INIT_WORK(&event->remove, memcg_event_remove);
 
-	efile = fdget(efd);
-	if (!fd_file(efile)) {
-		ret = -EBADF;
-		goto out_kfree;
-	}
-
 	event->eventfd = eventfd_ctx_fileget(fd_file(efile));
 	if (IS_ERR(event->eventfd)) {
 		ret = PTR_ERR(event->eventfd);
-		goto out_put_efile;
+		goto out_kfree;
 	}
 
-	cfile = fdget(cfd);
-	if (!fd_file(cfile)) {
+	if (fd_empty(cfile)) {
 		ret = -EBADF;
 		goto out_put_eventfd;
 	}
@@ -1968,7 +1990,7 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	/* AV: shouldn't we check that it's been opened for read instead? */
 	ret = file_permission(fd_file(cfile), MAY_READ);
 	if (ret < 0)
-		goto out_put_cfile;
+		goto out_put_eventfd;
 
 	/*
 	 * The control file must be a regular cgroup1 file. As a regular cgroup
@@ -1977,7 +1999,7 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	cdentry = fd_file(cfile)->f_path.dentry;
 	if (cdentry->d_sb->s_type != &cgroup_fs_type || !d_is_reg(cdentry)) {
 		ret = -EINVAL;
-		goto out_put_cfile;
+		goto out_put_eventfd;
 	}
 
 	/*
@@ -2010,7 +2032,7 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 		event->unregister_event = memsw_cgroup_usage_unregister_event;
 	} else {
 		ret = -EINVAL;
-		goto out_put_cfile;
+		goto out_put_eventfd;
 	}
 
 	/*
@@ -2022,11 +2044,9 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 					       &memory_cgrp_subsys);
 	ret = -EINVAL;
 	if (IS_ERR(cfile_css))
-		goto out_put_cfile;
-	if (cfile_css != css) {
-		css_put(cfile_css);
-		goto out_put_cfile;
-	}
+		goto out_put_eventfd;
+	if (cfile_css != css)
+		goto out_put_css;
 
 	ret = event->register_event(memcg, event->eventfd, buf);
 	if (ret)
@@ -2037,23 +2057,14 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	spin_lock_irq(&memcg->event_list_lock);
 	list_add(&event->list, &memcg->event_list);
 	spin_unlock_irq(&memcg->event_list_lock);
-
-	fdput(cfile);
-	fdput(efile);
-
 	return nbytes;
 
 out_put_css:
-	css_put(css);
-out_put_cfile:
-	fdput(cfile);
+	css_put(cfile_css);
 out_put_eventfd:
 	eventfd_ctx_put(event->eventfd);
-out_put_efile:
-	fdput(efile);
 out_kfree:
 	kfree(event);
-
 	return ret;
 }
 
