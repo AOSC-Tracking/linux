@@ -673,7 +673,16 @@ struct io_kiocb {
 	struct io_kiocb			*link;
 	/* custom credentials, valid IFF REQ_F_CREDS is set */
 	const struct cred		*creds;
-	struct io_wq_work		work;
+
+	/*
+	 * Use separate freeptr for slab, but overlay it with work as that
+	 * part is long done by the time the request is freed. Due to an m68k
+	 * quirk, ensure it's aligned to at least the size of the type.
+	 */
+	union {
+		struct io_wq_work	work;
+		freeptr_t		freeptr __aligned(sizeof(freeptr_t));
+	};
 
 	struct {
 		u64			extra1;
