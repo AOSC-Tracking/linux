@@ -55,26 +55,6 @@ int bch2_topology_error(struct bch_fs *);
 })
 
 /*
- * Later we might want to mark only the particular device inconsistent, not the
- * entire filesystem:
- */
-
-#define bch2_dev_inconsistent(ca, ...)					\
-do {									\
-	bch_err(ca, __VA_ARGS__);					\
-	bch2_inconsistent_error((ca)->fs);				\
-} while (0)
-
-#define bch2_dev_inconsistent_on(cond, ca, ...)				\
-({									\
-	bool _ret = unlikely(!!(cond));					\
-									\
-	if (_ret)							\
-		bch2_dev_inconsistent(ca, __VA_ARGS__);			\
-	_ret;								\
-})
-
-/*
  * When a transaction update discovers or is causing a fs inconsistency, it's
  * helpful to also dump the pending updates:
  */
@@ -123,9 +103,9 @@ int __bch2_fsck_err(struct bch_fs *, struct btree_trans *,
 
 void bch2_flush_fsck_errs(struct bch_fs *);
 
-#define __fsck_err(c, _flags, _err_type, ...)				\
+#define fsck_err_wrap(_do)						\
 ({									\
-	int _ret = bch2_fsck_err(c, _flags, _err_type, __VA_ARGS__);	\
+	int _ret = _do;							\
 	if (_ret != -BCH_ERR_fsck_fix &&				\
 	    _ret != -BCH_ERR_fsck_ignore) {				\
 		ret = _ret;						\
@@ -134,6 +114,8 @@ void bch2_flush_fsck_errs(struct bch_fs *);
 									\
 	_ret == -BCH_ERR_fsck_fix;					\
 })
+
+#define __fsck_err(...)		fsck_err_wrap(bch2_fsck_err(__VA_ARGS__))
 
 /* These macros return true if error should be fixed: */
 
@@ -149,12 +131,6 @@ void bch2_flush_fsck_errs(struct bch_fs *);
 	(unlikely(cond) ? __fsck_err(c, _flags, _err_type, __VA_ARGS__) : false);\
 })
 
-#define need_fsck_err_on(cond, c, _err_type, ...)				\
-	__fsck_err_on(cond, c, FSCK_CAN_IGNORE|FSCK_NEED_FSCK, _err_type, __VA_ARGS__)
-
-#define need_fsck_err(c, _err_type, ...)				\
-	__fsck_err(c, FSCK_CAN_IGNORE|FSCK_NEED_FSCK, _err_type, __VA_ARGS__)
-
 #define mustfix_fsck_err(c, _err_type, ...)				\
 	__fsck_err(c, FSCK_CAN_FIX, _err_type, __VA_ARGS__)
 
@@ -166,6 +142,12 @@ void bch2_flush_fsck_errs(struct bch_fs *);
 
 #define fsck_err_on(cond, c, _err_type, ...)				\
 	__fsck_err_on(cond, c, FSCK_CAN_FIX|FSCK_CAN_IGNORE, _err_type, __VA_ARGS__)
+
+#define log_fsck_err(c, _err_type, ...)					\
+	__fsck_err(c, FSCK_CAN_IGNORE, _err_type, __VA_ARGS__)
+
+#define log_fsck_err_on(cond, c, _err_type, ...)				\
+	__fsck_err_on(cond, c, FSCK_CAN_IGNORE, _err_type, __VA_ARGS__)
 
 enum bch_validate_flags;
 __printf(5, 6)

@@ -54,7 +54,7 @@
 	x(ENOMEM,			ENOMEM_compression_bounce_read_init)	\
 	x(ENOMEM,			ENOMEM_compression_bounce_write_init)	\
 	x(ENOMEM,			ENOMEM_compression_workspace_init)	\
-	x(ENOMEM,			ENOMEM_decompression_workspace_init)	\
+	x(EIO,				compression_workspace_not_initialized)	\
 	x(ENOMEM,			ENOMEM_bucket_gens)			\
 	x(ENOMEM,			ENOMEM_buckets_nouse)			\
 	x(ENOMEM,			ENOMEM_usage_init)			\
@@ -164,7 +164,6 @@
 	x(BCH_ERR_btree_insert_fail,	btree_insert_need_journal_res)		\
 	x(BCH_ERR_btree_insert_fail,	btree_insert_need_journal_reclaim)	\
 	x(0,				backpointer_to_overwritten_btree_node)	\
-	x(0,				lock_fail_root_changed)			\
 	x(0,				journal_reclaim_would_deadlock)		\
 	x(EINVAL,			fsck)					\
 	x(BCH_ERR_fsck,			fsck_fix)				\
@@ -173,7 +172,9 @@
 	x(BCH_ERR_fsck,			fsck_errors_not_fixed)			\
 	x(BCH_ERR_fsck,			fsck_repair_unimplemented)		\
 	x(BCH_ERR_fsck,			fsck_repair_impossible)			\
-	x(0,				restart_recovery)			\
+	x(EINVAL,			restart_recovery)			\
+	x(EINVAL,			not_in_recovery)			\
+	x(EINVAL,			cannot_rewind_recovery)			\
 	x(0,				data_update_done)			\
 	x(EINVAL,			device_state_not_allowed)		\
 	x(EINVAL,			member_info_missing)			\
@@ -192,7 +193,6 @@
 	x(EINVAL,			opt_parse_error)			\
 	x(EINVAL,			remove_with_metadata_missing_unimplemented)\
 	x(EINVAL,			remove_would_lose_data)			\
-	x(EINVAL,			btree_iter_with_journal_not_supported)	\
 	x(EROFS,			erofs_trans_commit)			\
 	x(EROFS,			erofs_no_writes)			\
 	x(EROFS,			erofs_journal_err)			\
