@@ -1337,7 +1337,16 @@ int begin_new_exec(struct linux_binprm * bprm)
 		set_dumpable(current->mm, SUID_DUMP_USER);
 
 	perf_event_exec();
-	__set_task_comm(me, kbasename(bprm->filename), true);
+
+	/*
+	 * If argv0 was set, alloc_bprm() made up a path that will
+	 * probably not be useful to admins running ps or similar.
+	 * Let's fix it up to be something reasonable.
+	 */
+	if (bprm->argv0)
+		__set_task_comm(me, kbasename(bprm->argv0), true);
+	else
+		__set_task_comm(me, kbasename(bprm->filename), true);
 
 	/* An exec changes our domain. We are no longer part of the thread
 	   group */
@@ -1487,7 +1496,30 @@ static void free_bprm(struct linux_binprm *bprm)
 	if (bprm->interp != bprm->filename)
 		kfree(bprm->interp);
 	kfree(bprm->fdpath);
+	kfree(bprm->argv0);
 	kfree(bprm);
+}
+
+static int bprm_add_fixup_comm(struct linux_binprm *bprm,
+			       struct user_arg_ptr argv)
+{
+	const char __user *p = get_user_arg_ptr(argv, 0);
+
+	/*
+	 * If p == NULL, let's just fall back to fdpath.
+	 */
+	if (!p)
+		return 0;
+
+	bprm->argv0 = strndup_user(p, MAX_ARG_STRLEN);
+	if (IS_ERR(bprm->argv0)) {
+		int rc = PTR_ERR(bprm->argv0);
+
+		bprm->argv0 = NULL;
+		return rc;
+	}
+
+	return 0;
 }
 
 static struct linux_binprm *alloc_bprm(int fd, struct filename *filename, int flags)
@@ -1713,13 +1745,11 @@ int remove_arg_zero(struct linux_binprm *bprm)
 }
 EXPORT_SYMBOL(remove_arg_zero);
 
-#define printable(c) (((c)=='\t') || ((c)=='\n') || (0x20<=(c) && (c)<=0x7e))
 /*
  * cycle the list of binary formats handler, until one recognizes the image
  */
 static int search_binary_handler(struct linux_binprm *bprm)
 {
-	bool need_retry = IS_ENABLED(CONFIG_MODULES);
 	struct linux_binfmt *fmt;
 	int retval;
 
@@ -1731,8 +1761,6 @@ static int search_binary_handler(struct linux_binprm *bprm)
 	if (retval)
 		return retval;
 
-	retval = -ENOENT;
- retry:
 	read_lock(&binfmt_lock);
 	list_for_each_entry(fmt, &formats, lh) {
 		if (!try_module_get(fmt->module))
@@ -1750,17 +1778,7 @@ static int search_binary_handler(struct linux_binprm *bprm)
 	}
 	read_unlock(&binfmt_lock);
 
-	if (need_retry) {
-		if (printable(bprm->buf[0]) && printable(bprm->buf[1]) &&
-		    printable(bprm->buf[2]) && printable(bprm->buf[3]))
-			return retval;
-		if (request_module("binfmt-%04x", *(ushort *)(bprm->buf + 2)) < 0)
-			return retval;
-		need_retry = false;
-		goto retry;
-	}
-
-	return retval;
+	return -ENOEXEC;
 }
 
 /* binfmt handlers will call back into begin_new_exec() on success. */
@@ -1896,10 +1914,13 @@ static int do_execveat_common(int fd, struct filename *filename,
 		goto out_ret;
 	}
 
+	if (unlikely(bprm->fdpath)) {
+		retval = bprm_add_fixup_comm(bprm, argv);
+		if (retval != 0)
+			goto out_free;
+	}
+
 	retval = count(argv, MAX_ARG_STRINGS);
-	if (retval == 0)
-		pr_warn_once("process '%s' launched '%s' with NULL argv: empty string added\n",
-			     current->comm, bprm->filename);
 	if (retval < 0)
 		goto out_free;
 	bprm->argc = retval;
@@ -1937,6 +1958,9 @@ static int do_execveat_common(int fd, struct filename *filename,
 		if (retval < 0)
 			goto out_free;
 		bprm->argc = 1;
+
+		pr_warn_once("process '%s' launched '%s' with NULL argv: empty string added\n",
+			     current->comm, bprm->filename);
 	}
 
 	retval = bprm_execve(bprm);
