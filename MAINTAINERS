@@ -5759,6 +5759,15 @@ F:	fs/configfs/
 F:	include/linux/configfs.h
 F:	samples/configfs/
 
+CONGATEC BOARD CONTROLLER MFD DRIVER
+M:	Thomas Richard <thomas.richard@bootlin.com>
+S:	Maintained
+F:	drivers/gpio/gpio-cgbc.c
+F:	drivers/i2c/busses/i2c-cgbc.c
+F:	drivers/mfd/cgbc-core.c
+F:	drivers/watchdog/cgbc_wdt.c
+F:	include/linux/mfd/cgbc.h
+
 CONSOLE SUBSYSTEM
 M:	Greg Kroah-Hartman <gregkh@linuxfoundation.org>
 S:	Supported
@@ -14455,10 +14464,12 @@ F:	Documentation/devicetree/bindings/net/bluetooth/mediatek,mt7921s-bluetooth.ya
 F:	drivers/bluetooth/btmtkuart.c
 
 MEDIATEK BOARD LEVEL SHUTDOWN DRIVERS
+M:	Sen Chu <sen.chu@mediatek.com>
 M:	Sean Wang <sean.wang@mediatek.com>
+M:	Macpaul Lin <macpaul.lin@mediatek.com>
 L:	linux-pm@vger.kernel.org
 S:	Maintained
-F:	Documentation/devicetree/bindings/power/reset/mt6323-poweroff.txt
+F:	Documentation/devicetree/bindings/mfd/mediatek,mt6397.yaml
 F:	drivers/power/reset/mt6323-poweroff.c
 
 MEDIATEK CIR DRIVER
@@ -14647,9 +14658,11 @@ F:	Documentation/devicetree/bindings/mtd/mediatek,mtk-nfc.yaml
 F:	drivers/mtd/nand/raw/mtk_*
 
 MEDIATEK PMIC LED DRIVER
+M:	Sen Chu <sen.chu@mediatek.com>
 M:	Sean Wang <sean.wang@mediatek.com>
+M:	Macpaul Lin <macpaul.lin@mediatek.com>
 S:	Maintained
-F:	Documentation/devicetree/bindings/leds/leds-mt6323.txt
+F:	Documentation/devicetree/bindings/mfd/mediatek,mt6397.yaml
 F:	drivers/leds/leds-mt6323.c
 
 MEDIATEK RANDOM NUMBER GENERATOR SUPPORT
@@ -20629,7 +20642,7 @@ L:	linux-samsung-soc@vger.kernel.org
 S:	Maintained
 B:	mailto:linux-samsung-soc@vger.kernel.org
 F:	Documentation/devicetree/bindings/clock/samsung,s2mps11.yaml
-F:	Documentation/devicetree/bindings/mfd/samsung,s2m*.yaml
+F:	Documentation/devicetree/bindings/mfd/samsung,s2*.yaml
 F:	Documentation/devicetree/bindings/mfd/samsung,s5m*.yaml
 F:	Documentation/devicetree/bindings/regulator/samsung,s2m*.yaml
 F:	Documentation/devicetree/bindings/regulator/samsung,s5m*.yaml
