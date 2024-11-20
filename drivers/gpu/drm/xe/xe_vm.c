@@ -733,13 +733,14 @@ static int xe_vma_ops_alloc(struct xe_vma_ops *vops, bool array_of_binds)
 		vops->pt_update_ops[i].ops =
 			kmalloc_array(vops->pt_update_ops[i].num_ops,
 				      sizeof(*vops->pt_update_ops[i].ops),
-				      GFP_KERNEL);
+				      GFP_KERNEL | __GFP_RETRY_MAYFAIL | __GFP_NOWARN);
 		if (!vops->pt_update_ops[i].ops)
 			return array_of_binds ? -ENOBUFS : -ENOMEM;
 	}
 
 	return 0;
 }
+ALLOW_ERROR_INJECTION(xe_vma_ops_alloc, ERRNO);
 
 static void xe_vma_ops_fini(struct xe_vma_ops *vops)
 {
@@ -1352,6 +1353,7 @@ static int xe_vm_create_scratch(struct xe_device *xe, struct xe_tile *tile,
 
 	return 0;
 }
+ALLOW_ERROR_INJECTION(xe_vm_create_scratch, ERRNO);
 
 static void xe_vm_free_scratch(struct xe_vm *vm)
 {
@@ -1978,6 +1980,7 @@ vm_bind_ioctl_ops_create(struct xe_vm *vm, struct xe_bo *bo,
 
 	return ops;
 }
+ALLOW_ERROR_INJECTION(vm_bind_ioctl_ops_create, ERRNO);
 
 static struct xe_vma *new_vma(struct xe_vm *vm, struct drm_gpuva_op_map *op,
 			      u16 pat_index, unsigned int flags)
@@ -2697,6 +2700,7 @@ unlock:
 	drm_exec_fini(&exec);
 	return err;
 }
+ALLOW_ERROR_INJECTION(vm_bind_ioctl_ops_execute, ERRNO);
 
 #define SUPPORTED_FLAGS_STUB  \
 	(DRM_XE_VM_BIND_FLAG_READONLY | \
@@ -2733,7 +2737,8 @@ static int vm_bind_ioctl_check_args(struct xe_device *xe,
 
 		*bind_ops = kvmalloc_array(args->num_binds,
 					   sizeof(struct drm_xe_vm_bind_op),
-					   GFP_KERNEL | __GFP_ACCOUNT);
+					   GFP_KERNEL | __GFP_ACCOUNT |
+					   __GFP_RETRY_MAYFAIL | __GFP_NOWARN);
 		if (!*bind_ops)
 			return args->num_binds > 1 ? -ENOBUFS : -ENOMEM;
 
@@ -2973,14 +2978,16 @@ int xe_vm_bind_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 
 	if (args->num_binds) {
 		bos = kvcalloc(args->num_binds, sizeof(*bos),
-			       GFP_KERNEL | __GFP_ACCOUNT);
+			       GFP_KERNEL | __GFP_ACCOUNT |
+			       __GFP_RETRY_MAYFAIL | __GFP_NOWARN);
 		if (!bos) {
 			err = -ENOMEM;
 			goto release_vm_lock;
 		}
 
 		ops = kvcalloc(args->num_binds, sizeof(*ops),
-			       GFP_KERNEL | __GFP_ACCOUNT);
+			       GFP_KERNEL | __GFP_ACCOUNT |
+			       __GFP_RETRY_MAYFAIL | __GFP_NOWARN);
 		if (!ops) {
 			err = -ENOMEM;
 			goto release_vm_lock;

@@ -16,7 +16,7 @@
 #include "xe_heci_gsc.h"
 #include "xe_lmtt_types.h"
 #include "xe_memirq_types.h"
-#include "xe_oa.h"
+#include "xe_oa_types.h"
 #include "xe_platform_types.h"
 #include "xe_pt_types.h"
 #include "xe_sriov_types.h"
@@ -42,8 +42,6 @@ struct xe_pat_ops;
 #define GRAPHICS_VERx100(xe) ((xe)->info.graphics_verx100)
 #define MEDIA_VERx100(xe) ((xe)->info.media_verx100)
 #define IS_DGFX(xe) ((xe)->info.is_dgfx)
-#define HAS_HECI_GSCFI(xe) ((xe)->info.has_heci_gscfi)
-#define HAS_HECI_CSCFI(xe) ((xe)->info.has_heci_cscfi)
 
 #define XE_VRAM_FLAGS_NEED64K		BIT(0)
 
@@ -374,6 +372,8 @@ struct xe_device {
 
 		/** @sriov.pf: PF specific data */
 		struct xe_device_pf pf;
+		/** @sriov.vf: VF specific data */
+		struct xe_device_vf vf;
 
 		/** @sriov.wq: workqueue used by the virtualization workers */
 		struct workqueue_struct *wq;
@@ -588,7 +588,7 @@ struct xe_file {
 		/** @vm.xe: xarray to store VMs */
 		struct xarray xa;
 		/**
-		 * @vm.lock: Protects VM lookup + reference and removal a from
+		 * @vm.lock: Protects VM lookup + reference and removal from
 		 * file xarray. Not an intended to be an outer lock which does
 		 * thing while being held.
 		 */
@@ -601,10 +601,15 @@ struct xe_file {
 		struct xarray xa;
 		/**
 		 * @exec_queue.lock: Protects exec queue lookup + reference and
-		 * removal a frommfile xarray. Not an intended to be an outer
-		 * lock which does thing while being held.
+		 * removal from file xarray. Not intended to be an outer lock
+		 * which does things while being held.
 		 */
 		struct mutex lock;
+		/**
+		 * @exec_queue.pending_removal: items pending to be removed to
+		 * synchronize GPU state update with ongoing query.
+		 */
+		atomic_t pending_removal;
 	} exec_queue;
 
 	/** @run_ticks: hw engine class run time in ticks for this drm client */

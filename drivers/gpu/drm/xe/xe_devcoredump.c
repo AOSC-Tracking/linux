@@ -29,30 +29,39 @@
 /**
  * DOC: Xe device coredump
  *
- * Devices overview:
  * Xe uses dev_coredump infrastructure for exposing the crash errors in a
- * standardized way.
- * devcoredump exposes a temporary device under /sys/class/devcoredump/
- * which is linked with our card device directly.
- * The core dump can be accessed either from
- * /sys/class/drm/card<n>/device/devcoredump/ or from
- * /sys/class/devcoredump/devcd<m> where
- * /sys/class/devcoredump/devcd<m>/failing_device is a link to
- * /sys/class/drm/card<n>/device/.
+ * standardized way. Once a crash occurs, devcoredump exposes a temporary
+ * node under ``/sys/class/devcoredump/devcd<m>/``. The same node is also
+ * accessible in ``/sys/class/drm/card<n>/device/devcoredump/``. The
+ * ``failing_device`` symlink points to the device that crashed and created the
+ * coredump.
  *
- * Snapshot at hang:
- * The 'data' file is printed with a drm_printer pointer at devcoredump read
- * time. For this reason, we need to take snapshots from when the hang has
- * happened, and not only when the user is reading the file. Otherwise the
- * information is outdated since the resets might have happened in between.
+ * The following characteristics are observed by xe when creating a device
+ * coredump:
  *
- * 'First' failure snapshot:
- * In general, the first hang is the most critical one since the following hangs
- * can be a consequence of the initial hang. For this reason we only take the
- * snapshot of the 'first' failure and ignore subsequent calls of this function,
- * at least while the coredump device is alive. Dev_coredump has a delayed work
- * queue that will eventually delete the device and free all the dump
- * information.
+ * **Snapshot at hang**:
+ *   The 'data' file contains a snapshot of the HW and driver states at the time
+ *   the hang happened. Due to the driver recovering from resets/crashes, it may
+ *   not correspond to the state of the system when the file is read by
+ *   userspace.
+ *
+ * **Coredump release**:
+ *   After a coredump is generated, it stays in kernel memory until released by
+ *   userpace by writing anything to it, or after an internal timer expires. The
+ *   exact timeout may vary and should not be relied upon. Example to release
+ *   a coredump:
+ *
+ *   .. code-block:: shell
+ *
+ *	$ > /sys/class/drm/card0/device/devcoredump/data
+ *
+ * **First failure only**:
+ *   In general, the first hang is the most critical one since the following
+ *   hangs can be a consequence of the initial hang. For this reason a snapshot
+ *   is taken only for the first failure. Until the devcoredump is released by
+ *   userspace or kernel, all subsequent hangs do not override the snapshot nor
+ *   create new ones. Devcoredump has a delayed work queue that will eventually
+ *   delete the file node and free all the dump information.
  */
 
 #ifdef CONFIG_DEV_COREDUMP
@@ -223,16 +232,15 @@ static void xe_devcoredump_free(void *data)
 	/* To prevent stale data on next snapshot, clear everything */
 	memset(&coredump->snapshot, 0, sizeof(coredump->snapshot));
 	coredump->captured = false;
-	coredump->job = NULL;
 	drm_info(&coredump_to_xe(coredump)->drm,
 		 "Xe device coredump has been deleted.\n");
 }
 
 static void devcoredump_snapshot(struct xe_devcoredump *coredump,
+				 struct xe_exec_queue *q,
 				 struct xe_sched_job *job)
 {
 	struct xe_devcoredump_snapshot *ss = &coredump->snapshot;
-	struct xe_exec_queue *q = job->q;
 	struct xe_guc *guc = exec_queue_to_guc(q);
 	u32 adj_logical_mask = q->logical_mask;
 	u32 width_mask = (0x1 << q->width) - 1;
@@ -250,7 +258,6 @@ static void devcoredump_snapshot(struct xe_devcoredump *coredump,
 	strscpy(ss->process_name, process_name);
 
 	ss->gt = q->gt;
-	coredump->job = job;
 	INIT_WORK(&ss->work, xe_devcoredump_deferred_snap_work);
 
 	cookie = dma_fence_begin_signalling();
@@ -269,10 +276,11 @@ static void devcoredump_snapshot(struct xe_devcoredump *coredump,
 	ss->guc.log = xe_guc_log_snapshot_capture(&guc->log, true);
 	ss->guc.ct = xe_guc_ct_snapshot_capture(&guc->ct);
 	ss->ge = xe_guc_exec_queue_snapshot_capture(q);
-	ss->job = xe_sched_job_snapshot_capture(job);
+	if (job)
+		ss->job = xe_sched_job_snapshot_capture(job);
 	ss->vm = xe_vm_snapshot_capture(q->vm);
 
-	xe_engine_snapshot_capture_for_job(job);
+	xe_engine_snapshot_capture_for_queue(q);
 
 	queue_work(system_unbound_wq, &ss->work);
 
@@ -282,15 +290,16 @@ static void devcoredump_snapshot(struct xe_devcoredump *coredump,
 
 /**
  * xe_devcoredump - Take the required snapshots and initialize coredump device.
+ * @q: The faulty xe_exec_queue, where the issue was detected.
  * @job: The faulty xe_sched_job, where the issue was detected.
  *
  * This function should be called at the crash time within the serialized
  * gt_reset. It is skipped if we still have the core dump device available
  * with the information of the 'first' snapshot.
  */
-void xe_devcoredump(struct xe_sched_job *job)
+void xe_devcoredump(struct xe_exec_queue *q, struct xe_sched_job *job)
 {
-	struct xe_device *xe = gt_to_xe(job->q->gt);
+	struct xe_device *xe = gt_to_xe(q->gt);
 	struct xe_devcoredump *coredump = &xe->devcoredump;
 
 	if (coredump->captured) {
@@ -299,7 +308,7 @@ void xe_devcoredump(struct xe_sched_job *job)
 	}
 
 	coredump->captured = true;
-	devcoredump_snapshot(coredump, job);
+	devcoredump_snapshot(coredump, q, job);
 
 	drm_info(&xe->drm, "Xe device coredump has been created\n");
 	drm_info(&xe->drm, "Check your /sys/class/drm/card%d/device/devcoredump/data\n",
