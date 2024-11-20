@@ -9,7 +9,7 @@
  *
  * Limitations:
  * - The writes to registers for period and duty are shadowed until
- *   LOAD_CONFIG is written to AXI_PWMGEN_REG_CONFIG, at which point
+ *   LOAD_CONFIG is written to AXI_PWMGEN_REG_RSTN, at which point
  *   they take effect.
  * - Writing LOAD_CONFIG also has the effect of re-synchronizing all
  *   enabled channels, which could cause glitching on other channels. It
@@ -33,14 +33,16 @@
 #define AXI_PWMGEN_REG_ID		0x04
 #define AXI_PWMGEN_REG_SCRATCHPAD	0x08
 #define AXI_PWMGEN_REG_CORE_MAGIC	0x0C
-#define AXI_PWMGEN_REG_CONFIG		0x10
+#define AXI_PWMGEN_REG_RSTN		0x10
+#define   AXI_PWMGEN_REG_RSTN_LOAD_CONFIG	BIT(1)
+#define   AXI_PWMGEN_REG_RSTN_RESET		BIT(0)
 #define AXI_PWMGEN_REG_NPWM		0x14
+#define AXI_PWMGEN_REG_CONFIG		0x18
+#define   AXI_PWMGEN_REG_CONFIG_FORCE_ALIGN	BIT(1)
 #define AXI_PWMGEN_CHX_PERIOD(ch)	(0x40 + (4 * (ch)))
 #define AXI_PWMGEN_CHX_DUTY(ch)		(0x80 + (4 * (ch)))
 #define AXI_PWMGEN_CHX_OFFSET(ch)	(0xC0 + (4 * (ch)))
 #define AXI_PWMGEN_REG_CORE_MAGIC_VAL	0x601A3471 /* Identification number to test during setup */
-#define AXI_PWMGEN_LOAD_CONFIG		BIT(1)
-#define AXI_PWMGEN_REG_CONFIG_RESET	BIT(0)
 
 struct axi_pwmgen_ddata {
 	struct regmap *regmap;
@@ -61,13 +63,18 @@ struct axi_pwmgen_waveform {
 	u32 duty_offset_cnt;
 };
 
+static struct axi_pwmgen_ddata *axi_pwmgen_ddata_from_chip(struct pwm_chip *chip)
+{
+	return pwmchip_get_drvdata(chip);
+}
+
 static int axi_pwmgen_round_waveform_tohw(struct pwm_chip *chip,
 					  struct pwm_device *pwm,
 					  const struct pwm_waveform *wf,
 					  void *_wfhw)
 {
 	struct axi_pwmgen_waveform *wfhw = _wfhw;
-	struct axi_pwmgen_ddata *ddata = pwmchip_get_drvdata(chip);
+	struct axi_pwmgen_ddata *ddata = axi_pwmgen_ddata_from_chip(chip);
 
 	if (wf->period_length_ns == 0) {
 		*wfhw = (struct axi_pwmgen_waveform){
@@ -111,7 +118,7 @@ static int axi_pwmgen_round_waveform_fromhw(struct pwm_chip *chip, struct pwm_de
 					     const void *_wfhw, struct pwm_waveform *wf)
 {
 	const struct axi_pwmgen_waveform *wfhw = _wfhw;
-	struct axi_pwmgen_ddata *ddata = pwmchip_get_drvdata(chip);
+	struct axi_pwmgen_ddata *ddata = axi_pwmgen_ddata_from_chip(chip);
 
 	wf->period_length_ns = DIV64_U64_ROUND_UP((u64)wfhw->period_cnt * NSEC_PER_SEC,
 					ddata->clk_rate_hz);
@@ -130,7 +137,7 @@ static int axi_pwmgen_write_waveform(struct pwm_chip *chip,
 				     const void *_wfhw)
 {
 	const struct axi_pwmgen_waveform *wfhw = _wfhw;
-	struct axi_pwmgen_ddata *ddata = pwmchip_get_drvdata(chip);
+	struct axi_pwmgen_ddata *ddata = axi_pwmgen_ddata_from_chip(chip);
 	struct regmap *regmap = ddata->regmap;
 	unsigned int ch = pwm->hwpwm;
 	int ret;
@@ -147,7 +154,7 @@ static int axi_pwmgen_write_waveform(struct pwm_chip *chip,
 	if (ret)
 		return ret;
 
-	return regmap_write(regmap, AXI_PWMGEN_REG_CONFIG, AXI_PWMGEN_LOAD_CONFIG);
+	return regmap_write(regmap, AXI_PWMGEN_REG_RSTN, AXI_PWMGEN_REG_RSTN_LOAD_CONFIG);
 }
 
 static int axi_pwmgen_read_waveform(struct pwm_chip *chip,
@@ -155,7 +162,7 @@ static int axi_pwmgen_read_waveform(struct pwm_chip *chip,
 				    void *_wfhw)
 {
 	struct axi_pwmgen_waveform *wfhw = _wfhw;
-	struct axi_pwmgen_ddata *ddata = pwmchip_get_drvdata(chip);
+	struct axi_pwmgen_ddata *ddata = axi_pwmgen_ddata_from_chip(chip);
 	struct regmap *regmap = ddata->regmap;
 	unsigned int ch = pwm->hwpwm;
 	int ret;
@@ -218,7 +225,17 @@ static int axi_pwmgen_setup(struct regmap *regmap, struct device *dev)
 	}
 
 	/* Enable the core */
-	ret = regmap_clear_bits(regmap, AXI_PWMGEN_REG_CONFIG, AXI_PWMGEN_REG_CONFIG_RESET);
+	ret = regmap_clear_bits(regmap, AXI_PWMGEN_REG_RSTN, AXI_PWMGEN_REG_RSTN_RESET);
+	if (ret)
+		return ret;
+
+	/*
+	 * Enable force align so that changes to PWM period and duty cycle take
+	 * effect immediately. Otherwise, the effect of the change is delayed
+	 * until the period of all channels run out, which can be long after the
+	 * apply function returns.
+	 */
+	ret = regmap_set_bits(regmap, AXI_PWMGEN_REG_CONFIG, AXI_PWMGEN_REG_CONFIG_FORCE_ALIGN);
 	if (ret)
 		return ret;
 
