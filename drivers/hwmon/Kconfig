@@ -41,7 +41,6 @@ comment "Native drivers"
 config SENSORS_AAEON
 	tristate "AAEON hwmon driver"
 	depends on X86
-	depends on UBUNTU_ODM_DRIVERS
 	select MFD_AAEON
 	help
 	  This hwmon driver adds support for reporting temperature or fan
