@@ -1658,7 +1658,6 @@ menu "PCI GPIO expanders"
 config GPIO_AAEON
 	tristate "AAEON GPIO support"
 	depends on ASUS_WMI
-	depends on UBUNTU_ODM_DRIVERS
 	select MFD_AAEON
 	help
 	  Say yes here to support GPIO pins on Single Board Computers produced

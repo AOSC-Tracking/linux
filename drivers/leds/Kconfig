@@ -68,7 +68,6 @@ config LEDS_88PM860X
 config LEDS_AAEON
 	tristate "AAEON LED driver"
 	depends on X86
-	depends on UBUNTU_ODM_DRIVERS
 	select MFD_AAEON
 	help
 	  This led driver adds support for LED brightness control on Single
