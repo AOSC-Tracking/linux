@@ -2272,7 +2272,6 @@ config MFD_QCOM_PM8008
 config MFD_AAEON
 	tristate "AAEON WMI MFD devices"
 	depends on ASUS_WMI
-	depends on UBUNTU_ODM_DRIVERS
 	help
 	  Say yes here to support mltiple IO devices on Single Board Computers
 	  produced by AAEON.
