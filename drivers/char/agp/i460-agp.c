@@ -297,7 +297,7 @@ static int i460_insert_memory_small_io_page (struct agp_memory *mem,
 	int i, j, k, num_entries;
 	void *temp;
 
-	pr_debug("i460_insert_memory_small_io_page(mem=%p, pg_start=%ld, type=%d, paddr0=0x%lx)\n",
+	pr_debug("i460_insert_memory_small_io_page(mem=%p, pg_start=%ld, type=%d, paddr0=0x%llx)\n",
 		 mem, pg_start, type, page_to_phys(mem->pages[0]));
 
 	if (type >= AGP_USER_TYPES || mem->type >= AGP_USER_TYPES)
