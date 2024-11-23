@@ -742,6 +742,7 @@ impl HeapAllocator {
     /// objects cannot straddle backing block boundaries, since we cannot easily create a contiguous
     /// CPU VA mapping for them. This can create some fragmentation. If CPU mapping is disabled, we
     /// skip the guard blocks, since the GPU view of the heap is always contiguous.
+    #[inline(never)]
     fn add_block(&mut self, size: usize) -> Result {
         let size_aligned = (size + mmu::UAT_PGSZ - 1) & !mmu::UAT_PGMSK;
 
@@ -863,24 +864,8 @@ impl HeapAllocator {
                 .or(Err(ENOENT))
         })
     }
-}
 
-impl Allocator for HeapAllocator {
-    type Raw = HeapAllocation;
-
-    fn device(&self) -> &AsahiDevice {
-        &self.dev
-    }
-
-    fn cpu_maps(&self) -> bool {
-        self.cpu_maps
-    }
-
-    fn min_align(&self) -> usize {
-        self.min_align
-    }
-
-    fn alloc(&mut self, size: usize, align: usize) -> Result<HeapAllocation> {
+    fn alloc_inner(&mut self, size: usize, align: usize) -> Result<HeapAllocation> {
         if align != 0 && !align.is_power_of_two() {
             return Err(EINVAL);
         }
@@ -991,6 +976,33 @@ impl Allocator for HeapAllocator {
         );
 
         Ok(HeapAllocation(Some(node)))
+    }
+}
+
+impl Allocator for HeapAllocator {
+    type Raw = HeapAllocation;
+
+    fn cpu_maps(&self) -> bool {
+        self.cpu_maps
+    }
+
+    fn min_align(&self) -> usize {
+        self.min_align
+    }
+
+    fn alloc(&mut self, size: usize, align: usize) -> Result<HeapAllocation> {
+        let ret = self.alloc_inner(size, align);
+
+        if ret.is_err() {
+            dev_warn!(
+                self.dev.as_ref(),
+                "HeapAllocator[{}]::alloc: Allocation of {:#x}({:#x}) size object failed\n",
+                &*self.name,
+                size,
+                align
+            );
+        }
+        ret
     }
 
     fn garbage(&self) -> (usize, usize) {
