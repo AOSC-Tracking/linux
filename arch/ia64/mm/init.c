@@ -30,7 +30,7 @@
 #include <asm/efi.h>
 #include <asm/io.h>
 #include <asm/numa.h>
-#include <asm/patch.h>
+#include <asm/text-patching.h>
 #include <asm/pgalloc.h>
 #include <asm/sal.h>
 #include <asm/sections.h>

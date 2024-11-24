@@ -56,7 +56,7 @@
 #include <asm/mca.h>
 #include <asm/meminit.h>
 #include <asm/page.h>
-#include <asm/patch.h>
+#include <asm/text-patching.h>
 #include <asm/processor.h>
 #include <asm/sal.h>
 #include <asm/sections.h>
