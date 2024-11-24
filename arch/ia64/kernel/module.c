@@ -34,7 +34,7 @@
 #include <linux/string.h>
 #include <linux/vmalloc.h>
 
-#include <asm/patch.h>
+#include <asm/text-patching.h>
 #include <linux/unaligned.h>
 #include <asm/sections.h>
 
