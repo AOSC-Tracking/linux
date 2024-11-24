@@ -75,7 +75,7 @@ do {						\
 #define vma_alloc_zeroed_movable_folio(vma, vaddr)			\
 ({									\
 	struct folio *folio = vma_alloc_folio(				\
-		GFP_HIGHUSER_MOVABLE | __GFP_ZERO, 0, vma, vaddr, false); \
+		GFP_HIGHUSER_MOVABLE | __GFP_ZERO, 0, vma, vaddr); \
 	if (folio)							\
 		flush_dcache_folio(folio);				\
 	folio;								\
