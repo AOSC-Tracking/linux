@@ -8,7 +8,7 @@
 #include <linux/init.h>
 #include <linux/string.h>
 
-#include <asm/patch.h>
+#include <asm/text-patching.h>
 #include <asm/processor.h>
 #include <asm/sections.h>
 #include <asm/unistd.h>
