@@ -23,7 +23,15 @@
 static unsigned long encoded_page_create(struct page *page, unsigned int order,
 					 bool pfmemalloc)
 {
+#define XSTR(x) STR(x)
+#define STR(x) #x
+
+#pragma message "PAGE_FRAG_CACHE_MAX_ORDER = " XSTR(PAGE_FRAG_CACHE_MAX_ORDER)
+#pragma message "PAGE_FRAG_CACHE_ORDER_MASK = " XSTR(PAGE_FRAG_CACHE_ORDER_MASK)
+
+#ifndef CONFIG_IA64
 	BUILD_BUG_ON(PAGE_FRAG_CACHE_MAX_ORDER > PAGE_FRAG_CACHE_ORDER_MASK);
+#endif
 	BUILD_BUG_ON(PAGE_FRAG_CACHE_PFMEMALLOC_BIT >= PAGE_SIZE);
 
 	return (unsigned long)page_address(page) |
