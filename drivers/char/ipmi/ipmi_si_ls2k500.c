@@ -137,11 +137,9 @@ static int of_ipmi_ls2k500_probe(struct platform_device *pdev)
 	return rv;
 }
 
-static int ipmi_ls2k500_remove(struct platform_device *pdev)
+static void ipmi_ls2k500_remove(struct platform_device *pdev)
 {
 	ipmi_si_remove_by_dev(&pdev->dev);
-
-	return 0;
 }
 
 #define LS2K500_SI_DEVICE_NAME "ipmi_ls2k500_si"
@@ -150,7 +148,7 @@ struct platform_driver ipmi_ls2k500_platform_driver = {
 		.name = LS2K500_SI_DEVICE_NAME,
 	},
 	.probe		= of_ipmi_ls2k500_probe,
-	.remove		= ipmi_ls2k500_remove,
+	.remove_new	= ipmi_ls2k500_remove,
 };
 
 static bool platform_registered;

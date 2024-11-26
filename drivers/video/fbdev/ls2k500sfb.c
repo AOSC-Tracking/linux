@@ -627,14 +627,12 @@ error_fb_release:
 	return ret;
 }
 
-static int simplefb_remove(struct platform_device *pdev)
+static void simplefb_remove(struct platform_device *pdev)
 {
 	struct fb_info *info = platform_get_drvdata(pdev);
 
 	unregister_framebuffer(info);
 	framebuffer_release(info);
-
-	return 0;
 }
 
 static struct platform_driver simplefb_driver = {
