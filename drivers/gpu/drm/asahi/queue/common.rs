@@ -4,12 +4,15 @@
 //!
 //! Shared helpers used by the submission logic for multiple command types.
 
+use crate::file;
+use crate::fw::job::UserTimestamp;
 use crate::fw::microseq;
 use crate::fw::types::*;
 
 use kernel::prelude::*;
 use kernel::uaccess::{UserPtr, UserSlice};
 use kernel::uapi;
+use kernel::xarray;
 
 use core::mem::MaybeUninit;
 
@@ -56,4 +59,29 @@ pub(super) fn build_attachments(pointer: u64, count: u32) -> Result<microseq::At
     }
 
     Ok(attachments)
+}
+
+pub(super) fn get_timestamp_object(
+    objects: Pin<&xarray::XArray<KBox<file::Object>>>,
+    handle: u32,
+    offset: u32,
+) -> Result<Option<UserTimestamp>> {
+    if handle == 0 {
+        return Ok(None);
+    }
+
+    let object = objects.get(handle.try_into()?).ok_or(ENOENT)?;
+
+    #[allow(irrefutable_let_patterns)]
+    if let file::Object::TimestampBuffer(mapping) = object.borrow() {
+        if (offset.checked_add(8).ok_or(EINVAL)?) as usize > mapping.size() {
+            return Err(ERANGE);
+        }
+        Ok(Some(UserTimestamp {
+            mapping: mapping.clone(),
+            offset: offset as usize,
+        }))
+    } else {
+        Err(EINVAL)
+    }
 }
