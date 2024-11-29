@@ -80,6 +80,55 @@ impl super::QueueInner::ver {
 
         let mut user_timestamps: fw::job::UserTimestamps = Default::default();
 
+        let mut ext_ptr = cmdbuf.extensions;
+        while ext_ptr != 0 {
+            // SAFETY: There is a double read from userspace here, but there is no TOCTOU
+            // issue since at worst the extension parse below will read garbage, and
+            // we do not trust any fields anyway.
+            let ext_type = UserSlice::new(ext_ptr as UserPtr, 4)
+                .reader()
+                .read::<u32>()?;
+
+            match ext_type {
+                uapi::ASAHI_COMPUTE_EXT_TIMESTAMPS => {
+                    let mut ext_user_timestamps: uapi::drm_asahi_cmd_compute_user_timestamps =
+                        Default::default();
+
+                    // SAFETY: See above
+                    let mut ext_reader = UserSlice::new(
+                        ext_ptr as UserPtr,
+                        core::mem::size_of::<uapi::drm_asahi_cmd_compute_user_timestamps>(),
+                    )
+                    .reader();
+                    // SAFETY: The output buffer is valid and of the correct size, and all bit
+                    // patterns are valid.
+                    ext_reader.read_raw(unsafe {
+                        core::slice::from_raw_parts_mut(
+                            &mut ext_user_timestamps as *mut _ as *mut MaybeUninit<u8>,
+                            core::mem::size_of::<uapi::drm_asahi_cmd_compute_user_timestamps>(),
+                        )
+                    })?;
+
+                    user_timestamps.start = common::get_timestamp_object(
+                        objects,
+                        ext_user_timestamps.start_handle,
+                        ext_user_timestamps.start_offset,
+                    )?;
+                    user_timestamps.end = common::get_timestamp_object(
+                        objects,
+                        ext_user_timestamps.end_handle,
+                        ext_user_timestamps.end_offset,
+                    )?;
+
+                    ext_ptr = ext_user_timestamps.next;
+                }
+                _ => {
+                    cls_pr_debug!(Errors, "Unknown extension {}\n", ext_type);
+                    return Err(EINVAL);
+                }
+            }
+        }
+
         // This sequence number increases per new client/VM? assigned to some slot,
         // but it's unclear *which* slot...
         let slot_client_seq: u8 = (self.id & 0xff) as u8;
