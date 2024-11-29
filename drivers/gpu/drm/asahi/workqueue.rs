@@ -21,7 +21,7 @@ use crate::fw::workqueue::*;
 use crate::no_debug;
 use crate::object::OpaqueGpuObject;
 use crate::regs::FaultReason;
-use crate::{channel, driver, event, fw, gpu, object, regs};
+use crate::{channel, driver, event, fw, gpu, regs};
 use core::any::Any;
 use core::num::NonZeroU64;
 use core::sync::atomic::Ordering;
@@ -37,6 +37,10 @@ use kernel::{
     uapi,
     workqueue::{self, impl_has_work, new_work, Work, WorkItem},
 };
+
+pub(crate) trait OpaqueCommandObject: OpaqueGpuObject {}
+
+impl<T: GpuStruct + Sync + Send> OpaqueCommandObject for GpuObject<T> where T: Command {}
 
 const DEBUG_CLASS: DebugFlags = DebugFlags::WorkQueue;
 
@@ -154,7 +158,7 @@ impl Drop for GpuContext {
 
 struct SubmittedWork<O, C>
 where
-    O: OpaqueGpuObject,
+    O: OpaqueCommandObject,
     C: FnOnce(&mut O, Option<WorkError>) + Send + Sync + 'static,
 {
     object: O,
@@ -202,7 +206,7 @@ impl SubmittedWorkContainer {
     }
 }
 
-impl<O: OpaqueGpuObject, C: FnOnce(&mut O, Option<WorkError>) + Send + Sync> GenSubmittedWork
+impl<O: OpaqueCommandObject, C: FnOnce(&mut O, Option<WorkError>) + Send + Sync> GenSubmittedWork
     for SubmittedWork<O, C>
 {
     fn gpu_va(&self) -> NonZeroU64 {
@@ -329,7 +333,7 @@ impl Job::ver {
         self.event_info.value.increment();
     }
 
-    pub(crate) fn add<O: object::OpaqueGpuObject + 'static>(
+    pub(crate) fn add<O: OpaqueCommandObject + 'static>(
         &mut self,
         command: O,
         vm_slot: u32,
@@ -337,7 +341,7 @@ impl Job::ver {
         self.add_cb(command, vm_slot, |_, _| {})
     }
 
-    pub(crate) fn add_cb<O: object::OpaqueGpuObject + 'static>(
+    pub(crate) fn add_cb<O: OpaqueCommandObject + 'static>(
         &mut self,
         command: O,
         vm_slot: u32,
