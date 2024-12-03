@@ -2174,20 +2174,24 @@ int request_threaded_irq(unsigned int irq, irq_handler_t handler,
 	    (!(irqflags & IRQF_SHARED) && (irqflags & IRQF_COND_SUSPEND)) ||
 	    ((irqflags & IRQF_NO_SUSPEND) && (irqflags & IRQF_COND_SUSPEND)))
 		return -EINVAL;
+	pr_err("1");
 
 	desc = irq_to_desc(irq);
 	if (!desc)
 		return -EINVAL;
+	pr_err("2");
 
 	if (!irq_settings_can_request(desc) ||
 	    WARN_ON(irq_settings_is_per_cpu_devid(desc)))
 		return -EINVAL;
+	pr_err("3");
 
 	if (!handler) {
 		if (!thread_fn)
 			return -EINVAL;
 		handler = irq_default_primary_handler;
 	}
+	pr_err("4");
 
 	action = kzalloc(sizeof(struct irqaction), GFP_KERNEL);
 	if (!action)
