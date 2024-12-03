@@ -695,3 +695,8 @@ struct intel_framebuffer *intel_fbdev_framebuffer(struct intel_fbdev *fbdev)
 
 	return to_intel_framebuffer(fbdev->helper.fb);
 }
+
+void *intel_fbdev_get_vaddr(struct intel_fbdev *fbdev)
+{
+	return intel_fb_get_vaddr(fbdev->vma);
+}
