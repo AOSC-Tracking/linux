@@ -189,7 +189,7 @@ int constant_clockevent_init(void)
 	constant_timer_irq_installed = 1;
 
 	err = request_irq(irq, constant_timer_interrupt,
-		    IRQF_PERCPU | IRQF_TIMER | IRQF_SHARED,
+		    IRQF_PERCPU | IRQF_TIMER | IRQF_SHARED | IRQF_NO_AUTOEN,
 		    "timer", NULL);
 	if (err) {
 		pr_err("loongson64: setup irq for constant_clock_event failed: %d\n", err);
