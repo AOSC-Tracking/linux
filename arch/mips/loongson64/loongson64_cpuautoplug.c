@@ -265,7 +265,7 @@ static void increase_cores(int cur_cpus)
 
 	target_cpu = cpumask_next_zero(0, cpu_online_mask);
 	lock_device_hotplug();
-	cpu_up(target_cpu);
+	add_cpu(target_cpu);
 	get_cpu_device(target_cpu)->offline = false;
 	unlock_device_hotplug();
 }
@@ -280,7 +280,7 @@ static void decrease_cores(int cur_cpus)
 
 	target_cpu = find_last_bit(cpumask_bits(cpu_online_mask), num_possible_cpus());
 	lock_device_hotplug();
-	cpu_down(target_cpu);
+	remove_cpu(target_cpu);
 	get_cpu_device(target_cpu)->offline = true;
 	unlock_device_hotplug();
 }
