@@ -242,7 +242,7 @@ static inline u64 get_idle_time_jiffy(u64 *wall)
 	return div_u64(idle_time, NSEC_PER_USEC);
 }
 
-static inline u64 get_idle_time(u64 *wall)
+static inline u64 gs464_get_idle_time(u64 *wall)
 {
 	unsigned int cpu;
 	u64 idle_time = 0;
@@ -316,7 +316,7 @@ static void do_autoplug_timer(struct work_struct *work)
 	}
 
 	/* based on cpu load */
-	cur_idle_time = get_idle_time(&cur_wall_time);
+	cur_idle_time = gs464_get_idle_time(&cur_wall_time);
 	if (cur_wall_time == 0) {
 		cur_wall_time = jiffies64_to_nsecs(get_jiffies_64());
 		cur_wall_time = div_u64(cur_wall_time, NSEC_PER_USEC);
