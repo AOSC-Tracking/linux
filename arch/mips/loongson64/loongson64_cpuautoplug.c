@@ -375,8 +375,11 @@ static struct platform_driver platform_driver = {
 static int __init cpuautoplug_init(void)
 {
 	int ret, delay;
+	struct device *dev_root;
 
-	ret = sysfs_create_group(&cpu_subsys.dev_root->kobj, &cpuclass_attr_group);
+	dev_root = bus_get_dev_root(&cpu_subsys);
+
+	ret = sysfs_create_group(&dev_root->kobj, &cpuclass_attr_group);
 	if (ret)
 		return ret;
 
@@ -410,9 +413,13 @@ static int __init cpuautoplug_init(void)
 
 static void __exit cpuautoplug_exit(void)
 {
+	struct device *dev_root;
+
+	dev_root = bus_get_dev_root(&cpu_subsys);
+
 	cancel_delayed_work_sync(&ap_info.work);
 	platform_driver_unregister(&platform_driver);
-	sysfs_remove_group(&cpu_subsys.dev_root->kobj, &cpuclass_attr_group);
+	sysfs_remove_group(&dev_root->kobj, &cpuclass_attr_group);
 }
 
 late_initcall(cpuautoplug_init);
