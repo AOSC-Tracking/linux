@@ -4984,15 +4984,14 @@ static int btrfs_uring_encoded_read(struct io_uring_cmd *cmd, unsigned int issue
 		 * undo this.
 		 */
 		if (!iov) {
-			iov = kmalloc(sizeof(struct iovec) * args.iovcnt, GFP_NOFS);
+			iov = kmemdup(iovstack, sizeof(struct iovec) * args.iovcnt,
+				      GFP_NOFS);
 			if (!iov) {
 				unlock_extent(io_tree, start, lockend, &cached_state);
 				btrfs_inode_unlock(inode, BTRFS_ILOCK_SHARED);
 				ret = -ENOMEM;
 				goto out_acct;
 			}
-
-			memcpy(iov, iovstack, sizeof(struct iovec) * args.iovcnt);
 		}
 
 		count = min_t(u64, iov_iter_count(&iter), disk_io_size);
@@ -5300,6 +5299,8 @@ long btrfs_ioctl(struct file *file, unsigned int
 		return fsverity_ioctl_enable(file, (const void __user *)argp);
 	case FS_IOC_MEASURE_VERITY:
 		return fsverity_ioctl_measure(file, argp);
+	case FS_IOC_READ_VERITY_METADATA:
+		return fsverity_ioctl_read_metadata(file, argp);
 	case BTRFS_IOC_ENCODED_READ:
 		return btrfs_ioctl_encoded_read(file, argp, false);
 	case BTRFS_IOC_ENCODED_WRITE:
