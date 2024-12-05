@@ -59,7 +59,7 @@ static const struct proc_ops proc_systab_operations = {
 /**
   * efi_init_kernfs - Create efi in procfs/sysfs
   */
-int __init efi_init_kernfs(void)
+static int __init efi_init_kernfs(void)
 {
 	efi_kobj = kobject_create_and_add("efi", firmware_kobj);
 	if (!efi_kobj)
@@ -78,7 +78,7 @@ int __init efi_init_kernfs(void)
 /**
   * efi_exit_kernfs - Remove efi from procfs/sysfs
   */
-void __exit efi_exit_kernfs(void)
+static void __exit efi_exit_kernfs(void)
 {
 	remove_proc_entry("systab", proc_efi);
 	remove_proc_entry("efi", NULL);
