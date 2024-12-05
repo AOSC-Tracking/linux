@@ -136,4 +136,8 @@ static inline bool radeon_has_atpx_dgpu_power_cntl(void) { return false; }
 static inline bool radeon_is_atpx_hybrid(void) { return false; }
 #endif
 
+/* DPMS handlers */
+void radeon_lvds_dpms_off(void);
+void radeon_lvds_dpms_on(void);
+
 #endif				/* __RADEON_DRV_H__ */
