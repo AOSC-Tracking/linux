@@ -38,6 +38,7 @@
 #include <linux/pci.h>
 
 #include <drm/drm_client_setup.h>
+#include <drm/drm_crtc_helper.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_file.h>
 #include <drm/drm_fourcc.h>
@@ -639,15 +640,19 @@ static int radeon_lvds_dpms_callback(struct device *dev, void *arg)
 void radeon_lvds_dpms_off(void)
 {
 	int on = 0;
+	struct device_driver *drv;
 
-	driver_for_each_device(&pdriver->driver, NULL, &on, radeon_lvds_dpms_callback);
+	drv = driver_find("radeon", &pci_bus_type);
+	driver_for_each_device(drv, NULL, &on, radeon_lvds_dpms_callback);
 }
 
 void radeon_lvds_dpms_on(void)
 {
 	int on = 1;
+	struct device_driver *drv;
 
-	driver_for_each_device(&pdriver->driver, NULL, &on, radeon_lvds_dpms_callback);
+	drv = driver_find("radeon", &pci_bus_type);
+	driver_for_each_device(drv, NULL, &on, radeon_lvds_dpms_callback);
 }
 
 static int __init radeon_module_init(void)
