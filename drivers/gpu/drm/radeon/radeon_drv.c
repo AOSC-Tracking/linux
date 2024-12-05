@@ -639,20 +639,28 @@ static int radeon_lvds_dpms_callback(struct device *dev, void *arg)
 
 void radeon_lvds_dpms_off(void)
 {
+	int err;
 	int on = 0;
 	struct device_driver *drv;
 
 	drv = driver_find("radeon", &pci_bus_type);
-	driver_for_each_device(drv, NULL, &on, radeon_lvds_dpms_callback);
+	err = driver_for_each_device(drv, NULL, &on, radeon_lvds_dpms_callback);
+
+	if (err)
+		pr_err("radeon: failed to disable DPMS: %d\n", err);
 }
 
 void radeon_lvds_dpms_on(void)
 {
+	int err;
 	int on = 1;
 	struct device_driver *drv;
 
 	drv = driver_find("radeon", &pci_bus_type);
-	driver_for_each_device(drv, NULL, &on, radeon_lvds_dpms_callback);
+	err = driver_for_each_device(drv, NULL, &on, radeon_lvds_dpms_callback);
+
+	if (err)
+		pr_err("radeon: failed to enable DPMS: %d\n", err);
 }
 
 static int __init radeon_module_init(void)
