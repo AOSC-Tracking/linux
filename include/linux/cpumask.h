@@ -683,6 +683,18 @@ bool cpumask_andnot(struct cpumask *dstp, const struct cpumask *src1p,
 }
 
 /**
+ * cpumask_complement - *dstp = ~*srcp
+ * @dstp: the cpumask result
+ * @srcp: the input to invert
+ */
+static inline void cpumask_complement(struct cpumask *dstp,
+				       const struct cpumask *srcp)
+{
+	bitmap_complement(cpumask_bits(dstp), cpumask_bits(srcp),
+					      nr_cpumask_bits);
+}
+
+/**
  * cpumask_equal - *src1p == *src2p
  * @src1p: the first input
  * @src2p: the second input
