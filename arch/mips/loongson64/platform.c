@@ -10,6 +10,8 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <loongson_hwmon.h>
+#include <loongson.h>
+#include <workarounds.h>
 
 /*
  * Kernel helper policy
