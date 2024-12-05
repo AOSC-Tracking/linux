@@ -3,6 +3,7 @@
 #include <asm/bootinfo.h>
 #include <ec_wpce775l.h>
 #include <workarounds.h>
+#include <loongson.h>
 
 #define GPIO_LCD_CNTL		5
 #define GPIO_BACKLIGHIT_CNTL	7
