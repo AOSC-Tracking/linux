@@ -49,11 +49,11 @@ static int systab_open(struct inode *inode, struct file *file)
 	return seq_open(file, &systab_op);
 }
 
-static const struct file_operations proc_systab_operations = {
-	.open		= systab_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+static const struct proc_ops proc_systab_operations = {
+	.proc_open	= systab_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
 };
 
 /**
