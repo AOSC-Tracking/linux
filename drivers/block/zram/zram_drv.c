@@ -614,6 +614,12 @@ static ssize_t backing_dev_store(struct device *dev,
 	}
 
 	nr_pages = i_size_read(inode) >> PAGE_SHIFT;
+	/* Refuse to use zero sized device (also prevents self reference) */
+	if (!nr_pages) {
+		err = -EINVAL;
+		goto out;
+	}
+
 	bitmap_sz = BITS_TO_LONGS(nr_pages) * sizeof(long);
 	bitmap = kvzalloc(bitmap_sz, GFP_KERNEL);
 	if (!bitmap) {
@@ -1633,6 +1639,7 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 	unsigned long alloced_pages;
 	unsigned long handle = -ENOMEM;
 	unsigned int comp_len = 0;
+	unsigned int last_comp_len = 0;
 	void *src, *dst, *mem;
 	struct zcomp_strm *zstrm;
 	unsigned long element = 0;
@@ -1664,6 +1671,11 @@ compress_again:
 
 	if (comp_len >= huge_class_size)
 		comp_len = PAGE_SIZE;
+
+	if (last_comp_len && (last_comp_len != comp_len)) {
+		zs_free(zram->mem_pool, handle);
+		handle = (unsigned long)ERR_PTR(-ENOMEM);
+	}
 	/*
 	 * handle allocation has 2 paths:
 	 * a) fast path is executed with preemption disabled (for
@@ -1692,8 +1704,10 @@ compress_again:
 		if (IS_ERR_VALUE(handle))
 			return PTR_ERR((void *)handle);
 
-		if (comp_len != PAGE_SIZE)
+		if (comp_len != PAGE_SIZE) {
+			last_comp_len = comp_len;
 			goto compress_again;
+		}
 		/*
 		 * If the page is not compressible, you need to acquire the
 		 * lock and execute the code below. The zcomp_stream_get()
@@ -2321,6 +2335,9 @@ static void zram_reset_device(struct zram *zram)
 	zram->limit_pages = 0;
 
 	if (!init_done(zram)) {
+		/* Backing device could be set before ZRAM initialization. */
+		reset_bdev(zram);
+
 		up_write(&zram->init_lock);
 		return;
 	}
