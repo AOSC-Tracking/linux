@@ -7,4 +7,8 @@
 #define WORKAROUND_LVDS_EC 	0x00000004
 #define WORKAROUND_LVDS_GPIO	0x00000008
 
+void gpio_lvds_off(void);
+void turn_off_lvds(void);
+void turn_on_lvds(void);
+
 #endif
