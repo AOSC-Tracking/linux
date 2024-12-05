@@ -268,9 +268,11 @@ static ssize_t power_supply_show_enum_with_available(
 	return count;
 }
 
-static ssize_t power_supply_show_property(struct device *dev,
-					  struct device_attribute *attr,
-					  char *buf) {
+static ssize_t power_supply_format_property(struct device *dev,
+					    bool uevent,
+					    struct device_attribute *attr,
+					    char *buf)
+{
 	ssize_t ret;
 	struct power_supply *psy = dev_get_drvdata(dev);
 	const struct power_supply_attr *ps_attr = to_ps_attr(attr);
@@ -287,7 +289,7 @@ static ssize_t power_supply_show_property(struct device *dev,
 				dev_dbg_ratelimited(dev,
 					"driver has no data for `%s' property\n",
 					attr->attr.name);
-			else if (ret != -ENODEV && ret != -EAGAIN)
+			else if (ret != -ENODEV && ret != -EAGAIN && ret != -EINVAL)
 				dev_err_ratelimited(dev,
 					"driver failed to report `%s' property: %zd\n",
 					attr->attr.name, ret);
@@ -303,6 +305,8 @@ static ssize_t power_supply_show_property(struct device *dev,
 				psy->desc->usb_types, value.intval, buf);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
+		if (uevent) /* no possible values in uevents */
+			goto default_format;
 		ret = power_supply_charge_behaviour_show(dev, psy->desc->charge_behaviours,
 							 value.intval, buf);
 		break;
@@ -310,6 +314,7 @@ static ssize_t power_supply_show_property(struct device *dev,
 		ret = sysfs_emit(buf, "%s\n", value.strval);
 		break;
 	default:
+default_format:
 		if (ps_attr->text_values_len > 0 &&
 				value.intval < ps_attr->text_values_len && value.intval >= 0) {
 			ret = sysfs_emit(buf, "%s\n", ps_attr->text_values[value.intval]);
@@ -319,6 +324,13 @@ static ssize_t power_supply_show_property(struct device *dev,
 	}
 
 	return ret;
+}
+
+static ssize_t power_supply_show_property(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	return power_supply_format_property(dev, false, attr, buf);
 }
 
 static ssize_t power_supply_store_property(struct device *dev,
@@ -366,7 +378,6 @@ static umode_t power_supply_attr_is_visible(struct kobject *kobj,
 	struct device *dev = kobj_to_dev(kobj);
 	struct power_supply *psy = dev_get_drvdata(dev);
 	umode_t mode = S_IRUSR | S_IRGRP | S_IROTH;
-	int i;
 
 	if (!power_supply_attrs[attrno].prop_name)
 		return 0;
@@ -374,19 +385,11 @@ static umode_t power_supply_attr_is_visible(struct kobject *kobj,
 	if (attrno == POWER_SUPPLY_PROP_TYPE)
 		return mode;
 
-	for (i = 0; i < psy->desc->num_properties; i++) {
-		int property = psy->desc->properties[i];
-
-		if (property == attrno) {
-			if (power_supply_property_is_writeable(psy, property) > 0)
-				mode |= S_IWUSR;
-
-			return mode;
-		}
-	}
-
-	if (power_supply_battery_info_has_prop(psy->battery_info, attrno))
+	if (power_supply_has_property(psy, attrno)) {
+		if (power_supply_property_is_writeable(psy, attrno) > 0)
+			mode |= S_IWUSR;
 		return mode;
+	}
 
 	return 0;
 }
@@ -437,8 +440,8 @@ static int add_prop_uevent(const struct device *dev, struct kobj_uevent_env *env
 	pwr_attr = &power_supply_attrs[prop];
 	dev_attr = &pwr_attr->dev_attr;
 
-	ret = power_supply_show_property((struct device *)dev, dev_attr, prop_buf);
-	if (ret == -ENODEV || ret == -ENODATA) {
+	ret = power_supply_format_property((struct device *)dev, true, dev_attr, prop_buf);
+	if (ret == -ENODEV || ret == -ENODATA || ret == -EINVAL) {
 		/*
 		 * When a battery is absent, we expect -ENODEV. Don't abort;
 		 * send the uevent with at least the PRESENT=0 property
@@ -459,11 +462,7 @@ static int add_prop_uevent(const struct device *dev, struct kobj_uevent_env *env
 
 int power_supply_uevent(const struct device *dev, struct kobj_uevent_env *env)
 {
-	const struct power_supply *psy = dev_get_drvdata(dev);
-	const enum power_supply_property *battery_props =
-		power_supply_battery_info_properties;
-	unsigned long psy_drv_properties[POWER_SUPPLY_ATTR_CNT /
-					 sizeof(unsigned long) + 1] = {0};
+	struct power_supply *psy = dev_get_drvdata(dev);
 	int ret = 0, j;
 	char *prop_buf;
 
@@ -491,22 +490,8 @@ int power_supply_uevent(const struct device *dev, struct kobj_uevent_env *env)
 	if (ret)
 		goto out;
 
-	for (j = 0; j < psy->desc->num_properties; j++) {
-		set_bit(psy->desc->properties[j], psy_drv_properties);
-		ret = add_prop_uevent(dev, env, psy->desc->properties[j],
-				      prop_buf);
-		if (ret)
-			goto out;
-	}
-
-	for (j = 0; j < power_supply_battery_info_properties_size; j++) {
-		if (test_bit(battery_props[j], psy_drv_properties))
-			continue;
-		if (!power_supply_battery_info_has_prop(psy->battery_info,
-				battery_props[j]))
-			continue;
-		ret = add_prop_uevent(dev, env, battery_props[j],
-			      prop_buf);
+	for (j = 0; j < POWER_SUPPLY_ATTR_CNT; j++) {
+		ret = add_prop_uevent(dev, env, j, prop_buf);
 		if (ret)
 			goto out;
 	}
