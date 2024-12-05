@@ -850,10 +850,10 @@ int disable_unused_cpus(void)
 	cpumask_and(&tmp, &tmp, cpu_possible_mask);
 
 	for_each_cpu(cpu, &tmp)
-		cpu_up(cpu);
+		add_cpu(cpu);
 
 	for_each_cpu(cpu, &tmp)
-		cpu_down(cpu);
+		remove_cpu(cpu);
 
 	return 0;
 }
