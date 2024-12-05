@@ -38,7 +38,7 @@ config LS2K_RESET
 	  Loongson-2K1000 Reset Controller driver.
 
 config LEMOTE3A_LAPTOP
-	tristate "Lemote Loongson-3A Laptop Driver"
+	bool "Lemote Loongson-3A Laptop Driver"
 	depends on MACH_LOONGSON64
 	select BACKLIGHT_LCD_SUPPORT
 	select LCD_CLASS_DEVICE
@@ -48,7 +48,7 @@ config LEMOTE3A_LAPTOP
 	select VIDEO_OUTPUT_CONTROL
 	select INPUT_SPARSEKMAP
 	select INPUT_EVDEV
-	depends on INPUT
+	depends on INPUT && DRM_RADEON
 	default y
 	help
 	  Lemote Loongson-3A/2Gq family laptops driver.
