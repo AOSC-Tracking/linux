@@ -139,12 +139,6 @@ void validate_mm(struct mm_struct *mm);
 #define validate_mm(mm) do { } while (0)
 #endif
 
-/* Required for expand_downwards(). */
-void anon_vma_interval_tree_pre_update_vma(struct vm_area_struct *vma);
-
-/* Required for expand_downwards(). */
-void anon_vma_interval_tree_post_update_vma(struct vm_area_struct *vma);
-
 int vma_expand(struct vma_merge_struct *vmg);
 int vma_shrink(struct vma_iterator *vmi, struct vm_area_struct *vma,
 	       unsigned long start, unsigned long end, pgoff_t pgoff);
@@ -246,6 +240,12 @@ void mm_drop_all_locks(struct mm_struct *mm);
 unsigned long __mmap_region(struct file *file, unsigned long addr,
 		unsigned long len, vm_flags_t vm_flags, unsigned long pgoff,
 		struct list_head *uf);
+
+int do_brk_flags(struct vma_iterator *vmi, struct vm_area_struct *brkvma,
+		 unsigned long addr, unsigned long request, unsigned long flags);
+
+unsigned long unmapped_area(struct vm_unmapped_area_info *info);
+unsigned long unmapped_area_topdown(struct vm_unmapped_area_info *info);
 
 static inline bool vma_wants_manual_pte_write_upgrade(struct vm_area_struct *vma)
 {
@@ -471,5 +471,13 @@ static inline bool can_modify_vma_madv(struct vm_area_struct *vma, int behavior)
 }
 
 #endif
+
+#if defined(CONFIG_STACK_GROWSUP)
+int expand_upwards(struct vm_area_struct *vma, unsigned long address);
+#endif
+
+int expand_downwards(struct vm_area_struct *vma, unsigned long address);
+
+int __vm_munmap(unsigned long start, size_t len, bool unlock);
 
 #endif	/* __MM_VMA_H */
