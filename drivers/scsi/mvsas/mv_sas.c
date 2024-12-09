@@ -265,6 +265,20 @@ static void mvs_bytes_dmaed(struct mvs_info *mvi, int i, gfp_t gfp_flags)
 	sas_notify_port_event(sas_phy, PORTE_BYTES_DMAED, gfp_flags);
 }
 
+int mvs_device_configure(struct scsi_device *sdev, struct queue_limits *lim)
+{
+	struct domain_device *dev = sdev_to_domain_dev(sdev);
+
+	sas_device_configure(sdev, lim);
+
+#if defined(CONFIG_MIPS) && defined(CONFIG_CPU_LOONGSON64)
+	if (!dev_is_sata(dev))
+		scsi_change_queue_depth(sdev, MVS_QUEUE_SIZE);
+#endif
+
+	return 0;
+}
+
 void mvs_scan_start(struct Scsi_Host *shost)
 {
 	int i, j;
@@ -319,13 +333,13 @@ static int mvs_task_prep_smp(struct mvs_info *mvi,
 	 * DMA-map SMP request, response buffers
 	 */
 	sg_req = &task->smp_task.smp_req;
-	elem = dma_map_sg(mvi->dev, sg_req, 1, DMA_TO_DEVICE);
+	elem = dma_map_sg(mvi->dev, sg_req, 1, DMA_BIDIRECTIONAL);
 	if (!elem)
 		return -ENOMEM;
 	req_len = sg_dma_len(sg_req);
 
 	sg_resp = &task->smp_task.smp_resp;
-	elem = dma_map_sg(mvi->dev, sg_resp, 1, DMA_FROM_DEVICE);
+	elem = dma_map_sg(mvi->dev, sg_resp, 1, DMA_BIDIRECTIONAL);
 	if (!elem) {
 		rc = -ENOMEM;
 		goto err_out;
@@ -399,10 +413,10 @@ static int mvs_task_prep_smp(struct mvs_info *mvi,
 
 err_out_2:
 	dma_unmap_sg(mvi->dev, &tei->task->smp_task.smp_resp, 1,
-		     DMA_FROM_DEVICE);
+		     DMA_BIDIRECTIONAL);
 err_out:
 	dma_unmap_sg(mvi->dev, &tei->task->smp_task.smp_req, 1,
-		     DMA_TO_DEVICE);
+		     DMA_BIDIRECTIONAL);
 	return rc;
 }
 
@@ -879,9 +893,9 @@ static void mvs_slot_task_free(struct mvs_info *mvi, struct sas_task *task,
 	switch (task->task_proto) {
 	case SAS_PROTOCOL_SMP:
 		dma_unmap_sg(mvi->dev, &task->smp_task.smp_resp, 1,
-			     DMA_FROM_DEVICE);
+			     DMA_BIDIRECTIONAL);
 		dma_unmap_sg(mvi->dev, &task->smp_task.smp_req, 1,
-			     DMA_TO_DEVICE);
+			     DMA_BIDIRECTIONAL);
 		break;
 
 	case SAS_PROTOCOL_SATA:
