@@ -1023,20 +1023,20 @@ static inline void seccomp_log(unsigned long syscall, long signr, u32 action,
  */
 static const int mode1_syscalls[] = {
 	__NR_seccomp_read, __NR_seccomp_write, __NR_seccomp_exit, __NR_seccomp_sigreturn,
-	-1, /* negative terminated */
+	0, /* null terminated */
 };
 
 static void __secure_computing_strict(int this_syscall)
 {
-	const int *allowed_syscalls = mode1_syscalls;
+	const int *syscall_whitelist = mode1_syscalls;
 #ifdef CONFIG_COMPAT
 	if (in_compat_syscall())
-		allowed_syscalls = get_compat_mode1_syscalls();
+		syscall_whitelist = get_compat_mode1_syscalls();
 #endif
 	do {
-		if (*allowed_syscalls == this_syscall)
+		if (*syscall_whitelist == this_syscall)
 			return;
-	} while (*++allowed_syscalls != -1);
+	} while (*++syscall_whitelist);
 
 #ifdef SECCOMP_DEBUG
 	dump_stack();
