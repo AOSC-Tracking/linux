@@ -17,6 +17,7 @@ struct intel_framebuffer;
 void intel_fbdev_setup(struct drm_i915_private *dev_priv);
 void intel_fbdev_set_suspend(struct drm_device *dev, int state, bool synchronous);
 struct intel_framebuffer *intel_fbdev_framebuffer(struct intel_fbdev *fbdev);
+void *intel_fbdev_get_vaddr(struct intel_fbdev *fbdev);
 #else
 static inline void intel_fbdev_setup(struct drm_i915_private *dev_priv)
 {
@@ -27,6 +28,11 @@ static inline void intel_fbdev_set_suspend(struct drm_device *dev, int state, bo
 }
 
 static inline struct intel_framebuffer *intel_fbdev_framebuffer(struct intel_fbdev *fbdev)
+{
+	return NULL;
+}
+
+static inline void *intel_fbdev_get_vaddr(struct intel_fbdev *fbdev)
 {
 	return NULL;
 }
