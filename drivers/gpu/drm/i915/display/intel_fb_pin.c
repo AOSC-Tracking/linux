@@ -327,3 +327,8 @@ void intel_plane_unpin_fb(struct intel_plane_state *old_plane_state)
 			intel_dpt_unpin_from_ggtt(fb->dpt_vm);
 	}
 }
+
+void *intel_fb_get_vaddr(struct i915_vma *vma)
+{
+	return i915_vma_get_iomap(vma);
+}
