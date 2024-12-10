@@ -4,7 +4,6 @@
 #include <linux/types.h>
 #include <linux/audit.h>
 #include <linux/unistd.h>
-#include "audit-o32.h"
 
 static unsigned dir_class_o32[] = {
 #include <asm-generic/audit_dir_write.h>
