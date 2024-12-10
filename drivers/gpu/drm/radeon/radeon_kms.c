@@ -88,7 +88,7 @@ done_free:
 	dev->dev_private = NULL;
 }
 
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 extern void turn_on_lvds(void);
 extern void turn_off_lvds(void);
 #endif
@@ -123,7 +123,7 @@ int radeon_driver_load_kms(struct drm_device *dev, unsigned long flags)
 			rdev->agp->agp_info.aper_size *
 			1024 * 1024);
 	}
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 	turn_off_lvds();
 #endif
 
@@ -162,7 +162,7 @@ int radeon_driver_load_kms(struct drm_device *dev, unsigned long flags)
 	if (r)
 		dev_err(dev->dev, "Fatal error during modeset init\n");
 
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 	turn_on_lvds();
 #endif
 
