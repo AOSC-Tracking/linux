@@ -25,5 +25,6 @@ void intel_fb_unpin_vma(struct i915_vma *vma, unsigned long flags);
 
 int intel_plane_pin_fb(struct intel_plane_state *plane_state);
 void intel_plane_unpin_fb(struct intel_plane_state *old_plane_state);
+void *intel_fb_get_vaddr(struct i915_vma *vma);
 
 #endif

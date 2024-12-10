@@ -423,3 +423,8 @@ u64 intel_dpt_offset(struct i915_vma *dpt_vma)
 {
 	return 0;
 }
+
+void *intel_fb_get_vaddr(struct i915_vma *vma)
+{
+	return NULL;
+}
