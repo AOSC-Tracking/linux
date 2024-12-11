@@ -1659,7 +1659,7 @@ void radeon_recover_callback(struct work_struct *work)
 	radeon_restore_bios_scratch_regs(rdev);
 	radeon_ib_ring_tests(rdev);
 	radeon_pm_resume(rdev);
-	drm_helper_resume_force_mode(rdev->ddev);
+	drm_helper_resume_force_mode(rdev_to_drm(rdev));
 	ttm_bo_unlock_delayed_workqueue(&rdev->mman.bdev, resched);
 	up_write(&rdev->exclusive_lock);
 }
