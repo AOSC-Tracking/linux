@@ -98,7 +98,7 @@ impl<T: DriverGpuVm> OpMap<T> {
         &mut self,
         gpuvm: &mut UpdatingGpuVm<'_, T>,
         gpuva: Pin<KBox<GpuVa<T>>>,
-        gpuvmbo: &ARef<GpuVmBo<T>>,
+        gpuvmbo: &GpuVmBo<T>,
     ) -> Result<(), Pin<KBox<GpuVa<T>>>> {
         // SAFETY: We are handing off the GpuVa ownership and it will not be moved.
         let p = KBox::leak(unsafe { Pin::into_inner_unchecked(gpuva) });
