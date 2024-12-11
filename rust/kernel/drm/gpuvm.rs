@@ -593,7 +593,7 @@ impl<T: DriverGpuVm> LockedGpuVm<'_, '_, T> {
         })
     }
 
-    pub fn bo_unmap(&mut self, ctx: &mut T::StepContext, bo: &ARef<GpuVmBo<T>>) -> Result {
+    pub fn bo_unmap(&mut self, ctx: &mut T::StepContext, bo: &GpuVmBo<T>) -> Result {
         let mut ctx = StepContext {
             ctx,
             gpuvm: self.gpuvm,
