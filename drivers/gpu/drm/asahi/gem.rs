@@ -87,7 +87,7 @@ impl ObjectRef {
         vm: &crate::mmu::Vm,
         range: Range<u64>,
         alignment: u64,
-        prot: u32,
+        prot: mmu::Prot,
         guard: bool,
     ) -> Result<crate::mmu::KernelMapping> {
         // Only used for kernel objects now
@@ -104,7 +104,7 @@ impl ObjectRef {
         obj_range: Range<usize>,
         range: Range<u64>,
         alignment: u64,
-        prot: u32,
+        prot: mmu::Prot,
         guard: bool,
     ) -> Result<crate::mmu::KernelMapping> {
         if obj_range.end > self.gem.size() {
@@ -125,7 +125,7 @@ impl ObjectRef {
         &mut self,
         vm: &crate::mmu::Vm,
         addr: u64,
-        prot: u32,
+        prot: mmu::Prot,
         guard: bool,
     ) -> Result<crate::mmu::KernelMapping> {
         if self.gem.flags & uapi::drm_asahi_gem_flags_DRM_ASAHI_GEM_VM_PRIVATE != 0
