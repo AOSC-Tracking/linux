@@ -207,7 +207,7 @@ static void set_prefetch_parameters(void)
 			cache_line_size = cpu_dcache_line_size();
 	}
 
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 	clear_word_size = 16;
 	copy_word_size = 16;
 #endif
@@ -226,7 +226,7 @@ static void set_prefetch_parameters(void)
 
 static void build_clear_store(u32 **buf, int off)
 {
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 	uasm_i_gssq(buf, ZERO, ZERO, off, A0);
 #else
 	if (cpu_has_64bit_gp_regs || cpu_has_64bit_zero_reg) {
@@ -366,7 +366,7 @@ void build_clear_page(void)
 
 static void build_copy_load(u32 **buf, int reg, int off)
 {
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 	uasm_i_gslq(buf, reg, reg+4, off, A1);
 #else
 	if (cpu_has_64bit_gp_regs) {
@@ -379,7 +379,7 @@ static void build_copy_load(u32 **buf, int reg, int off)
 
 static void build_copy_store(u32 **buf, int reg, int off)
 {
-#ifdef CONFIG_CPU_LOONGSON3
+#ifdef CONFIG_CPU_LOONGSON64
 	uasm_i_gssq(buf, reg, reg+4, off, A0);
 #else
 	if (cpu_has_64bit_gp_regs) {
