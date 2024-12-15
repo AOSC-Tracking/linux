@@ -29,6 +29,7 @@ static unsigned signal_class[] = {
 ~0U
 };
 
+#if !defined(CONFIG_MIPS)
 int audit_classify_arch(int arch)
 {
 	if (audit_is_compat(arch))
@@ -68,6 +69,7 @@ int audit_classify_syscall(int abi, unsigned syscall)
 		return AUDITSC_NATIVE;
 	}
 }
+#endif
 
 static int __init audit_classes_init(void)
 {
