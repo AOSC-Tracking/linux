@@ -6924,6 +6924,16 @@ static void alc_fixup_thinkpad_acpi(struct hda_codec *codec,
 	hda_fixup_thinkpad_acpi(codec, fix, action);
 }
 
+/* for hda_fixup_ideapad_acpi() */
+#include "ideapad_hotkey_led_helper.c"
+
+static void alc_fixup_ideapad_acpi(struct hda_codec *codec,
+				   const struct hda_fixup *fix, int action)
+{
+	alc_fixup_no_shutup(codec, fix, action); /* reduce click noise */
+	hda_fixup_ideapad_acpi(codec, fix, action);
+}
+
 /* Fixup for Lenovo Legion 15IMHg05 speaker output on headset removal. */
 static void alc287_fixup_legion_15imhg05_speakers(struct hda_codec *codec,
 						  const struct hda_fixup *fix,
@@ -7546,6 +7556,7 @@ enum {
 	ALC290_FIXUP_SUBWOOFER,
 	ALC290_FIXUP_SUBWOOFER_HSJACK,
 	ALC269_FIXUP_THINKPAD_ACPI,
+	ALC269_FIXUP_IDEAPAD_ACPI,
 	ALC269_FIXUP_DMIC_THINKPAD_ACPI,
 	ALC269VB_FIXUP_INFINIX_ZERO_BOOK_13,
 	ALC269VC_FIXUP_INFINIX_Y4_MAX,
@@ -8313,6 +8324,12 @@ static const struct hda_fixup alc269_fixups[] = {
 	[ALC269_FIXUP_THINKPAD_ACPI] = {
 		.type = HDA_FIXUP_FUNC,
 		.v.func = alc_fixup_thinkpad_acpi,
+		.chained = true,
+		.chain_id = ALC269_FIXUP_SKU_IGNORE,
+	},
+	[ALC269_FIXUP_IDEAPAD_ACPI] = {
+		.type = HDA_FIXUP_FUNC,
+		.v.func = alc_fixup_ideapad_acpi,
 		.chained = true,
 		.chain_id = ALC269_FIXUP_SKU_IGNORE,
 	},
@@ -10883,6 +10900,7 @@ static const struct hda_quirk alc269_fixup_tbl[] = {
 	SND_PCI_QUIRK(0x17aa, 0x3880, "Yoga S780-16 pro dual YC", ALC287_FIXUP_TAS2781_I2C),
 	SND_PCI_QUIRK(0x17aa, 0x3881, "YB9 dual power mode2 YC", ALC287_FIXUP_TAS2781_I2C),
 	SND_PCI_QUIRK(0x17aa, 0x3882, "Lenovo Yoga Pro 7 14APH8", ALC287_FIXUP_YOGA9_14IAP7_BASS_SPK_PIN),
+	SND_PCI_QUIRK_VENDOR(0x17aa, "IdeaPad", ALC269_FIXUP_IDEAPAD_ACPI),
 	SND_PCI_QUIRK(0x17aa, 0x3884, "Y780 YG DUAL", ALC287_FIXUP_TAS2781_I2C),
 	SND_PCI_QUIRK(0x17aa, 0x3886, "Y780 VECO DUAL", ALC287_FIXUP_TAS2781_I2C),
 	SND_PCI_QUIRK(0x17aa, 0x3891, "Lenovo Yoga Pro 7 14AHP9", ALC287_FIXUP_YOGA9_14IAP7_BASS_SPK_PIN),
@@ -11118,6 +11136,7 @@ static const struct hda_model_fixup alc269_fixup_models[] = {
 	{.id = ALC290_FIXUP_MONO_SPEAKERS_HSJACK, .name = "mono-speakers"},
 	{.id = ALC290_FIXUP_SUBWOOFER_HSJACK, .name = "alc290-subwoofer"},
 	{.id = ALC269_FIXUP_THINKPAD_ACPI, .name = "thinkpad"},
+	{.id = ALC269_FIXUP_IDEAPAD_ACPI, .name = "ideapad-led"},
 	{.id = ALC269_FIXUP_DMIC_THINKPAD_ACPI, .name = "dmic-thinkpad"},
 	{.id = ALC255_FIXUP_ACER_MIC_NO_PRESENCE, .name = "alc255-acer"},
 	{.id = ALC255_FIXUP_ASUS_MIC_NO_PRESENCE, .name = "alc255-asus"},
