@@ -622,7 +622,9 @@ static void __init bootcmdline_init(void)
  * is more than 1GB, we reserve the top 128MB for the crash kernel */
 static void reserve_crashm_region(int node, unsigned long s0, unsigned long e0)
 {
-#ifdef CONFIG_KEXEC
+	if (!IS_ENABLED(CONFIG_CRASH_RESERVE))
+		return;
+
 	if (crashk_res.start == crashk_res.end)
 		return;
 
@@ -632,7 +634,6 @@ static void reserve_crashm_region(int node, unsigned long s0, unsigned long e0)
 	s0 = e0 - (SZ_128M >> PAGE_SHIFT);
 
 	memblock_reserve(PFN_PHYS(s0), (e0 - s0) << PAGE_SHIFT);
-#endif
 }
 
 static void reserve_oldmem_region(int node, unsigned long s0, unsigned long e0)
