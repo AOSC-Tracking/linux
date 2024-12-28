@@ -823,6 +823,13 @@ config I2C_LS2X
 	  This driver can also be built as a module. If so, the module
 	  will be called i2c-ls2x.
 
+config I2C_LSFS
+	tristate "Loongson fast speed I2C adapter"
+	depends on MACH_LOONGSON64
+	help
+	  If you say yes to this option, support will be included for the
+	  I2C interface on the Loongson's LS2K300.
+
 config I2C_MLXBF
         tristate "Mellanox BlueField I2C controller"
         depends on MELLANOX_PLATFORM && ARM64

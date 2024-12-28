@@ -70,4 +70,9 @@ config LOGO_SUPERH_CLUT224
 	depends on SUPERH
 	default y
 
+config LOGO_LOONGSON_CLUT224
+	bool "224-color Loongson Linux logo"
+	depends on MACH_LOONGSON64 || MACH_LOONGSON32
+	default y
+
 endif # LOGO

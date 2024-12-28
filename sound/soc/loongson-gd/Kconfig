@@ -1,0 +1,30 @@
+menuconfig SND_SOC_LOONGSON
+	tristate "ASoC support for loongson"
+
+if SND_SOC_LOONGSON
+
+config SND_LS
+	tristate "SoC Audio for ls-i2s"
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the I2S interface. You will also need to select the Audio
+		interfaces to support below.
+
+config SND_LS_PCM
+	tristate "SoC Audio for ls-pcm used descriptor"
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the PCM interface. Select this by configuring the dma of the descriptor.
+
+config SND_LS_PCM_GENERIC_DMA
+	tristate "SoC Audio for ls-pcm used generic dma"
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the PCM interface. Select this by configuring the generic dma.
+
+config SND_LS_DAILINK
+	tristate "SoC Audio for Sound-Card/Dai-Link"
+	depends on SND_LS
+	default y
+
+endif #SND_SOC_LOONGSON

@@ -58,7 +58,7 @@ const struct linux_logo * __ref fb_find_logo(int depth)
 		logo = &logo_superh_mono;
 #endif
 	}
-	
+
 	if (depth >= 4) {
 #ifdef CONFIG_LOGO_LINUX_VGA16
 		/* Generic Linux logo */
@@ -69,7 +69,7 @@ const struct linux_logo * __ref fb_find_logo(int depth)
 		logo = &logo_superh_vga16;
 #endif
 	}
-	
+
 	if (depth >= 8) {
 #ifdef CONFIG_LOGO_LINUX_CLUT224
 		/* Generic Linux logo */
@@ -99,6 +99,10 @@ const struct linux_logo * __ref fb_find_logo(int depth)
 #ifdef CONFIG_LOGO_SUPERH_CLUT224
 		/* SuperH Linux logo */
 		logo = &logo_superh_clut224;
+#endif
+#ifdef CONFIG_LOGO_LOONGSON_CLUT224
+		/* Loongson Linux logo */
+		logo = &logo_loongson_clut224;
 #endif
 	}
 	return logo;

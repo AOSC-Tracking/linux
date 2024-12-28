@@ -540,6 +540,10 @@ static int es8328_hw_params(struct snd_pcm_substream *substream,
 				ES8328_ADCCONTROL4_ADCWL_MASK,
 				wl << ES8328_ADCCONTROL4_ADCWL_SHIFT);
 
+#ifdef CONFIG_LOONGARCH
+	// alsamixer 中暂时没找到调整该配置选项，临时处理
+	snd_soc_component_write(component, ES8328_ADCPOWER, 0x00);
+#endif
 	return snd_soc_component_update_bits(component, reg, ES8328_RATEMASK, ratio);
 }
 
@@ -796,7 +800,20 @@ static int es8328_component_probe(struct snd_soc_component *component)
 		dev_err(component->dev, "unable to prepare codec clk\n");
 		goto clk_fail;
 	}
+#ifdef CONFIG_LOONGARCH
+	// RESET CODEC
+	snd_soc_component_write(component, ES8328_CHIPPOWER,
+			ES8328_CHIPPOWER_ADCDIG_OFF |
+			ES8328_CHIPPOWER_DACDIG_OFF |
+			ES8328_CHIPPOWER_ADCSTM_RESET |
+			ES8328_CHIPPOWER_DACSTM_RESET);
 
+	snd_soc_component_write(component, ES8328_DACCONTROL21,
+			ES8328_DACCONTROL21_LD2MO);
+
+	// PAI: waiting for codec ready in slave mode
+	mdelay(1000);
+#endif
 	return 0;
 
 clk_fail:

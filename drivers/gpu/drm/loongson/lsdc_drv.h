@@ -41,6 +41,7 @@
 enum loongson_chip_id {
 	CHIP_LS7A1000 = 0,
 	CHIP_LS7A2000 = 1,
+	CHIP_LS2K0300 = 2,
 	CHIP_LS_LAST,
 };
 
@@ -60,7 +61,9 @@ struct lsdc_desc {
 	u32 hw_cursor_w;
 	u32 hw_cursor_h;
 	u32 pitch_align;         /* CRTC DMA alignment constraint */
+	bool hw_vblank_enable;
 	bool has_vblank_counter; /* 32 bit hw vsync counter */
+	bool has_dedicated_vram;
 
 	/* device dependent ops, dc side */
 	const struct lsdc_kms_funcs *funcs;
@@ -78,12 +81,14 @@ struct loongson_gfx_desc {
 		u32 reg_offset;
 		u32 reg_size;
 	} gfxpll;
+	const struct loongson_gfxpll_funcs *gfxpll_funcs;
 
 	/* Pixel PLL, per display pipe */
 	struct {
 		u32 reg_offset;
 		u32 reg_size;
 	} pixpll[LSDC_NUM_CRTC];
+	const struct lsdc_pixpll_funcs *pixpll_funcs;
 
 	enum loongson_chip_id chip_id;
 	char model[64];
@@ -191,6 +196,8 @@ struct lsdc_display_pipe {
 	struct lsdc_output output;
 	struct lsdc_i2c *li2c;
 	unsigned int index;
+
+	bool available;
 };
 
 static inline struct lsdc_display_pipe *
@@ -263,6 +270,7 @@ struct lsdc_gem {
 };
 
 struct lsdc_device {
+	struct device *dev;
 	struct drm_device base;
 	struct ttm_device bdev;
 
@@ -295,6 +303,10 @@ struct lsdc_device {
 
 	/* @num_output: count the number of active display pipe */
 	unsigned int num_output;
+
+
+	/* @has_ports_node: true if there are OF graph in the DT */
+	bool has_ports_node;
 };
 
 static inline struct lsdc_device *tdev_to_ldev(struct ttm_device *bdev)

@@ -7,6 +7,7 @@ loongson-y := \
 	lsdc_drv.o \
 	lsdc_gem.o \
 	lsdc_gfxpll.o \
+	lsdc_gfxpll_2k1000.o \
 	lsdc_i2c.o \
 	lsdc_irq.o \
 	lsdc_output_7a1000.o \

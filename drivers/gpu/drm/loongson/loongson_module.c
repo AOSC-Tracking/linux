@@ -4,6 +4,7 @@
  */
 
 #include <linux/pci.h>
+#include <linux/platform_device.h>
 
 #include <video/nomodeset.h>
 
@@ -16,6 +17,7 @@ module_param_named(modeset, loongson_modeset, int, 0400);
 int loongson_vblank = 1;
 MODULE_PARM_DESC(vblank, "Disable/Enable hw vblank support");
 module_param_named(vblank, loongson_vblank, int, 0400);
+extern struct platform_driver lsdc_platform_driver;
 
 int loongson_ls7a1000_support = 0;
 MODULE_PARM_DESC(ls7a1000_support, "7A1000 support (1 = enabled, 0 = disabled (default))");
@@ -30,6 +32,7 @@ static int __init loongson_module_init(void)
 	if (!loongson_modeset || video_firmware_drivers_only())
 		return -ENODEV;
 
+	platform_driver_register(&lsdc_platform_driver);
 	return pci_register_driver(&lsdc_pci_driver);
 }
 module_init(loongson_module_init);

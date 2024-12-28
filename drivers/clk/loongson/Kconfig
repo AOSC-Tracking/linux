@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config COMMON_CLK_LOONGSON2X
+	bool "Clock drivers for Loongson2 SOCs"
+	depends on LOONGSON_2K1000 || LOONGSON_2K500 || LOONGSON_2K300
+	default LOONGSON_2K1000 || LOONGSON_2K500 || LOONGSON_2K300
+	help
+	  Supports clock drivers for Loongson2 SOCs.
+
+choice
+	bool "System clock mode Selection"
+    depends on COMMON_CLK_LOONGSON2X
+    default LOONGSON2_SYSCLK_SOFT
+
+	config LOONGSON2_SYSCLK_HW_LOWFREQ
+		bool "Hardware low frequency mode"
+		help
+		System clock select Hardware low frequency mode.
+
+	config LOONGSON2_SYSCLK_HW_HIGFREQ
+		bool "Hardware hige frequency mode"
+		help
+		System clock select Hardware hige frequency mode.
+
+	config LOONGSON2_SYSCLK_SOFT
+		bool "Soft mode"
+		help
+		System clock select Soft mode.
+
+	config LOONGSON2_SYSCLK_HW_BYPASS
+		bool "Hardware bypass mode"
+		help
+		System clock select Hardware bypass mode.
+
+endchoice

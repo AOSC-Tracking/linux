@@ -50,6 +50,11 @@
 #include <asm/unwind.h>
 
 #include "legacy_boot.h"
+#include <boot_param.h>
+
+#ifndef CONFIG_BUILTIN_DTB_NAME
+#define CONFIG_BUILTIN_DTB_NAME ""
+#endif
 
 #define SMBIOS_BIOSSIZE_OFFSET		0x09
 #define SMBIOS_BIOSEXTERN_OFFSET	0x13
@@ -75,6 +80,8 @@ static const char dmi_empty_string[] = "        ";
  * These are initialized so they are in the .data section
  */
 char init_command_line[COMMAND_LINE_SIZE] __initdata;
+char board_name_desc[] = "board_name="; // 这是 command line 里面的内容 一定要有=
+char bp_start_desc[] = "bp_start="; // 这是 command line 里面的内容 一定要有=
 
 static int num_standard_resources;
 static struct resource *standard_resources;
@@ -82,6 +89,17 @@ static struct resource *standard_resources;
 static struct resource code_resource = { .name = "Kernel code", };
 static struct resource data_resource = { .name = "Kernel data", };
 static struct resource bss_resource  = { .name = "Kernel bss", };
+
+//////////////////////////////////////
+/////for bootloader mem map parse/////
+//////////////////////////////////////
+static unsigned long long bp_start;
+struct loongsonlist_mem_map *loongson_mem_map;
+static u8 __init ext_listhdr_checksum(u8 *buffer, u32 length);
+static int __init parse_mem(struct _extention_list_hdr *head);
+static void __init memmap_bootlaoder_parse(void);
+static int __init parse_extlist(struct boot_params *bp);
+static int __init bp_start_match(void);
 
 const char *get_system_type(void)
 {
@@ -276,6 +294,106 @@ static void __init arch_reserve_crashkernel(void)
 	reserve_crashkernel_generic(cmdline, crash_size, crash_base, low_size, high);
 }
 
+#ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
+static void* __init get_fdt_by_board_name(void)
+{
+	void *fdt = NULL;
+	char* board_name;
+	char temp[128]; // 不想申请空间 应该不会有这么长的名字吧
+	board_name = strstr(boot_command_line, board_name_desc);
+	if (board_name) {
+		int i;
+		memset(temp, 0, 128);
+		board_name += strlen(board_name_desc); // 跳过 = 和前面的字段
+		for (i = 0; i < 127; ++i) {
+			if (board_name[i] == 0 || board_name[i] == ' ')
+				break;
+			temp[i] = board_name[i];
+		}
+		board_name = temp;
+	}
+	if (board_name) {
+#ifdef CONFIG_LOONGSON_2K500
+		int i;
+		if (!strncmp(board_name, "LS2K500-HL-MB", 13))
+			fdt = &__dtb_ls2k500_hl_mb_begin;
+		else if (!strncmp(board_name, "LS2K500-MINI-DP", 15))
+			fdt = &__dtb_ls2k500_mini_dp_begin;
+		else if (!strncmp(board_name, "LS2K500-DAYU400-MB", 17))
+			fdt = &__dtb_ls2k500_dayu400_mb_begin;
+		else if (!strncmp(board_name, "LS2K500-MODI-HCT", 16))
+			fdt = &__dtb_ls2k500_modi_hct_begin;
+		else if (!strncmp(board_name, "LS2K500-ZHENGTAI-PCS1800-V10", 28))
+			fdt = &__dtb_ls2k500_zhengtai_pcs1800_v10_begin;
+		else if (!strncmp(board_name, "LS2K500-JIAOQIAN-V10", 20))
+			fdt = &__dtb_ls2k500_jiaoqian_v10_begin;
+		else if (!strncmp(board_name, "LS2K500-ZJJZ", 12))
+			fdt = &__dtb_ls2k500_zjjz_begin;
+		else
+			fdt = &__dtb_ls2k500_mini_dp_begin;
+
+		// for (i = 0; i < NR_CPUS; ++i)
+		// 	if (check_cpu_full_name_invaild(i))
+		// 		__cpu_full_name[i] = cpu_ls2k500_name;
+#elif defined(CONFIG_LOONGSON_2K1000)
+		if (!strncmp(board_name, "LS2K1000-JL-MB", 14)) {
+			if (!strncmp(board_name, "LS2K1000-JL-MB-MU", 17))
+				fdt = &__dtb_ls2k1000_jl_mb_mu_begin;
+			else if (!strncmp(board_name, "LS2K1000-JL-MB-NODVO", 20))
+				fdt = &__dtb_ls2k1000_jl_mb_nodvo_begin;
+			else
+				fdt = &__dtb_ls2k1000_jl_mb_begin;
+		} else if (!strncmp(board_name, "LS2K1000-DP", 11)) {
+		#ifdef CONFIG_SND_LS1X_SOC_I2S
+			fdt = &__dtb_ls2k1000_dp_i2s_begin;
+		#else
+			if (!strncmp(board_name, "LS2K1000-DP-TEST", 16)) {
+				fdt = &__dtb_ls2k1000_dp_test_begin;
+			} else if (!strncmp(board_name, "LS2K1000-DP-FACTORY", 19)){
+				fdt = &__dtb_ls2k1000_dp_factory_begin;
+			} else {
+				fdt = &__dtb_ls2k1000_dp_begin;
+			}
+		#endif
+		} else if (!strncmp(board_name, "HAC_MB_REVC", 11)) {
+			fdt = &__dtb_ksec_hac_mb_begin;
+		} else if (!strncmp(board_name, "GBKPDM0-V10", 11)) {
+			fdt = &__dtb_gbkpdm0_v10_begin;
+		} else if (!strncmp(board_name, "GBKPDM0-LITONG", 14)) {
+			fdt = &__dtb_gbkpdm0_litong_begin;
+		} else if (!strncmp(board_name, "LS2K1000-ChuangLong-MB", 22)) {
+			fdt = &__dtb_ls2k1000_cl_mb_begin;
+		} else if (!strncmp(board_name, "C4G-MB001", 9)) {
+			fdt = &__dtb_ls2k1000_c4g_mb001_begin;
+		} else if (!strncmp(board_name, "ZNWLIDZD-LITONG", 15)) {
+			fdt = &__dtb_ls2k1000_znwlidzd_litong_begin;
+		} else {
+			fdt = &__dtb_ls2k1000_dp_begin;
+		}
+#elif defined(CONFIG_LOONGSON_2P500)
+		if (!strncmp(board_name, "LS2P500-EVB", 11))
+			fdt = &__dtb_ls2p500_evb_begin;
+		else if (!strncmp(board_name, "LS2P500-RSJ", 11))
+			fdt = &__dtb_ls2p500_rsj_mb_v10_begin;
+		else if (!strncmp(board_name, "LS2P500-GBKPJM0", 15))
+			fdt = &__dtb_ls2p500_gbkpjm0_v10_begin;
+		else
+			fdt = &__dtb_ls2p500_evb_begin;
+#elif defined(CONFIG_LOONGSON_2K300)
+		if (!strncmp(board_name, "LS2K300-MINI-DP", 15))
+			fdt = &__dtb_ls2k300_mini_dp_begin;
+		else if (!strncmp(board_name, "LS2K300-PAI", 11))
+			fdt = &__dtb_ls2k300_vanguard_pi_begin;
+		else if (!strncmp(board_name, "LS2K300-TEWEI", 13))
+			fdt = &__dtb_ls2k300_tewei_begin;
+		else
+			fdt = &__dtb_ls2k300_mini_dp_begin;
+#endif
+	}
+	return fdt;
+}
+#endif
+
 static void __init fdt_setup(void)
 {
 #ifdef CONFIG_OF_EARLY_FLATTREE
@@ -285,11 +403,19 @@ static void __init fdt_setup(void)
 	if (acpi_os_get_root_pointer())
 		return;
 
+	fdt_pointer = NULL;
+
+#ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
+	fdt_pointer = efi_fdt_pointer(); /* Fallback to firmware dtb */
+	if (!fdt_pointer)
+		fdt_pointer = get_fdt_by_board_name();
+#else
 	/* Prefer to use built-in dtb, checking its legality first. */
-	if (IS_ENABLED(CONFIG_BUILTIN_DTB) && !fdt_check_header(__dtb_start))
+	if (!fdt_check_header(__dtb_start) && strcmp(CONFIG_BUILTIN_DTB_NAME, ""))
 		fdt_pointer = __dtb_start;
 	else
 		fdt_pointer = efi_fdt_pointer(); /* Fallback to firmware dtb */
+#endif
 
 	if (!fdt_pointer || fdt_check_header(fdt_pointer))
 		return;
@@ -593,6 +719,31 @@ static void __init prefill_possible_map(void)
 }
 #endif
 
+#ifdef CONFIG_BLK_DEV_INITRD
+static int __init rd_start_early(char *p)
+{
+	phys_initrd_start = __pa(memparse(p, &p));
+	return 0;
+}
+early_param("rd_start", rd_start_early);
+
+static int __init rd_size_early(char *p)
+{
+	phys_initrd_size = memparse(p, &p);
+
+	return 0;
+}
+early_param("rd_size", rd_size_early);
+#endif
+
+static int __init bp_start_early(char *p)
+{
+	bp_start = __pa(memparse(p, &p)); // 这里拿到的是物理地址
+	bp_start = TO_CACHE(bp_start); // 再转换成当前可以访问的地址
+	return 0;
+}
+early_param("bp_start", bp_start_early);
+
 void __init setup_arch(char **cmdline_p)
 {
 	cpu_probe();
@@ -600,6 +751,9 @@ void __init setup_arch(char **cmdline_p)
 
 	init_environ();
 	efi_init();
+	if (!bp_start_match() && bp_start)
+		parse_extlist((struct boot_params*)bp_start);
+
 	fdt_setup();
 	bpi_init();
 	memblock_init();
@@ -625,3 +779,125 @@ void __init setup_arch(char **cmdline_p)
 	kasan_init();
 #endif
 }
+
+//////////////////////////////////////
+/////for bootloader mem map parse/////
+//////////////////////////////////////
+static __init u8 ext_listhdr_checksum(u8 *buffer, u32 length)
+{
+	u8 sum = 0;
+	u8 *end = buffer + length;
+
+	while (buffer < end) {
+		sum = (u8)(sum + *(buffer++));
+	}
+
+	return (sum);
+}
+
+static __init int parse_mem(struct _extention_list_hdr *head)
+{
+	struct loongsonlist_mem_map_legacy *ptr;
+	static struct loongsonlist_mem_map mem_map;
+	int i;
+
+	loongson_mem_map = (struct loongsonlist_mem_map *)head;
+
+	if (ext_listhdr_checksum((u8 *)loongson_mem_map, head->length)) {
+		printk("mem checksum error\n");
+		return -EPERM;
+	}
+
+	ptr = (struct loongsonlist_mem_map_legacy *)head;
+
+	pr_info("convert legacy mem map to new mem map.\n");
+	memcpy(&mem_map, ptr, sizeof(mem_map.header));
+	mem_map.map_count = ptr->map_count;
+	for (i = 0; i < ptr->map_count; i++) {
+		mem_map.map[i].mem_type = ptr->map[i].mem_type;
+		mem_map.map[i].mem_start = ptr->map[i].mem_start;
+		mem_map.map[i].mem_size = ptr->map[i].mem_size;
+		pr_info("bootloader memmap block %d type : %d start : %.llx size : %.llx\n",
+					i, mem_map.map[i].mem_type, mem_map.map[i].mem_start, mem_map.map[i].mem_size);
+	}
+	loongson_mem_map = &mem_map;
+	return 0;
+}
+
+static __init void memmap_bootlaoder_parse(void)
+{
+	int i;
+	u32 mem_type;
+	u64 mem_start, mem_end, mem_size;
+	/* Parse memory information */
+	for (i = 0; i < loongson_mem_map->map_count; i++) {
+		mem_type = loongson_mem_map->map[i].mem_type;
+		mem_start = loongson_mem_map->map[i].mem_start;
+		mem_size = loongson_mem_map->map[i].mem_size;
+		mem_end = mem_start + mem_size;
+
+		switch (mem_type) {
+		case ADDRESS_TYPE_SYSRAM:
+			memblock_add(mem_start, mem_size);
+			if (max_low_pfn < (mem_end >> PAGE_SHIFT))
+				max_low_pfn = mem_end >> PAGE_SHIFT;
+			break;
+		}
+	}
+}
+
+static __init int parse_extlist(struct boot_params *bp)
+{
+	unsigned long next_offset;
+	struct _extention_list_hdr *fhead;
+
+	// 原本有几种转换版本，但是这边就这一个
+	fhead = (struct _extention_list_hdr *)bp->extlist_offset;
+
+	if (fhead == NULL) {
+		printk("the ext struct is empty!\n");
+		return -1;
+	}
+
+	do {
+		if (memcmp(&(fhead->signature), LOONGSON_MEM_SIGNATURE, 3) == 0) {
+			if (parse_mem(fhead) != 0) {
+				printk("parse mem failed\n");
+				return -EPERM;
+			}
+			memmap_bootlaoder_parse();
+		}
+
+		fhead = (struct _extention_list_hdr *)fhead->next_offset;
+		next_offset = (unsigned long)fhead;
+
+	} while (next_offset);
+
+	return 0;
+}
+
+static int __init bp_start_match(void)
+{
+	char* bp_start_value;
+	char temp[128]; // 不想申请空间 应该不会有这么长的值吧
+
+	bp_start = 0;
+	bp_start_value = strstr(boot_command_line, bp_start_desc);
+	if (bp_start_value) {
+		int i;
+		memset(temp, 0, 128);
+		bp_start_value += strlen(bp_start_desc); // 跳过 = 和前面的字段
+		for (i = 0; i < 127; ++i) {
+			if (bp_start_value[i] == 0 || bp_start_value[i] == ' ')
+				break;
+			temp[i] = bp_start_value[i];
+		}
+		bp_start_value = temp;
+	} else
+		return 1;
+	return bp_start_early(bp_start_value);
+}
+
+//////////////////////////////////////
+/////for bootloader mem map parse/////
+//////////////////////////////////////

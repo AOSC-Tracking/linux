@@ -1891,6 +1891,25 @@ static bool handle_rx_dma(struct uart_8250_port *up, unsigned int iir)
 	return up->dma->rx_dma(up);
 }
 
+static int serial8250_handle_irq_rx_status_error_ignore(unsigned char status)
+{
+	unsigned char temp;
+	int i = 0;
+
+	// 0x18 打断中断 有帧错误表示位 接收FIFO为空
+	unsigned char error_value_set[] = {(UART_LSR_BI | UART_LSR_FE), UART_LSR_BI};
+	unsigned char error_mask_set[] = {(UART_LSR_BI | UART_LSR_FE | UART_LSR_DR), (UART_LSR_BI | UART_LSR_DR)};
+
+	for (i = 0; i < sizeof(error_value_set); ++i) {
+		temp = status;
+		temp &= error_mask_set[i];
+		if (temp == error_value_set[i]) {
+			return 0;
+		}
+	}
+	return -1;
+}
+
 /*
  * This handles the interrupt from one port.
  */
@@ -1928,8 +1947,10 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 		d = irq_get_irq_data(port->irq);
 		if (d && irqd_is_wakeup_set(d))
 			pm_wakeup_event(tport->tty->dev, 0);
-		if (!up->dma || handle_rx_dma(up, iir))
-			status = serial8250_rx_chars(up, status);
+		if (serial8250_handle_irq_rx_status_error_ignore(status)) {
+			if (!up->dma || handle_rx_dma(up, iir))
+				status = serial8250_rx_chars(up, status);
+		}
 	}
 	serial8250_modem_status(up);
 	if ((status & UART_LSR_THRE) && (up->ier & UART_IER_THRI)) {
