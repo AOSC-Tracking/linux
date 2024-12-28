@@ -411,6 +411,14 @@ config GPIO_LOONGSON
 	help
 	  Driver for GPIO functionality on Loongson-2F/3A/3B processors.
 
+config GPIO_LOONGSON_IRQCHIP
+	bool "Loongson GPIO support irqchip (e.g. 2P500)"
+	default n
+	depends on CPU_LOONGSON2EF || CPU_LOONGSON64 || LOONGARCH
+	select GPIOLIB_IRQCHIP
+	help
+	  driver for GPIO With IRQCHIP.
+
 config GPIO_LOONGSON_64BIT
 	tristate "Loongson 64 bit GPIO support"
 	depends on LOONGARCH || COMPILE_TEST

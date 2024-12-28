@@ -241,7 +241,7 @@ static bool usb_generic_driver_match(struct usb_device *udev)
 
 int usb_generic_driver_probe(struct usb_device *udev)
 {
-	int err, c;
+	int err, c, try;
 
 	/* Choose and set the configuration.  This registers the interfaces
 	 * with the driver core and lets interface drivers bind to them.
@@ -251,7 +251,13 @@ int usb_generic_driver_probe(struct usb_device *udev)
 	else {
 		c = usb_choose_configuration(udev);
 		if (c >= 0) {
-			err = usb_set_configuration(udev, c);
+			for (try = 0; try < 5; try++) {
+				err = usb_set_configuration(udev, c);
+				if (!err)
+					break;
+				dev_warn(&udev->dev, "try to set config #%d again\n", c);
+				udelay(100);
+			}
 			if (err && err != -ENODEV) {
 				dev_err(&udev->dev, "can't set config #%d, error %d\n",
 					c, err);

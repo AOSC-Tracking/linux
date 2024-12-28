@@ -1,0 +1,228 @@
+#include "ls2k300_g2k03z0_core_v10.dtsi"
+#include "loongson_panel_param.dtsi"
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/pwm/pwm.h>
+
+/ {
+	model = "LS2K300-MINI-DP";
+
+	leds {
+		compatible = "gpio-leds";
+
+		led1 {
+			label = "led1";
+			gpios = <&gpio 85 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+		};
+
+	};
+
+	lcd_backlight: backlight {
+		compatible = "gpio-backlight";
+		gpios = <&gpio 84 GPIO_ACTIVE_HIGH>;
+		default-on;
+	};
+
+	panel: dvo-connector@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "panel-lvds", "auo,b101ean01";
+		backlight = <&lcd_backlight>;
+
+		/* lcd power on control gpio */
+		// enable-gpios = <&pioA 3 GPIO_ACTIVE_HIGH>;
+		// power-supply = <&vdd_lcd>;
+#if 0	// 4.3' LCD
+		width-mm = <223>;
+		height-mm = <125>;
+		label = "ATK-MD0430R-800x480";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <27000000>;
+			hactive = <800>;
+			vactive = <480>;
+			hsync-len = <40>;
+			hfront-porch = <48>;
+			hback-porch = <40>;
+			vfront-porch = <13>;
+			vback-porch = <32>;
+			vsync-len = <1>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+#else	// 7' LCD
+		width-mm = <223>;
+		height-mm = <125>;
+		label = "ATK-MD0700R-1024x600";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <51200000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hsync-len = <20>;
+			hfront-porch = <160>;
+			hback-porch = <140>;
+			vfront-porch = <12>;
+			vback-porch = <20>;
+			vsync-len = <3>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+#endif
+		port@0 {
+			reg = <0>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dvo_connector_in: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&dc_out_rgb0>;
+			};
+		};
+	};
+};
+
+&dc {
+	status = "ok";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			dc_out_rgb0: endpoint {
+				remote-endpoint = <&dvo_connector_in>;
+			};
+		};
+	};
+};
+
+&i2c0 {
+	status = "ok";
+};
+
+&i2c1 {
+	status = "ok";
+
+	// 两款芯片不能同时支持，因为用同一个GPIO
+	// 但可以在两个屏幕间切换
+
+	// 4.3寸触屏芯片
+	touchpad: gt9147@14 {
+		compatible = "goodix,gt9147";
+		reg = <0x14>;
+		// 2K300 GPIO 支持中断控制
+		// GPIO 中断号为 vhwirq-base + pinnum (210 = 128 + 82)
+		interrupt-parent = <&gpio>;
+		interrupts = <210 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&gpio 82 GPIO_ACTIVE_LOW>;
+	};
+
+	// 7寸触屏芯片
+	touchpad_1: gt911@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		interrupt-parent = <&gpio>;
+		interrupts = <210 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&gpio 82 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&i2c2 {
+	status = "ok";
+};
+
+&i2c3 {
+	status = "ok";
+};
+
+&uart1 {
+	status = "ok";
+};
+
+&uart2 {
+	status = "ok";
+};
+
+&uart3 {
+	status = "ok";
+};
+
+&pwm0 {
+	status = "ok";
+};
+
+&pwm1 {
+	status = "ok";
+};
+
+&pwm2 {
+	status = "ok";
+};
+
+&pwm3 {
+	status = "ok";
+};
+
+&can0 {
+	status = "ok";
+};
+
+&can1 {
+	status = "ok";
+};
+
+&can2 {
+	status = "ok";
+};
+
+&can3 {
+	status = "ok";
+};
+
+&spi1 {
+	status = "ok";
+
+	spidev0@0 {
+		compatible = "rohm,dh2228fv";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&spi2 {
+	status = "ok";
+
+	spidev1@0 {
+		compatible = "rohm,dh2228fv";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+	};
+};
+
+&adc {
+	status = "okay";
+};
+
+&rtc0 {
+	status = "okay";
+};
+
+&sdio1 {
+	pinctrl-0 = <&sdio1_pins>;
+	pinctrl-names = "default";
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	bus-width = <4>;
+	cd-gpios = <&gpio 81 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};

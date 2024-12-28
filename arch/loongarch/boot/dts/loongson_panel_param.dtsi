@@ -1,0 +1,98 @@
+/ {
+	panel_param: panel_param_set {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		panel-BP101WX1-206 {
+			width-mm = <223>;
+			height-mm = <125>;
+			label = "BP101WX1-206";
+			data-mapping = "jeida-24";
+
+			panel-timing {
+				clock-frequency = <71000000>;
+				hactive = <1280>;
+				vactive = <800>;
+				hsync-len = <32>;
+				hfront-porch = <8>;
+				hback-porch = <10>;
+				vfront-porch = <3>;
+				vback-porch = <3>;
+				vsync-len = <6>;
+				de-active = <1>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+
+		panel-ATK-MD0430R-800x480 {
+			width-mm = <223>;
+			height-mm = <125>;
+			label = "ATK-MD0430R-800x480";
+			data-mapping = "jeida-24";
+
+			panel-timing {
+				clock-frequency = <27000000>;
+				hactive = <800>;
+				vactive = <480>;
+				hsync-len = <40>;
+				hfront-porch = <48>;
+				hback-porch = <40>;
+				vfront-porch = <13>;
+				vback-porch = <32>;
+				vsync-len = <0>;
+				de-active = <1>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+
+		panel-ATK-MD0700R-1024x600 {
+			width-mm = <223>;
+			height-mm = <125>;
+			label = "ATK-MD0700R-1024x600";
+			data-mapping = "jeida-24";
+
+			panel-timing {
+				clock-frequency = <51200000>;
+				hactive = <1024>;
+				vactive = <600>;
+				hsync-len = <20>;
+				hfront-porch = <160>;
+				hback-porch = <140>;
+				vfront-porch = <12>;
+				vback-porch = <20>;
+				vsync-len = <3>;
+				de-active = <1>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+
+		panel-ATK-MD1010R-1280x800{
+			width-mm = <229>;
+			height-mm = <149>;
+			label = "ATK-MD1010R-1280x800";
+			data-mapping = "jeida-24";
+
+			panel-timing {
+				clock-frequency = <71100000>;
+				hactive = <1280>;
+				vactive = <800>;
+				hsync-len = <10>;
+				hfront-porch = <70>;
+				hback-porch = <80>;
+				vfront-porch = <10>;
+				vback-porch = <10>;
+				vsync-len = <3>;
+				de-active = <1>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+	};
+};

@@ -49,4 +49,9 @@ struct loongson_gfxpll {
 int loongson_gfxpll_create(struct drm_device *ddev,
 			   struct loongson_gfxpll **ppout);
 
+extern const struct loongson_gfxpll_funcs ls2k0300_gfx_pll_funcs;
+extern const struct loongson_gfxpll_funcs ls2k1000_gfx_pll_funcs;
+extern const struct loongson_gfxpll_funcs ls7a1000_gfx_pll_funcs;
+extern const struct loongson_gfxpll_funcs ls7a2000_gfx_pll_funcs;
+
 #endif
