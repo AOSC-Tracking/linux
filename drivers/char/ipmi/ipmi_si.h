@@ -101,6 +101,14 @@ static inline void ipmi_si_parisc_init(void) { }
 static inline void ipmi_si_parisc_shutdown(void) { }
 #endif
 
+#ifdef CONFIG_LOONGARCH
+void ipmi_si_ls2k_init(void);
+void ipmi_si_ls2k_shutdown(void);
+#else
+static inline void ipmi_si_ls2k_init(void) { }
+static inline void ipmi_si_ls2k_shutdown(void) { }
+#endif
+
 int ipmi_si_port_setup(struct si_sm_io *io);
 int ipmi_si_mem_setup(struct si_sm_io *io);
 
