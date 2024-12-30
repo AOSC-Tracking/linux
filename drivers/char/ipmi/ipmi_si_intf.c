@@ -2108,6 +2108,7 @@ static int __init init_ipmi_si(void)
 	ipmi_si_pci_init();
 
 	ipmi_si_parisc_init();
+	ipmi_si_ls2k_init();
 
 	/* We prefer devices with interrupts, but in the case of a machine
 	   with multiple BMCs we assume that there will be several instances
@@ -2291,6 +2292,8 @@ static void cleanup_ipmi_si(void)
 	ipmi_si_parisc_shutdown();
 
 	ipmi_si_platform_shutdown();
+
+	ipmi_si_ls2k_shutdown();
 
 	mutex_lock(&smi_infos_lock);
 	list_for_each_entry_safe(e, tmp_e, &smi_infos, link)
