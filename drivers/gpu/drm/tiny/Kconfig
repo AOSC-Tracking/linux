@@ -171,6 +171,24 @@ config TINYDRM_ILI9486
 
 	  If M is selected the module will be called ili9486.
 
+config TINYDRM_LS2KBMC
+	tristate "DRM support for Loongson-2K BMC display"
+	depends on DRM && MMU
+	depends on MFD_LS2K_BMC
+	select APERTURE_HELPERS
+	select DRM_CLIENT_SELECTION
+	select DRM_GEM_SHMEM_HELPER
+	select DRM_KMS_HELPER
+	help
+	  DRM driver for the Loongson-2K BMC display.
+
+	  This driver assumes that the display hardware has been initialized
+	  by the Loongson-2K BMC. Since the Loongson-2K BMC does not support
+	  resolution detection now, the scan buffer, size and display format
+	  are fixed and provided by the BMC.
+
+	  If M is selected the module will be called ls2kbmc.
+
 config TINYDRM_MI0283QT
 	tristate "DRM support for MI0283QT"
 	depends on DRM && SPI
