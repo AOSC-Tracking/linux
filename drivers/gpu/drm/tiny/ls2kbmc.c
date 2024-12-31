@@ -904,10 +904,17 @@ static void ls2kbmc_remove(struct platform_device *pdev)
 	drm_dev_unplug(dev);
 }
 
+static struct platform_device_id ls2kbmc_id_table[] = {
+	{ "ls2kbmc-framebuffer", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(platform, ls2kbmc_id_table);
+
 static struct platform_driver ls2kbmc_platform_driver = {
 	.driver = {
 		.name = "ls2kbmc-framebuffer",
 	},
+	.id_table = ls2kbmc_id_table,
 	.probe = ls2kbmc_probe,
 	.remove = ls2kbmc_remove,
 };
