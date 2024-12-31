@@ -81,7 +81,7 @@ static const char * const omen_thermal_profile_force_v0_boards[] = {
  * "balanced" when reaching zero.
  */
 static const char * const omen_timed_thermal_profile_boards[] = {
-	"8BAB", "8BAD", "8A42", "8A15"
+	"8BAB", "8BAD", "8A42", "8A15", "8BB3"
 };
 
 /* DMI Board names of Victus laptops */
