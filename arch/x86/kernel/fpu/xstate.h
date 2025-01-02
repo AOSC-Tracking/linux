@@ -93,6 +93,9 @@ static inline int update_pkru_in_sigframe(struct xregs_state __user *buf, u32 pk
 	if (unlikely(!cpu_feature_enabled(X86_FEATURE_OSPKE)))
 		return 0;
 
+	if (!cpu_feature_enabled(X86_FEATURE_XGETBV1))
+		return 0;
+
 	/* Mark PKRU as in-use so that it is restored correctly. */
 	err = set_xfeature_in_sigframe(buf, XFEATURE_MASK_PKRU);
 	if (err)
@@ -306,7 +309,7 @@ static inline int xsave_to_user_sigframe(struct xregs_state __user *buf, u32 pkr
 	int err;
 
 	/* Optimize away writing unnecessary xfeatures: */
-	if (fpu_state_size_dynamic())
+	if (cpu_feature_enabled(X86_FEATURE_XGETBV1) && fpu_state_size_dynamic())
 		mask &= xfeatures_need_sigframe_write();
 
 	lmask = mask;
