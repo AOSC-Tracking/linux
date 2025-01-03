@@ -788,6 +788,7 @@ get_model_name(__u8 family, __u8 model)
 			case 0: memcpy(brand, "McKinley", 9); break;
 			case 1: memcpy(brand, "Madison", 8); break;
 			case 2: memcpy(brand, "Madison up to 9M cache", 23); break;
+			case 3: memcpy(brand, "MonteSkito", 11); break;
 		}
 	}
 	for (i = 0; i < MAX_BRANDS; i++)
