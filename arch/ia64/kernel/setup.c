@@ -661,9 +661,12 @@ show_cpuinfo (struct seq_file *m, void *v)
 		unsigned long mask;
 		const char *feature_name;
 	} feature_bits[] = {
-		{ 1UL << 0, "branchlong" },
-		{ 1UL << 1, "spontaneous deferral"},
-		{ 1UL << 2, "16-byte atomic ops" }
+		{ 1UL <<  0, "branchlong" },
+		{ 1UL <<  1, "spontaneous deferral" },
+		{ 1UL <<  2, "16-byte atomic ops" },
+		{ 1UL <<  3, "resource utilization counter" },
+		{ 1UL << 32, "clz" },
+		{ 1UL << 33, "mpy4/mphysl4" }
 	};
 	char features[128], *cp, *sep;
 	struct cpuinfo_ia64 *c = v;
