@@ -1223,6 +1223,9 @@ enum drm_connector_status drm_bridge_detect(struct drm_bridge *bridge)
 	if (!(bridge->ops & DRM_BRIDGE_OP_DETECT))
 		return connector_status_unknown;
 
+	if (bridge->funcs->detect_ctx)
+		return bridge->funcs->detect_ctx(bridge, NULL);
+
 	return bridge->funcs->detect(bridge);
 }
 EXPORT_SYMBOL_GPL(drm_bridge_detect);
