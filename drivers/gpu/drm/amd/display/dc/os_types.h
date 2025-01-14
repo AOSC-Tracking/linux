@@ -79,6 +79,13 @@
 			dc_breakpoint();	\
 	} while (0)
 
+#define ASSERT_BUG(expr) do {			\
+		if (!(expr)) {			\
+			dc_breakpoint();	\
+			BUG();			\
+		}				\
+	} while (0)
+
 #define BREAK_TO_DEBUGGER() \
 	do { \
 		DRM_DEBUG_DRIVER("%s():%d\n", __func__, __LINE__); \
