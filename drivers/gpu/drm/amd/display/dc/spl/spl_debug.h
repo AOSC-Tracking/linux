@@ -11,18 +11,29 @@
 		kgdb_breakpoint(); \
 	} \
 } while (0)
+#define SPL_ASSERT_EMERGENCY(expr) do {	\
+	if (!(expr)) { \
+		kgdb_breakpoint(); \
+		BUG(); \
+	} \
+} while (0)
 #else
 #define SPL_ASSERT_CRITICAL(expr) do {	\
 	if (WARN_ON(!(expr))) { \
 		; \
 	} \
 } while (0)
+#define SPL_ASSERT_EMERGENCY(expr) do {	\
+	BUG_ON(!(expr)); \
+} while (0)
 #endif /* CONFIG_HAVE_KGDB || CONFIG_KGDB */
 
 #if defined(CONFIG_DEBUG_KERNEL_DC)
 #define SPL_ASSERT(expr) SPL_ASSERT_CRITICAL(expr)
+#define SPL_ASSERT_BUG(expr) SPL_ASSERT_EMERGENCY(expr)
 #else
 #define SPL_ASSERT(expr) WARN_ON(!(expr))
+#define SPL_ASSERT_BUG(expr) BUG_ON(!(expr))
 #endif /* CONFIG_DEBUG_KERNEL_DC */
 
 #define SPL_BREAK_TO_DEBUGGER() SPL_ASSERT(0)
