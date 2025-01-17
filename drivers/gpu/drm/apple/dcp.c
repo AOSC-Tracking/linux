@@ -434,69 +434,18 @@ static int dcp_dptx_disconnect(struct apple_dcp *dcp, u32 port)
 	return 0;
 }
 
-static void dcp_deferred_hpd_work(struct work_struct *work)
-{
-	struct apple_dcp *dcp = container_of(to_delayed_work(work), struct apple_dcp, hpd_wq);
-	int err;
-
-	guard(mutex)(&dcp->hpd_deferred_mutex);
-	dev_info(dcp->dev, "%s\n", __func__);
-
-	switch (dcp->hpd.state) {
-	case DCP_HPD_OOB_CONNECTED:
-		err = dcp_dptx_connect(dcp, dcp->hpd.port);
-		if (err < 0)
-			dev_warn(dcp->dev, "OOB HPD connect failed:%d\n", err);
-		break;
-	case DCP_HPD_OOB_DISCONNECTED:
-		dptxport_set_hpd(dcp->dptxport[dcp->hpd.port].service, false);
-		err = dcp_dptx_disconnect(dcp, dcp->hpd.port);
-		if (err < 0)
-			dev_warn(dcp->dev, "OOB HPD disconnect failed:%d\n", err);
-		break;
-	default:
-		return;
-	}
-}
-
-static int dcp_dptx_schedule_hdp_work(struct apple_dcp *dcp,
-				      enum dcp_hdp_state state, u32 port)
-{
-	guard(mutex)(&dcp->hpd_deferred_mutex);
-	dcp->hpd.port = port;
-	dcp->hpd.state = state;
-
-	if (state == DCP_HPD_OOB_CONNECTED)
-	{
-		guard(mutex)(&dcp->hpd_mutex);
-		if (dcp->dptxport[port].connected)
-			return 0;
-
-		if (delayed_work_pending(&dcp->hpd_wq))
-			timer_reduce(&dcp->hpd_wq.timer, msecs_to_jiffies(100));
-		else
-			schedule_delayed_work(&dcp->hpd_wq, msecs_to_jiffies(2000));
-	} else {
-		if (!delayed_work_pending(&dcp->hpd_wq))
-			schedule_delayed_work(&dcp->hpd_wq, msecs_to_jiffies(25));
-	}
-
-	return 0;
-}
-
 int dcp_dptx_connect_oob(struct platform_device *pdev, u32 port)
 {
 	struct apple_dcp *dcp = platform_get_drvdata(pdev);
-
-	return dcp_dptx_schedule_hdp_work(dcp, DCP_HPD_OOB_CONNECTED, port);
+	return dcp_dptx_connect(dcp, port);
 }
 EXPORT_SYMBOL_GPL(dcp_dptx_connect_oob);
 
 int dcp_dptx_disconnect_oob(struct platform_device *pdev, u32 port)
 {
 	struct apple_dcp *dcp = platform_get_drvdata(pdev);
-
-	return dcp_dptx_schedule_hdp_work(dcp, DCP_HPD_OOB_DISCONNECTED, port);
+	dptxport_set_hpd(dcp->dptxport[port].service, false);
+	return dcp_dptx_disconnect(dcp, port);
 }
 EXPORT_SYMBOL_GPL(dcp_dptx_disconnect_oob);
 
@@ -1021,8 +970,6 @@ static int dcp_comp_bind(struct device *dev, struct device *main, void *data)
 		dev_info(dev, "DCP index:%u dptx target phy: %u dptx die: %u\n",
 			 dcp->index, dcp->dptx_phy, dcp->dptx_die);
 	mutex_init(&dcp->hpd_mutex);
-	mutex_init(&dcp->hpd_deferred_mutex);
-	INIT_DELAYED_WORK(&dcp->hpd_wq, dcp_deferred_hpd_work);
 
 	if (!show_notch)
 		ret = of_property_read_u32(dev->of_node, "apple,notch-height",
@@ -1166,7 +1113,6 @@ static void dcp_comp_unbind(struct device *dev, struct device *main, void *data)
 		cancel_work_sync(&dcp->bl_update_wq);
 	}
 	cancel_work_sync(&dcp->vblank_wq);
-	cancel_delayed_work_sync(&dcp->hpd_wq);
 
 	devm_clk_put(dev, dcp->clk);
 	dcp->clk = NULL;
