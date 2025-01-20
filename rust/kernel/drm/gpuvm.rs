@@ -450,6 +450,7 @@ impl<T: DriverGpuVm> GpuVm<T> {
     pub fn exec_lock<'a, 'b>(
         &'a self,
         obj: Option<&'b <T::Driver as drv::Driver>::Object>,
+        interruptible: bool,
     ) -> Result<LockedGpuVm<'a, 'b, T>> {
         // Do not try to lock the object if it is internal (since it is already locked).
         let is_ext = obj.map(|a| self.is_extobj(a)).unwrap_or(false);
@@ -460,7 +461,11 @@ impl<T: DriverGpuVm> GpuVm<T> {
             vm_exec: KBox::init(
                 init!(bindings::drm_gpuvm_exec {
                     vm: self.gpuvm() as *mut _,
-                    flags: bindings::BINDINGS_DRM_EXEC_INTERRUPTIBLE_WAIT,
+                    flags: if interruptible {
+                        bindings::BINDINGS_DRM_EXEC_INTERRUPTIBLE_WAIT
+                    } else {
+                        0
+                    },
                     exec: Default::default(),
                     extra: match (is_ext, obj) {
                         (true, Some(obj)) => bindings::drm_gpuvm_exec__bindgen_ty_1 {
