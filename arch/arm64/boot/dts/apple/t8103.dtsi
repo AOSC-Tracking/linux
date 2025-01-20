@@ -446,7 +446,6 @@
 
 		uat_pagetables: uat-pagetables {
 			reg = <0 0 0 0>;
-			no-map;
 		};
 
 		uat_ttbs: uat-ttbs {
