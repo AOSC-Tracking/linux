@@ -1821,9 +1821,7 @@ static int atcphy_dpphy_set_mode(struct phy *phy, enum phy_mode mode,
 			return 0;
 		return atcphy_dpphy_mux_set(atcphy, APPLE_ATCPHY_MODE_OFF);
 	case PHY_MODE_DP:
-		/* TODO: does this get called for DP-altmode? */
-		if (atcphy->mode == APPLE_ATCPHY_MODE_USB3_DP ||
-		    atcphy->mode == APPLE_ATCPHY_MODE_DP)
+		if (atcphy->mode == APPLE_ATCPHY_MODE_DP)
 			return 0;
 		return atcphy_dpphy_mux_set(atcphy, APPLE_ATCPHY_MODE_DP);
 	default:
