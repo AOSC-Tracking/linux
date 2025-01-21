@@ -3479,6 +3479,7 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
 			if (PMSG_IS_AUTO(msg))
 				goto err_wakeup;
 		}
+		usb_enable_remote_wakeup(udev->bus->root_hub);
 	}
 
 	/* disable USB2 hardware LPM */
