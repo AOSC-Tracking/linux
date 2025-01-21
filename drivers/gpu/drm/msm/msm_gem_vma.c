@@ -1222,7 +1222,8 @@ vm_bind_job_lock_objects(struct msm_vm_bind_job *job, struct drm_exec *exec)
 			case MSM_VM_BIND_OP_MAP_NULL:
 				ret = drm_gpuvm_sm_map_exec_lock(job->vm, exec, 1,
 							    op->iova, op->range,
-							    op->obj, op->obj_offset);
+							    op->obj, op->obj_offset.
+							    0);
 				break;
 			default:
 				/*
