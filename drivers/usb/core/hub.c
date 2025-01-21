@@ -3471,6 +3471,9 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
 	 * we don't explicitly enable it here.
 	 */
 	if (udev->do_remote_wakeup) {
+		struct usb_hub *i_hub;
+		struct usb_device *i_udev;
+
 		status = usb_enable_remote_wakeup(udev);
 		if (status) {
 			dev_dbg(&udev->dev, "won't remote wakeup, status %d\n",
@@ -3478,6 +3481,14 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
 			/* bail if autosuspend is requested */
 			if (PMSG_IS_AUTO(msg))
 				goto err_wakeup;
+		}
+
+		i_udev = hub->hdev;
+
+		while (i_udev) {
+			usb_enable_remote_wakeup(i_udev);
+			i_hub = usb_hub_to_struct_hub(i_udev->parent);
+			i_udev = i_hub ? i_hub->hdev : NULL;
 		}
 	}
 
