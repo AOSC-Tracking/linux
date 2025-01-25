@@ -135,9 +135,22 @@ static int __init loongson_hwmon_init(void)
 {
 	pr_info("Loongson Hwmon Enter...\n");
 
+	/*
+	 * FIXME: Disable CSR-based temperature reading, found only on Loongson
+	 * 3A/B4000 processors. We found that on the Excelsior E23L (3B4000)
+	 * boards, the temperature reading would erratically pin to 239°C,
+	 * triggering immediate thermal shutdown.
+	 *
+	 * We don't yet know about the true cause behind this issue, as both
+	 * boards we own are indeed using non-original heatsinks (but they can
+	 * in fact sustain >= 6 hours of stress testing with s-tui).
+	 *
+	 * For now, disable this feature so that we can keep those systems
+	 * working and Loongson 3A/B4000 can still report their temperatures
+	 * via the Chip Temperature register (loongson_chiptemp).
+	 */
 	if (cpu_has_csr())
-		csr_temp_enable = csr_readl(LOONGSON_CSR_FEATURES) &
-				  LOONGSON_CSRF_TEMP;
+		csr_temp_enable = 0;
 
 	if (!csr_temp_enable && !loongson_chiptemp[0])
 		return -ENODEV;
