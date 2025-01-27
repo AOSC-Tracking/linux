@@ -23,6 +23,7 @@
 #include <linux/cred.h>
 #include <linux/device/faux.h>
 #include <linux/delay.h>
+#include <linux/devcoredump.h>
 #include <linux/dma-fence.h>
 #include <linux/dma-fence-chain.h>
 #include <linux/dma-mapping.h>
