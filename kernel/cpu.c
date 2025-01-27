@@ -3117,6 +3117,11 @@ void init_cpu_possible(const struct cpumask *src)
 	__num_possible_cpus = cpumask_weight(&__cpu_possible_mask);
 }
 
+void init_cpu_online(const struct cpumask *src)
+{
+	cpumask_copy(&__cpu_online_mask, src);
+}
+
 void set_cpu_online(unsigned int cpu, bool online)
 {
 	/*
