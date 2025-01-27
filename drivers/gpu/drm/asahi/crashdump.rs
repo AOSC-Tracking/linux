@@ -7,22 +7,28 @@
 
 use core::mem::size_of;
 
-use kernel::{error::Result, page::Page, prelude::*, types::Owned};
+use kernel::{
+    devcoredump::DevCoreDump,
+    error::Result,
+    page::{Page, PAGE_MASK, PAGE_SHIFT, PAGE_SIZE},
+    prelude::*,
+    types::Owned,
+    uapi,
+};
 
 use crate::hw;
 use crate::pgtable::{self, DumpedPage, Prot, UAT_PGSZ};
 use crate::util::align;
-use kernel::uapi;
 
 pub(crate) struct CrashDump {
     headers: KVVec<u8>,
     pages: KVVec<Owned<Page>>,
 }
 
-const NOTE_NAME_AGX: &str = &"AGX";
+const NOTE_NAME_AGX: &str = "AGX";
 const NOTE_AGX_DUMP_INFO: u32 = 1;
 
-const NOTE_NAME_RTKIT: &str = &"RTKIT";
+const NOTE_NAME_RTKIT: &str = "RTKIT";
 const NOTE_RTKIT_CRASHLOG: u32 = 1;
 
 #[repr(C)]
@@ -47,8 +53,12 @@ pub(crate) struct CrashDumpBuilder {
     notes: KVec<ELFNote>,
 }
 
-// Helper to convert ELF headers into byte slices
-// TODO: Hook this up into kernel::AsBytes somehow
+/// Helper to convert ELF headers into byte slices
+/// TODO: Hook this up into kernel::AsBytes somehow
+///
+/// # Safety
+///
+/// Types implementing this trait must have no padding bytes.
 unsafe trait AsBytes: Sized {
     fn as_bytes(&self) -> &[u8] {
         // SAFETY: This trait is only implemented for types with no padding bytes
@@ -57,10 +67,7 @@ unsafe trait AsBytes: Sized {
     fn slice_as_bytes(slice: &[Self]) -> &[u8] {
         // SAFETY: This trait is only implemented for types with no padding bytes
         unsafe {
-            core::slice::from_raw_parts(
-                slice.as_ptr() as *const u8,
-                slice.len() * size_of::<Self>(),
-            )
+            core::slice::from_raw_parts(slice.as_ptr() as *const u8, core::mem::size_of_val(slice))
         }
     }
 }
@@ -118,7 +125,7 @@ impl CrashDumpBuilder {
 
     pub(crate) fn add_crashlog(&mut self, crashlog: &[u8]) -> Result {
         let mut data = KVVec::new();
-        data.extend_from_slice(&crashlog, GFP_KERNEL)?;
+        data.extend_from_slice(crashlog, GFP_KERNEL)?;
 
         self.notes.push(
             ELFNote {
@@ -143,7 +150,7 @@ impl CrashDumpBuilder {
         ehdr.e_ident[uapi::EI_VERSION as usize] = uapi::EV_CURRENT as u8;
         ehdr.e_type = uapi::ET_CORE as u16;
         ehdr.e_machine = uapi::EM_AARCH64 as u16;
-        ehdr.e_version = uapi::EV_CURRENT as u32;
+        ehdr.e_version = uapi::EV_CURRENT;
         ehdr.e_entry = FIRMWARE_ENTRYPOINT;
         ehdr.e_ehsize = core::mem::size_of::<uapi::Elf64_Ehdr>() as u16;
         ehdr.e_phentsize = core::mem::size_of::<uapi::Elf64_Phdr>() as u16;
@@ -188,7 +195,6 @@ impl CrashDumpBuilder {
                         p_memsz: UAT_PGSZ as u64,
                         p_flags: flags,
                         p_align: UAT_PGSZ as u64,
-                        ..Default::default()
                     },
                     GFP_KERNEL,
                 )?;
@@ -259,5 +265,41 @@ impl CrashDumpBuilder {
         headers[note_offset..note_offset + note_data.len()].copy_from_slice(&note_data);
 
         Ok(CrashDump { headers, pages })
+    }
+}
+
+impl DevCoreDump for CrashDump {
+    fn read(&self, buf: &mut [u8], mut offset: usize) -> Result<usize> {
+        let mut read = 0;
+        let mut left = buf.len();
+        if offset < self.headers.len() {
+            let block = left.min(self.headers.len() - offset);
+            buf[..block].copy_from_slice(&self.headers[offset..offset + block]);
+            read += block;
+            offset += block;
+            left -= block;
+        }
+        if left == 0 {
+            return Ok(read);
+        }
+        offset -= self.headers.len(); // Offset from the page area
+
+        while left > 0 {
+            let page_index = offset >> PAGE_SHIFT;
+            let page_offset = offset & !PAGE_MASK;
+            let block = left.min(PAGE_SIZE - page_offset);
+            let Some(page) = self.pages.get(page_index) else {
+                break;
+            };
+            let slice = &mut buf[read..read + block];
+            // SAFETY: We own the page, and the slice guarantees the
+            // dst length is sufficient.
+            unsafe { page.read_raw(slice.as_mut_ptr(), page_offset, slice.len())? };
+            read += block;
+            offset += block;
+            left -= block;
+        }
+
+        Ok(read)
     }
 }
