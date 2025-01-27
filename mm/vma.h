@@ -570,7 +570,7 @@ static inline bool vma_is_sealed(struct vm_area_struct *vma)
 }
 #endif
 
-#if defined(CONFIG_STACK_GROWSUP)
+#if ( defined(CONFIG_STACK_GROWSUP) || defined(CONFIG_IA64) )
 int expand_upwards(struct vm_area_struct *vma, unsigned long address);
 #endif
 
