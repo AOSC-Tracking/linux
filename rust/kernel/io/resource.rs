@@ -105,6 +105,17 @@ impl Resource {
         unsafe { &*ptr.cast() }
     }
 
+    /// Creates a [`Resource`] from a valid pointer.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the pointer points at a valid `bindings::resource`
+    pub(crate) fn new_from_ptr(ptr: *const bindings::resource) -> Self {
+        Resource {
+            0: unsafe { Opaque::<bindings::resource>::new(*ptr) },
+        }
+    }
+
     /// A helper to abstract the common pattern of requesting a region.
     fn request_region_checked(
         &self,
