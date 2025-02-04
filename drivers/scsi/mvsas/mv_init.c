@@ -36,7 +36,7 @@ static const struct attribute_group *mvst_sdev_groups[];
 
 static const struct scsi_host_template mvs_sht = {
 	LIBSAS_SHT_BASE
-	.device_configure	= mvs_device_configure,
+	.sdev_configure		= mvs_sdev_configure,
 	.scan_finished		= mvs_scan_finished,
 	.scan_start		= mvs_scan_start,
 	.can_queue		= 1,
