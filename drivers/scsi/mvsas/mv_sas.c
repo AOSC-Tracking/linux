@@ -265,7 +265,7 @@ static void mvs_bytes_dmaed(struct mvs_info *mvi, int i, gfp_t gfp_flags)
 	sas_notify_port_event(sas_phy, PORTE_BYTES_DMAED, gfp_flags);
 }
 
-int mvs_device_configure(struct scsi_device *sdev, struct queue_limits *lim)
+int mvs_sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
 {
 	struct domain_device *dev = sdev_to_domain_dev(sdev);
 
