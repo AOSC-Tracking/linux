@@ -381,7 +381,6 @@ static struct drm_driver ls2kbmc_driver = {
 	DRM_FBDEV_SHMEM_DRIVER_OPS,
 	.name			= "simpledrm",
 	.desc			= "DRM driver for Loongson-2K BMC",
-	.date			= "20241211",
 	.major			= 1,
 	.minor			= 0,
 	.driver_features	= DRIVER_ATOMIC | DRIVER_GEM | DRIVER_MODESET,
