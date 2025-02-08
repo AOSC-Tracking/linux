@@ -748,7 +748,7 @@ static int macaudio_dpcm_hw_params(struct snd_pcm_substream *substream,
 	if (props->is_speakers) {
 		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 			/* Sense PCM: keep the existing BE rate (0 if not already running) */
-			rate->min = rate->max = cpu_dai->rate;
+			rate->min = rate->max = cpu_dai->symmetric_rate;
 
 			return 0;
 		} else {
