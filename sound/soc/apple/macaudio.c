@@ -740,7 +740,7 @@ static int macaudio_dpcm_hw_params(struct snd_pcm_substream *substream,
 	int i;
 
 	if (props->is_sense) {
-		rate->min = rate->max = cpu_dai->rate;
+		rate->min = rate->max = cpu_dai->symmetric_rate;
 		return 0;
 	}
 
