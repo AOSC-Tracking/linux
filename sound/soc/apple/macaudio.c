@@ -864,7 +864,7 @@ static int macaudio_be_hw_free(struct snd_pcm_substream *substream)
 		 * This won't happen automatically if the sense PCM is open.
 		 */
 		for_each_rtd_dais(rtd, i, dai) {
-			dai->rate = 0;
+			dai->symmetric_rate = 0;
 		}
 
 		/* Notify userspace that the speakers are closed */
