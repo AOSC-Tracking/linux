@@ -328,6 +328,15 @@ static int of_bus_default_flags_match(struct device_node *np)
 
 static int of_bus_default_match(struct device_node *np)
 {
+	/**
+	 * To avoid issues with "missing" '#{address,size}-cells' properties
+	 * in dcp/dcpext nodes while evaluatting the 'piodma' sub device.
+	 * Keep this at least until v6.13 + 2 to ensure fixed devicetrees are
+	 * deployed.
+	 */
+	if (of_device_is_compatible(np, "apple,dcp") ||
+		of_device_is_compatible(np, "apple,dcpext"))
+		return true;
 	/*
 	 * Check for presence first since of_bus_n_addr_cells() will warn when
 	 * walking parent nodes.
