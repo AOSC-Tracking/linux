@@ -91,6 +91,7 @@ extern void calculate_cpu_foreign_map(void);
 /*
  * Generate IPI list text
  */
+struct seq_file;
 extern void show_ipi_list(struct seq_file *p, int prec);
 
 static inline void arch_send_call_function_single_ipi(int cpu)
