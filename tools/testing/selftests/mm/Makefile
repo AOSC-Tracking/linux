@@ -138,7 +138,7 @@ else ifeq ($(ARCH),powerpc)
 TEST_GEN_FILES += protection_keys
 endif
 
-ifneq (,$(filter $(ARCH),arm64 mips64 parisc64 powerpc riscv64 s390x sparc64 x86_64 s390))
+ifneq (,$(filter $(ARCH),arm64 ia64 mips64 parisc64 powerpc riscv64 s390x sparc64 x86_64 s390))
 TEST_GEN_FILES += va_high_addr_switch
 TEST_GEN_FILES += write_to_hugetlbfs
 endif

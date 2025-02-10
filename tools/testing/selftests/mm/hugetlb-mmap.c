@@ -8,6 +8,13 @@
  * like /mnt) using the command mount -t hugetlbfs nodev /mnt. In this
  * example, the app is requesting memory of size 256MB that is backed by
  * huge pages.
+ *
+ * For the ia64 architecture, the Linux kernel reserves Region number 4 for
+ * huge pages.  That means that if one requires a fixed address, a huge page
+ * aligned address starting with 0x800000... will be required.  If a fixed
+ * address is not required, the kernel will select an address in the proper
+ * range.
+ * Other architectures, such as ppc64, i386 or x86_64 are not so constrained.
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
@@ -22,6 +29,15 @@
 
 #define LENGTH (256UL*1024*1024)
 #define PROTECTION (PROT_READ | PROT_WRITE)
+
+/* Only ia64 requires this */
+#ifdef __ia64__
+#define ADDR (void *)(0x8000000000000000UL)
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_FIXED)
+#else
+#define ADDR (void *)(0x0UL)
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB)
+#endif
 
 static void check_bytes(char *addr)
 {
@@ -56,7 +72,7 @@ static void test_mmap(size_t length, int mmap_flags, int fd,
 	bool passed = true;
 	void *addr;
 
-	addr = mmap(NULL, length, PROTECTION, mmap_flags, fd, 0);
+	addr = mmap(ADDR, length, PROTECTION, mmap_flags, fd, 0);
 	if (addr == MAP_FAILED)
 		ksft_exit_fail_perror("mmap");
 
@@ -76,7 +92,7 @@ static void test_mmap(size_t length, int mmap_flags, int fd,
 static void test_anon_mmap(size_t length, int shift)
 {
 	const char *test_name = "hugetlb anonymous mmap";
-	int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB;
+	int mmap_flags = FLAGS;
 
 	if (shift)
 		mmap_flags |= (shift & MAP_HUGE_MASK) << MAP_HUGE_SHIFT;
