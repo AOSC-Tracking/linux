@@ -916,8 +916,6 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	}
 
 	folio_unlock(oldfolio);
-	/* Drop ref for ap->pages[] array */
-	folio_put(oldfolio);
 	cs->len = 0;
 
 	err = 0;
