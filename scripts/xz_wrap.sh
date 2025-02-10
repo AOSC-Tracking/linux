@@ -13,6 +13,7 @@
 #   arm          2/4    ARM and ARM-Thumb2
 #   arm64         4
 #   csky          2
+#   ia64         16     16 Byte aligned for pb=4
 #   loongarch     4
 #   mips         2/4    MicroMIPS is 2-byte aligned
 #   parisc        4
@@ -70,6 +71,10 @@ case $SRCARCH in
 	csky)
 		ALIGN=2
 		;;
+
+	ia64)
+		ALIGN=16
+		BCJ=--ia64
 
 	loongarch)
 		ALIGN=4
@@ -145,6 +150,7 @@ case $ALIGN in
 	1)  LZMA2OPTS= ;;
 	2)  LZMA2OPTS=lp=1 ;;
 	4)  LZMA2OPTS=lp=2,lc=2 ;;
+	16) LZMA2OPTS=pb=4 ;;
 	*)  echo "$0: ALIGN wrong or missing" >&2; exit 1 ;;
 esac
 
