@@ -111,7 +111,6 @@ unsigned int arch_reloc_size(struct reloc *reloc)
 {
 	switch (reloc_type(reloc)) {
 	case R_PPC_REL32:
-	case R_PPC64_REL32:
 	case R_PPC_ADDR32:
 	case R_PPC_UADDR32:
 	case R_PPC_PLT32:
