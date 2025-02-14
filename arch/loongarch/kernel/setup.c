@@ -128,6 +128,7 @@ static void __init parse_cpu_table(const struct dmi_header *dm)
 
 	loongson_sysconf.cpuname = (void *)dmi_string_parse(dm, dmi_data[16]);
 	loongson_sysconf.cores_per_package = *(u8 *)(dmi_data + SMBIOS_THREAD_PACKAGE_OFFSET);
+	__max_packages++;
 	if (dm->length >= 0x30 && loongson_sysconf.cores_per_package == 0xff) {
 		/* SMBIOS 3.0+ has ThreadCount2 for more than 255 threads */
 		loongson_sysconf.cores_per_package =
