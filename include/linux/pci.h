@@ -255,6 +255,7 @@ enum pci_dev_flags {
 	PCI_DEV_FLAGS_PCI_BRIDGE_NO_ALIAS = (__force pci_dev_flags_t) (1 << 14),
 	/* Do not use native PCIe port services (equivalent to pcie_ports=compat) */
 	PCI_DEV_FLAGS_NO_PORT_SERVICES = (__force pci_dev_flags_t) (1 << 15),
+	PCI_DEV_FLAGS_NO_LINK_SPEED_CHANGE = (__force pci_dev_flags_t) (1 << 16),
 };
 
 enum pci_irq_reroute_variant {
