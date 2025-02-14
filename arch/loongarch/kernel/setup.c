@@ -315,20 +315,10 @@ static void* __init get_fdt_by_board_name(void)
 	if (board_name) {
 #ifdef CONFIG_LOONGSON_2K500
 		int i;
-		if (!strncmp(board_name, "LS2K500-HL-MB", 13))
-			fdt = &__dtb_ls2k500_hl_mb_begin;
-		else if (!strncmp(board_name, "LS2K500-MINI-DP", 15))
+		if (!strncmp(board_name, "LS2K500-MINI-DP", 15))
 			fdt = &__dtb_ls2k500_mini_dp_begin;
 		else if (!strncmp(board_name, "LS2K500-DAYU400-MB", 17))
 			fdt = &__dtb_ls2k500_dayu400_mb_begin;
-		else if (!strncmp(board_name, "LS2K500-MODI-HCT", 16))
-			fdt = &__dtb_ls2k500_modi_hct_begin;
-		else if (!strncmp(board_name, "LS2K500-ZHENGTAI-PCS1800-V10", 28))
-			fdt = &__dtb_ls2k500_zhengtai_pcs1800_v10_begin;
-		else if (!strncmp(board_name, "LS2K500-JIAOQIAN-V10", 20))
-			fdt = &__dtb_ls2k500_jiaoqian_v10_begin;
-		else if (!strncmp(board_name, "LS2K500-ZJJZ", 12))
-			fdt = &__dtb_ls2k500_zjjz_begin;
 		else
 			fdt = &__dtb_ls2k500_mini_dp_begin;
 
@@ -337,55 +327,26 @@ static void* __init get_fdt_by_board_name(void)
 		// 		__cpu_full_name[i] = cpu_ls2k500_name;
 #elif defined(CONFIG_LOONGSON_2K1000)
 		if (!strncmp(board_name, "LS2K1000-JL-MB", 14)) {
-			if (!strncmp(board_name, "LS2K1000-JL-MB-MU", 17))
-				fdt = &__dtb_ls2k1000_jl_mb_mu_begin;
-			else if (!strncmp(board_name, "LS2K1000-JL-MB-NODVO", 20))
-				fdt = &__dtb_ls2k1000_jl_mb_nodvo_begin;
-			else
-				fdt = &__dtb_ls2k1000_jl_mb_begin;
+			fdt = &__dtb_ls2k1000_jl_mb_begin;
 		} else if (!strncmp(board_name, "LS2K1000-DP", 11)) {
 		#ifdef CONFIG_SND_LS1X_SOC_I2S
 			fdt = &__dtb_ls2k1000_dp_i2s_begin;
 		#else
-			if (!strncmp(board_name, "LS2K1000-DP-TEST", 16)) {
-				fdt = &__dtb_ls2k1000_dp_test_begin;
-			} else if (!strncmp(board_name, "LS2K1000-DP-FACTORY", 19)){
-				fdt = &__dtb_ls2k1000_dp_factory_begin;
-			} else {
-				fdt = &__dtb_ls2k1000_dp_begin;
-			}
+			fdt = &__dtb_ls2k1000_dp_begin;
 		#endif
-		} else if (!strncmp(board_name, "HAC_MB_REVC", 11)) {
-			fdt = &__dtb_ksec_hac_mb_begin;
-		} else if (!strncmp(board_name, "GBKPDM0-V10", 11)) {
-			fdt = &__dtb_gbkpdm0_v10_begin;
-		} else if (!strncmp(board_name, "GBKPDM0-LITONG", 14)) {
-			fdt = &__dtb_gbkpdm0_litong_begin;
-		} else if (!strncmp(board_name, "LS2K1000-ChuangLong-MB", 22)) {
-			fdt = &__dtb_ls2k1000_cl_mb_begin;
-		} else if (!strncmp(board_name, "C4G-MB001", 9)) {
-			fdt = &__dtb_ls2k1000_c4g_mb001_begin;
-		} else if (!strncmp(board_name, "ZNWLIDZD-LITONG", 15)) {
-			fdt = &__dtb_ls2k1000_znwlidzd_litong_begin;
 		} else {
 			fdt = &__dtb_ls2k1000_dp_begin;
 		}
 #elif defined(CONFIG_LOONGSON_2P500)
-		if (!strncmp(board_name, "LS2P500-EVB", 11))
-			fdt = &__dtb_ls2p500_evb_begin;
-		else if (!strncmp(board_name, "LS2P500-RSJ", 11))
-			fdt = &__dtb_ls2p500_rsj_mb_v10_begin;
-		else if (!strncmp(board_name, "LS2P500-GBKPJM0", 15))
+		if (!strncmp(board_name, "LS2P500-GBKPJM0", 15))
 			fdt = &__dtb_ls2p500_gbkpjm0_v10_begin;
 		else
-			fdt = &__dtb_ls2p500_evb_begin;
+			fdt = &__dtb_ls2p500_gbkpjm0_v10_begin;
 #elif defined(CONFIG_LOONGSON_2K300)
 		if (!strncmp(board_name, "LS2K300-MINI-DP", 15))
 			fdt = &__dtb_ls2k300_mini_dp_begin;
 		else if (!strncmp(board_name, "LS2K300-PAI", 11))
 			fdt = &__dtb_ls2k300_vanguard_pi_begin;
-		else if (!strncmp(board_name, "LS2K300-TEWEI", 13))
-			fdt = &__dtb_ls2k300_tewei_begin;
 		else
 			fdt = &__dtb_ls2k300_mini_dp_begin;
 #endif
