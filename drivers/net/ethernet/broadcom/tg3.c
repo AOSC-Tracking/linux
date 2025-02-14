@@ -17871,6 +17871,14 @@ static int tg3_init_one(struct pci_dev *pdev,
 
 	tg3_init_bufmgr_config(tp);
 
+	/*
+	 * 5762 chips may not work reliably with high DMA enabled.
+	 */
+	if (tp->pdev->device == TG3PCI_DEVICE_TIGON3_5762) {
+		dev_err(&pdev->dev, "disable HIGHDMA for Tigon3 device 5762\n");
+		features &= ~NETIF_F_HIGHDMA;
+	}
+
 	/* 5700 B0 chips do not support checksumming correctly due
 	 * to hardware bugs.
 	 */
