@@ -120,7 +120,6 @@ SYM_CODE_END(kernel_entry)
  * function after setting up the stack and tp registers.
  */
 SYM_CODE_START(smpboot_entry)
-
 	SETUP_DMWINS	t0
 	JUMP_VIRT_ADDR	t0, t1
 
