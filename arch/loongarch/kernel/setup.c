@@ -133,6 +133,7 @@ static void __init parse_cpu_table(const struct dmi_header *dm)
 		loongson_sysconf.cores_per_package =
 					  *(u16 *)(dmi_data + SMBIOS_THREAD_PACKAGE_2_OFFSET);
 	}
+	__max_packages++;
 
 	pr_info("CpuClock = %llu\n", cpu_clock_freq);
 }
