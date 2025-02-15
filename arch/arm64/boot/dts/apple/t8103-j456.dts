@@ -137,6 +137,7 @@
 &aop_audio {
 	apple,chassis-name = "J456";
 	apple,machine-kind = "iMac";
+	apple,no-beamforming;
 };
 
 / {

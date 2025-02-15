@@ -110,6 +110,7 @@
 &aop_audio {
 	apple,chassis-name = "J457";
 	apple,machine-kind = "iMac";
+	apple,no-beamforming;
 };
 
 / {
