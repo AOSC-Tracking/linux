@@ -372,6 +372,8 @@ config DRM_VGEM
 
 source "drivers/gpu/drm/vkms/Kconfig"
 
+source "drivers/gpu/drm/asahi/Kconfig"
+
 source "drivers/gpu/drm/exynos/Kconfig"
 
 source "drivers/gpu/drm/rockchip/Kconfig"
@@ -460,6 +462,8 @@ source "drivers/gpu/drm/mcde/Kconfig"
 
 source "drivers/gpu/drm/tidss/Kconfig"
 
+source "drivers/gpu/drm/adp/Kconfig"
+
 source "drivers/gpu/drm/xlnx/Kconfig"
 
 source "drivers/gpu/drm/gud/Kconfig"
@@ -467,6 +471,8 @@ source "drivers/gpu/drm/gud/Kconfig"
 source "drivers/gpu/drm/solomon/Kconfig"
 
 source "drivers/gpu/drm/sprd/Kconfig"
+
+source "drivers/gpu/drm/apple/Kconfig"
 
 source "drivers/gpu/drm/imagination/Kconfig"
 

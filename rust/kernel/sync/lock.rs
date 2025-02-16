@@ -5,8 +5,8 @@
 //! It contains a generic Rust lock and guard that allow for different backends (e.g., mutexes,
 //! spinlocks, raw spinlocks) to be provided with minimal effort.
 
-use super::LockClassKey;
-use crate::{init::PinInit, pin_init, str::CStr, types::Opaque, types::ScopeGuard};
+use super::{lockdep::caller_lock_class, LockClassKey};
+use crate::{init::PinInit, pin_init, str::CStr, try_pin_init, types::Opaque, types::ScopeGuard};
 use core::{cell::UnsafeCell, marker::PhantomData, marker::PhantomPinned};
 use macros::pin_data;
 
@@ -58,6 +58,13 @@ pub unsafe trait Backend {
     #[must_use]
     unsafe fn lock(ptr: *mut Self::State) -> Self::GuardState;
 
+    /// Tries to acquire the lock.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that [`Backend::init`] has been previously called.
+    unsafe fn try_lock(ptr: *mut Self::State) -> Option<Self::GuardState>;
+
     /// Releases the lock, giving up its ownership.
     ///
     /// # Safety
@@ -94,6 +101,7 @@ pub struct Lock<T: ?Sized, B: Backend> {
     _pin: PhantomPinned,
 
     /// The data protected by the lock.
+    #[pin]
     pub(crate) data: UnsafeCell<T>,
 }
 
@@ -106,7 +114,41 @@ unsafe impl<T: ?Sized + Send, B: Backend> Sync for Lock<T, B> {}
 
 impl<T, B: Backend> Lock<T, B> {
     /// Constructs a new lock initialiser.
-    pub fn new(t: T, name: &'static CStr, key: &'static LockClassKey) -> impl PinInit<Self> {
+    #[track_caller]
+    pub fn new(t: T) -> impl PinInit<Self> {
+        let (key, name) = caller_lock_class();
+        Self::new_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser taking an initialiser/
+    #[track_caller]
+    pub fn pin_init<E>(t: impl PinInit<T, E>) -> impl PinInit<Self, E>
+    where
+        E: core::convert::From<core::convert::Infallible>,
+    {
+        let (key, name) = caller_lock_class();
+        Self::pin_init_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser.
+    #[track_caller]
+    pub fn new_named(t: T, name: &'static CStr) -> impl PinInit<Self> {
+        let (key, _) = caller_lock_class();
+        Self::new_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser taking an initialiser/
+    #[track_caller]
+    pub fn pin_init_named<E>(t: impl PinInit<T, E>, name: &'static CStr) -> impl PinInit<Self, E>
+    where
+        E: core::convert::From<core::convert::Infallible>,
+    {
+        let (key, _) = caller_lock_class();
+        Self::pin_init_with_key(t, name, key)
+    }
+
+    /// Constructs a new lock initialiser given a particular name and lock class key.
+    pub fn new_with_key(t: T, name: &'static CStr, key: LockClassKey) -> impl PinInit<Self> {
         pin_init!(Self {
             data: UnsafeCell::new(t),
             _pin: PhantomPinned,
@@ -116,6 +158,32 @@ impl<T, B: Backend> Lock<T, B> {
                 B::init(slot, name.as_char_ptr(), key.as_ptr())
             }),
         })
+    }
+
+    /// Constructs a new lock initialiser taking an initialiser given a particular
+    /// name and lock class key.
+    pub fn pin_init_with_key<E>(
+        t: impl PinInit<T, E>,
+        name: &'static CStr,
+        key: LockClassKey,
+    ) -> impl PinInit<Self, E>
+    where
+        E: core::convert::From<core::convert::Infallible>,
+    {
+        try_pin_init!(Self {
+            // SAFETY: We are just forwarding the initialization across a
+            // cast away from UnsafeCell, so the pin_init_from_closure and
+            // __pinned_init() requirements are in sync.
+            data <- unsafe { crate::init::pin_init_from_closure(move |slot: *mut UnsafeCell<T>| {
+                t.__pinned_init(slot as *mut T)
+            })},
+            _pin: PhantomPinned,
+            // SAFETY: `slot` is valid while the closure is called and both `name` and `key` have
+            // static lifetimes so they live indefinitely.
+            state <- Opaque::ffi_init(|slot| unsafe {
+                B::init(slot, name.as_char_ptr(), key.as_ptr())
+            }),
+        }? E)
     }
 }
 
@@ -127,6 +195,15 @@ impl<T: ?Sized, B: Backend> Lock<T, B> {
         let state = unsafe { B::lock(self.state.get()) };
         // SAFETY: The lock was just acquired.
         unsafe { Guard::new(self, state) }
+    }
+
+    /// Tries to acquire the lock.
+    ///
+    /// Returns a guard that can be used to access the data protected by the lock if successful.
+    pub fn try_lock(&self) -> Option<Guard<'_, T, B>> {
+        // SAFETY: The constructor of the type calls `init`, so the existence of the object proves
+        // that `init` was called.
+        unsafe { B::try_lock(self.state.get()).map(|state| Guard::new(self, state)) }
     }
 }
 
@@ -150,9 +227,9 @@ impl<T: ?Sized, B: Backend> Guard<'_, T, B> {
         // SAFETY: The caller owns the lock, so it is safe to unlock it.
         unsafe { B::unlock(self.lock.state.get(), &self.state) };
 
-        // SAFETY: The lock was just unlocked above and is being relocked now.
-        let _relock =
-            ScopeGuard::new(|| unsafe { B::relock(self.lock.state.get(), &mut self.state) });
+        let _relock = ScopeGuard::new(||
+                // SAFETY: The lock was just unlocked above and is being relocked now.
+                unsafe { B::relock(self.lock.state.get(), &mut self.state) });
 
         cb()
     }

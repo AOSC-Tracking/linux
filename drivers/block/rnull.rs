@@ -20,6 +20,7 @@ use kernel::{
     error::Result,
     new_mutex, pr_info,
     prelude::*,
+    str::CStr,
     sync::{Arc, Mutex},
     types::ARef,
 };
@@ -32,11 +33,11 @@ module! {
 }
 
 struct NullBlkModule {
-    _disk: Pin<Box<Mutex<GenDisk<NullBlkDevice>>>>,
+    _disk: Pin<KBox<Mutex<GenDisk<NullBlkDevice>>>>,
 }
 
 impl kernel::Module for NullBlkModule {
-    fn init(_module: &'static ThisModule) -> Result<Self> {
+    fn init(_name: &'static CStr, _module: &'static ThisModule) -> Result<Self> {
         pr_info!("Rust null_blk loaded\n");
         let tagset = Arc::pin_init(TagSet::new(1, 256, 1), flags::GFP_KERNEL)?;
 
@@ -47,7 +48,7 @@ impl kernel::Module for NullBlkModule {
             .rotational(false)
             .build(format_args!("rnullb{}", 0), tagset)?;
 
-        let disk = Box::pin_init(new_mutex!(disk, "nullb:disk"), flags::GFP_KERNEL)?;
+        let disk = KBox::pin_init(new_mutex!(disk, "nullb:disk"), flags::GFP_KERNEL)?;
 
         Ok(Self { _disk: disk })
     }

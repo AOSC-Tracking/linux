@@ -13,10 +13,24 @@
 
 #![no_std]
 #![feature(arbitrary_self_types)]
+#![feature(associated_type_defaults)]
 #![feature(coerce_unsized)]
+#![feature(const_refs_to_cell)]
 #![feature(dispatch_from_dyn)]
-#![feature(new_uninit)]
+#![feature(duration_constants)]
+#![feature(inline_const)]
+#![feature(lint_reasons)]
+#![feature(ptr_sub_ptr)]
+#![feature(sized_type_properties)]
+#![feature(slice_range)]
+#![feature(type_alias_impl_trait)]
 #![feature(unsize)]
+#![allow(stable_features)]
+// Stable in Rust 1.83
+#![feature(const_mut_refs)]
+#![feature(const_ptr_write)]
+#![feature(const_maybe_uninit_as_mut_ptr)]
+#![warn(clippy::undocumented_unsafe_blocks)]
 
 // Ensure conditional compilation based on the kernel configuration works;
 // otherwise we may silently break things like initcall handling.
@@ -30,22 +44,42 @@ pub mod alloc;
 #[cfg(CONFIG_BLOCK)]
 pub mod block;
 mod build_assert;
+pub mod delay;
 pub mod device;
+pub mod device_id;
+pub mod devres;
+pub mod dma;
+#[cfg(CONFIG_DMA_SHARED_BUFFER)]
+pub mod dma_fence;
+pub mod driver;
+#[cfg(CONFIG_DRM = "y")]
+pub mod drm;
 pub mod error;
 #[cfg(CONFIG_RUST_FW_LOADER_ABSTRACTIONS)]
 pub mod firmware;
+#[cfg(CONFIG_IIO)]
+pub mod iio;
 pub mod init;
+pub mod io_buffer;
+pub mod io_mem;
+pub mod io_pgtable;
 pub mod ioctl;
 #[cfg(CONFIG_KUNIT)]
 pub mod kunit;
 pub mod list;
+pub mod module_param;
 #[cfg(CONFIG_NET)]
 pub mod net;
+pub mod of;
 pub mod page;
+pub mod platform;
 pub mod prelude;
 pub mod print;
 pub mod rbtree;
+pub mod revocable;
+pub mod siphash;
 pub mod sizes;
+pub mod soc;
 mod static_assert;
 #[doc(hidden)]
 pub mod std_vendor;
@@ -53,17 +87,33 @@ pub mod str;
 pub mod sync;
 pub mod task;
 pub mod time;
+pub mod transmute;
 pub mod types;
 pub mod uaccess;
+pub mod user_ptr;
 pub mod workqueue;
+pub mod xarray;
 
 #[doc(hidden)]
 pub use bindings;
+pub mod io;
 pub use macros;
+#[cfg(all(CONFIG_PCI, CONFIG_PCI_MSI))]
+pub mod pci;
 pub use uapi;
 
 #[doc(hidden)]
 pub use build_error::build_error;
+
+pub(crate) mod private {
+    #[allow(unreachable_pub)]
+    pub trait Sealed {}
+}
+
+/// Page size defined in terms of the `PAGE_SHIFT` macro from C.
+///
+/// [`PAGE_SHIFT`]: ../../../include/asm-generic/page.h
+pub const PAGE_SIZE: usize = 1 << bindings::PAGE_SHIFT;
 
 /// Prefix to appear before log messages printed from within the `kernel` crate.
 const __LOG_PREFIX: &[u8] = b"rust_kernel\0";
@@ -78,7 +128,36 @@ pub trait Module: Sized + Sync + Send {
     /// should do.
     ///
     /// Equivalent to the `module_init` macro in the C API.
-    fn init(module: &'static ThisModule) -> error::Result<Self>;
+    fn init(name: &'static str::CStr, module: &'static ThisModule) -> error::Result<Self>;
+}
+
+/// A module that is pinned and initialised in-place.
+pub trait InPlaceModule: Sync + Send {
+    /// Creates an initialiser for the module.
+    ///
+    /// It is called when the module is loaded.
+    fn init(
+        name: &'static str::CStr,
+        module: &'static ThisModule,
+    ) -> impl init::PinInit<Self, error::Error>;
+}
+
+impl<T: Module> InPlaceModule for T {
+    fn init(
+        name: &'static str::CStr,
+        module: &'static ThisModule,
+    ) -> impl init::PinInit<Self, error::Error> {
+        let initer = move |slot: *mut Self| {
+            let m = <Self as Module>::init(name, module)?;
+
+            // SAFETY: `slot` is valid for write per the contract with `pin_init_from_closure`.
+            unsafe { slot.write(m) };
+            Ok(())
+        };
+
+        // SAFETY: On success, `initer` always fully initialises an instance of `Self`.
+        unsafe { init::pin_init_from_closure(initer) }
+    }
 }
 
 /// Equivalent to `THIS_MODULE` in the C API.
@@ -104,6 +183,43 @@ impl ThisModule {
     /// It is up to the user to use it correctly.
     pub const fn as_ptr(&self) -> *mut bindings::module {
         self.0
+    }
+
+    /// Locks the module parameters to access them.
+    ///
+    /// Returns a [`KParamGuard`] that will release the lock when dropped.
+    pub fn kernel_param_lock(&self) -> KParamGuard<'_> {
+        // SAFETY: `kernel_param_lock` will check if the pointer is null and
+        // use the built-in mutex in that case.
+        #[cfg(CONFIG_SYSFS)]
+        unsafe {
+            bindings::kernel_param_lock(self.0)
+        }
+
+        KParamGuard {
+            #[cfg(CONFIG_SYSFS)]
+            this_module: self,
+            phantom: core::marker::PhantomData,
+        }
+    }
+}
+
+/// Scoped lock on the kernel parameters of [`ThisModule`].
+///
+/// Lock will be released when this struct is dropped.
+pub struct KParamGuard<'a> {
+    #[cfg(CONFIG_SYSFS)]
+    this_module: &'a ThisModule,
+    phantom: core::marker::PhantomData<&'a ()>,
+}
+
+#[cfg(CONFIG_SYSFS)]
+impl<'a> Drop for KParamGuard<'a> {
+    fn drop(&mut self) {
+        // SAFETY: `kernel_param_lock` will check if the pointer is null and
+        // use the built-in mutex in that case. The existence of `self`
+        // guarantees that the lock is held.
+        unsafe { bindings::kernel_param_unlock(self.this_module.0) }
     }
 }
 

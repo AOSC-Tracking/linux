@@ -524,29 +524,6 @@ cpuid_feature_extract_unsigned_field(u64 features, int field)
 	return cpuid_feature_extract_unsigned_field_width(features, field, 4);
 }
 
-/*
- * Fields that identify the version of the Performance Monitors Extension do
- * not follow the standard ID scheme. See ARM DDI 0487E.a page D13-2825,
- * "Alternative ID scheme used for the Performance Monitors Extension version".
- */
-static inline u64 __attribute_const__
-cpuid_feature_cap_perfmon_field(u64 features, int field, u64 cap)
-{
-	u64 val = cpuid_feature_extract_unsigned_field(features, field);
-	u64 mask = GENMASK_ULL(field + 3, field);
-
-	/* Treat IMPLEMENTATION DEFINED functionality as unimplemented */
-	if (val == ID_AA64DFR0_EL1_PMUVer_IMP_DEF)
-		val = 0;
-
-	if (val > cap) {
-		features &= ~mask;
-		features |= (cap << field) & mask;
-	}
-
-	return features;
-}
-
 static inline u64 arm64_ftr_mask(const struct arm64_ftr_bits *ftrp)
 {
 	return (u64)GENMASK(ftrp->shift + ftrp->width - 1, ftrp->shift);
@@ -838,6 +815,11 @@ static inline bool system_supports_poe(void)
 		alternative_has_cap_unlikely(ARM64_HAS_S1POE);
 }
 
+static inline bool system_supports_pmuv3(void)
+{
+	return cpus_have_final_cap(ARM64_HAS_PMUV3);
+}
+
 int do_emulate_mrs(struct pt_regs *regs, u32 sys_reg, u32 rt);
 bool try_emulate_mrs(struct pt_regs *regs, u32 isn);
 
@@ -913,6 +895,12 @@ static inline unsigned int get_vmid_bits(u64 mmfr1)
 	 * value is fetched from the system register.
 	 */
 	return 8;
+}
+
+static __always_inline bool system_has_actlr_state(void)
+{
+	return IS_ENABLED(CONFIG_ARM64_ACTLR_STATE) &&
+		alternative_has_cap_unlikely(ARM64_HAS_TSO_APPLE);
 }
 
 s64 arm64_ftr_safe_value(const struct arm64_ftr_bits *ftrp, s64 new, s64 cur);
@@ -1037,6 +1025,10 @@ static inline bool cpu_has_lpa2(void)
 	return false;
 #endif
 }
+
+void __init init_cpucap_indirect_list_impdef(void);
+void __init init_cpucap_indirect_list_from_array(const struct arm64_cpu_capabilities *caps);
+bool cpufeature_matches(u64 reg, const struct arm64_cpu_capabilities *entry);
 
 #endif /* __ASSEMBLY__ */
 

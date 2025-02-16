@@ -11,7 +11,7 @@
 #[macro_export]
 macro_rules! new_spinlock {
     ($inner:expr $(, $name:literal)? $(,)?) => {
-        $crate::sync::SpinLock::new(
+        $crate::sync::SpinLock::new_with_class(
             $inner, $crate::optional_name!($($name)?), $crate::static_lock_class!())
     };
 }
@@ -56,7 +56,7 @@ pub use new_spinlock;
 /// }
 ///
 /// // Allocate a boxed `Example`.
-/// let e = Box::pin_init(Example::new(), GFP_KERNEL)?;
+/// let e = KBox::pin_init(Example::new(), GFP_KERNEL)?;
 /// assert_eq!(e.c, 10);
 /// assert_eq!(e.d.lock().a, 20);
 /// assert_eq!(e.d.lock().b, 30);
@@ -113,5 +113,16 @@ unsafe impl super::Backend for SpinLockBackend {
         // SAFETY: The safety requirements of this function ensure that `ptr` is valid and that the
         // caller is the owner of the spinlock.
         unsafe { bindings::spin_unlock(ptr) }
+    }
+
+    unsafe fn try_lock(ptr: *mut Self::State) -> Option<Self::GuardState> {
+        // SAFETY: The `ptr` pointer is guaranteed to be valid and initialized before use.
+        let result = unsafe { bindings::spin_trylock(ptr) };
+
+        if result != 0 {
+            Some(())
+        } else {
+            None
+        }
     }
 }

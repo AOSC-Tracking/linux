@@ -11,11 +11,24 @@
 #[macro_export]
 macro_rules! new_mutex {
     ($inner:expr $(, $name:literal)? $(,)?) => {
-        $crate::sync::Mutex::new(
+        $crate::sync::Mutex::new_with_key(
             $inner, $crate::optional_name!($($name)?), $crate::static_lock_class!())
     };
 }
 pub use new_mutex;
+
+/// Creates a [`Mutex`] initialiser with the given name and a newly-created lock class,
+/// given an initialiser for the inner type.
+///
+/// It uses the name if one is given, otherwise it generates one based on the file name and line
+/// number.
+#[macro_export]
+macro_rules! new_mutex_pinned {
+    ($inner:expr $(, $name:literal)? $(,)?) => {
+        $crate::sync::Mutex::pin_init_with_key(
+            $inner, $crate::optional_name!($($name)?), $crate::static_lock_class!())
+    };
+}
 
 /// A mutual exclusion primitive.
 ///
@@ -58,7 +71,7 @@ pub use new_mutex;
 /// }
 ///
 /// // Allocate a boxed `Example`.
-/// let e = Box::pin_init(Example::new(), GFP_KERNEL)?;
+/// let e = KBox::pin_init(Example::new(), GFP_KERNEL)?;
 /// assert_eq!(e.c, 10);
 /// assert_eq!(e.d.lock().a, 20);
 /// assert_eq!(e.d.lock().b, 30);
@@ -114,5 +127,16 @@ unsafe impl super::Backend for MutexBackend {
         // SAFETY: The safety requirements of this function ensure that `ptr` is valid and that the
         // caller is the owner of the mutex.
         unsafe { bindings::mutex_unlock(ptr) };
+    }
+
+    unsafe fn try_lock(ptr: *mut Self::State) -> Option<Self::GuardState> {
+        // SAFETY: The `ptr` pointer is guaranteed to be valid and initialized before use.
+        let result = unsafe { bindings::mutex_trylock(ptr) };
+
+        if result != 0 {
+            Some(())
+        } else {
+            None
+        }
     }
 }
