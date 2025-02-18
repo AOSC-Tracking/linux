@@ -3031,7 +3031,7 @@ int ata_dev_configure(struct ata_device *dev)
 
 	if ((dev->class == ATA_DEV_ATAPI) &&
 	    (ap->flags & ATA_FLAG_ATAPI_DMA))
-		dev->horkage |= ATA_HORKAGE_ATAPI_MOD16_DMA;
+		dev->quirks |= ATA_QUIRK_ATAPI_MOD16_DMA;
 
 	if ((dev->class == ATA_DEV_ATAPI) &&
 	    (atapi_command_packet_set(id) == TYPE_TAPE)) {
