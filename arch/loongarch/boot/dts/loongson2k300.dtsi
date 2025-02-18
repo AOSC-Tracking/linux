@@ -237,6 +237,105 @@
 						0x14 0x00000003 0x00000003>;
 		};
 
+		atim1_pin: atim1-pin {
+			atim1_pin_m0: pinmux_G28_as_atim1 {
+				pinctrl-single,bits = <0x4 0x02000000 0x03000000>;
+			};
+			atim1_pin_m1: pinmux_G81_as_atim1 {
+				pinctrl-single,bits = <0x14 0x0000000c 0x0000000c>;
+			};
+		};
+
+		atim2_pin: atim2-pin {
+			atim2_pin_m0: pinmux_G29_as_atim1 {
+				pinctrl-single,bits = <0x4 0x08000000 0x0c000000>;
+			};
+			atim2_pin_m1: pinmux_G82_as_atim1 {
+				pinctrl-single,bits = <0x14 0x00000030 0x00000030>;
+			};
+		};
+
+		atim3_pin: atim3-pin {
+			atim3_pin_m0: pinmux_G30_as_atim3 {
+				pinctrl-single,bits = <0x4 0x20000000 0x30000000>;
+			};
+			atim3_pin_m1: pinmux_G83_as_atim3 {
+				pinctrl-single,bits = <0x14 0x000000c0 0x000000c0>;
+			};
+		};
+
+		atim1n_pin: atim1n-pin {
+			atim1n_pin_m0: pinmux_G31_as_atim1n {
+				pinctrl-single,bits = <0x4 0x80000000 0xc0000000>;
+			};
+			atim1n_pin_m1: pinmux_G84_as_atim1n {
+				pinctrl-single,bits = <0x14 0x00000300 0x00000300>;
+			};
+		};
+
+		atim2n_pin: atim2n-pin {
+			atim2n_pin_m0: pinmux_G32_as_atim1n {
+				pinctrl-single,bits = <0x8 0x00000002 0x00000003>;
+			};
+			atim2n_pin_m1: pinmux_G85_as_atim1n {
+				pinctrl-single,bits = <0x14 0x00000c00 0x00000c00>;
+			};
+		};
+
+		atim3n_pin: atim3n-pin {
+			atim3n_pin_m0: pinmux_G33_as_atim1n {
+				pinctrl-single,bits = <0x8 0x00000008 0x0000000c>;
+			};
+			atim3n_pin_m1: pinmux_G86_as_atim1n {
+				pinctrl-single,bits = <0x14 0x00003000 0x00003000>;
+			};
+		};
+
+		atim4_pin: atim4-pin {
+			atim4_pin_m0: pinmux_G76_as_atim4 {
+				pinctrl-single,bits = <0x10 0x01000000 0x03000000>;
+			};
+			atim4_pin_m1: pinmux_G101_as_atim4 {
+				pinctrl-single,bits = <0x18 0x00000400 0x00000c00>;
+			};
+		};
+
+		gtim1_pin: gtim1-pin {
+			gtim1_pin_m0: pinmux_G34_as_gtim1 {
+				pinctrl-single,bits = <0x8 0x00000020 0x00000030>;
+			};
+			gtim1_pin_m1: pinmux_G87_as_gtim1 {
+				pinctrl-single,bits = <0x14 0x0000c000 0x0000c000>;
+			};
+		};
+
+		gtim2_pin: gtim2-pin {
+			gtim2_pin_m0: pinmux_G35_as_gtim1 {
+				pinctrl-single,bits = <0x8 0x00000080 0x000000c0>;
+			};
+			gtim2_pin_m1: pinmux_G88_as_gtim1 {
+				pinctrl-single,bits = <0x14 0x00030000 0x00030000>;
+			};
+		};
+
+		gtim3_pin: gtim3-pin {
+			gtim3_pin_m0: pinmux_G36_as_gtim3 {
+				pinctrl-single,bits = <0x8 0x00000200 0x00000300>;
+			};
+			gtim3_pin_m1: pinmux_G89_as_gtim3 {
+				pinctrl-single,bits = <0x14 0x000c0000 0x000c0000>;
+			};
+		};
+
+		gtim4_pin: gtim4-pin {
+			gtim4_pin_m0: pinmux_G77_as_gtim4 {
+				pinctrl-single,bits = <0x10 0x04000000 0x0c000000>;
+			};
+			gtim4_pin_m1: pinmux_G102_as_gtim4 {
+				pinctrl-single,bits = <0x18 0x00001000 0x00003000>;
+			};
+		};
+
 		pwm0_pins: pinmux_G86_as_pwm0 {
 			pinctrl-single,bits = <0x14 0x00002000 0x00003000>;
 		};
@@ -778,6 +877,30 @@
 			loongson,dwc2-fix = <DWC2_LOONGSON_FIX_DELAY>;
 			//dr_mode = "peripheral";
 			/* Optional for that dr_mode = "host" or dr_mode = "peripheral" */
+		};
+
+		pwm_atim: pwm@16118000{
+			compatible = "loongson,ls2k-pwm-atim";
+			reg = <0 0x16118000 0 0x1000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <13 IRQ_TYPE_LEVEL_HIGH>;
+			#pwm-cells = <2>;
+			pinctrl-0 = <&atim3_pin_m1>, <&atim3n_pin_m1>;
+			pinctrl-names = "default";
+			clock-frequency = <200000000>;
+			status = "disabled";
+		};
+		
+		pwm_gtim: pwm@16119000{
+			compatible = "loongson,ls2k-pwm-gtim";
+			reg = <0 0x16119000 0 0x1000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <14 IRQ_TYPE_LEVEL_HIGH>;
+			#pwm-cells = <2>;
+			pinctrl-0 = <&gtim2_pin_m1>, <&gtim3_pin_m1>;
+			pinctrl-names = "default";
+			clock-frequency = <200000000>;
+			status = "disabled";
 		};
 
 		pwm0: pwm@0x1611b000 {
