@@ -37,7 +37,7 @@
 #define STDX_BE	stringify_in_c(stdbrx)
 #endif
 
-#ifdef CONFIG_CC_IS_CLANG
+#ifdef __clang__
 #define DS_FORM_CONSTRAINT "Z<>"
 #else
 #define DS_FORM_CONSTRAINT "YZ<>"
