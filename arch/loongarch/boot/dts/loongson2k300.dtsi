@@ -1,6 +1,10 @@
 /dts-v1/;
+#include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/clock/loongson2k300-clock.h>
 #include <dt-bindings/usb/dwc2-loongson-fix.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/input/linux-event-codes.h>
 
 / {
 	model = "loongson,generic";
@@ -184,8 +188,16 @@
 			pinctrl-single,bits = <0xc 0x00000f00 0x00000f00>;
 		};
 
+		i2c2_G82_G83_pins: pinmux_G82_G83_as_i2c2 {
+			pinctrl-single,bits = <0x14 0x000000a0 0x000000f0>;
+		};
+
 		i2c3_pins: pinmux_G54_G55_as_i2c3 {
 			pinctrl-single,bits = <0xc 0x0000f000 0x0000f000>;
+		};
+
+		i2c3_G84_G85_pins: pinmux_G84_G85_as_i2c3 {
+			pinctrl-single,bits = <0x14 0x00000a00 0x000000f00>;
 		};
 
 		spi1_pins: pinmux_G60_G63_as_spi1 {
@@ -833,11 +845,9 @@
 			clock-frequency = <0 200000000>;
 			bus-width = <8>;
 			cap-mmc-highspeed;
-#if CONFIG_LOONGSON_MMC_HIGH_PERFORMANCE
-			mmc-hs200-1_8v;
-#endif
 			no-sd;
 			no-sdio;
+			non-removable;
 		};
 
 		sdio1: sdio@0x16148000 {
@@ -868,13 +878,13 @@
 			dma-mask = <0x0 0xffffffff>;
 		};
 
-		otg@0x16040000 {
+		otg: otg@0x16040000 {
 			compatible = "loongson,loongson2-dwc2";
 			reg = <0 0x16040000 0 0x40000>;
 			interrupt-parent = <&liointc1>;
 			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>; // 48 - 32 = 16
 			dma-mask = <0x0 0xffffffff>;
-			loongson,dwc2-fix = <DWC2_LOONGSON_FIX_DELAY>;
+			loongson,dwc2-fix = <DWC2_LOONGSON_FIX_NONE>;
 			//dr_mode = "peripheral";
 			/* Optional for that dr_mode = "host" or dr_mode = "peripheral" */
 		};

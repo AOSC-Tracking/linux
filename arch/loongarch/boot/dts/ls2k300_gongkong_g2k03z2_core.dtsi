@@ -1,0 +1,53 @@
+#include "loongson2k300.dtsi"
+
+/ {
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "earlycon";
+	};
+
+	/* not need memory node, we get memory info from boot params. */
+	//memory {
+	//	name = "memory";
+	//	device_type = "memory";
+	//	reg =  <0 0x00200000 0 0x0ee00000
+	//		0 0x90000000 0 0x10000000>;
+	//};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x02000000>;
+			linux,cma-default;
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+
+	spi-flash@0 {
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <25000000>;
+		reg = <0>;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+	pinctrl-0 = <&i2c2_G82_G83_pins>;
+};
+
+&i2c3 {
+	status = "okay";
+	pinctrl-0 = <&i2c3_G84_G85_pins>;
+};
