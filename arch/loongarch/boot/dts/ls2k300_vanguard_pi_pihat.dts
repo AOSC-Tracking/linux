@@ -1,8 +1,3 @@
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/pwm/pwm.h>
-#include <dt-bindings/input/linux-event-codes.h>
-#include <dt-bindings/interrupt-controller/irq.h>
-
 #include "ls2k300_vanguard_pi_common.dtsi"
 
 / {

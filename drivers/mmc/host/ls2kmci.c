@@ -1033,6 +1033,10 @@ probe_free_host:
 static void ls2k_mci_shutdown(struct platform_device *pdev)
 {
 	struct mmc_host	*mmc = platform_get_drvdata(pdev);
+	struct ls2k_mci_host    *host = mmc_priv(mmc);
+
+	if (mmc->caps & MMC_CAP_NONREMOVABLE)
+		return;
 
 	if (mmc->card)
 		mmc->card->state &= ~1;
@@ -1044,6 +1048,9 @@ static void ls2k_mci_remove(struct platform_device *pdev)
 {
 	struct mmc_host		*mmc  = platform_get_drvdata(pdev);
 	struct ls2k_mci_host	*host = mmc_priv(mmc);
+
+	if (mmc->caps & MMC_CAP_NONREMOVABLE)
+		return;
 
 	ls2k_mci_shutdown(pdev);
 

@@ -1,7 +1,5 @@
 #include "ls2k300_g2k03z0_core_v10.dtsi"
 #include "loongson_panel_param.dtsi"
-#include <dt-bindings/input/linux-event-codes.h>
-#include <dt-bindings/pwm/pwm.h>
 
 / {
 	model = "LS2K300-MINI-DP";
