@@ -347,6 +347,8 @@ static void* __init get_fdt_by_board_name(void)
 			fdt = &__dtb_ls2k300_mini_dp_begin;
 		else if (!strncmp(board_name, "LS2K300-PAI", 11))
 			fdt = &__dtb_ls2k300_vanguard_pi_begin;
+		else if (!strncmp(board_name, "LS2K300-GONGKONG-GBKPGK0", 24))
+			fdt = &__dtb_ls2k300_gongkong_gbkpgk0_begin;
 		else
 			fdt = &__dtb_ls2k300_mini_dp_begin;
 #endif

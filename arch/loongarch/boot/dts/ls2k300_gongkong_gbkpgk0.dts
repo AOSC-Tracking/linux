@@ -1,0 +1,345 @@
+#include "ls2k300_gongkong_g2k03z2_core.dtsi"
+#include "loongson_panel_param.dtsi"
+
+/ {
+	model = "LS2K300-GONGKONG-GBKPGK0";
+
+	leds {
+		compatible = "gpio-leds";
+
+		sys_stat {
+			label = "sys_stat";
+			gpios = <&io_expander_a 8 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+		};
+
+		led1 {
+			label = "led1";
+			gpios = <&io_expander_a 5 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led2 {
+			label = "led2";
+			gpios = <&io_expander_a 7 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led3 {
+			label = "led3";
+			gpios = <&io_expander_a 6 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+	};
+
+	lcd_backlight: backlight {
+		compatible = "gpio-backlight";
+		gpios = <&gpio 89 GPIO_ACTIVE_HIGH>;
+		default-on;
+	};
+
+	panel: dvo-connector@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "panel-lvds", "auo,b101ean01";
+		backlight = <&lcd_backlight>;
+
+		/* lcd power on control gpio */
+		// enable-gpios = <&pioA 3 GPIO_ACTIVE_HIGH>;
+		// power-supply = <&vdd_lcd>;
+#if 0	// 4.3' LCD
+		width-mm = <223>;
+		height-mm = <125>;
+		label = "ATK-MD0430R-800x480";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <27000000>;
+			hactive = <800>;
+			vactive = <480>;
+			hsync-len = <40>;
+			hfront-porch = <48>;
+			hback-porch = <40>;
+			vfront-porch = <13>;
+			vback-porch = <32>;
+			vsync-len = <1>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+#else	// 7' LCD
+		width-mm = <223>;
+		height-mm = <125>;
+		label = "ATK-MD0700R-1024x600";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <51200000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hsync-len = <20>;
+			hfront-porch = <160>;
+			hback-porch = <140>;
+			vfront-porch = <12>;
+			vback-porch = <20>;
+			vsync-len = <3>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+#endif
+		port@0 {
+			reg = <0>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dvo_connector_in: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&dc_out_rgb0>;
+			};
+		};
+	};
+
+	vccio_codec: 3_3V{
+		compatible = "regulator-fixed";
+		regulator-name = "VCC_IO";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	// 虽然这个时钟在从模式下没用，但 es8388 驱动必须指定这个时钟
+	es8388_clk: es8388-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <12288000>;
+		#clock-cells = <1>;
+	};
+};
+
+&dc {
+	status = "ok";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			dc_out_rgb0: endpoint {
+				remote-endpoint = <&dvo_connector_in>;
+			};
+		};
+	};
+};
+
+&gmac0 {
+	status = "okay";
+	phy-handle = <&yt8511h0>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h0: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
+&gmac1 {
+	status = "okay";
+	phy-handle = <&yt8511h1>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h1: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
+&i2c2 {
+	//i2c-speed = <400000>;
+
+	codec: es8388@11{
+		compatible = "everest,es8388";
+		reg = <0x11>;
+		AVDD-supply = <&vccio_codec>;
+		DVDD-supply = <&vccio_codec>;
+		HPVDD-supply = <&vccio_codec>;
+		PVDD-supply = <&vccio_codec>;
+		clocks = <&es8388_clk 0>;
+	};
+
+	dido_A000: xl9555@20 {
+		compatible = "nxp,pca9555";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	dido_A001: xl9555@21 {
+		compatible = "nxp,pca9555";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <11 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	dido_A010: xl9555@22 {
+		compatible = "nxp,pca9555";
+		reg = <0x22>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	rtc_ds1307@68 {
+		compatible = "dallas,ds1307";
+		reg = <0x68>;
+	};
+};
+
+&i2c3 {
+	i2c-speed = <400000>;
+
+	touchpad: gt9147@14 {
+		compatible = "goodix,gt9147";
+		reg = <0x14>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <2 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&io_expander_a 2 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&io_expander_a 3 GPIO_ACTIVE_LOW>;
+	};
+
+	io_expander_b: xl9555@26 {
+		compatible = "nxp,pca9555";
+		reg = <0x26>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		// 2K300 GPIO 支持中断控制
+		// GPIO 中断号为 vhwirq-base + pinnum (195 = 128 + 67)
+		interrupt-parent = <&gpio>;
+		interrupts = <195 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	io_expander_a: xl9555@27 {
+		compatible = "nxp,pca9555";
+		reg = <0x27>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		// 2K300 GPIO 支持中断控制
+		// GPIO 中断号为 vhwirq-base + pinnum (194 = 128 + 66)
+		interrupt-parent = <&gpio>;
+		interrupts = <194 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	dido_B000: xl9555@20 {
+		compatible = "nxp,pca9555";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <15 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	dido_B001: xl9555@21 {
+		compatible = "nxp,pca9555";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	dido_B010: xl9555@22 {
+		compatible = "nxp,pca9555";
+		reg = <0x22>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-parent = <&io_expander_a>;
+		interrupts = <13 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&can2 {
+	status = "ok";
+	ls,canfd-stb-gpio = <&gpio 60 GPIO_ACTIVE_HIGH>;
+};
+
+&can3 {
+	status = "ok";
+	ls,canfd-stb-gpio = <&gpio 60 GPIO_ACTIVE_HIGH>;
+};
+
+&adc {
+	status = "okay";
+};
+
+&sdio1 {
+	pinctrl-0 = <&sdio1_pins>;
+	pinctrl-names = "default";
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	bus-width = <4>;
+	//cd-gpios = <&io_expander_a 4 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&i2s {
+	status = "okay";
+};
+
+&audio {
+	status = "okay";
+};
+
+&sound {
+	status = "okay";
+	loongson,audio-codec = <&codec>;
+	// Easy Compatible for asound.state Configure
+	loongson,sound-card-name = "ES8388";
+};
+
