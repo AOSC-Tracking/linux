@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright 2025 Cix Technology Group Co., Ltd.
+ *
+ */
+
+/dts-v1/;
+
+#include "sky1.dtsi"
+/ {
+	model = "Radxa Orion O6";
+	compatible = "radxa,orion-o6";
+
+	chosen {
+		stdout-path = &uart2;
+	};
+};
+
+&uart2 {
+	status = "okay";
+};
