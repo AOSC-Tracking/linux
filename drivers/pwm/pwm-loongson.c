@@ -80,7 +80,7 @@ static inline void pwm_loongson_writel(struct pwm_loongson_ddata *ddata,
 static irqreturn_t pwm_loongson_isr(int irq, void *dev)
 {
 	u32 val;
-	struct pwm_chip *chip = dev;
+	struct pwm_chip *chip = dev_get_drvdata(dev);
 	struct pwm_loongson_ddata *ddata = to_pwm_loongson_ddata(chip);
 
 	val = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_CTRL);
@@ -92,7 +92,7 @@ static irqreturn_t pwm_loongson_isr(int irq, void *dev)
 
 	ddata->int_count++;
 
-	pr_debug("pwm_loongson_isr count %u\n", ddata->int_count);
+	dev_info(dev, "pwm_loongson_isr count %u\n", ddata->int_count);
 
 	return IRQ_HANDLED;
 }
@@ -102,8 +102,11 @@ static int pwm_loongson_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 				unsigned long timeout)
 {
 	u32 val;
+	struct device *dev = pwmchip_parent(chip);
 	struct pwm_loongson_ddata *ddata = to_pwm_loongson_ddata(chip);
 	int ret;
+
+	dev_info(dev, "int_count: %u\n", ddata->int_count);
 
 	ddata->int_count = 0;
 	val = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_CTRL);
@@ -113,6 +116,10 @@ static int pwm_loongson_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 
 	ret = wait_event_timeout(ddata->capture_wait_queue,
 				 ddata->int_count > 1, timeout);
+
+	dev_info(dev, "ctrl reg: %#08x\n", pwm_loongson_readl(ddata, LOONGSON_PWM_REG_CTRL));
+	dev_info(dev, "period reg: %#08x\n", pwm_loongson_readl(ddata, LOONGSON_PWM_REG_PERIOD));
+	dev_info(dev, "duty reg: %#08x\n", pwm_loongson_readl(ddata, LOONGSON_PWM_REG_DUTY));
 	if (ret == 0)
 		return -ETIMEDOUT;
 
@@ -273,6 +280,7 @@ static int pwm_loongson_probe(struct platform_device *pdev)
 	u32 irq;
 
 	irq = platform_get_irq(pdev, 0);
+	dev_info(dev, "irq get:%u\n", irq);
 	if (irq <= 0) {
 	    dev_err(&pdev->dev, "no irq resource?\n");
 	    return -ENODEV;
@@ -311,12 +319,11 @@ static int pwm_loongson_probe(struct platform_device *pdev)
 
 	ddata->irq = irq;
 
-	ret = devm_request_irq(&pdev->dev, ddata->irq, pwm_loongson_isr,
-			       IRQF_SHARED,
-			       dev_name(&pdev->dev), chip);
+	ret = devm_request_irq(dev, ddata->irq, pwm_loongson_isr, IRQF_SHARED,
+			       dev_name(dev), dev);
 
 	if (ret)
-		dev_err(&pdev->dev, "failure requesting irq %d\n", ret);
+		dev_err(dev, "failure requesting irq %d\n", ret);
 
 	chip->ops = &pwm_loongson_ops;
 	chip->atomic = true;
