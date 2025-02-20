@@ -31,6 +31,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/delay.h>
 
 /* Loongson PWM registers */
 #define LOONGSON_PWM_REG_DUTY		0x4 /* Low Pulse Buffer Register */
@@ -106,29 +107,30 @@ static int pwm_loongson_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 	struct pwm_loongson_ddata *ddata = to_pwm_loongson_ddata(chip);
 	int ret;
 
-	dev_info(dev, "int_count: %u\n", ddata->int_count);
+	pwm_loongson_writel(ddata, 0, LOONGSON_PWM_REG_PERIOD);
 
-	ddata->int_count = 0;
 	val = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_CTRL);
 	val |= LOONGSON_PWM_CTRL_EN | LOONGSON_PWM_CTRL_CAPTE |
-	       LOONGSON_PWM_CTRL_INTE | LOONGSON_PWM_CTRL_OE;
+	       LOONGSON_PWM_CTRL_OE;
 	pwm_loongson_writel(ddata, val, LOONGSON_PWM_REG_CTRL);
-
-	ret = wait_event_timeout(ddata->capture_wait_queue,
-				 ddata->int_count > 1, timeout);
-
-	dev_info(dev, "ctrl reg: %#08x\n", pwm_loongson_readl(ddata, LOONGSON_PWM_REG_CTRL));
-	dev_info(dev, "period reg: %#08x\n", pwm_loongson_readl(ddata, LOONGSON_PWM_REG_PERIOD));
-	dev_info(dev, "duty reg: %#08x\n", pwm_loongson_readl(ddata, LOONGSON_PWM_REG_DUTY));
-	if (ret == 0)
+	ret = readl_poll_timeout(ddata->base + LOONGSON_PWM_REG_PERIOD, val,
+				 val, 10, timeout * 1000);
+	if (ret < 0)
 		return -ETIMEDOUT;
 
-	result->period = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_PERIOD);
-	result->duty_cycle = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_DUTY);
+	dev_dbg(dev, "get first period: %u\n", val);
+
+	usleep_range(val * 4 / 100 + 1, val * 4 / 100 + 2);
+
+	val = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_PERIOD);
+	result->period = DIV64_U64_ROUND_UP((u64)val * NSEC_PER_SEC, ddata->clk_rate);
+	dev_dbg(dev, "get second period: %u\n", val);
+	val = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_DUTY);
+	result->duty_cycle = DIV64_U64_ROUND_UP((u64)val * NSEC_PER_SEC, ddata->clk_rate);
 
 	val = pwm_loongson_readl(ddata, LOONGSON_PWM_REG_CTRL);
 	val &= ~(LOONGSON_PWM_CTRL_EN | LOONGSON_PWM_CTRL_CAPTE |
-		 LOONGSON_PWM_CTRL_INTE | LOONGSON_PWM_CTRL_OE);
+		 LOONGSON_PWM_CTRL_OE);
 	pwm_loongson_writel(ddata, val, LOONGSON_PWM_REG_CTRL);
 
 	return 0;
