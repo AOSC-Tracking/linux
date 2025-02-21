@@ -298,18 +298,20 @@ static void __init arch_reserve_crashkernel(void)
 static void* __init get_fdt_by_board_name(void)
 {
 	void *fdt = NULL;
-	char* board_name;
-	char temp[128]; // 不想申请空间 应该不会有这么长的名字吧
+	char *board_name = NULL;
+	char temp[128]; // 名字长度限定不超128
+
 	board_name = strstr(boot_command_line, board_name_desc);
 	if (board_name) {
-		int i;
-		memset(temp, 0, 128);
+		size_t max_len = sizeof(temp);
+		memset(temp, 0, max_len);
+		max_len -= 1;
+
 		board_name += strlen(board_name_desc); // 跳过 = 和前面的字段
-		for (i = 0; i < 127; ++i) {
-			if (board_name[i] == 0 || board_name[i] == ' ')
-				break;
-			temp[i] = board_name[i];
-		}
+		size_t len = strcspn(board_name, " ");
+		len = len > max_len ? max_len : len;
+		memcpy(temp, board_name, len);
+		temp[len] = '\0';
 		board_name = temp;
 	}
 	if (board_name) {
@@ -841,20 +843,21 @@ static __init int parse_extlist(struct boot_params *bp)
 
 static int __init bp_start_match(void)
 {
-	char* bp_start_value;
-	char temp[128]; // 不想申请空间 应该不会有这么长的值吧
+	char *bp_start_value = NULL;
+	char temp[128];
 
 	bp_start = 0;
 	bp_start_value = strstr(boot_command_line, bp_start_desc);
 	if (bp_start_value) {
-		int i;
-		memset(temp, 0, 128);
+		size_t max_len = sizeof(temp);
+		memset(temp, 0, max_len);
+		max_len -= 1;
+
 		bp_start_value += strlen(bp_start_desc); // 跳过 = 和前面的字段
-		for (i = 0; i < 127; ++i) {
-			if (bp_start_value[i] == 0 || bp_start_value[i] == ' ')
-				break;
-			temp[i] = bp_start_value[i];
-		}
+		size_t len = strcspn(bp_start_value, " ");
+		len  = len > max_len ? max_len : len;
+		memcpy(temp, bp_start_value, len);
+		temp[len] = '\0';
 		bp_start_value = temp;
 	} else
 		return 1;
