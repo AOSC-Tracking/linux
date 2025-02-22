@@ -6,6 +6,7 @@ use core::ops::Deref;
 
 use crate::device::Device;
 use crate::devres::Devres;
+use crate::io::resource::flags::IORESOURCE_MEM_NONPOSTED;
 use crate::io::resource::Region;
 use crate::io::resource::Resource;
 use crate::io::Io;
@@ -88,7 +89,11 @@ impl<const SIZE: usize> IoMem<SIZE> {
         // SAFETY:
         // - `res_start` and `size` are read from a presumably valid `struct resource`.
         // - `size` is known not to be zero at this point.
-        let addr = unsafe { bindings::ioremap(res_start, size as kernel::ffi::c_ulong) };
+        let addr = if resource.flags().contains(IORESOURCE_MEM_NONPOSTED) {
+            unsafe { bindings::ioremap_np(res_start, size as usize) }
+        } else {
+            unsafe { bindings::ioremap(res_start, size as usize) }
+        };
         if addr.is_null() {
             return Err(ENOMEM);
         }
