@@ -143,17 +143,17 @@ static size_t guc_ads_regset_size(struct xe_guc_ads *ads)
 
 static size_t guc_ads_golden_lrc_size(struct xe_guc_ads *ads)
 {
-	return PAGE_ALIGN(ads->golden_lrc_size);
+	return ALIGN(ads->golden_lrc_size, SZ_4K);
 }
 
 static u32 guc_ads_waklv_size(struct xe_guc_ads *ads)
 {
-	return PAGE_ALIGN(ads->ads_waklv_size);
+	return ALIGN(ads->ads_waklv_size, SZ_4K);
 }
 
 static size_t guc_ads_capture_size(struct xe_guc_ads *ads)
 {
-	return PAGE_ALIGN(ads->capture_size);
+	return ALIGN(ads->capture_size, SZ_4K);
 }
 
 static size_t guc_ads_um_queues_size(struct xe_guc_ads *ads)
@@ -168,7 +168,7 @@ static size_t guc_ads_um_queues_size(struct xe_guc_ads *ads)
 
 static size_t guc_ads_private_data_size(struct xe_guc_ads *ads)
 {
-	return PAGE_ALIGN(ads_to_guc(ads)->fw.private_data_size);
+	return ALIGN(ads_to_guc(ads)->fw.private_data_size, SZ_4K);
 }
 
 static size_t guc_ads_regset_offset(struct xe_guc_ads *ads)
@@ -183,7 +183,7 @@ static size_t guc_ads_golden_lrc_offset(struct xe_guc_ads *ads)
 	offset = guc_ads_regset_offset(ads) +
 		guc_ads_regset_size(ads);
 
-	return PAGE_ALIGN(offset);
+	return ALIGN(offset, SZ_4K);
 }
 
 static size_t guc_ads_waklv_offset(struct xe_guc_ads *ads)
@@ -193,7 +193,7 @@ static size_t guc_ads_waklv_offset(struct xe_guc_ads *ads)
 	offset = guc_ads_golden_lrc_offset(ads) +
 		 guc_ads_golden_lrc_size(ads);
 
-	return PAGE_ALIGN(offset);
+	return ALIGN(offset, SZ_4K);
 }
 
 static size_t guc_ads_capture_offset(struct xe_guc_ads *ads)
@@ -203,7 +203,7 @@ static size_t guc_ads_capture_offset(struct xe_guc_ads *ads)
 	offset = guc_ads_waklv_offset(ads) +
 		 guc_ads_waklv_size(ads);
 
-	return PAGE_ALIGN(offset);
+	return ALIGN(offset, SZ_4K);
 }
 
 static size_t guc_ads_um_queues_offset(struct xe_guc_ads *ads)
@@ -213,7 +213,7 @@ static size_t guc_ads_um_queues_offset(struct xe_guc_ads *ads)
 	offset = guc_ads_capture_offset(ads) +
 		 guc_ads_capture_size(ads);
 
-	return PAGE_ALIGN(offset);
+	return ALIGN(offset, SZ_4K);
 }
 
 static size_t guc_ads_private_data_offset(struct xe_guc_ads *ads)
@@ -223,7 +223,7 @@ static size_t guc_ads_private_data_offset(struct xe_guc_ads *ads)
 	offset = guc_ads_um_queues_offset(ads) +
 		guc_ads_um_queues_size(ads);
 
-	return PAGE_ALIGN(offset);
+	return ALIGN(offset, SZ_4K);
 }
 
 static size_t guc_ads_size(struct xe_guc_ads *ads)
@@ -276,7 +276,7 @@ static size_t calculate_golden_lrc_size(struct xe_guc_ads *ads)
 			continue;
 
 		real_size = xe_gt_lrc_size(gt, class);
-		alloc_size = PAGE_ALIGN(real_size);
+		alloc_size = ALIGN(real_size, SZ_4K);
 		total_size += alloc_size;
 	}
 
@@ -612,12 +612,12 @@ static int guc_capture_prep_lists(struct xe_guc_ads *ads)
 					 offsetof(struct __guc_ads_blob, system_info));
 
 	/* first, set aside the first page for a capture_list with zero descriptors */
-	total_size = PAGE_SIZE;
+	total_size = SZ_4K;
 	if (!xe_guc_capture_getnullheader(guc, &ptr, &size))
 		xe_map_memcpy_to(ads_to_xe(ads), ads_to_map(ads), capture_offset, ptr, size);
 
 	null_ggtt = ads_ggtt + capture_offset;
-	capture_offset += PAGE_SIZE;
+	capture_offset += SZ_4K;
 
 	/*
 	 * Populate capture list : at this point adps is already allocated and
@@ -681,10 +681,10 @@ static int guc_capture_prep_lists(struct xe_guc_ads *ads)
 		}
 	}
 
-	if (ads->capture_size != PAGE_ALIGN(total_size))
+	if (ads->capture_size != ALIGN(total_size, SZ_4K))
 		xe_gt_dbg(gt, "ADS capture alloc size changed from %d to %d\n",
-			  ads->capture_size, PAGE_ALIGN(total_size));
-	return PAGE_ALIGN(total_size);
+			  ads->capture_size, ALIGN(total_size, SZ_4K));
+	return ALIGN(total_size, SZ_4K);
 }
 
 static void guc_mmio_regset_write_one(struct xe_guc_ads *ads,
@@ -809,7 +809,7 @@ static void guc_um_init_params(struct xe_guc_ads *ads)
 	int i;
 
 	base_ggtt = xe_bo_ggtt_addr(ads->bo) + um_queue_offset;
-	base_dpa = xe_bo_main_addr(ads->bo, PAGE_SIZE) + um_queue_offset;
+	base_dpa = xe_bo_main_addr(ads->bo, SZ_4K) + um_queue_offset;
 
 	for (i = 0; i < GUC_UM_HW_QUEUE_MAX; ++i) {
 		ads_blob_write(ads, um_init_params.queue_params[i].base_dpa,
@@ -928,7 +928,7 @@ static void guc_populate_golden_lrc(struct xe_guc_ads *ads)
 		xe_gt_assert(gt, gt->default_lrc[class]);
 
 		real_size = xe_gt_lrc_size(gt, class);
-		alloc_size = PAGE_ALIGN(real_size);
+		alloc_size = ALIGN(real_size, SZ_4K);
 		total_size += alloc_size;
 
 		/*
