@@ -29,7 +29,7 @@ SYSCFLAGS_vdso.so.dbg = $(c_flags)
 $(obj)/vdso.so.dbg: $(obj)/vdso.lds $(obj-vdso) FORCE
 	$(call if_changed,vdsold)
 SYSCFLAGS_vdso.so.dbg = -shared -s -Wl,-soname=linux-vdso.so.1 \
-	-Wl,--build-id=sha1 -Wl,--hash-style=both
+	-Wl,--build-id=sha1
 
 $(obj)/vdso-syms.S: $(obj)/vdso.so FORCE
 	$(call if_changed,so2s)
