@@ -78,7 +78,7 @@ int xe_guc_hwconfig_init(struct xe_guc *guc)
 	if (!size)
 		return -EINVAL;
 
-	bo = xe_managed_bo_create_pin_map(xe, tile, PAGE_ALIGN(size),
+	bo = xe_managed_bo_create_pin_map(xe, tile, ALIGN(size, SZ_4K),
 					  XE_BO_FLAG_SYSTEM |
 					  XE_BO_FLAG_GGTT |
 					  XE_BO_FLAG_GGTT_INVALIDATE);
