@@ -2151,6 +2151,17 @@ config MFD_STM32_TIMERS
 	  for PWM and IIO Timer. This driver allow to share the
 	  registers between the others drivers.
 
+config MFD_LS_TIMERS
+	tristate "Support for LS Timers"
+	depends on (MACH_LOONGSON64 && OF) || COMPILE_TEST
+	select MFD_CORE
+	select REGMAP
+	select REGMAP_MMIO
+	help
+	  Select this option to enable Loongson timers driver used
+	  for PWM and IIO Timer. This driver allow to share the
+	  registers between the others drivers.
+
 config MFD_STPMIC1
 	tristate "Support for STPMIC1 PMIC"
 	depends on I2C=y && OF
