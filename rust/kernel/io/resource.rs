@@ -207,7 +207,7 @@ unsafe impl Sync for Resource {}
 ///
 /// Values can be used from the [`flags`] module.
 #[derive(Clone, Copy, PartialEq)]
-pub struct Flags(u64);
+pub struct Flags(usize);
 
 impl Flags {
     /// Check whether `flags` is contained in `self`.
@@ -242,11 +242,11 @@ pub mod flags {
     use super::Flags;
 
     /// PCI/ISA I/O ports
-    pub const IORESOURCE_IO: Flags = Flags(bindings::IORESOURCE_IO as u64);
+    pub const IORESOURCE_IO: Flags = Flags(bindings::IORESOURCE_IO as usize);
 
     /// Resource is software muxed.
-    pub const IORESOURCE_MUXED: Flags = Flags(bindings::IORESOURCE_MUXED as u64);
+    pub const IORESOURCE_MUXED: Flags = Flags(bindings::IORESOURCE_MUXED as usize);
 
     /// Resource represents a memory region.
-    pub const IORESOURCE_MEM: Flags = Flags(bindings::IORESOURCE_MEM as u64);
+    pub const IORESOURCE_MEM: Flags = Flags(bindings::IORESOURCE_MEM as usize);
 }
