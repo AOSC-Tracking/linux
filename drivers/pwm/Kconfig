@@ -363,6 +363,15 @@ config PWM_LOONGSON
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-loongson.
 
+config PWM_LOONGSON_TIMER
+	tristate "Loongson Timer PWM support"
+	depends on MFD_LS_TIMERS || COMPILE_TEST
+	help
+	  Timer PWM framework driver for loongson2k.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-ls-timer.
+
 config PWM_LOONGSON_GTIM
 	tristate "Loongson GTIM PWM support"
 	depends on MACH_LOONGSON64 || COMPILE_TEST

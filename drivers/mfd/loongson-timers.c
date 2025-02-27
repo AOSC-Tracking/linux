@@ -122,6 +122,8 @@ int loongson_timers_dma_burst_read(struct device *dev, u32 *buf,
 				 loongson_timers_dier_dmaen[id]);
 	if (ret)
 		goto dma_term;
+	print_hex_dump(KERN_DEBUG, "DMA dump: ", DUMP_PREFIX_ADDRESS, 4, 1, ioremap(0x1612c030, 0x10), 0x10, false);
+	print_hex_dump(KERN_DEBUG, "GTIM dump: ", DUMP_PREFIX_ADDRESS, 4, 1, ioremap(0x16119000, 0x50), 0x50, false);
 
 	err = wait_for_completion_interruptible_timeout(&dma->completion,
 							timeout);

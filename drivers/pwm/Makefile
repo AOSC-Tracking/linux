@@ -31,6 +31,7 @@ obj-$(CONFIG_PWM_IQS620A)	+= pwm-iqs620a.o
 obj-$(CONFIG_PWM_JZ4740)	+= pwm-jz4740.o
 obj-$(CONFIG_PWM_KEEMBAY)	+= pwm-keembay.o
 obj-$(CONFIG_PWM_LOONGSON)	+= pwm-loongson.o
+obj-$(CONFIG_PWM_LOONGSON_TIMER)		+= pwm-ls-timer.o
 obj-$(CONFIG_PWM_LOONGSON_ATIM)	+= pwm-loongson-atim.o
 obj-$(CONFIG_PWM_LOONGSON_GTIM)	+= pwm-loongson-gtim.o
 obj-$(CONFIG_PWM_LP3943)	+= pwm-lp3943.o
