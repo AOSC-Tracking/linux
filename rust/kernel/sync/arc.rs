@@ -199,6 +199,11 @@ impl<T: ?Sized> ArcInner<T> {
 #[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
 impl<T: ?Sized + core::marker::Unsize<U>, U: ?Sized> core::ops::CoerceUnsized<Arc<U>> for Arc<T> {}
 
+// This is to allow coercion from `Arc<T>` to `Arc<U>` if `T` can be converted to the
+// dynamically-sized type (DST) `U`.
+#[cfg(CONFIG_RUSTC_HAS_COERCE_POINTEE)]
+unsafe impl<T: ?Sized> core::pin::PinCoerceUnsized for Arc<T> {}
+
 // This is to allow `Arc<U>` to be dispatched on when `Arc<T>` can be coerced into `Arc<U>`.
 #[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
 impl<T: ?Sized + core::marker::Unsize<U>, U: ?Sized> core::ops::DispatchFromDyn<Arc<U>> for Arc<T> {}
