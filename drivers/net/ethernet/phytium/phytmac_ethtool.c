@@ -89,23 +89,23 @@ static void phytmac_get_wol(struct net_device *ndev, struct ethtool_wolinfo *wol
 {
 	struct phytmac *pdata = netdev_priv(ndev);
 
+	wol->wolopts = 0;
 	phylink_ethtool_get_wol(pdata->phylink, wol);
+
+	wol->supported = WAKE_MAGIC | WAKE_ARP |
+			 WAKE_UCAST | WAKE_MCAST;
 
 	if (pdata->wol & PHYTMAC_WAKE_MAGIC) {
 		wol->wolopts |= WAKE_MAGIC;
-		wol->supported |= WAKE_MAGIC;
 	}
 	if (pdata->wol & PHYTMAC_WAKE_ARP) {
 		wol->wolopts |= WAKE_ARP;
-		wol->supported |= WAKE_ARP;
 	}
 	if (pdata->wol & PHYTMAC_WAKE_UCAST) {
 		wol->wolopts |= WAKE_UCAST;
-		wol->supported |= WAKE_UCAST;
 	}
 	if (pdata->wol & PHYTMAC_WAKE_MCAST) {
 		wol->wolopts |= WAKE_MCAST;
-		wol->supported |= WAKE_MCAST;
 	}
 }
 
