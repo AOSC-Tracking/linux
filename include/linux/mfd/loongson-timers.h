@@ -65,7 +65,7 @@
 #define TIM_EGR_UG		BIT(0)					/* Update Generation				*/
 
 // CCMR Output
-#define TIM_CCMR_OCxPE(x)		BIT(3 + 8 * ((x) - 1))					/* Channel Preload Enable			*/
+#define TIM_CCMR_PE		BIT(3)					/* Channel Preload Enable			*/
 #define TIM_CCMR_M1		(BIT(6) | BIT(5))			/* Channel PWM Mode 1				*/
 #define TIM_CCMR_CC1S		(BIT(0) | BIT(1))			/* Capture/compare 1 sel			*/
 #define TIM_CCMR_CC2S		(BIT(8) | BIT(9))			/* Capture/compare 2 sel			*/
@@ -107,6 +107,7 @@
 #define TIM_BDTR_BKP(x)		BIT(13 + (x) * 12)			/* Break input polarity				*/
 #define TIM_BDTR_AOE		BIT(14)					/* Automatic Output Enable			*/
 #define TIM_BDTR_MOE		BIT(15)					/* Main Output Enable				*/
+#define TIM_BDTR_BKF(x)		(0xf << (16 + (x) * 4))
 
 #define MAX_TIM_PSC				0xFFFF
 #define MAX_TIM_ICPSC				0x3
@@ -119,6 +120,9 @@
 #define TIM_SMCR_SMS_ENCODER_MODE_2		2 /* counts TI2FP2 edges, depending on TI1FP1 level */
 #define TIM_SMCR_SMS_ENCODER_MODE_3		3 /* counts on both TI1FP1 and TI2FP2 edges */
 #define TIM_SMCR_TS_SHIFT			4
+
+#define TIM_BDTR_BKF_MASK			0xF
+#define TIM_BDTR_BKF_SHIFT(x)			(16 + (x) * 4)
 
 enum loongson_timers_dmas {
 	LS_TIMERS_DMA_CH1,
