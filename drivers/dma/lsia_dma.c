@@ -350,12 +350,12 @@ static int lsia_dma_set_xfer_param(struct lsia_dma_chan *chan,
 	case DMA_MEM_TO_DEV:
 		dev_width = chan->dma_sconfig.dst_addr_width;
 		chan->chan_reg.dma_cpar = chan->dma_sconfig.dst_addr;
-		dma_ccr = DMA_CCR_DIR;
+		dma_ccr = DMA_CCR_DIR | DMA_CCR_TCIE;
 		break;
 	case DMA_DEV_TO_MEM:
 		dev_width = chan->dma_sconfig.src_addr_width;
 		chan->chan_reg.dma_cpar = chan->dma_sconfig.src_addr;
-		dma_ccr = DMA_CCR_MINC;
+		dma_ccr = DMA_CCR_MINC | DMA_CCR_TCIE;
 		break;
 	default:
 		return -EINVAL;
