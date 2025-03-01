@@ -40,16 +40,15 @@ static void loongson_timers_dma_done(void *p)
 }
 
 /**
- * loongson_timers_dma_burst_read - Read from timers registers using DMA.
- *
- * Read from Loongson timers registers using DMA on a single event.
- * @dev: reference to loongson_timers MFD device
- * @buf: DMA'able destination buffer
- * @id: loongson_timers_dmas event identifier (ch[1..4], up, trig or com)
- * @reg: registers start offset for DMA to read from (like CCRx for capture)
- * @num_reg: number of registers to read upon each DMA request, starting @reg.
- * @bursts: number of bursts to read (e.g. like two for pwm period capture)
- * @tmo_ms: timeout (milliseconds)
+ * loongson_timers_dma_burst_read - Read from timers registers using dual DMA channels.
+ * 
+ * @dev: Loongson timers MFD device
+ * @buf: Destination buffer (must hold bursts * num_reg * 2 elements)
+ * @id: DMA event pair identifier (ch[1/2/3/4]_pair)
+ * @reg: Base register offset for DMA transfers
+ * @num_reg: Number of consecutive registers per burst
+ * @bursts: Number of bursts to capture (each burst triggers dual DMA transfers)
+ * @tmo_ms: Operation timeout in milliseconds
  */
 int loongson_timers_dma_burst_read(struct device *dev, u32 *buf,
 				enum loongson_timers_dmas id, u32 reg,
@@ -61,18 +60,15 @@ int loongson_timers_dma_burst_read(struct device *dev, u32 *buf,
 	struct regmap *regmap = ddata->regmap;
 	struct loongson_timers_dma *dma = &ddata->dma;
 	size_t len = num_reg * bursts * sizeof(u32);
-	struct dma_async_tx_descriptor *desc;
-	struct dma_async_tx_descriptor *desc1;
-	struct dma_slave_config config;
-	struct dma_slave_config config1;
+	struct dma_async_tx_descriptor *descs[2];
+	struct dma_slave_config configs[2];
 	dma_cookie_t cookie;
-	dma_addr_t dma_buf;
-	dma_addr_t dma_buf1;
+	dma_addr_t dma_bufs[2];
 	long err;
 	int ret;
 
 	/* Sanity check */
-	if (id < LS_TIMERS_DMA_CH1 || id >= LS_TIMERS_MAX_DMAS)
+	if (id < LS_TIMERS_DMA_CH1 || id >= LS_TIMERS_MAX_DMAS - 1)
 		return -EINVAL;
 
 	if (!num_reg || !bursts || reg > LS_TIMERS_MAX_REGISTERS ||
@@ -85,61 +81,45 @@ int loongson_timers_dma_burst_read(struct device *dev, u32 *buf,
 
 	/* Select DMA channel in use */
 	dma->chan = dma->chans[id];
-	dma_buf = dma_map_single(dev, buf, len / 2, DMA_FROM_DEVICE);
-	if (dma_mapping_error(dev, dma_buf)) {
-		ret = -ENOMEM;
-		goto unlock;
-	}
-	dma_buf1 = dma_map_single(dev, buf + bursts, len / 2, DMA_FROM_DEVICE);
-	if (dma_mapping_error(dev, dma_buf1)) {
-		ret = -ENOMEM;
-		goto unlock;
+	for (int i = 0; i < 2; i++) {
+		dma_bufs[i] = dma_map_single(dev, buf + i * bursts, len / 2,
+					     DMA_FROM_DEVICE);
+		if (dma_mapping_error(dev, dma_bufs[i])) {
+			ret = -ENOMEM;
+			goto unmap;
+		}
 	}
 
-	/* Prepare DMA read from timer registers, using DMA burst mode */
-	memset(&config, 0, sizeof(config));
-	config.src_addr = (dma_addr_t)dma->phys_base + reg;
-	config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-	ret = dmaengine_slave_config(dma->chan, &config);
-	if (ret)
-		goto unmap;
-	memset(&config1, 0, sizeof(config1));
-	config1.src_addr = (dma_addr_t)dma->phys_base + reg + 4;
-	config1.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-	ret = dmaengine_slave_config(dma->chans[id + 1], &config1);
-	if (ret)
-		goto unmap;
+	/* Configure DMA channels */
+	for (int i = 0; i < 2; i++) {
+		memset(&configs[i], 0, sizeof(configs[i]));
+		configs[i].src_addr = (dma_addr_t)dma->phys_base + reg + i * sizeof(u32);
+		configs[i].src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 
-	desc = dmaengine_prep_slave_single(dma->chan, dma_buf, len / 2,
-					   DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT);
-	if (!desc) {
-		ret = -EBUSY;
-		goto unmap;
+		ret = dmaengine_slave_config(dma->chans[id + i], &configs[i]);
+		if (ret)
+			goto unmap;
+
+		descs[i] = dmaengine_prep_slave_single(
+			dma->chans[id + i], dma_bufs[i], len / 2,
+			DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT);
+		if (!descs[i]) {
+			ret = -EBUSY;
+			goto unmap;
+		}
+
+		descs[i]->callback = loongson_timers_dma_done;
+		descs[i]->callback_param = dma;
 	}
-	desc1 = dmaengine_prep_slave_single(dma->chans[id + 1], dma_buf1,
-					    len / 2, DMA_DEV_TO_MEM,
-					    DMA_PREP_INTERRUPT);
-	if (!desc1) {
-		ret = -EBUSY;
-		goto unmap;
+	for (int i = 0; i < 2; i++) {
+		cookie = dmaengine_submit(descs[i]);
+		ret = dma_submit_error(cookie);
+		if (ret)
+			goto dma_term;
 	}
-
-	desc->callback = loongson_timers_dma_done;
-	desc->callback_param = dma;
-	cookie = dmaengine_submit(desc);
-	ret = dma_submit_error(cookie);
-	if (ret)
-		goto dma_term;
-
-	desc1->callback = loongson_timers_dma_done;
-	desc1->callback_param = dma;
-	cookie = dmaengine_submit(desc1);
-	ret = dma_submit_error(cookie);
-	if (ret)
-		goto dma_term;
 
 	reinit_completion(&dma->completion);
-	dma_async_issue_pending(dma->chan);
+	dma_async_issue_pending(dma->chans[id + 0]);
 	dma_async_issue_pending(dma->chans[id + 1]);
 
 	/* Clear pending flags before enabling DMA request */
@@ -168,11 +148,14 @@ int loongson_timers_dma_burst_read(struct device *dev, u32 *buf,
 			   0);
 	regmap_write(regmap, TIM_SR, 0);
 dma_term:
-	dmaengine_terminate_all(dma->chan);
+	dmaengine_terminate_all(dma->chans[id + 0]);
 	dmaengine_terminate_all(dma->chans[id + 1]);
 unmap:
-	dma_unmap_single(dev, dma_buf, len / 2, DMA_FROM_DEVICE);
-	dma_unmap_single(dev, dma_buf1, len / 2, DMA_FROM_DEVICE);
+	for (int i = 0; i < 2; i++) {
+		if (!dma_mapping_error(dev, dma_bufs[i]))
+			dma_unmap_single(dev, dma_bufs[i], len / 2,
+					 DMA_FROM_DEVICE);
+	}
 unlock:
 	dma->chan = NULL;
 	mutex_unlock(&dma->lock);
