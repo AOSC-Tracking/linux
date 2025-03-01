@@ -123,9 +123,8 @@ static int loongson_pwm_raw_capture(struct pwm_chip *chip, struct pwm_device *pw
 					  3, tmo_ms);
 	if (ret)
 		goto stop;
-	dev_dbg(parent, "Capture: %u %u %u %u %u %u\n", priv->capture[0],
-		 priv->capture[1], priv->capture[2], priv->capture[3],
-		 priv->capture[4], priv->capture[5]);
+	dev_dbg(parent, "Capture: %u %u | %u %u\n", priv->capture[1],
+		 priv->capture[2], priv->capture[4], priv->capture[5]);
 	capture[0] = priv->capture[1];
 	capture[1] = priv->capture[4];
 	capture[2] = priv->capture[2];
@@ -221,6 +220,7 @@ static int loongson_pwm_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 	ret = loongson_pwm_raw_capture(chip, pwm, tmo_ms, &raw_prd, &raw_dty);
 	if (ret)
 		goto stop;
+	dev_dbg(pwmchip_parent(chip), "Capture: %u %u\n", raw_prd, raw_dty);
 
 	/*
 	 * Got a capture. Try to improve accuracy at high rates:
@@ -243,6 +243,7 @@ static int loongson_pwm_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 					    &raw_dty);
 		if (ret)
 			goto stop;
+		dev_dbg(pwmchip_parent(chip), "Capture: %u %u\n", raw_prd, raw_dty);
 	}
 
 	/* Compute intermediate period not to exceed timeout at low rates */
@@ -270,6 +271,7 @@ static int loongson_pwm_capture(struct pwm_chip *chip, struct pwm_device *pwm,
 	ret = loongson_pwm_raw_capture(chip, pwm, tmo_ms, &raw_prd, &raw_dty);
 	if (ret)
 		goto stop;
+	dev_dbg(pwmchip_parent(chip), "Capture: %u %u\n", raw_prd, raw_dty);
 
 	if (raw_dty >= (raw_prd >> icpsc)) {
 		/*
