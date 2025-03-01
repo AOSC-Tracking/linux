@@ -37,7 +37,7 @@ struct loongson_pwm {
 	bool have_complementary_output;
 	struct loongson_breakinput breakinputs[MAX_BREAKINPUT];
 	unsigned int num_breakinputs;
-	u32 capture[4] ____cacheline_aligned; /* DMA'able buffer */
+	u32 capture[6] ____cacheline_aligned; /* DMA'able buffer */
 };
 
 static inline struct loongson_pwm *to_loongson_pwm_dev(struct pwm_chip *chip)
@@ -101,6 +101,7 @@ static int loongson_pwm_raw_capture(struct pwm_chip *chip, struct pwm_device *pw
 	enum loongson_timers_dmas dma_id;
 	u32 ccen, ccr;
 	int ret;
+	u32 capture[4];
 
 	/* Ensure registers have been updated, enable counter and capture */
 	regmap_set_bits(priv->regmap, TIM_EGR, TIM_EGR_UG);
@@ -119,23 +120,30 @@ static int loongson_pwm_raw_capture(struct pwm_chip *chip, struct pwm_device *pw
 	 * or { CCR3, CCR4 }, { CCR3, CCR4 }
 	 */
 	ret = loongson_timers_dma_burst_read(parent, priv->capture, dma_id, ccr, 2,
-					  2, tmo_ms);
+					  3, tmo_ms);
 	if (ret)
 		goto stop;
+	dev_dbg(parent, "Capture: %u %u %u %u %u %u\n", priv->capture[0],
+		 priv->capture[1], priv->capture[2], priv->capture[3],
+		 priv->capture[4], priv->capture[5]);
+	capture[0] = priv->capture[1];
+	capture[1] = priv->capture[4];
+	capture[2] = priv->capture[2];
+	capture[3] = priv->capture[5];
 
 	/* Period: t2 - t0 (take care of counter overflow) */
-	if (priv->capture[0] <= priv->capture[2])
-		*raw_prd = priv->capture[2] - priv->capture[0];
+	if (capture[0] <= capture[2])
+		*raw_prd = capture[2] - capture[0];
 	else
-		*raw_prd = priv->max_arr - priv->capture[0] + priv->capture[2];
+		*raw_prd = priv->max_arr - capture[0] + capture[2];
 
 	/* Duty cycle capture requires at least two capture units */
 	if (pwm->chip->npwm < 2)
 		*raw_dty = 0;
-	else if (priv->capture[0] <= priv->capture[3])
-		*raw_dty = priv->capture[3] - priv->capture[0];
+	else if (capture[0] <= capture[3])
+		*raw_dty = capture[3] - capture[0];
 	else
-		*raw_dty = priv->max_arr - priv->capture[0] + priv->capture[3];
+		*raw_dty = priv->max_arr - capture[0] + capture[3];
 
 	if (*raw_dty > *raw_prd) {
 		/*
