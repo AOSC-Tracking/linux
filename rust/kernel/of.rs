@@ -275,6 +275,23 @@ impl Node {
     }
 
     #[allow(unused_variables)]
+    /// Check whether node property exists.
+    pub fn property_present(&self, propname: &CStr) -> bool {
+        #[cfg(not(CONFIG_OF))]
+        {
+            false
+        }
+        #[cfg(CONFIG_OF)]
+        // SAFETY: `raw_node` is valid per the type invariant.
+        unsafe {
+            bool::from(bindings::of_property_present(
+                self.raw_node,
+                propname.as_char_ptr(),
+            ))
+        }
+    }
+
+    #[allow(unused_variables)]
     /// Look up a node property by name, returning a `Property` object if found.
     pub fn find_property(&self, propname: &CStr) -> Option<Property<'_>> {
         #[cfg(not(CONFIG_OF))]
