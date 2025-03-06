@@ -859,6 +859,11 @@
 			interrupt-names = "ls2k_mci_irq";
 			dma-mask = <0xffffffff 0xffffffff>;
 			clock-frequency = <0 200000000>;
+			pinctrl-0 = <&sdio1_pins>;
+			pinctrl-names = "default";
+			cap-sd-highspeed;
+			cap-mmc-highspeed;
+			bus-width = <4>;
 			status = "disabled";
 		};
 
