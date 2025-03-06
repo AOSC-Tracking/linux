@@ -216,11 +216,10 @@
 };
 
 &sdio1 {
-	pinctrl-0 = <&sdio1_pins>;
-	pinctrl-names = "default";
-	cap-sd-highspeed;
-	cap-mmc-highspeed;
-	bus-width = <4>;
 	cd-gpios = <&gpio 81 GPIO_ACTIVE_LOW>;
 	status = "okay";
+};
+
+&otg {
+	loongson,dwc2-fix = <DWC2_LOONGSON_FIX_DMA>;
 };
