@@ -319,11 +319,6 @@
 };
 
 &sdio1 {
-	pinctrl-0 = <&sdio1_pins>;
-	pinctrl-names = "default";
-	cap-sd-highspeed;
-	cap-mmc-highspeed;
-	bus-width = <4>;
 	//cd-gpios = <&io_expander_a 4 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
