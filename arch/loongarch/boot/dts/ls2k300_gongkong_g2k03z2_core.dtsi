@@ -1,4 +1,4 @@
-#include "loongson2k300.dtsi"
+#include "loongson-2k0300.dtsi"
 
 / {
 	chosen {
