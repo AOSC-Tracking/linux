@@ -42,8 +42,6 @@ CONFIG_HZ_1000=y
 CONFIG_CMDLINE="fbcon=logo-pos:center fbcon=logo-count:1"
 CONFIG_CMDLINE_EXTEND=y
 CONFIG_BUILTIN_DTB=y
-# CONFIG_SCHED_SMT is not set
-CONFIG_SMP=y
 # CONFIG_SUSPEND is not set
 CONFIG_PM=y
 # CONFIG_ACPI_AC is not set
