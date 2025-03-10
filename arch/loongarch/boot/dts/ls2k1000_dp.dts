@@ -1,0 +1,403 @@
+#include "loongson-2k1000.dtsi"
+#include "loongson_panel_param.dtsi"
+#include <dt-bindings/input/linux-event-codes.h>
+
+
+/ {
+	model = "LS2K1000-DP-V10";
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "earlycon";
+	};
+
+	/* not need memory node, we get memory info from boot params. */
+	// memory {
+	// 	name = "memory";
+	// 	device_type = "memory";
+	// 	reg =  <0 0x00200000 0 0x0ee00000
+	// 		0 0x90000000 0 0x70000000>;
+	// };
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		fb_memory: framebuffer {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0x0b000000 0 0x04000000>; /* 64M */
+		};
+
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x2000000>;
+			linux,cma-default;
+		};
+	};
+
+#if 0
+	pwmleds {
+		compatible = "pwm-leds";
+
+		led4 {
+			label = "led4-pwm";
+			pwms = <&pwm0 0 2550000>;
+			max-brightness = <255>;
+			active-low;
+		};
+	};
+#endif
+
+	leds {
+		compatible = "gpio-leds";
+
+		led1 {
+			label = "led1";
+			gpios = <&gpio0 27 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+		};
+
+		led2 {
+			label = "led2";
+			gpios = <&gpio0 28 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led3 {
+			label = "led3";
+			gpios = <&gpio0 29 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+	};
+
+	gpio-fan {
+		compatible = "gpio-fan";
+		gpios = <&gpio0 57 GPIO_ACTIVE_HIGH>;
+		gpio-fan,speed-map = <0    0>,
+					<3000 1>,
+					<6000 2>;
+		#cooling-cells = <2>; /* min followed by max */
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys-polled";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		poll-interval = <20>;
+
+		enter {
+			label = "enter";
+			linux,code = <KEY_ENTER>;
+			gpios = <&gpio0 25 GPIO_ACTIVE_LOW>;
+		};
+
+		tab {
+			label = "tab";
+			linux,code = <KEY_TAB>;
+			gpios = <&gpio0 26 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	lcd_backlight: backlight {
+		compatible = "gpio-backlight";
+		gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	panel: dvo-connector@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "panel-lvds", "auo,b101ean01";
+		backlight = <&lcd_backlight>;
+
+		/* lcd power on control gpio */
+		/* enable-gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>; */
+		// power-supply = <&vdd_lcd>;
+
+		status = "okay";
+#if 1	// 7' LCD
+		width-mm = <180>;
+		height-mm = <110>;
+		label = "ATK-MD0700R-1024x600";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <51200000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hsync-len = <20>;
+			hfront-porch = <160>;
+			hback-porch = <140>;
+			vfront-porch = <12>;
+			vback-porch = <20>;
+			vsync-len = <3>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+#else	// 10' LCD
+		width-mm = <229>;
+		height-mm = <149>;
+		label = "ATK-MD1010R-1280x800";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <71100000>;
+			hactive = <1280>;
+			vactive = <800>;
+			hsync-len = <10>;
+			hfront-porch = <70>;
+			hback-porch = <80>;
+			vfront-porch = <10>;
+			vback-porch = <10>;
+			vsync-len = <3>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+#endif
+
+		port@0 {
+			reg = <0>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dvo_connector_in: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&dc_out_rgb1>;
+			};
+		};
+	};
+};
+
+&spi0 {
+	status = "okay";
+
+	#address-cells = <1>;
+    	#size-cells = <0>;
+	spi-flash@0 {
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <30000000>;
+		reg = <0>; /* CS0 */
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "u-boot";
+				reg = <0x0000000 0x100000>;
+				read-only;
+			};
+		};
+	};
+
+#if 0
+	// 没引出来
+	spidev1@1 {
+		compatible = "rohm,dh2228fv";
+		reg = <1>;
+		spi-max-frequency = <50000000>;
+	};
+#endif
+
+	spidev2@2 {
+		compatible = "rohm,dh2228fv";
+		reg = <2>;
+		spi-max-frequency = <50000000>;
+	};
+
+	spidev3@3 {
+		compatible = "rohm,dh2228fv";
+		reg = <3>;
+		spi-max-frequency = <50000000>;
+	};
+};
+
+
+&dc {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	memory-region = <&fb_memory>;
+
+	// output-ports = <&dvo0>;
+
+	dvo1: dvo@1 {
+		compatible = "lsdc,dvo";
+		/* 1 for connector 1 (DVO1) */
+		reg = <1>;
+
+		pinctrl-0 = <&dvo1_default>;
+		pinctrl-names = "default";
+	};
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+			dc_out_rgb1: endpoint {
+				remote-endpoint = <&dvo_connector_in>;
+			};
+		};
+	};
+};
+
+&pwm0 {
+	status = "okay";
+};
+
+&pwm1 {
+	status = "okay";
+};
+
+&pwm2 {
+	status = "okay";
+};
+
+&pwm3 {
+	status = "okay";
+};
+
+&sata {
+	status = "okay";
+	pinctrl-0 = <&ahci_default>;
+	pinctrl-names = "default";
+	ports-implemented = <0x1>;
+};
+
+&gmac0 {
+	status = "okay";
+	phy-handle = <&yt8511h0>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h0: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
+&gmac1 {
+	status = "okay";
+	phy-handle = <&yt8511h1>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h1: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
+
+&can0 {
+	//nxp,external-clock-frequency = <125000000>;
+	clocks = <&clk LOONGSON2_APB_CLK>;
+	net,tx_queue_len = <1024>;
+	status = "okay";
+};
+
+&can1 {
+	//nxp,external-clock-frequency = <125000000>;
+	clocks = <&clk LOONGSON2_APB_CLK>;
+	net,tx_queue_len = <1024>;
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+
+	#address-cells = <1>;
+    	#size-cells = <0>;
+	eeprom@57 {
+		compatible = "atmel,24c32";
+		reg = <0x57>;
+		pagesize = <32>;
+	};
+};
+
+&i2c3 {
+	status = "okay";
+
+	#address-cells = <1>;
+    	#size-cells = <0>;
+	// 两款芯片不能同时支持，因为用同一个GPIO
+	// 但可以在两个屏幕间切换
+
+	// 7寸触屏芯片
+	touchpad: gt911@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		interrupt-parent = <&liointc1>;
+		interrupts = <29 IRQ_TYPE_LEVEL_HIGH>;
+		irq-gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+	};
+
+	// 4.3寸触屏芯片
+	touchpad_1: gt9147@14 {
+		compatible = "goodix,gt9147";
+		reg = <0x14>;
+		// 2K300 GPIO 支持中断控制
+		// GPIO 中断号为 vhwirq-base + pinnum (210 = 128 + 82)
+		interrupt-parent = <&liointc1>;
+		interrupts = <29 IRQ_TYPE_LEVEL_HIGH>;
+		irq-gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&uart6 {
+	status = "okay";
+};
+
+&otg {
+	dr_mode = "host";
+	status = "okay";
+};
+
