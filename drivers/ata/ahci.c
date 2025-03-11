@@ -49,6 +49,7 @@ enum board_ids {
 	/* board IDs by feature in alphabetical order */
 	board_ahci,
 	board_ahci_43bit_dma,
+	board_ahci_atapi_dma,
 	board_ahci_ign_iferr,
 	board_ahci_no_debounce_delay,
 	board_ahci_no_msi,
@@ -132,6 +133,12 @@ static const struct ata_port_info ahci_port_info[] = {
 	},
 	[board_ahci_43bit_dma] = {
 		AHCI_HFLAGS	(AHCI_HFLAG_43BIT_ONLY),
+		.flags		= AHCI_FLAG_COMMON,
+		.pio_mask	= ATA_PIO4,
+		.udma_mask	= ATA_UDMA6,
+		.port_ops	= &ahci_ops,
+	},
+	[board_ahci_atapi_dma] = {
 		.flags		= AHCI_FLAG_COMMON,
 		.pio_mask	= ATA_PIO4,
 		.udma_mask	= ATA_UDMA6,
@@ -591,6 +598,8 @@ static const struct pci_device_id ahci_pci_tbl[] = {
 	  .driver_data = board_ahci_yes_fbs },
 	{ PCI_DEVICE(PCI_VENDOR_ID_MARVELL_EXT, 0x9230),
 	  .driver_data = board_ahci_yes_fbs },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MARVELL_EXT, 0x9215),
+	  .driver_data = board_ahci_atapi_dma },
 	{ PCI_DEVICE(PCI_VENDOR_ID_MARVELL_EXT, 0x9235),
 	  .driver_data = board_ahci_no_debounce_delay },
 	{ PCI_DEVICE(PCI_VENDOR_ID_TTI, 0x0642), /* highpoint rocketraid 642L */
@@ -1916,6 +1925,9 @@ static int ahci_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	/* save initial config */
 	ahci_pci_save_initial_config(pdev, hpriv);
+
+	if (board_id == board_ahci_atapi_dma)
+		pi.flags |= ATA_FLAG_ATAPI_DMA;
 
 	/* prepare host */
 	if (hpriv->cap & HOST_CAP_NCQ) {
