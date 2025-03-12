@@ -8,11 +8,19 @@
 # matching values else you do not screw only LS CAN FD build but even
 # base kernel build
 
+ifeq ($(CONFIG_PREEMPT_RT), y)
+quiet_cmd_build_lscanfd_dma = GEN	$@
+      cmd_build_lscanfd_dma = cp $(obj)/lscanfd_dma.o_shipped_rt $@
+
+quiet_cmd_build_lscanfd_platform = GEN	$@
+      cmd_build_lscanfd_platform = cp $(obj)/lscanfd_platform.o_shipped_rt $@
+else
 quiet_cmd_build_lscanfd_dma = GEN	$@
       cmd_build_lscanfd_dma = cp $(obj)/lscanfd_dma.o_shipped $@
 
 quiet_cmd_build_lscanfd_platform = GEN	$@
       cmd_build_lscanfd_platform = cp $(obj)/lscanfd_platform.o_shipped $@
+endif
 
 $(obj)/lscanfd_dma.o: FORCE
 	$(call if_changed,build_lscanfd_dma)

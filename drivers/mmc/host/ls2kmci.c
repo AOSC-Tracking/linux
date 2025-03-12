@@ -780,7 +780,15 @@ static void ls2k_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	host->status = "mmc request";
 	host->cmd_is_stop = 0;
 	host->mrq = mrq;
-
+#if 1
+	// 部分 SD 卡会读取 EXT-REG 触发 CMD48(SD_READ_EXTR_SINGLE)
+	// 然而 LS2K300 CMD48 丢失中断，故直接不发送 CMD48 规避该问题
+	if (mrq->cmd->opcode == 48)
+	{
+		mmc_request_done(mmc, mrq);
+		return;
+	}
+#endif
 	if (ls2k_mci_card_present(mmc) == 0) {
 		dbg(host, dbg_err, "%s: no medium present\n", __func__);
 		host->mrq->cmd->error = -ENOMEDIUM;
