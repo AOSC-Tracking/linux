@@ -6,6 +6,7 @@
 
 use crate::{
     bindings,
+    error::{Error, Result},
     str::CStr,
     types::{ARef, Opaque},
 };
@@ -201,6 +202,51 @@ impl<Ctx: DeviceContext> Device<Ctx> {
                 &msg as *const _ as *const crate::ffi::c_void,
             )
         };
+    }
+
+    /// Inform the kernel about the device's DMA addressing capabilities.
+    ///
+    /// Set both the DMA mask and the coherent DMA mask to the same value.
+    ///
+    /// Note that we don't check the return value from the C `dma_set_coherent_mask` as the DMA API
+    /// guarantees that the coherent DMA mask can be set to the same or smaller than the streaming
+    /// DMA mask.
+    #[allow(dead_code)]
+    pub fn dma_set_mask_and_coherent(&self, mask: u64) -> Result {
+        // SAFETY: By the type invariant of `device::Device`, `self.as_raw()` is valid.
+        let ret = unsafe { bindings::dma_set_mask_and_coherent(self.as_raw(), mask) };
+        if ret != 0 {
+            Err(Error::from_errno(ret))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Same as [`Self::dma_set_mask_and_coherent`], but set the mask only for streaming mappings.
+    #[allow(dead_code)]
+    pub fn dma_set_mask(&self, mask: u64) -> Result {
+        // SAFETY: By the type invariant of `device::Device`, `self.as_raw()` is valid.
+        let ret = unsafe { bindings::dma_set_mask(self.as_raw(), mask) };
+        if ret != 0 {
+            Err(Error::from_errno(ret))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Obtain the [`FwNode`](property::FwNode) corresponding to the device.
+    pub fn fwnode(&self) -> Option<&property::FwNode> {
+        // SAFETY: `self` is valid.
+        let fwnode_handle = unsafe { bindings::__dev_fwnode(self.as_raw()) };
+        if fwnode_handle.is_null() {
+            return None;
+        }
+        // SAFETY: `fwnode_handle` is valid. Its lifetime is tied to `&self`. We
+        // return a reference instead of an `ARef<FwNode>` because `dev_fwnode()`
+        // doesn't increment the refcount. It is safe to cast from a
+        // `struct fwnode_handle*` to a `*const FwNode` because `FwNode` is
+        // defined as a `#[repr(transparent)]` wrapper around `fwnode_handle`.
+        Some(unsafe { &*fwnode_handle.cast() })
     }
 
     /// Checks if property is present or not.
