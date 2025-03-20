@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config APFS_FS
+	tristate "Apple File System support"
+	select LIBCRC32C
+	select ZLIB_INFLATE
+	select NLS
+	select BUFFER_HEAD
+	select FS_IOMAP
+	select LEGACY_DIRECT_IO
+	help
+	  If you say Y here, you will be able to mount APFS partitions
+	  with read-only access. Write access is experimental and may
+	  corrupt your container.
