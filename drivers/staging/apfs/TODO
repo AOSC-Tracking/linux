@@ -1,0 +1,7 @@
+There are a couple things that should probably happen before this
+module is moved to fs/ and out of staging/. Most notably is the
+proper documentation of how APFS/this module works. Another is the
+conversion from bufferheads/pages to folios.
+
+Another good task for newcomers is patches that make it so this
+module conforms to current kernel coding standards.
