@@ -32,3 +32,11 @@ void kvm_restore_lsx(struct loongarch_fpu *fpu);
 void kvm_save_lasx(struct loongarch_fpu *fpu);
 void kvm_restore_lasx(struct loongarch_fpu *fpu);
 #endif
+
+asmlinkage void noinstr __no_stack_protector ret_from_fork(struct task_struct *prev,
+							   struct pt_regs *regs);
+
+asmlinkage void noinstr __no_stack_protector ret_from_kernel_thread(struct task_struct *prev,
+								    struct pt_regs *regs,
+								    int (*fn)(void *),
+								    void *fn_arg);
