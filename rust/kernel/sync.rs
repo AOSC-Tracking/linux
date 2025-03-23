@@ -30,8 +30,19 @@ pub struct LockClassKey(Opaque<bindings::lock_class_key>);
 unsafe impl Sync for LockClassKey {}
 
 impl LockClassKey {
+    /// Creates a new lock class key.
+    pub const fn new() -> Self {
+        Self(Opaque::uninit())
+    }
+
     pub(crate) fn as_ptr(&self) -> *mut bindings::lock_class_key {
         self.0.get()
+    }
+}
+
+impl Default for LockClassKey {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -40,10 +51,7 @@ impl LockClassKey {
 #[macro_export]
 macro_rules! static_lock_class {
     () => {{
-        static CLASS: $crate::sync::LockClassKey =
-            // SAFETY: lockdep expects uninitialized memory when it's handed a statically allocated
-            // lock_class_key
-            unsafe { ::core::mem::MaybeUninit::uninit().assume_init() };
+        static CLASS: $crate::sync::LockClassKey = $crate::sync::LockClassKey::new();
         &CLASS
     }};
 }
