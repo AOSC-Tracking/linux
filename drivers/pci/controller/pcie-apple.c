@@ -747,7 +747,7 @@ static int apple_pcie_init(struct pci_config_window *cfg)
 	struct device_node *of_port;
 	int ret;
 
-	for_each_child_of_node(dev->of_node, of_port) {
+	for_each_available_child_of_node(dev->of_node, of_port) {
 		ret = apple_pcie_setup_port(pcie, of_port);
 		if (ret) {
 			dev_err(dev, "Port %pOF setup fail: %d\n", of_port, ret);
