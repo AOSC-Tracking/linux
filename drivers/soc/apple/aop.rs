@@ -10,7 +10,7 @@ use core::{arch::asm, mem, ptr, slice};
 use kernel::{
     bindings, c_str,
     devres::Devres,
-    dma::CoherentAllocation,
+    dma::{dma_bit_mask, CoherentAllocation, Device},
     error::from_err_ptr,
     io::mem::IoMem,
     module_platform_driver, new_condvar, new_mutex, of, platform,
@@ -29,7 +29,7 @@ const BOOTARGS_SIZE: usize = 0x230;
 const CPU_CONTROL: usize = 0x44;
 const CPU_RUN: u32 = 0x1 << 4;
 const AFK_ENDPOINT_START: u8 = 0x20;
-const AFK_ENDPOINT_COUNT: u8 = 0xc;
+const AFK_ENDPOINT_COUNT: u8 = 0xf;
 const AFK_OPC_GET_BUF: u64 = 0x89;
 const AFK_OPC_INIT: u64 = 0x80;
 const AFK_OPC_INIT_RX: u64 = 0x8b;
@@ -746,7 +746,7 @@ impl AopData {
         }
     }
 
-    fn patch_bootargs(&self, patches: &[(u32, u32)]) -> Result<()> {
+    fn patch_bootargs(&self, patches: &[(u32, u64)]) -> Result<()> {
         let offset = self.aop_read32(BOOTARGS_OFFSET) as usize;
         let size = self.aop_read32(BOOTARGS_SIZE) as usize;
         let mut arg_bytes = KVec::with_capacity(size, GFP_KERNEL)?;
@@ -864,28 +864,45 @@ impl rtkit::Operations for AopData {
 #[repr(transparent)]
 struct AopDriver(Arc<dyn AOP>);
 
+struct AopHwConfig {
+    ec0p: u64,
+}
+
+const HW_CFG_T6020: AopHwConfig = AopHwConfig {
+    ec0p: 0x0100_00000000,
+};
+const HW_CFG_DEFAULT: AopHwConfig = AopHwConfig { ec0p: 0x020000 };
+
 kernel::of_device_table!(
     OF_TABLE,
     MODULE_OF_TABLE,
-    (),
-    [(of::DeviceId::new(c_str!("apple,aop")), ())]
+    <AopDriver as platform::Driver>::IdInfo,
+    [
+        (of::DeviceId::new(c_str!("apple,aop-t6020")), &HW_CFG_T6020),
+        (of::DeviceId::new(c_str!("apple,aop")), &HW_CFG_DEFAULT)
+    ]
 );
 
 impl platform::Driver for AopDriver {
-    type IdInfo = ();
+    type IdInfo = &'static AopHwConfig;
 
-    const OF_ID_TABLE: Option<of::IdTable<()>> = Some(&OF_TABLE);
+    const OF_ID_TABLE: Option<of::IdTable<Self::IdInfo>> = Some(&OF_TABLE);
 
-    fn probe(pdev: &mut platform::Device, _info: Option<&()>) -> Result<Pin<KBox<AopDriver>>> {
+    fn probe(
+        pdev: &mut platform::Device,
+        info: Option<&Self::IdInfo>,
+    ) -> Result<Pin<KBox<AopDriver>>> {
+        let cfg = info.ok_or(ENODEV)?;
+        pdev.dma_set_mask_and_coherent(dma_bit_mask(42))?;
         let data = AopData::new(pdev)?;
         let of = pdev.as_ref().of_node().ok_or(EIO)?;
-        let alig = of.get_property(c_str!("apple,aop-alignment"))?;
-        let aopt = of.get_property(c_str!("apple,aop-target"))?;
+        let alig = of.get_property::<u32>(c_str!("apple,aop-alignment"))?;
+        let aopt = of.get_property::<u32>(c_str!("apple,aop-target"))?;
         data.patch_bootargs(&[
-            (from_fourcc(b"EC0p"), 0x20000),
+            (from_fourcc(b"EC0p"), cfg.ec0p),
             (from_fourcc(b"nCal"), 0x0),
-            (from_fourcc(b"alig"), alig),
-            (from_fourcc(b"AOPt"), aopt),
+            (from_fourcc(b"alig"), alig.into()),
+            (from_fourcc(b"AOPt"), aopt.into()),
         ])?;
         let rtkit = rtkit::RtKit::<AopData>::new(pdev.as_ref(), None, 0, data.clone())?;
         *data.rtkit.lock() = Some(rtkit);
