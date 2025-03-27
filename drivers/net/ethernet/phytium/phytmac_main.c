@@ -38,6 +38,7 @@
 #include <linux/netdevice.h>
 #include <linux/prefetch.h>
 #include <linux/skbuff.h>
+#include <linux/vmalloc.h>
 #include "phytmac.h"
 #include "phytmac_ptp.h"
 
