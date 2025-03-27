@@ -42,6 +42,7 @@
 #include <linux/skbuff.h>
 #include <linux/bpf.h>
 #include <linux/bpf_trace.h>
+#include <linux/vmalloc.h>
 #include "phytmac.h"
 #include "phytmac_ptp.h"
 
