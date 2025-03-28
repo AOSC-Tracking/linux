@@ -236,6 +236,10 @@
 		mbox-names = "mbox";
 		iommus = <&aop_dart 0>;
 
+		/* HACK: ensure probe order */
+		dmas = <&aop_admac 1023>;
+		dma-names = "invalid-order-only";
+
 		status = "disabled";
 
 		aop_audio: audio {
