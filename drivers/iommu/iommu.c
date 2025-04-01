@@ -1109,27 +1109,35 @@ static int iommu_create_device_fw_mappings(struct iommu_domain *domain,
 
 	/* We need to consider overlapping regions for different devices */
 	list_for_each_entry(entry, &mappings, list) {
-		dma_addr_t start, end, addr;
+		dma_addr_t start, end, addr, iova;
 		size_t map_size = 0;
 
 		if (entry->type == IOMMU_RESV_DIRECT)
 			dev->iommu->require_direct = 1;
+		if (entry->type == IOMMU_RESV_TRANSLATED)
+			dev->iommu->require_translated = 1;
 
 		if ((entry->type != IOMMU_RESV_DIRECT &&
-		     entry->type != IOMMU_RESV_DIRECT_RELAXABLE) ||
+		     entry->type != IOMMU_RESV_DIRECT_RELAXABLE &&
+		     entry->type != IOMMU_RESV_TRANSLATED) ||
 		    !iommu_is_dma_domain(domain))
 			continue;
 
 		start = ALIGN(entry->start, pg_size);
 		end   = ALIGN(entry->start + entry->length, pg_size);
 
-		for (addr = start; addr <= end; addr += pg_size) {
+		if (entry->type == IOMMU_RESV_TRANSLATED)
+			iova = ALIGN(entry->dva, pg_size);
+		else
+			iova = start;
+
+		for (addr = start; addr <= end; addr += pg_size, iova += pg_size) {
 			phys_addr_t phys_addr;
 
 			if (addr == end)
 				goto map_end;
 
-			phys_addr = iommu_iova_to_phys(domain, addr);
+			phys_addr = iommu_iova_to_phys(domain, iova);
 			if (!phys_addr) {
 				map_size += pg_size;
 				continue;
@@ -1137,7 +1145,7 @@ static int iommu_create_device_fw_mappings(struct iommu_domain *domain,
 
 map_end:
 			if (map_size) {
-				ret = iommu_map(domain, addr - map_size,
+				ret = iommu_map(domain, iova - map_size,
 						addr - map_size, map_size,
 						entry->prot, GFP_KERNEL);
 				if (ret)
@@ -2233,6 +2241,19 @@ static int __iommu_device_set_domain(struct iommu_group *group,
 	     new_domain == group->blocking_domain)) {
 		dev_warn(dev,
 			 "Firmware has requested this device have a 1:1 IOMMU mapping, rejecting configuring the device without a 1:1 mapping. Contact your platform vendor.\n");
+		return -EINVAL;
+	}
+	/*
+	 * If the device requires IOMMU_RESV_TRANSLATED then we cannot allow
+	 * the identy or blocking domain to be attached as it does not contain
+	 * the required translated mapping.
+	 */
+	if (dev->iommu->require_translated &&
+	    (new_domain->type == IOMMU_DOMAIN_IDENTITY ||
+	     new_domain->type == IOMMU_DOMAIN_BLOCKED ||
+	     new_domain == group->blocking_domain)) {
+		dev_warn(dev,
+			 "Firmware has requested this device have a translated IOMMU mapping, rejecting configuring the device without a translated mapping. Contact your platform vendor.\n");
 		return -EINVAL;
 	}
 
