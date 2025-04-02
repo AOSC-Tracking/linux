@@ -465,6 +465,14 @@ mem_init (void)
 #endif
 
 	high_memory = __va(max_low_pfn * PAGE_SIZE);
+	/*
+	 * CAUTION:
+	 *
+	 * zx1 and possibly zx2 systems require the following call at this place!
+	 *
+	 * Otherwise they are stuck after loading kernel (and initrd) with no
+	 * further output.
+	 */
 	memblock_free_all();
 
 	/*
