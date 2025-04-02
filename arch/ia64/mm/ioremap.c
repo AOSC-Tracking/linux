@@ -30,7 +30,7 @@ early_ioremap (unsigned long phys_addr, unsigned long size)
 }
 
 void __iomem *ioremap_prot(phys_addr_t phys_addr, size_t size,
-			   unsigned long flags)
+			   pgprot_t flags)
 {
 	u64 attr;
 	unsigned long gran_base, gran_size;
@@ -65,7 +65,7 @@ void __iomem *ioremap_prot(phys_addr_t phys_addr, size_t size,
 	page_base = phys_addr & PAGE_MASK;
 	size = PAGE_ALIGN(phys_addr + size) - page_base;
 	if (efi_mem_attribute(page_base, size) & EFI_MEMORY_WB)
-		return generic_ioremap_prot(phys_addr, size, __pgprot(flags));
+		return generic_ioremap_prot(phys_addr, size, flags);
 
 	return __ioremap_uc(phys_addr);
 }
