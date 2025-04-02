@@ -464,7 +464,6 @@ mem_init (void)
 	BUG_ON(!mem_map);
 #endif
 
-	set_max_mapnr(max_low_pfn);
 	high_memory = __va(max_low_pfn * PAGE_SIZE);
 	memblock_free_all();
 
