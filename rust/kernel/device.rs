@@ -5,7 +5,7 @@
 //! C header: [`include/linux/device.h`](srctree/include/linux/device.h)
 
 use crate::{
-    bindings,
+    bindings, of,
     str::CStr,
     types::{ARef, Opaque},
 };
@@ -65,6 +65,17 @@ impl Device {
         self.0.get()
     }
 
+    /// Returns the parent device
+    pub fn parent(&self) -> Option<ARef<Self>> {
+        // SAFETY: pointer is valid by type invariant
+        let pdev = unsafe { (*self.as_raw()).parent };
+        if pdev == ptr::null_mut() {
+            return None;
+        }
+        // SAFETY: if the parent pointer is not null it points to a valid device
+        unsafe { Some(Self::get_device(pdev)) }
+    }
+
     /// Convert a raw C `struct device` pointer to a `&'a Device`.
     ///
     /// # Safety
@@ -76,6 +87,13 @@ impl Device {
     pub unsafe fn as_ref<'a>(ptr: *mut bindings::device) -> &'a Self {
         // SAFETY: Guaranteed by the safety requirements of the function.
         unsafe { &*ptr.cast() }
+    }
+
+    /// Gets the OpenFirmware node attached to this device
+    pub fn of_node(&self) -> Option<of::Node> {
+        let ptr = self.0.get();
+        // SAFETY: This is safe as long as of_node is NULL or valid.
+        unsafe { of::Node::get_from_raw((*ptr).of_node) }
     }
 
     /// Prints an emergency-level message (level 0) prefixed with device information.
