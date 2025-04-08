@@ -188,7 +188,7 @@ config DRM_DEBUG_DP_MST_TOPOLOGY_REFS
         bool "Enable refcount backtrace history in the DP MST helpers"
 	depends on STACKTRACE_SUPPORT
         select STACKDEPOT
-        depends on DRM_KMS_HELPER
+        select DRM_KMS_HELPER
         depends on DEBUG_KERNEL
         depends on EXPERT
         help
@@ -353,6 +353,8 @@ config DRM_VGEM
 
 source "drivers/gpu/drm/vkms/Kconfig"
 
+source "drivers/gpu/drm/asahi/Kconfig"
+
 source "drivers/gpu/drm/exynos/Kconfig"
 
 source "drivers/gpu/drm/rockchip/Kconfig"
@@ -441,6 +443,8 @@ source "drivers/gpu/drm/mcde/Kconfig"
 
 source "drivers/gpu/drm/tidss/Kconfig"
 
+source "drivers/gpu/drm/adp/Kconfig"
+
 source "drivers/gpu/drm/xlnx/Kconfig"
 
 source "drivers/gpu/drm/gud/Kconfig"
@@ -448,6 +452,8 @@ source "drivers/gpu/drm/gud/Kconfig"
 source "drivers/gpu/drm/solomon/Kconfig"
 
 source "drivers/gpu/drm/sprd/Kconfig"
+
+source "drivers/gpu/drm/apple/Kconfig"
 
 source "drivers/gpu/drm/imagination/Kconfig"
 
