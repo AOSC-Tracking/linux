@@ -294,6 +294,7 @@ struct apple_dart_domain {
 struct apple_dart_master_cfg {
 	/* Intersection of DART capabilitles */
 	u32 supports_bypass : 1;
+	u32 locked : 1;
 
 	struct apple_dart_stream_map stream_maps[MAX_DARTS_PER_DEVICE];
 };
@@ -992,6 +993,8 @@ static int apple_dart_of_xlate(struct device *dev,
 			return -ENOMEM;
 		/* Will be ANDed with DART capabilities */
 		cfg->supports_bypass = true;
+		/* Will be ORed with DART capabilities*/
+		cfg->locked = false;
 	}
 	dev_iommu_priv_set(dev, cfg);
 
@@ -1002,6 +1005,7 @@ static int apple_dart_of_xlate(struct device *dev,
 	}
 
 	cfg->supports_bypass &= dart->supports_bypass;
+	cfg->locked |= dart->locked;
 
 	for (i = 0; i < MAX_DARTS_PER_DEVICE; ++i) {
 		if (cfg->stream_maps[i].dart == dart) {
