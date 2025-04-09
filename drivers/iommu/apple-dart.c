@@ -1003,8 +1003,6 @@ static int apple_dart_of_xlate(struct device *dev,
 			return -EINVAL;
 		if (cfg_dart->ias != dart->ias)
 			return -EINVAL;
-		if (cfg_dart->locked != dart->locked)
-			return -EINVAL;
 	}
 
 	cfg->supports_bypass &= dart->supports_bypass;
