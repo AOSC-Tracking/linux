@@ -1581,7 +1581,7 @@ static __maybe_unused int apple_dart_suspend(struct device *dev)
 	struct apple_dart *dart = dev_get_drvdata(dev);
 	unsigned int sid, idx;
 
-	/* Locked DARTs can't be restored so skip saving their registers/. */
+	/* Locked DARTs can't be restored so skip saving their registers. */
 	if (dart->locked)
 		return 0;
 
