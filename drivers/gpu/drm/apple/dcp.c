@@ -733,7 +733,7 @@ static int dcp_create_piodma_iommu_dev(struct apple_dcp *dcp)
 	dcp->piodma = of_platform_device_create(node, NULL, dcp->dev);
 	if (!dcp->piodma) {
 		of_node_put(node);
-		return dev_err_probe(dcp->dev, -ENODEV, "Failed to gcreate piodma pdev for %pOF\n", node);
+		return dev_err_probe(dcp->dev, -ENODEV, "Failed to create piodma pdev for %pOF\n", node);
 	}
 
 	ret = dma_set_mask_and_coherent(&dcp->piodma->dev, DMA_BIT_MASK(42));
