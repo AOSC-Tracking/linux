@@ -280,6 +280,7 @@ static int pwm_loongson_probe(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	u32 of_clk_freq = 0;
 	u32 irq;
+	u32 init_polarity = 0;
 
 	irq = platform_get_irq(pdev, 0);
 	dev_info(dev, "irq get:%u\n", irq);
@@ -316,6 +317,7 @@ static int pwm_loongson_probe(struct platform_device *pdev)
 #ifdef CONFIG_OF
 		if (!of_property_read_u32(np, "clock-frequency", &of_clk_freq))
 			ddata->clk_rate = of_clk_freq;
+		of_property_read_u32(np, "init-polarity", &init_polarity);
 #endif
 	}
 
@@ -330,6 +332,13 @@ static int pwm_loongson_probe(struct platform_device *pdev)
 	chip->ops = &pwm_loongson_ops;
 	chip->atomic = true;
 	dev_set_drvdata(dev, chip);
+
+	pwm_loongson_set_polarity(chip, NULL, init_polarity ? PWM_POLARITY_INVERSED : PWM_POLARITY_NORMAL);
+	if (init_polarity) {
+		pwm_loongson_config(chip, NULL, 0, 100000);
+		pwm_loongson_enable(chip, NULL);
+		pwm_loongson_disable(chip, NULL);
+	}
 
 	ret = devm_pwmchip_add(dev, chip);
 	if (ret < 0)

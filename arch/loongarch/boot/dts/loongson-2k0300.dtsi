@@ -1024,13 +1024,13 @@
 
 				trips {
 					cpu_alert: cpu-alert {
-						temperature = <55000>;
+						temperature = <75000>;
 						hysteresis = <5000>;
 						type = "active";
 					};
 
 					cpu_crit: cpu-crit {
-						temperature = <125000>;
+						temperature = <105000>;
 						hysteresis = <5000>;
 						type = "critical";
 					};
