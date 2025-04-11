@@ -1,0 +1,267 @@
+#include "ls2k300_g2k03z0_core_v10.dtsi"
+#include "loongson_panel_param.dtsi"
+
+/ {
+	model = "LS2K300-ALIENTEK";
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_leds>;
+		//板载DSO灯
+		led0 {
+			label = "sys-led";
+			gpios = <&gpio 89 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+			status = "okay";
+		};
+		//板载DS1灯
+		led1 {
+			label = "user-led";
+			gpios = <&gpio 70 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "none";
+			default-state = "on";
+			status = "okay";			
+		};
+	};
+
+	gpio_keys: gpio_keys@0 {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_keys>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+		//板载KEY2按键
+		key {
+			label = "USER-KEY";
+			linux,code = <114>;
+			gpios = <&gpio 71 GPIO_ACTIVE_LOW>;
+			gpio-key,wakeup;
+		};
+	};
+
+	lcd_backlight: backlight {
+        compatible = "pwm-backlight";
+        pwms = <&pwm2 0 5000000 0>;
+		brightness-levels = <
+          0   1   2   3   4   5   6   7>;
+        default-brightness-level = <6>;
+        status = "okay";
+	};
+
+	panel: dvo-connector@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "panel-lvds", "auo,b101ean01";
+		backlight = <&lcd_backlight>;
+		width-mm = <223>;
+		height-mm = <125>;
+		label = "ATK-MD0700R-1024x600";
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			clock-frequency = <51200000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hsync-len = <20>;
+			hfront-porch = <160>;
+			hback-porch = <140>;
+			vfront-porch = <12>;
+			vback-porch = <20>;
+			vsync-len = <3>;
+			de-active = <1>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			pixelclk-active = <0>;
+		};
+
+		port@0 {
+			reg = <0>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dvo_connector_in: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&dc_out_rgb0>;
+			};
+		};
+	};
+
+	vccio_codec: 3_3V{
+		compatible = "regulator-fixed";
+		regulator-name = "VCC_IO";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	// 虽然这个时钟在从模式下没用，但 es8388 驱动必须指定这个时钟
+	es8388_clk: es8388-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <12288000>;
+		#clock-cells = <1>;
+	};
+
+};
+
+&dc {
+	status = "ok";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			dc_out_rgb0: endpoint {
+				remote-endpoint = <&dvo_connector_in>;
+			};
+		};
+	};
+};
+
+&gmac0 {
+	status = "okay";
+	phy-handle = <&yt8511h0>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h0: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
+&gmac1 {
+	status = "okay";
+	phy-handle = <&yt8511h1>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h1: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
+&i2c2 {
+	status = "ok";
+
+	touchpad: gt911@14 {
+        compatible = "goodix,gt911";
+		reg = <0x14>;
+		// 2K300 GPIO 支持中断控制
+		// GPIO 中断号为 vhwirq-base + pinnum (170 = 128 + 42)
+		interrupt-parent = <&gpio>;
+		interrupts = <202 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&gpio 74 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio 75 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&i2c3 {
+	status = "ok";
+    //8388音频芯片
+	codec: es8388@11{
+		compatible = "everest,es8388";
+		reg = <0x11>;
+		hp-det-gpio = <&gpio 81 GPIO_ACTIVE_HIGH>;
+        spk-con-gpio = <&gpio 86 GPIO_ACTIVE_HIGH>;
+		hp-con-gpio = <&gpio 87 GPIO_ACTIVE_HIGH>;
+		AVDD-supply = <&vccio_codec>;
+		DVDD-supply = <&vccio_codec>;
+		HPVDD-supply = <&vccio_codec>;
+		PVDD-supply = <&vccio_codec>;
+		clocks = <&es8388_clk 0>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&pwm2 {
+	status = "okay";
+};
+
+&can0 {
+	ls,canfd-stb-gpio = <&gpio 62 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+    //status = "disabled";
+};
+
+
+&adc {
+	status = "okay";
+};
+
+&rtc0 {
+	status = "okay";
+};
+
+&sdio1 {
+	pinctrl-0 = <&sdio1_pins>;
+	pinctrl-names = "default";
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	bus-width = <4>;
+	cd-gpios = <&gpio 63 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&i2s {
+	status = "okay";
+};
+
+&audio {
+	status = "okay";
+};
+
+&sound {
+	status = "okay";
+	loongson,audio-codec = <&codec>;
+	// Easy Compatible for asound.state Configure
+	loongson,sound-card-name = "ES8388";
+};
+
+&pinmux{ 
+	   /*/驱动GPIO子系统实验
+		pinctrl_gpio_62: pinmux_G62_as_gpio {
+			pinctrl-single,bits = <0xc 0x00000000 0x30000000>;
+		};
+		*/
+
+		//DS0和DS1复用为GPIO
+		pinctrl_gpio_leds: pinmux_G70-G89_as_gpio {
+			pinctrl-single,bits = <0x10 0x00000000 0x00003000
+						0x14 0x00000000 0x000c0000>;
+		};
+
+		//KEY2复用为GPIO
+		pinctrl_gpio_keys: pinmux_G71_as_gpio {
+			pinctrl-single,bits = <0x10 0x00000000 0x0000c000>;
+		};
+};
+
+&otg {
+	dr_mode = "otg";
+};
