@@ -23,6 +23,7 @@
 #define LOONGSON2_THSENS_CTRL_LOW_REG	0x8
 #define LOONGSON2_THSENS_STATUS_REG	0x10
 #define LOONGSON2_THSENS_OUT_REG	0x14
+#define LOONGSON2_THSENS_CFG_REG	0x18
 
 #define LOONGSON2_THSENS_INT_LO		BIT(0)
 #define LOONGSON2_THSENS_INT_HIGH	BIT(1)
@@ -100,7 +101,29 @@ static int loongson2_2k1000_get_temp(struct thermal_zone_device *tz, int *temp)
 
 	val = readl(data->ctrl_reg + LOONGSON2_THSENS_OUT_REG);
 	if (cur_id == ID_2K300) {
-		temp_val = ((val & 0x7ff) * 569) - 394700;
+		int version;
+		int val_fix;
+		u32 reg_val;
+		writel(0xff03, data->ctrl_reg + LOONGSON2_THSENS_CFG_REG); // 0x18
+		reg_val = readl(data->ctrl_reg + LOONGSON2_THSENS_OUT_REG);
+		reg_val &= 0x7ff;
+
+		version = readl(data->ctrl_reg + 0x2AF0); // 0x16003ff0
+		version >>= 4;
+		version &= 1;
+
+		if(version)
+		        val_fix = readl(data->ctrl_reg + 0x2AF4) & 0xffff; // 0x16003ff4
+		else
+		        val_fix = (readl(data->ctrl_reg + 0x2AF0) >> 20) & 0xffff; // 0x16003ff0
+
+		if (val_fix & 0x8000)
+		        val_fix =  -(val_fix & 0x7fff);
+		else
+		        val_fix =  val_fix & 0x7fff;
+
+		reg_val += val_fix;
+		temp_val = reg_val * 570 - 394700;
 		/*
 		 * fix old 2k300 use old fuse that will let kernel crash critical temperature
 		 */
@@ -116,9 +139,14 @@ static int loongson2_2k1000_get_temp(struct thermal_zone_device *tz, int *temp)
 			old_fuse_2k300 = 1;
 			temp_val = 125000;
 		}
-		if (!warning_2k300_old_fuse_tip && old_fuse_2k300) {
-			pr_err("%s this 2k300 use old fuse so thermal not right!(%d)\n", __func__, val);
-			warning_2k300_old_fuse_tip = 1;
+		if (old_fuse_2k300)
+		{
+			if (!warning_2k300_old_fuse_tip) {
+				pr_err("%s this 2k300 use old fuse so thermal not right!(%d)\n", __func__, val);
+				warning_2k300_old_fuse_tip = 1;
+			}
+			val = readl(data->ctrl_reg + LOONGSON2_THSENS_OUT_REG);
+			temp_val = ((val & 0x7ff) * 569) - 394700;
 		}
 		*temp = temp_val;
 	} else

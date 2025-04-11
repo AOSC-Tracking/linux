@@ -114,6 +114,7 @@ extern u32 __dtb_ls2p500_gbkpjm0_v10_begin[];
 extern u32 __dtb_ls2k300_mini_dp_begin[];
 extern u32 __dtb_ls2k300_vanguard_pi_begin[];
 extern u32 __dtb_ls2k300_gongkong_gbkpgk0_begin[];
+extern u32 __dtb_ls2k300_alientek_begin[];
 extern char __dtb_start[];
 extern struct boot_params *efi_bp;
 extern struct loongson_board_info b_info;
