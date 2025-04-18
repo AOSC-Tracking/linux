@@ -2329,6 +2329,12 @@ static const struct dmi_system_id acpi_ec_no_wakeup[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "83Q3"),
 		}
 	},
+	{
+		/* MECHREVO Wujie 14 Series (GX4HRXL) */
+		.matches = {
+			DMI_MATCH(DMI_BOARD_NAME, "GX4HRXL"),
+		}
+	},
 	{ },
 };
 
