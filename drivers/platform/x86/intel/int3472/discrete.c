@@ -97,8 +97,8 @@ static int skl_int3472_map_gpio_to_sensor(struct int3472_discrete_device *int347
 	 * expects its only GPIO pin to be called "enable" (and to have the
 	 * opposite polarity).
 	 */
-	if (!strcmp(func, "reset") && !acpi_match_device_ids(int3472->sensor, ov7251_ids)) {
-		func = "enable";
+	if (!strcmp(con_id, "reset") && !acpi_match_device_ids(int3472->sensor, ov7251_ids)) {
+		con_id = "enable";
 		gpio_flags ^= GPIO_ACTIVE_LOW;
 	}
 
