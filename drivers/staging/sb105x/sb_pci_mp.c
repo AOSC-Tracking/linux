@@ -2481,7 +2481,7 @@ static void multi_shutdown(struct sb_uart_port *port)
 
 	if ((!is_real_interrupt(mtpt->port.irq))||(mtpt->poll_type==TYPE_POLL))
 	{
-		del_timer_sync(&mtpt->timer);
+		timer_delete_sync(&mtpt->timer);
 	}
 	else
 	{
