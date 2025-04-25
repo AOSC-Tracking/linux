@@ -27,7 +27,7 @@ function setup_loongarch_env()
 	CC_PREFIX=/opt/loongarch64-linux-gnu-gcc13.3
 
 	export PATH=$PATH:$CC_PREFIX/bin
-	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:CC_PREFIX/lib
+	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CC_PREFIX/lib
 	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CC_PREFIX/loongarch64-linux-gnu/lib64
 
 	export ARCH=loongarch
