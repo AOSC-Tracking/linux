@@ -8,8 +8,12 @@ use super::{AllocError, Allocator, Flags};
 use core::alloc::Layout;
 use core::fmt;
 use core::marker::PhantomData;
+#[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
+use core::marker::Unsize;
 use core::mem::ManuallyDrop;
 use core::mem::MaybeUninit;
+#[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
+use core::ops::CoerceUnsized;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
@@ -61,7 +65,8 @@ use crate::types::ForeignOwnable;
 /// `self.0` is always properly aligned and either points to memory allocated with `A` or, for
 /// zero-sized types, is a dangling, well aligned pointer.
 #[repr(transparent)]
-pub struct Box<T: ?Sized, A: Allocator>(NonNull<T>, PhantomData<A>);
+#[cfg_attr(CONFIG_RUSTC_HAS_COERCE_POINTEE, derive(core::marker::CoercePointee))]
+pub struct Box<#[pointee] T: ?Sized, A: Allocator>(NonNull<T>, PhantomData<A>);
 
 /// Type alias for [`Box`] with a [`Kmalloc`] allocator.
 ///
@@ -483,5 +488,19 @@ where
         // - `self.0` was previously allocated with `A`.
         // - `layout` is equal to the `Layout´ `self.0` was allocated with.
         unsafe { A::free(self.0.cast(), layout) };
+    }
+}
+
+//#[unstable(feature = "coerce_unsized", issue = "18598")]
+#[cfg(not(CONFIG_RUSTC_HAS_COERCE_POINTEE))]
+impl<T: ?Sized + Unsize<U>, U: ?Sized, A: Allocator> CoerceUnsized<Box<U, A>> for Box<T, A> {}
+
+impl<T, A> AsRef<T> for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
+    fn as_ref(&self) -> &T {
+        &**self
     }
 }
