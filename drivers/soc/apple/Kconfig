@@ -4,6 +4,16 @@ if ARCH_APPLE || COMPILE_TEST
 
 menu "Apple SoC drivers"
 
+config APPLE_DOCKCHANNEL
+	tristate "Apple DockChannel FIFO"
+	depends on ARCH_APPLE || COMPILE_TEST
+	default ARCH_APPLE
+	help
+	  DockChannel is a simple FIFO used on Apple SoCs for debug and inter-processor
+	  communications.
+
+	  Say 'y' here if you have an Apple SoC.
+
 config APPLE_MAILBOX
 	tristate "Apple SoC mailboxes"
 	depends on PM
@@ -16,6 +26,15 @@ config APPLE_MAILBOX
 	  communicate with those.
 
 	  Say Y here if you have an Apple SoC.
+
+config APPLE_PMGR_MISC
+	bool "Apple SoC PMGR miscellaneous support"
+	depends on PM
+	default ARCH_APPLE
+	help
+	  The PMGR block in Apple SoCs provides high-level power state
+	  controls for SoC devices. This driver manages miscellaneous
+	  power controls.
 
 config APPLE_RTKIT
 	tristate "Apple RTKit co-processor IPC protocol"
@@ -30,6 +49,20 @@ config APPLE_RTKIT
 
 	  Say 'y' here if you have an Apple SoC.
 
+config APPLE_RTKIT_HELPER
+	tristate "Apple Generic RTKit helper co-processor"
+	depends on APPLE_RTKIT
+	depends on ARCH_APPLE || COMPILE_TEST
+	default ARCH_APPLE
+	help
+	  Apple SoCs such as the M1 come with various co-processors running
+	  their proprietary RTKit operating system. This option enables support
+	  for a generic co-processor that does not implement any additional
+	  in-band communications. It can be used for testing purposes, or for
+	  coprocessors such as MTP that communicate over a different interface.
+
+	  Say 'y' here if you have an Apple SoC.
+
 config APPLE_SART
 	tristate "Apple SART DMA address filter"
 	depends on ARCH_APPLE || COMPILE_TEST
@@ -38,6 +71,35 @@ config APPLE_SART
 	  Apple SART is a simple DMA address filter used on Apple SoCs such
 	  as the M1. It is usually required for the NVMe coprocessor which does
 	  not use a proper IOMMU.
+
+	  Say 'y' here if you have an Apple SoC.
+
+config RUST_APPLE_RTKIT
+	bool
+	depends on RUST
+	depends on APPLE_RTKIT
+
+config APPLE_AOP
+	tristate "Apple \"Always-on\" Processor"
+	depends on ARCH_APPLE || COMPILE_TEST
+	depends on RUST
+	select RUST_APPLE_RTKIT
+	default m if ARCH_APPLE
+	help
+	  A co-processor persent on certain Apple SoCs controlling accelerometers,
+	  gyros, ambient light sensors and microphones. Is not actually always on.
+
+	  Say 'y' here if you have an Apple laptop.
+
+config APPLE_SEP
+	tristate "Apple Secure Element Processor"
+	depends on ARCH_APPLE || COMPILE_TEST
+	depends on RUST
+	select RUST_APPLE_RTKIT
+	default y if ARCH_APPLE
+	help
+	  A security co-processor persent on Apple SoCs, controlling transparent
+	  disk encryption, secure boot, HDCP, biometric auth and probably more.
 
 	  Say 'y' here if you have an Apple SoC.
 

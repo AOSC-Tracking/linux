@@ -15,9 +15,9 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/soc/apple/mailbox.h>
 #include <linux/soc/apple/rtkit.h>
 #include <linux/workqueue.h>
-#include "mailbox.h"
 
 #define APPLE_RTKIT_APP_ENDPOINT_START 0x20
 #define APPLE_RTKIT_MAX_ENDPOINTS 0x100
@@ -44,6 +44,7 @@ struct apple_rtkit {
 
 	struct apple_rtkit_shmem ioreport_buffer;
 	struct apple_rtkit_shmem crashlog_buffer;
+	struct apple_rtkit_shmem oslog_buffer;
 
 	struct apple_rtkit_shmem syslog_buffer;
 	char *syslog_msg_buffer;
