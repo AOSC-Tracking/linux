@@ -432,7 +432,7 @@
 		uart0: serial@0x16100000 {
 			compatible = "ns16550a";
 			reg = <0 0x16100000 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -441,7 +441,7 @@
 		uart1: serial@0x16100400 {
 			compatible = "ns16550a";
 			reg = <0 0x16100400 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <1 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -453,7 +453,7 @@
 		uart2: serial@0x16100800 {
 			compatible = "ns16550a";
 			reg = <0 0x16100800 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -465,7 +465,7 @@
 		uart3: serial@0x16100c00 {
 			compatible = "ns16550a";
 			reg = <0 0x16100c00 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -477,7 +477,7 @@
 		uart4: serial@0x16101000 {
 			compatible = "ns16550a";
 			reg = <0 0x16101000 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-0 = <&uart4_pins>;
@@ -489,7 +489,7 @@
 		uart5: serial@0x16101400 {
 			compatible = "ns16550a";
 			reg = <0 0x16101400 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -501,7 +501,7 @@
 		uart6: serial@0x16101800 {
 			compatible = "ns16550a";
 			reg = <0 0x16101800 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -513,7 +513,7 @@
 		uart7: serial@0x16101c00 {
 			compatible = "ns16550a";
 			reg = <0 0x16101c00 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -525,7 +525,7 @@
 		uart8: serial@0x16102000 {
 			compatible = "ns16550a";
 			reg = <0 0x16102000 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -537,7 +537,7 @@
 		uart9: serial@0x16102400 {
 			compatible = "ns16550a";
 			reg = <0 0x16102400 0 0x10>;
-			clock-frequency = <200000000>;
+			clocks = <&clocks CLK_APB>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -969,7 +969,6 @@
 			dma-names = "ch1", "ch2", "ch3", "ch4", "com", "up", "trig";
 			pinctrl-0 = <&atim3_pin_m1>, <&atim3n_pin_m1>;
 			pinctrl-names = "default";
-			clock-frequency = <200000000>;
 			status = "disabled";
 
 			pwm {
@@ -997,7 +996,6 @@
 			dma-names = "ch1", "ch2", "ch3", "ch4", "up", "trig";
 			pinctrl-0 = <&gtim2_pin_m1>, <&gtim3_pin_m1>;
 			pinctrl-names = "default";
-			clock-frequency = <200000000>;
 			status = "disabled";
 
 			pwm {
