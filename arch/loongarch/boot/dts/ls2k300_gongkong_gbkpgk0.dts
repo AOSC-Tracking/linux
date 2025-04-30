@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2025 Loongson Technology Corporation Limited
+ */
+
+/dts-v1/;
+
+
 #include "ls2k300_gongkong_g2k03z2_core.dtsi"
 #include "loongson_panel_param.dtsi"
 
