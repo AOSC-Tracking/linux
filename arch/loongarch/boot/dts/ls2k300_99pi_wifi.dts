@@ -1,7 +1,9 @@
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/pwm/pwm.h>
-#include <dt-bindings/input/linux-event-codes.h>
-#include <dt-bindings/interrupt-controller/irq.h>
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2025 Loongson Technology Corporation Limited
+ */
+
+/dts-v1/;
 
 #include "loongson-2k0300.dtsi"
 #include "loongson_panel_param.dtsi"
@@ -104,7 +106,7 @@
 };
 
 &spi2 {
-	status = "disabled"; // 与 PWM0-3 的 MUX0 冲突
+	status = "okay"; // 与 PWM0-3 的 MUX0 冲突
 
 	spidev1@0 {
 		compatible = "rohm,dh2228fv";
@@ -114,10 +116,10 @@
 };
 
 &timers1 {
-	status = "disabled";
+	status = "okay";
 	/delete-property/ dmas;
 	/delete-property/ dma-names;
-	pinctrl-0 = <&atim3_pin_m1>, <&atim3n_pin_m1>;  // 在 LCD 排线处和 S_LED
+	pinctrl-0 = <&atim3n_pin_m1>; // LCD PWM 背光，备用
 	pinctrl-names = "default";
 
 	pwm {
@@ -142,25 +144,25 @@
 };
 
 &pwm0 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pwm0_mux_m0>;
 	pinctrl-names = "default";
 };
 
 &pwm1 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pwm1_mux_m0>;
 	pinctrl-names = "default";
 };
 
 &pwm2 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pwm2_mux_m0>;
 	pinctrl-names = "default";
 };
 
 &pwm3 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pwm3_mux_m0>;
 	pinctrl-names = "default";
 };
@@ -182,11 +184,6 @@
 };
 
 &sdio1 {
-	pinctrl-0 = <&sdio1_pins>;
-	pinctrl-names = "default";
-	cap-sd-highspeed;
-	cap-mmc-highspeed;
-	bus-width = <4>;
 	cd-gpios = <&gpio 82 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
