@@ -4,7 +4,7 @@
 
 ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
 dtb-$(CONFIG_LOONGSON_2K300) += ls2k300_mini_dp.dtb ls2k300_vanguard_pi.dtb ls2k300_gongkong_gbkpgk0.dtb \
-				ls2k300_alientek.dtb
+				ls2k300_alientek.dtb ls2k300_99pi_wifi.dtb
 dtb-$(CONFIG_LOONGSON_2K1000) += ls2k1000_dp.dtb
 
 obj-y += $(patsubst %.dtb, %.dtb.o, $(dtb-y))
