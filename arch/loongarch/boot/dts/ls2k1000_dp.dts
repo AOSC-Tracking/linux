@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2025 Loongson Technology Corporation Limited
+ */
+
+/dts-v1/;
+
 #include "loongson-2k1000.dtsi"
 #include "loongson_panel_param.dtsi"
 #include <dt-bindings/input/linux-event-codes.h>
-
 
 / {
 	model = "LS2K1000-DP-V10";
