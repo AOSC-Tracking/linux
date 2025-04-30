@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2025 Loongson Technology Corporation Limited
+ */
+
+/dts-v1/;
+
 #include "ls2k300_vanguard_pi_common.dtsi"
 
 &uart2 {
