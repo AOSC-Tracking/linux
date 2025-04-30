@@ -132,6 +132,10 @@
 		pinctrl-single,register-width = <32>;
 		pinctrl-single,function-mask = <0x3>;
 
+		uart0_pins: pinmux_G40_G41_as_uart0 {
+			pinctrl-single,bits = <0x8 0x000f0000 0x000f0000>;
+		};
+
 		uart1_pins: pinmux_G42_G43_as_uart1 {
 			pinctrl-single,bits = <0x8 0x00f00000 0x00f00000>;
 		};
@@ -200,8 +204,17 @@
 			pinctrl-single,bits = <0x14 0x00000a00 0x000000f00>;
 		};
 
+		spi0_pins: pinmux_G56_G59_as_spi0 {
+			pinctrl-single,bits = <0xc 0x00ff0000 0x00ff0000
+						0x10 0x00001400 0x00003c00>;
+		};
+
 		spi1_pins: pinmux_G60_G63_as_spi1 {
 			pinctrl-single,bits = <0xc 0xff000000 0xff000000>;
+		};
+
+		spi1_cs_as_gpio: pinmux_G60_G62_as_spi1 {
+			pinctrl-single,bits = <0xc 0x3f000000 0x3f000000>;
 		};
 
 		spi2_pins: pinmux_G64_G67_as_spi2 {
@@ -348,20 +361,52 @@
 			};
 		};
 
-		pwm0_pins: pinmux_G86_as_pwm0 {
-			pinctrl-single,bits = <0x14 0x00002000 0x00003000>;
+		pwm0_pins: pwm0-pins {
+			pwm0_mux_m0: pinmux_G64_as_pwm0 {
+				pinctrl-single,bits = <0x10 0x00000001 0x00000003>;
+			};
+			pwm0_mux_m1: pinmux_G86_as_pwm0 {
+				pinctrl-single,bits = <0x14 0x00002000 0x00003000>;
+			};
+			pwm0_mux_m2: pinmux_G102_as_pwm0 {
+				pinctrl-single,bits = <0x18 0x00003000 0x00003000>;
+			};
 		};
 
-		pwm1_pins: pinmux_G87_as_pwm1 {
-			pinctrl-single,bits = <0x14 0x00008000 0x0000c000>;
+		pwm1_pins: pwm1-pins {
+			pwm1_mux_m0: pinmux_G65_as_pwm1 {
+				pinctrl-single,bits = <0x10 0x00000004 0x0000000c>;
+			};
+			pwm1_mux_m1: pinmux_G87_as_pwm1 {
+				pinctrl-single,bits = <0x14 0x00008000 0x0000c000>;
+			};
+			pwm1_mux_m2: pinmux_G103_as_pwm1 {
+				pinctrl-single,bits = <0x18 0x0000c000 0x0000c000>;
+			};
+		};
+		
+		pwm2_pins: pwm2-pins {
+			pwm2_mux_m0: pinmux_G66_as_pwm2 {
+				pinctrl-single,bits = <0x10 0x00000010 0x00000030>;
+			};
+			pwm2_mux_m1: pinmux_G88_as_pwm2 {
+				pinctrl-single,bits = <0x14 0x00020000 0x00030000>;
+			};
+			pwm2_mux_m2: pinmux_G104_as_pwm2 {
+				pinctrl-single,bits = <0x18 0x00030000 0x00030000>;
+			};
 		};
 
-		pwm2_pins: pinmux_G88_as_pwm2 {
-			pinctrl-single,bits = <0x14 0x00020000 0x00030000>;
-		};
-
-		pwm3_pins: pinmux_G89_as_pwm3 {
-			pinctrl-single,bits = <0x14 0x00080000 0x000c0000>;
+		pwm3_pins: pwm3-pins {
+			pwm3_mux_m0: pinmux_G67_as_pwm3 {
+				pinctrl-single,bits = <0x10 0x00000040 0x000000c0>;
+			};
+			pwm3_mux_m1: pinmux_G89_as_pwm3 {
+				pinctrl-single,bits = <0x14 0x00080000 0x000c0000>;
+			};
+			pwm3_mux_m2: pinmux_G105_as_pwm3 {
+				pinctrl-single,bits = <0x18 0x000c0000 0x000c0000>;
+			};
 		};
 
 		tim1_ch1:pinmux_G81_as_tim1_ch1 {
@@ -436,6 +481,9 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
+			pinctrl-0 = <&uart0_pins>;
+			pinctrl-names = "default";
+			status = "disabled";
 		};
 
 		uart1: serial@0x16100400 {
@@ -731,6 +779,8 @@
 			interrupt-parent = <&liointc1>;
 			interrupts = <12 IRQ_TYPE_LEVEL_HIGH>; // 44 - 32 = 12
 			clock-frequency = <200000000>;
+			pinctrl-0 = <&spi0_pins>;
+			pinctrl-names = "default";
 			status = "disabled";
 		};
 
@@ -900,7 +950,7 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
 			#pwm-cells = <2>;
-			pinctrl-0 = <&pwm0_pins>;
+			pinctrl-0 = <&pwm0_mux_m1>;
 			pinctrl-names = "default";
 			clock-frequency = <200000000>;
 			status = "disabled";
@@ -912,7 +962,7 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
 			#pwm-cells = <2>;
-			pinctrl-0 = <&pwm1_pins>;
+			pinctrl-0 = <&pwm1_mux_m1>;
 			pinctrl-names = "default";
 			clock-frequency = <200000000>;
 			status = "disabled";
@@ -924,7 +974,7 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <17 IRQ_TYPE_LEVEL_HIGH>;
 			#pwm-cells = <2>;
-			pinctrl-0 = <&pwm2_pins>;
+			pinctrl-0 = <&pwm2_mux_m1>;
 			pinctrl-names = "default";
 			clock-frequency = <200000000>;
 			status = "disabled";
@@ -936,7 +986,7 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <17 IRQ_TYPE_LEVEL_HIGH>;
 			#pwm-cells = <2>;
-			pinctrl-0 = <&pwm3_pins>;
+			pinctrl-0 = <&pwm3_mux_m1>;
 			pinctrl-names = "default";
 			clock-frequency = <200000000>;
 			status = "disabled";
@@ -1051,7 +1101,7 @@
 			compatible = "loongson,ls-pcm-generic-audio";
 			reg = <0 0x16114000 0 0x4000>;
 			dmas = <&dma 0 0xaf
-			        &dma 1 0xbf>;
+					&dma 1 0xbf>;
 			dma-names = "i2s_record", "i2s_play";
 			dma-mask = <0xffffffff 0xffffffff>;
 			status = "disabled";
