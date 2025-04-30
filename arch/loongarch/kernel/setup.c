@@ -318,6 +318,7 @@ char *board_names[] = {
 	"LS2K300-PAI",
 	"LS2K300-GONGKONG-GBKPGK0",
 	"LS2K300-ATK-DL2K0300B-V01",
+	"LS2K300-99PI-WIFI",
 #endif
 	NULL
 };
@@ -338,6 +339,7 @@ void *fdts[] = {
 	&__dtb_ls2k300_vanguard_pi_begin,
 	&__dtb_ls2k300_gongkong_gbkpgk0_begin,
 	&__dtb_ls2k300_alientek_begin,
+	&__dtb_ls2k300_99pi_wifi_begin,
 #endif
 	NULL
 };
