@@ -1,4 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2025 Loongson Technology Corporation Limited
+ */
+
 /dts-v1/;
+
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/clock/loongson2k300-clock.h>
 #include <dt-bindings/usb/dwc2-loongson-fix.h>
