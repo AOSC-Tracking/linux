@@ -87,6 +87,8 @@
 
 &spi0 {
 	status = "okay";
+	pinctrl-0 = <&spi0_6bit_f0>, <&spi0_6bit_f1>;
+	pinctrl-names = "default";
 
 	spi-flash@0 {
 		compatible = "jedec,spi-nor";
