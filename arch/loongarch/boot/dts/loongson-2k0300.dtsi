@@ -210,13 +210,20 @@
 			pinctrl-single,bits = <0x14 0x00000a00 0x000000f00>;
 		};
 
-		spi0_pins: pinmux_G56_G59_as_spi0 {
-			pinctrl-single,bits = <0xc 0x00ff0000 0x00ff0000
-						0x10 0x00001400 0x00003c00>;
+		spi0_pins: spi0-pin {
+			spi0_6bit_f0: pinmux_G56_G59_as_spi0 {
+				pinctrl-single,bits = <0xc 0x00ff0000 0x00ff0000>;
+			};
+			spi0_6bit_f1: pinmux_G69_G70_as_spi0 {
+				pinctrl-single,bits = <0x10 0x00001400 0x00003c00>;
+			};
+			spi0_7bit: pinmux_G68_as_spi0 {
+				pinctrl-single,bits = <0x10 0x00000100 0x00000300>;
+			};
 		};
 
 		spi1_pins: pinmux_G60_G63_as_spi1 {
-			pinctrl-single,bits = <0xc 0xff000000 0xff000000>;
+				pinctrl-single,bits = <0xc 0xff000000 0xff000000>;
 		};
 
 		spi1_cs_as_gpio: pinmux_G60_G62_as_spi1 {
@@ -785,7 +792,7 @@
 			interrupt-parent = <&liointc1>;
 			interrupts = <12 IRQ_TYPE_LEVEL_HIGH>; // 44 - 32 = 12
 			clock-frequency = <200000000>;
-			pinctrl-0 = <&spi0_pins>;
+			pinctrl-0 = <&spi0_6bit_f0>;
 			pinctrl-names = "default";
 			status = "disabled";
 		};
