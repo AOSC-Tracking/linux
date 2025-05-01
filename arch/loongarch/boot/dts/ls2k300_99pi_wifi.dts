@@ -87,7 +87,7 @@
 
 &spi0 {
 	status = "okay";
-	pinctrl-0 = <&spi0_6bit_f0>, <&spi0_6bit_f1>;
+	pinctrl-0 = <&qspi0_pins>;
 	pinctrl-names = "default";
 
 	spi-flash@0 {
