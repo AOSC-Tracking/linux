@@ -23,5 +23,5 @@ const struct font_desc font_cjk_32x32 = {
 	.height	= 32,
 	.charcount	= 65536 * 2,
 	.data	= fontdata_cjk_32x32.data,
-	.pref	= -1,
+	.pref	= 19,
 };
