@@ -342,10 +342,13 @@ static int phytmac_v2_get_feature_all(struct phytmac *pdata)
 		pdata->dma_addr_width = 32;
 	pdata->dma_data_width = para.dma_data_width;
 	pdata->max_rx_fs = para.max_rx_fs;
-	pdata->tx_bd_prefetch = (2 << (para.tx_bd_prefetch - 1)) *
-				sizeof(struct phytmac_dma_desc);
-	pdata->rx_bd_prefetch = (2 << (para.rx_bd_prefetch - 1)) *
-				sizeof(struct phytmac_dma_desc);
+
+	if (para.tx_bd_prefetch)
+		pdata->tx_bd_prefetch = (2 << (para.tx_bd_prefetch - 1)) *
+					sizeof(struct phytmac_dma_desc);
+	if (para.rx_bd_prefetch)
+		pdata->rx_bd_prefetch = (2 << (para.rx_bd_prefetch - 1)) *
+					sizeof(struct phytmac_dma_desc);
 
 	if (netif_msg_hw(pdata)) {
 		netdev_info(pdata->ndev, "feature qnum=%d, daw=%d, dbw=%d, rxfs=%d, rxbd=%d, txbd=%d\n",
