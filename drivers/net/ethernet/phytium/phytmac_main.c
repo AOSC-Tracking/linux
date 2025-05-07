@@ -1776,6 +1776,12 @@ int phytmac_mdio_register(struct phytmac *pdata)
 		goto err_out;
 	}
 
+	if (hw_if->mdio_idle) {
+		ret = hw_if->mdio_idle(pdata);
+		if (ret)
+			goto free_mdio;
+	}
+
 	pdata->mii_bus->name = "phytmac_mii_bus";
 	pdata->mii_bus->read = &phytmac_mdio_read_c22;
 	pdata->mii_bus->write = &phytmac_mdio_write_c22;
