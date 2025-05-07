@@ -6,10 +6,11 @@
 
 extern struct phytmac_hw_if phytmac_2p0_hw;
 
-#define PHYTMAC_CMD_PRC_COMPLETED	0x1
+#define PHYTMAC_CMD_PRC_SUCCESS	0x1
 #define PHYTMAC_MSG_SRAM_SIZE	4096
-#define MSG_HDR_LEN				8
-#define READ_REG_NUM_MAX		16
+#define PHYTMAC_MSG_HDR_LEN				8
+#define PHYTMAC_MSG_PARA_LEN			56
+#define PHYTMAC_READ_REG_NUM_MAX		(PHYTMAC_MSG_PARA_LEN / sizeof(u32))
 
 #define PHYTMAC_TX_MSG_HEAD				0x000
 #define PHYTMAC_TX_MSG_TAIL				0x004
@@ -30,7 +31,8 @@ extern struct phytmac_hw_if phytmac_2p0_hw;
 #define PHYTMAC_TIMER_SEC				0x0258
 #define PHYTMAC_TIMER_NSEC				0x025c
 #define PHYTMAC_TIMER_ADJUST				0x0260
-#define PHYTMAC_MSG(i)					(((i) - 1) * 0x48)
+#define PHYTMAC_MSG(i)					((i) * sizeof(struct phytmac_msg_info))
+#define PHYTMAC_OCT_TX					0x400
 
 #define PHYTMAC_MODULE_ID_GMAC				0x60
 #define PHYTMAC_FLAGS_MSG_COMP				0x1
@@ -255,7 +257,7 @@ enum phytmac_msg_cmd_id {
 };
 
 enum phytmac_default_subid {
-	PHYTMAC_MSG_CMD_DEFAULT_RESET_HW = 0,
+	PHYTMAC_MSG_CMD_DEFAULT_RESET_HW = 1,
 	PHYTMAC_MSG_CMD_DEFAULT_RESET_TX_QUEUE,
 	PHYTMAC_MSG_CMD_DEFAULT_RESET_RX_QUEUE,
 };
@@ -415,7 +417,7 @@ struct phytmac_msg_info {
 	u16 len;
 	u8 status1;
 	u8 status0;
-	u8 para[64];
+	u8 para[PHYTMAC_MSG_PARA_LEN];
 } __packed;
 
 struct phytmac_ots_config {
@@ -423,5 +425,15 @@ struct phytmac_ots_config {
 	u32 axi_wr;
 	u8 queuenum;
 } __packed;
+
+struct phytmac_ethtool_reg {
+	u8 interface;
+	u8 cnt;
+} __packed;
+
+static inline unsigned int phytmac_v2_tx_ring_wrap(struct phytmac *pdata, unsigned int index)
+{
+	return index & (pdata->msg_ring.tx_msg_ring_size - 1);
+}
 
 #endif
