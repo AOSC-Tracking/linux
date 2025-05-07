@@ -1,0 +1,918 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2023 Loongson Technology Corporation Limited
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/clock/loongson,ls2k-clk.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "loongson,la264";
+			device_type = "cpu";
+			reg= <0x0>;
+			clocks = <&clk LOONGSON2_NODE_CLK>;
+		};
+
+		cpu1: cpu@1 {
+			compatible = "loongson,la264";
+			device_type = "cpu";
+			reg = <0x1>;
+			clocks = <&clk LOONGSON2_NODE_CLK>;
+		};
+	};
+
+	ref_100m: clock-ref-100m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <100000000>;
+		clock-output-names = "ref_100m";
+	};
+
+	cpuintc: interrupt-controller {
+		compatible = "loongson,cpu-interrupt-controller";
+		#interrupt-cells = <1>;
+		interrupt-controller;
+	};
+
+	/* i2c of the dvi eeprom edid */
+	i2c-gpio-0 {
+		compatible = "i2c-gpio";
+		scl-gpios = <&gpio0 0 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio0 1 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <5>;        /* ~100 kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	/* i2c of the eeprom edid */
+	i2c-gpio-1 {
+		compatible = "i2c-gpio";
+		scl-gpios = <&gpio0 33 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpio0 32 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <5>;        /* ~100 kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	thermal-zones {
+		cpu-thermal {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+			thermal-sensors = <&tsensor 0>;
+
+			trips {
+				cpu_alert: cpu-alert {
+					temperature = <33000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+
+				cpu_crit: cpu-crit {
+					temperature = <85000>;
+					hysteresis = <5000>;
+					type = "critical";
+				};
+			};
+		};
+	};
+
+	bus@10000000 {
+		compatible = "simple-bus";
+		ranges = <0x0 0x10000000 0x0 0x10000000 0x0 0x10000000>,
+			 <0x0 0x02000000 0x0 0x02000000 0x0 0x02000000>,
+			 <0x0 0x20000000 0x0 0x20000000 0x0 0x10000000>,
+			 <0x0 0x40000000 0x0 0x40000000 0x0 0x40000000>,
+			 <0xfe 0x0 0xfe 0x0 0x0 0x40000000>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		dma-coherent;
+
+		isa@18000000 {
+			compatible = "isa";
+			#size-cells = <1>;
+			#address-cells = <2>;
+			ranges = <1 0x0 0x0 0x18000000 0x4000>;
+		};
+
+		liointc0: interrupt-controller@1fe01400 {
+			compatible = "loongson,liointc-2.0";
+			reg = <0x0 0x1fe01400 0x0 0x40>,
+			      <0x0 0x1fe01040 0x0 0x8>,
+			      <0x0 0x1fe01140 0x0 0x8>;
+			reg-names = "main", "isr0", "isr1";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&cpuintc>;
+			interrupts = <2>;
+			interrupt-names = "int0";
+			loongson,parent_int_map = <0xffffffff>, /* int0 */
+						  <0x00000000>, /* int1 */
+						  <0x00000000>, /* int2 */
+						  <0x00000000>; /* int3 */
+		};
+
+		liointc1: interrupt-controller@1fe01440 {
+			compatible = "loongson,liointc-2.0";
+			reg = <0x0 0x1fe01440 0x0 0x40>,
+			      <0x0 0x1fe01048 0x0 0x8>,
+			      <0x0 0x1fe01148 0x0 0x8>;
+			reg-names = "main", "isr0", "isr1";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&cpuintc>;
+			interrupts = <3>;
+			interrupt-names = "int1";
+			loongson,parent_int_map = <0x00000000>, /* int0 */
+						  <0xffffffff>, /* int1 */
+						  <0x00000000>, /* int2 */
+						  <0x00000000>; /* int3 */
+		};
+
+		chipid@1fe00000 {
+			compatible = "loongson,ls2k-chipid";
+			reg = <0x0 0x1fe00000 0x0 0x30>;
+			little-endian;
+		};
+
+		pctrl: pinctrl@1fe00420 {
+			compatible = "loongson,ls2k-pinctrl";
+			reg = <0x0 0x1fe00420 0x0 0x18>;
+
+			gmac1_default:gmac1 {
+				mux {
+					groups ="gmac1";
+					function ="gmac1";
+				};
+			};
+
+			hda_default:hda {
+				mux {
+					groups ="hda_i2s";
+					function ="hda";
+				};
+			};
+
+			hda_as_gpio:hda_as_gpio {
+				mux {
+					groups ="hda_i2s";
+					function ="gpio";
+				};
+			};
+
+			i2s_default:i2s {
+				mux {
+					groups ="hda_i2s";
+					function ="i2s";
+				};
+			};
+
+			ahci_default:ahci {
+				mux {
+					groups ="sata_led";
+					function ="sata_led";
+				};
+			};
+
+			ahci_led_as_gpio:ahci_led_as_gpio {
+				mux {
+					groups ="sata_led";
+					function ="gpio";
+				};
+			};
+
+			pwm0_default:pwm0 {
+				mux {
+					groups ="pwm0";
+					function ="pwm0";
+				};
+			};
+
+			pwm0_as_gpio:pwm0_as_gpio {
+				mux {
+					groups ="pwm0";
+					function ="gpio";
+				};
+			};
+
+			pwm1_default:pwm1 {
+				mux {
+					groups ="pwm1";
+					function ="pwm1";
+				};
+			};
+
+			pwm1_as_gpio:pwm1_as_gpio {
+				mux {
+					groups ="pwm1";
+					function ="gpio";
+				};
+			};
+
+			pwm2_default:pwm2 {
+				mux {
+					groups ="pwm2";
+					function ="pwm2";
+				};
+			};
+
+			pwm2_as_gpio:pwm2_as_gpio {
+				mux {
+					groups ="pwm2";
+					function ="gpio";
+				};
+			};
+
+			pwm3_default:pwm3 {
+				mux {
+					groups ="pwm3";
+					function ="pwm3";
+				};
+			};
+
+			pwm3_as_gpio:pwm3_as_gpio {
+				mux {
+					groups ="pwm3";
+					function ="gpio";
+				};
+			};
+
+			uart0_4_default:uart0_4{
+				mux {
+					groups = "uart0";
+					function = "uart0_4";
+				};
+			};
+
+			uart1_4_default:uart1_4 {
+				mux {
+					groups = "uart1";
+					function = "uart1_4";
+				};
+			};
+
+			uart2_4_default:uart2_4 {
+				mux {
+					groups = "uart2";
+					function = "uart2_4";
+				};
+			};
+
+			dvo0_default:dvo0 {
+				mux {
+					groups = "dvo0_lio_uart";
+					function = "dvo0";
+				};
+			};
+
+			dvo1_default:dvo1 {
+				mux {
+					groups = "dvo1_camera";
+					function = "dvo1";
+				};
+			};
+
+			can0_default:can0 {
+				mux {
+					groups = "can0";
+					function = "can0";
+				};
+			};
+
+			can1_default:can1 {
+				mux {
+					groups = "can1";
+					function = "can1";
+				};
+			};
+
+			can1_as_gpio:can1_as_gpio {
+				mux {
+					groups = "can1";
+					function = "gpio";
+				};
+			};
+
+			sdio_gpio:sdio {
+				mux {
+					groups = "sdio";
+					function = "gpio";
+				};
+			};
+
+			lio_default:lio {
+				mux {
+					groups = "dvo0_lio_uart";
+					function = "lio";
+				};
+			};
+
+			i2c0_as_gpio:i2c0_as_gpio {
+				mux {
+					groups = "i2c0";
+					function = "gpio";
+				};
+			};
+			i2c1_as_gpio:i2c1_as_gpio {
+				mux {
+					groups = "i2c1";
+					function = "gpio";
+				};
+			};
+		};
+
+		clk: clock-controller@1fe00480 {
+			compatible = "loongson,ls2k-clk";
+			reg = <0x0 0x1fe00480 0x0 0x58>;
+			#clock-cells = <1>;
+			clocks = <&ref_100m>;
+			clock-names = "ref_100m";
+		};
+
+		gpio0: gpio@1fe00500 {
+			compatible = "loongson,ls2k-gpio";
+			reg = <0x0 0x1fe00500 0x0 0x38>;
+			ngpios = <64>;
+			#gpio-cells = <2>;
+			gpio-controller;
+			gpio-ranges = <&pctrl 0x0 0x0 15>,
+				      <&pctrl 16 16 15>,
+				      <&pctrl 32 32 10>,
+				      <&pctrl 44 44 20>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <28 IRQ_TYPE_LEVEL_HIGH>,
+				     <29 IRQ_TYPE_LEVEL_HIGH>,
+				     <30 IRQ_TYPE_LEVEL_HIGH>,
+				     <30 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <>,
+				     <>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		tsensor: thermal-sensor@1fe01500 {
+			compatible = "loongson,ls2k1000-thermal";
+			reg = <0x0 0x1fe01500 0x0 0x30>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <7 IRQ_TYPE_LEVEL_HIGH>;
+			#thermal-sensor-cells = <1>;
+		};
+
+		apbdma0: dma-controller@1fe00c00 {
+			compatible = "loongson,ls2k1000-apbdma";
+			reg = <0x0 0x1fe00c00 0x0 0x8>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		apbdma1: dma-controller@1fe00c10 {
+			compatible = "loongson,ls2k1000-apbdma";
+			reg = <0x0 0x1fe00c10 0x0 0x8>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <13 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		apbdma2: dma-controller@1fe00c20 {
+			compatible = "loongson,ls2k1000-apbdma";
+			reg = <0x0 0x1fe00c20 0x0 0x8>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <14 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		apbdma3: dma-controller@1fe00c30 {
+			compatible = "loongson,ls2k1000-apbdma";
+			reg = <0x0 0x1fe00c30 0x0 0x8>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <15 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		dma-controller@1fe00c40 {
+			compatible = "loongson,ls2k1000-apbdma";
+			reg = <0x0 0x1fe00c40 0x0 0x8>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		uart0: serial@1fe20000 {
+			compatible = "ns16550a";
+			reg = <0x0 0x1fe20000 0x0 0x10>;
+			clock-frequency = <125000000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x0 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "okay";
+		};
+
+		uart1: serial@0x1fe20100 {
+			compatible = "ns16550a";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_4_default>;
+			reg = <0 0x1fe20100 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x0 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart2: serial@0x1fe20200 {
+			compatible = "ns16550a";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_4_default>;
+			reg = <0 0x1fe20200 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x0 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart3: serial@0x1fe20300 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20300 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x0 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart4: serial@0x1fe20400 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20400 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x1 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart5: serial@0x1fe20500 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20500 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x1 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart6: serial@0x1fe20600 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20600 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x1 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart7: serial@0x1fe20700 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20700 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x1 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart8: serial@0x1fe20800 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20800 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart9: serial@0x1fe20900 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20900 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart10: serial@0x1fe20a00 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20a00 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		uart11: serial@0x1fe20b00 {
+			compatible = "ns16550a";
+			reg = <0 0x1fe20b00 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0x2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disable";
+		};
+
+		i2c2: i2c@1fe21000 {
+			compatible = "loongson,ls2k-i2c";
+			reg = <0x0 0x1fe21000 0x0 0x8>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <22 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		i2c3: i2c@1fe21800 {
+			compatible = "loongson,ls2k-i2c";
+			reg = <0x0 0x1fe21800 0x0 0x8>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <23 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		pmc: power-management@1fe27000 {
+			compatible = "loongson,ls2k1000-pmc", "loongson,ls2k0500-pmc", "syscon";
+			reg = <0x0 0x1fe27000 0x0 0x58>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <11 IRQ_TYPE_LEVEL_HIGH>;
+			loongson,suspend-address = <0x0 0x1c000500>;
+
+			syscon-reboot {
+				compatible = "syscon-reboot";
+				offset = <0x30>;
+				mask = <0x1>;
+			};
+
+			syscon-poweroff {
+				compatible = "syscon-poweroff";
+				regmap = <&pmc>;
+				offset = <0x14>;
+				mask = <0x3c00>;
+				value = <0x3c00>;
+			};
+		};
+
+		rtc0: rtc@1fe27800 {
+			compatible = "loongson,ls2k1000-rtc";
+			reg = <0x0 0x1fe27800 0x0 0x100>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		//no driver
+		i2s: i2s@1fe2d000 {
+			compatible = "loongson,ls2k1000-i2s";
+			reg = <0 0x1fe2d000 0 0x14>,
+			      <0 0x1fe00438 0 0x8>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <5 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			dmas = <&apbdma2 0>, <&apbdma3 0>;
+			dma-names = "tx", "rx";
+			#sound-dai-cells = <0>;
+			status = "disabled";
+		};
+
+		spi0: spi@1fff0220 {
+			compatible = "loongson,ls2k1000-spi";
+			reg = <0x0 0x1fff0220 0x0 0x10>;
+			clocks = <&clk LOONGSON2_BOOT_CLK>;
+			status = "disabled";
+		};
+
+		//no driver
+		nand: nand@1fe26040 {
+			#address-cells = <2>;
+			compatible = "loongson,ls-nand";
+			reg = <0 0x1fe26040 0 0x0
+			       0 0x1fe26000 0 0x20>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <20 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "nand_irq";
+
+			dmas = <&apbdma0 1>;
+			dma-names = "nand_rw";
+			dma-mask = <0xffffffff 0xffffffff>;
+
+			status = "disabled";
+		};
+
+		/* CAN controller nodes:
+		 * If you want to use the "can" function,enable the "can"
+		 * controller by configure general configuration register 0.
+		 */
+		can0: can@1fe20c00{
+			compatible = "nxp,sja1000";
+			reg = <0 0x1fe20c00 0 0xff>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-0 = <&can0_default>;
+			pinctrl-names = "default";
+			status = "disabled";
+		};
+		can1: can@1fe20d00{
+			compatible = "nxp,sja1000";
+			reg = <0 0x1fe20d00 0 0xff>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <17 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-0 = <&can1_default>;
+			pinctrl-names = "default";
+			status = "disabled";
+		};
+
+
+		pwm0: pwm@1fe22000{
+			compatible = "loongson,ls2k-pwm";
+			reg = <0 0x1fe22000 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			clock-names = "pwm-clk";
+			interrupt-parent = <&liointc0>;
+			interrupts = <24 IRQ_TYPE_LEVEL_HIGH>;
+			#pwm-cells = <2>;
+			pinctrl-0 = <&pwm0_default>;
+			pinctrl-names = "default";
+			status = "disabled";
+		};
+
+		pwm1: pwm@1fe22010{
+			compatible = "loongson,ls2k-pwm";
+			reg = <0 0x1fe22010 0 0x10>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			clock-names = "pwm-clk";
+			interrupt-parent = <&liointc0>;
+			interrupts = <25 IRQ_TYPE_LEVEL_HIGH>;
+			#pwm-cells = <2>;
+			pinctrl-0 = <&pwm1_default>;
+			pinctrl-names = "default";
+			status = "disabled";
+		};
+
+		pwm2: pwm@1fe22020 {
+			compatible = "loongson,ls2k-pwm";
+
+			reg = <0 0x1fe22020 0 0xf>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			clock-names = "pwm-clk";
+			interrupt-parent = <&liointc0>;
+			interrupts = <26 IRQ_TYPE_LEVEL_HIGH>; //34- 31
+
+			#pwm-cells = <2>;
+			pinctrl-0 = <&pwm2_default>;
+			pinctrl-names = "default";
+
+			status = "disabled";
+		};
+
+		pwm3: pwm@1fe22030 {
+			compatible = "loongson,ls2k-pwm";
+
+			reg = <0 0x1fe22030 0 0xf>;
+			clocks = <&clk LOONGSON2_APB_CLK>;
+			clock-names = "pwm-clk";
+			interrupt-parent = <&liointc0>;
+			interrupts = <27 IRQ_TYPE_LEVEL_HIGH>;
+
+			#pwm-cells = <2>;
+			pinctrl-0 = <&pwm3_default>;
+			pinctrl-names = "default";
+
+			status = "disabled";
+		};
+
+		gmac0: ethernet@40040000 {
+			compatible = "snps,dwmac-3.70a";
+			reg = <0 0x40040000 0 0x8000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <12 IRQ_TYPE_LEVEL_HIGH>,
+				     <13 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq", "eth_lpi";
+			phy-mode = "rgmii-id";
+			status = "disabled";
+		};
+
+		gmac1: ethernet@40050000 {
+			compatible = "snps,dwmac-3.70a";
+			reg = <0 0x40050000 0 0x8000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <14 IRQ_TYPE_LEVEL_HIGH>,
+				     <15 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq", "eth_lpi";
+			phy-mode = "rgmii-id";
+			status = "disabled";
+		};
+
+		otg: usb@40000000 {
+			compatible = "loongson,dwc2-otg";
+			reg = <0 0x40000000 0 0x40000>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <17 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		ehci0: usb@40060000 {
+			compatible = "generic-ehci";
+			reg = <0 0x40060000 0 0x8000>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <18 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		ohci0: usb@40070000 {
+			compatible = "generic-ohci";
+			reg = <0 0x40070000 0 0x8000>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <19 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		dc: display@400c0000 {
+			compatible = "loongson,ls2k1000-dc";
+			reg = <0 0x400c0000 0 0x00010000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <28 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		hda@0x400d0000 {
+			compatible = "loongson,ls2k-audio";
+			reg = <0 0x400d0000 0 0xffff>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <4 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		sata: sata@400e0000 {
+			compatible = "snps,spear-ahci";
+			reg = <0 0x400e0000 0 0x10000>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <19 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		pcie@1a000000 {
+			compatible = "loongson,ls2k-pci";
+			reg = <0xfe 0x0 0x0 0x20000000>;
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			bus-range = <0x0 0xff>;
+			ranges = <0x01000000 0x0 0x00008000 0x0 0x18008000 0x0 0x00008000>,
+				 <0x02000000 0x0 0x60000000 0x0 0x60000000 0x0 0x20000000>;
+
+			pcie@9,0 {
+				reg = <0x4800 0x0 0x0 0x0 0x0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0x0 0x0 0x0 0x0>;
+				interrupt-map = <0x0 0x0 0x0 0x0 &liointc1 0x0 IRQ_TYPE_LEVEL_HIGH>;
+				ranges;
+			};
+
+			pcie@a,0 {
+				reg = <0x5000 0x0 0x0 0x0 0x0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				interrupt-parent = <&liointc1>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0x0 0x0 0x0 0x0>;
+				interrupt-map = <0x0 0x0 0x0 0x0 &liointc1 1 IRQ_TYPE_LEVEL_HIGH>;
+				ranges;
+			};
+
+			pcie@b,0 {
+				reg = <0x5800 0x0 0x0 0x0 0x0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				interrupt-parent = <&liointc1>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0x0 0x0 0x0 0x0>;
+				interrupt-map = <0x0 0x0 0x0 0x0 &liointc1 2 IRQ_TYPE_LEVEL_HIGH>;
+				ranges;
+			};
+
+			pcie@c,0 {
+				reg = <0x6000 0x0 0x0 0x0 0x0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				interrupt-parent = <&liointc1>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0x0 0x0 0x0 0x0>;
+				interrupt-map = <0x0 0x0 0x0 0x0 &liointc1 3 IRQ_TYPE_LEVEL_HIGH>;
+				ranges;
+			};
+
+			pcie@d,0 {
+				reg = <0x6800 0x0 0x0 0x0 0x0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				interrupt-parent = <&liointc1>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0x0 0x0 0x0 0x0>;
+				interrupt-map = <0x0 0x0 0x0 0x0 &liointc1 4 IRQ_TYPE_LEVEL_HIGH>;
+				ranges;
+			};
+
+			pcie@e,0 {
+				reg = <0x7000 0x0 0x0 0x0 0x0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				interrupt-parent = <&liointc1>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0x0 0x0 0x0 0x0>;
+				interrupt-map = <0x0 0x0 0x0 0x0 &liointc1 5 IRQ_TYPE_LEVEL_HIGH>;
+				ranges;
+			};
+		};
+	};
+};
