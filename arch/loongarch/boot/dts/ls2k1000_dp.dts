@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include "loongson-2k1000.dtsi"
+#include "loongson2k1000.dtsi"
 #include "loongson_panel_param.dtsi"
 #include <dt-bindings/input/linux-event-codes.h>
 
@@ -14,6 +14,8 @@
 
 	aliases {
 		serial0 = &uart0;
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
 	};
 
 	chosen {
