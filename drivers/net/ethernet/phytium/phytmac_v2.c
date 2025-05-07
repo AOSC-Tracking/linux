@@ -1038,7 +1038,7 @@ static unsigned int phytmac_v2_rx_map_desc(struct phytmac_queue *queue, u32 inde
 static unsigned int phytmac_v2_zero_rx_desc_addr(struct phytmac_dma_desc *desc)
 {
 	desc->desc2 = 0;
-	desc->desc0 = PHYTMAC_BIT(RXUSED);
+	desc->desc0 = (desc->desc0 & PHYTMAC_BIT(RXTSVALID)) | PHYTMAC_BIT(RXUSED);
 
 	return 0;
 }
