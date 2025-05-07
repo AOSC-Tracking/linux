@@ -12,6 +12,7 @@
 #include <linux/phylink.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <net/xdp.h>
 
 #define PHYTMAC_DRV_NAME		"phytium-mac"
 #define PHYTMAC_DRV_DESC		"PHYTIUM Ethernet Driver"
@@ -131,6 +132,14 @@
 #define PHYTMAC_WAKE_ARP		0x00000002
 #define PHYTMAC_WAKE_UCAST		0x00000004
 #define PHYTMAC_WAKE_MCAST		0x00000008
+
+/* XDP */
+#define PHYTMAC_XDP_PASS		0
+#define PHYTMAC_XDP_CONSUMED		BIT(0)
+#define PHYTMAC_XDP_TX			BIT(1)
+#define PHYTMAC_XDP_REDIR		BIT(2)
+
+#define PHYTMAC_DESC_NEEDED (MAX_SKB_FRAGS + 4)
 
 enum phytmac_interface {
 	PHYTMAC_PHY_INTERFACE_MODE_NA,
@@ -336,8 +345,20 @@ struct phytmac_dma_desc {
 };
 #endif
 
+/* TX resources are shared between XDP and netstack
+ * and we need to tag the buffer type to distinguish them
+ */
+enum phytmac_tx_buf_type {
+	PHYTMAC_TYPE_SKB = 0,
+	PHYTMAC_TYPE_XDP,
+};
+
 struct phytmac_tx_skb {
-	struct sk_buff		*skb;
+	union {
+		struct sk_buff		*skb;
+		struct xdp_frame		*xdpf;
+	};
+	enum phytmac_tx_buf_type type;
 	dma_addr_t		addr;
 	size_t			length;
 	bool			mapped_as_page;
@@ -360,6 +381,7 @@ struct phytmac_queue {
 	struct phytmac				*pdata;
 	int					irq;
 	int					index;
+	struct bpf_prog				*xdp_prog;
 
 	/* tx queue info */
 	unsigned int				tx_head;
@@ -382,6 +404,7 @@ struct phytmac_queue {
 	struct phytmac_rx_buffer		*rx_buffer_info;
 	struct napi_struct			rx_napi;
 	struct phytmac_queue_stats		stats;
+	struct xdp_rxq_info			xdp_rxq;
 
 #ifdef CONFIG_PHYTMAC_ENABLE_PTP
 	struct work_struct			tx_ts_task;
@@ -427,6 +450,7 @@ struct phytmac {
 	struct platform_device		*platdev;
 	struct net_device		*ndev;
 	struct device			*dev;
+	struct bpf_prog			*xdp_prog;
 	struct ncsi_dev			*ncsidev;
 	struct fwnode_handle		*fwnode;
 	struct phytmac_hw_if		*hw_if;
@@ -490,6 +514,23 @@ struct phytmac {
 	unsigned int			max_rx_fs;
 	u32						version;
 };
+
+/* phytmac_desc_unused - calculate if we have unused descriptors */
+static inline int phytmac_txdesc_unused(struct phytmac_queue *queue)
+{
+	struct phytmac *pdata = queue->pdata;
+
+	if (queue->tx_head > queue->tx_tail)
+		return queue->tx_head - queue->tx_tail - 1;
+
+	return pdata->tx_ring_size + queue->tx_head - queue->tx_tail - 1;
+}
+
+static inline struct netdev_queue *phytmac_get_txq(const struct phytmac *pdata,
+						   struct phytmac_queue *queue)
+{
+	return netdev_get_tx_queue(pdata->ndev, queue->index);
+}
 
 struct phytmac_hw_if {
 	int (*init_msg_ring)(struct phytmac *pdata);
@@ -630,6 +671,7 @@ struct phytmac_hw_if {
 #define PHYTMAC_RX_DMA_ATTR \
 	(DMA_ATTR_SKIP_CPU_SYNC | DMA_ATTR_WEAK_ORDERING)
 #define PHYTMAC_SKB_PAD		(NET_SKB_PAD)
+#define PHYTMAC_ETH_PKT_HDR_PAD		(ETH_HLEN + ETH_FCS_LEN + (VLAN_HLEN * 2))
 
 #define PHYTMAC_RXBUFFER_2048	2048
 #define PHYTMAC_MAX_FRAME_BUILD_SKB \
