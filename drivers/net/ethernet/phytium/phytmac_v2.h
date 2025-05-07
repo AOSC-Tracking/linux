@@ -17,6 +17,7 @@ extern struct phytmac_hw_if phytmac_2p0_hw;
 #define PHYTMAC_RX_MSG_TAIL				0x00c
 #define PHYTMAC_MSG_IMR					0x020
 #define PHYTMAC_MSG_ISR					0x02c
+#define PHYTMAC_TAILPTR_ENABLE				0x038
 
 #define PHYTMAC_SIZE					0x0048
 #define PHYTMAC_NETWORK_STATUS				0x0240
@@ -42,6 +43,12 @@ extern struct phytmac_hw_if phytmac_2p0_hw;
 /* Bitfields in PHYTMAC_MSG_ISR */
 #define PHYTMAC_MSG_COMPLETE_INDEX			0
 #define PHYTMAC_MSG_COMPLETE_WIDTH			1
+
+/* Bitfields in PHYTMAC_TAILPTR_ENABLE */
+#define PHYTMAC_TXTAIL_EN_INDEX		0	/* Enable tx tail */
+#define PHYTMAC_TXTAIL_EN_WIDTH		1
+#define PHYTMAC_RXTAIL_EN_INDEX		16	/* Enable rx tail */
+#define PHYTMAC_RXTAIL_EN_WIDTH		1
 
 /* Bitfields in PHYTMAC_SIZE */
 #define PHYTMAC_MEM_SIZE_INDEX				0
