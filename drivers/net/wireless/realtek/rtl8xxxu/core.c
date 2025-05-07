@@ -4064,7 +4064,14 @@ static int rtl8xxxu_init_device(struct ieee80211_hw *hw)
 	 */
 	rtl8xxxu_write16(priv, REG_TRXFF_BNDY + 2, fops->trxff_boundary);
 
-	ret = rtl8xxxu_download_firmware(priv);
+	// OTG port will cause download firmware fail(especiall in alpine), try again
+	for (int retry = 0; retry < 10; retry++)
+	{
+		udelay(10);
+		ret = rtl8xxxu_download_firmware(priv);
+		if (ret == 0)
+			break;
+	}
 	dev_dbg(dev, "%s: download_firmware %i\n", __func__, ret);
 	if (ret)
 		goto exit;
