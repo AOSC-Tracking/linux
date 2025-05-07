@@ -421,16 +421,18 @@ static void phytmac_v2_get_hw_stats(struct phytmac *pdata)
 	}
 }
 
-static void phytmac_v2_mdio_idle(struct phytmac *pdata)
+static int phytmac_v2_mdio_idle(struct phytmac *pdata)
 {
 	u32 val;
+	int ret;
 
 	/* wait for end of transfer */
-	val = PHYTMAC_READ(pdata, PHYTMAC_NETWORK_STATUS);
-	while (!(val & PHYTMAC_BIT(MIDLE))) {
-		cpu_relax();
-		val = PHYTMAC_READ(pdata, PHYTMAC_NETWORK_STATUS);
-	}
+	ret = readx_poll_timeout(PHTMAC_READ_NSTATUS, pdata, val, val & PHYTMAC_BIT(NDI_IDLE),
+				 1, PHYTMAC_MDIO_TIMEOUT);
+	if (ret)
+		netdev_err(pdata->ndev, "mdio wait for idle time out!");
+
+	return ret;
 }
 
 static int phytmac_v2_mdio_data_read_c22(struct phytmac *pdata, int mii_id, int regnum)
@@ -1320,6 +1322,7 @@ struct phytmac_hw_if phytmac_2p0_hw = {
 	.get_stats = phytmac_v2_get_hw_stats,
 	.set_mac_address = phytmac_v2_set_mac_addr,
 	.get_mac_address = phytmac_v2_get_mac_addr,
+	.mdio_idle = phytmac_v2_mdio_idle,
 	.mdio_read = phytmac_v2_mdio_data_read_c22,
 	.mdio_write = phytmac_v2_mdio_data_write_c22,
 	.mdio_read_c45 = phytmac_v2_mdio_data_read_c45,
