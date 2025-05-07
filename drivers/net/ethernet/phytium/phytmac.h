@@ -15,7 +15,7 @@
 
 #define PHYTMAC_DRV_NAME		"phytium-mac"
 #define PHYTMAC_DRV_DESC		"PHYTIUM Ethernet Driver"
-#define PHYTMAC_DRIVER_VERSION		"1.0.42"
+#define PHYTMAC_DRIVER_VERSION		"1.0.43"
 #define PHYTMAC_DEFAULT_MSG_ENABLE	  \
 		(NETIF_MSG_DRV		| \
 		NETIF_MSG_PROBE	| \
@@ -52,6 +52,8 @@
 #define PHYTMAC_WOL_MAGIC_PACKET	1
 
 #define DEFAULT_MSG_RING_SIZE	16
+
+#define PHYTMAC_MDIO_TIMEOUT   1000000 /* in usecs */
 
 #define PHYTMAC_CAPS_JUMBO			0x00000001
 #define PHYTMAC_CAPS_PTP			0x00000002
@@ -534,6 +536,7 @@ struct phytmac_hw_if {
 	int (*mdio_read)(struct phytmac *pdata, int mii_id, int regnum);
 	int (*mdio_write)(struct phytmac *pdata, int mii_id,
 			  int regnum, u16 data);
+	int (*mdio_idle)(struct phytmac *pdata);
 	int (*mdio_read_c45)(struct phytmac *pdata, int mii_id, int devad, int regnum);
 	int (*mdio_write_c45)(struct phytmac *pdata, int mii_id, int devad,
 			      int regnum, u16 data);
