@@ -27,7 +27,7 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	struct phytmac_msg_info msg_rx;
 	int ret = 0;
 
-	mutex_lock(&pdata->msg_ring.msg_mutex);
+	spin_lock(&pdata->msg_ring.msg_lock);
 	tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
 	tx_tail = phytmac_v2_tx_ring_wrap(pdata, pdata->msg_ring.tx_msg_wr_tail);
 	pdata->msg_ring.tx_msg_rd_tail = tx_tail;
@@ -36,7 +36,6 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	while ((tx_tail + 1) % ring_size == tx_head) {
 		netdev_info(pdata->ndev, "Tx msg ring is overrun, tx_tail:0x%x, tx_head:0x%x",
 			    tx_tail, tx_head);
-		cpu_relax();
 		tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
 	}
 
@@ -50,7 +49,7 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	} else if (len > PHYTMAC_MSG_PARA_LEN) {
 		netdev_err(pdata->ndev, "Tx msg para len %d is greater than the max len %d",
 			   len, PHYTMAC_MSG_PARA_LEN);
-		mutex_unlock(&pdata->msg_ring.msg_mutex);
+		spin_unlock(&pdata->msg_ring.msg_lock);
 		return -EINVAL;
 	}
 
@@ -67,7 +66,6 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	if (wait) {
 		tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
 		while (tx_head != tx_tail) {
-			cpu_relax();
 			tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
 		}
 
@@ -76,12 +74,12 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 		if (!(msg_rx.status0 & PHYTMAC_CMD_PRC_SUCCESS)) {
 			netdev_err(pdata->ndev, "Msg process error, cmdid:%d, subid:%d, status0:%d, tail:%d",
 				   msg.cmd_type, msg.cmd_subid, msg.status0, tx_tail);
-			mutex_unlock(&pdata->msg_ring.msg_mutex);
+			spin_unlock(&pdata->msg_ring.msg_lock);
 			return -EINVAL;
 		}
 	}
 
-	mutex_unlock(&pdata->msg_ring.msg_mutex);
+	spin_unlock(&pdata->msg_ring.msg_lock);
 	return ret;
 }
 
