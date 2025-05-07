@@ -680,6 +680,8 @@ struct phytmac_hw_if {
 #define PHYTMAC_RX_PAGE_ORDER	0
 #define PHYTMAC_RX_PAGE_SIZE	(PAGE_SIZE << PHYTMAC_RX_PAGE_ORDER)
 
+void __iomem *
+phytmac_devm_ioremap_resource_np(struct device *dev, const struct resource *res);
 struct phytmac_tx_skb *phytmac_get_tx_skb(struct phytmac_queue *queue,
 					  unsigned int index);
 inline struct phytmac_dma_desc *phytmac_get_tx_desc(struct phytmac_queue *queue,
