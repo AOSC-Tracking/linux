@@ -30,7 +30,6 @@ static const struct phytmac_config phytium_2p0_config = {
 	.hw_if = &phytmac_2p0_hw,
 	.caps = PHYTMAC_CAPS_TAILPTR
 			| PHYTMAC_CAPS_RXPTR
-			| PHYTMAC_CAPS_PWCTRL
 			| PHYTMAC_CAPS_LSO
 			| PHYTMAC_CAPS_MSG
 			| PHYTMAC_CAPS_JUMBO,
