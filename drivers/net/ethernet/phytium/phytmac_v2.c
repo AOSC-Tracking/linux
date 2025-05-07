@@ -159,7 +159,15 @@ static int phytmac_v2_init_hw(struct phytmac *pdata)
 	u16 cmd_id, cmd_subid;
 	struct phytmac_dma_info dma;
 	struct phytmac_eth_info eth;
+	u32 ptrconfig = 0;
 	u8 mdc;
+
+	if (pdata->capacities & PHYTMAC_CAPS_TAILPTR)
+		ptrconfig |= PHYTMAC_BIT(TXTAIL_EN);
+	if (pdata->capacities & PHYTMAC_CAPS_RXPTR)
+		ptrconfig |= PHYTMAC_BIT(RXTAIL_EN);
+
+	PHYTMAC_WRITE(pdata, PHYTMAC_TAILPTR_ENABLE, ptrconfig);
 
 	if (pdata->mii_bus) {
 		cmd_id = PHYTMAC_MSG_CMD_SET;
