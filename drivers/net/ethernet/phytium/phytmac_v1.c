@@ -1226,15 +1226,15 @@ static void phytmac_clear_tx_desc(struct phytmac_queue *queue)
 
 static void phytmac_get_hw_stats(struct phytmac *pdata)
 {
-	u32 stats[45];
+	u32 stats[PHYTMAC_STATIS_REG_NUM];
 	int i, j;
 	u64 val;
 	u64 *p = &pdata->stats.tx_octets;
 
-	for (i = 0 ; i < 45; i++)
+	for (i = 0 ; i < PHYTMAC_STATIS_REG_NUM; i++)
 		stats[i] = PHYTMAC_READ(pdata, PHYTMAC_OCTTX + i * 4);
 
-	for (i = 0, j = 0; i < 45; i++) {
+	for (i = 0, j = 0; i < PHYTMAC_STATIS_REG_NUM; i++) {
 		if (i == 0 || i == 20) {
 			val = (u64)stats[i + 1] << 32 | stats[i];
 			*p += val;
