@@ -75,7 +75,8 @@
 #define PHYTMAC_TX			0x1
 #define PHYTMAC_RX			0x2
 
-#define PHYTMAC_GREGS_LEN	16
+#define PHYTMAC_ETHTOOLD_REGS_LEN	64
+#define PHYTMAC_STATIS_REG_NUM		45
 
 #define PHYTMAC_MTU_MIN_SIZE	ETH_MIN_MTU
 
@@ -429,7 +430,8 @@ struct phytmac_msg {
 	u32			tx_msg_ring_size;
 	u32			rx_msg_ring_size;
 	u32			tx_msg_head;
-	u32			tx_msg_tail;
+	u32			tx_msg_wr_tail;
+	u32			tx_msg_rd_tail;
 	u32			rx_msg_head;
 	u32			rx_msg_tail;
 	/*use msg_mutex to protect msg */
