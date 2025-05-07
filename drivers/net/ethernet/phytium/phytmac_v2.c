@@ -25,6 +25,7 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	u32 tx_head, tx_tail, ring_size;
 	struct phytmac_msg_info msg;
 	struct phytmac_msg_info msg_rx;
+	u32 retry = 0;
 	int ret = 0;
 
 	spin_lock(&pdata->msg_ring.msg_lock);
@@ -34,11 +35,19 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	ring_size = pdata->msg_ring.tx_msg_ring_size;
 
 	while ((tx_tail + 1) % ring_size == tx_head) {
-		netdev_info(pdata->ndev, "Tx msg ring is overrun, tx_tail:0x%x, tx_head:0x%x",
-			    tx_tail, tx_head);
+		udelay(1);
 		tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
+		retry++;
+		if (retry >= PHYTMAC_RETRY_TIMES) {
+			netdev_err(pdata->ndev,
+				   "Time out waiting for Tx msg ring free, tx_tail:0x%x, tx_head:0x%x",
+				   tx_tail, tx_head);
+			spin_unlock(&pdata->msg_ring.msg_lock);
+			return -EINVAL;
+		}
 	}
 
+	retry = 0;
 	wait = 1;
 	memset(&msg, 0, sizeof(msg));
 	memset(&msg_rx, 0, sizeof(msg_rx));
@@ -66,7 +75,14 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	if (wait) {
 		tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
 		while (tx_head != tx_tail) {
+			udelay(1);
 			tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
+			retry++;
+			if (retry >= PHYTMAC_RETRY_TIMES) {
+				netdev_err(pdata->ndev, "Msg process time out!");
+				spin_unlock(&pdata->msg_ring.msg_lock);
+				return -EINVAL;
+			}
 		}
 
 		memcpy(&msg_rx, pdata->msg_regs + PHYTMAC_MSG(pdata->msg_ring.tx_msg_rd_tail),
