@@ -70,7 +70,7 @@ static void phytmac_get_ethtool_strings(struct net_device *ndev, u32 sset, u8 *p
 
 static inline int phytmac_get_regs_len(struct net_device *ndev)
 {
-	return PHYTMAC_GREGS_LEN;
+	return PHYTMAC_ETHTOOLD_REGS_LEN;
 }
 
 static void phytmac_get_regs(struct net_device *ndev,
@@ -81,7 +81,7 @@ static void phytmac_get_regs(struct net_device *ndev,
 	struct phytmac_hw_if *hw_if = pdata->hw_if;
 	u32 *regs_buff = p;
 
-	memset(p, 0, PHYTMAC_GREGS_LEN * sizeof(u32));
+	memset(p, 0, PHYTMAC_ETHTOOLD_REGS_LEN);
 
 	hw_if->get_regs(pdata, regs_buff);
 }
