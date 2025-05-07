@@ -114,9 +114,6 @@
 #define PHYTMAC_MSG_READ(_pdata, _reg)					\
 	__raw_readl((_pdata)->mac_regs + (_reg))
 
-#define PHYTMAC_WRITE(_pdata, _reg, _val)				\
-	__raw_writel((_val), (_pdata)->mac_regs + (_reg))
-
 #define LSO_UFO		1
 #define LSO_TSO		2
 
