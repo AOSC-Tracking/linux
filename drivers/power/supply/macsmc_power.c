@@ -31,6 +31,7 @@
 struct macsmc_power {
 	struct device *dev;
 	struct apple_smc *smc;
+	struct power_supply_desc ac_desc;
 	struct power_supply_desc batt_desc;
 
 	struct power_supply *batt;
@@ -638,9 +639,9 @@ static int macsmc_ac_get_property(struct power_supply *psy,
 
 static enum power_supply_property macsmc_ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_INPUT_POWER_LIMIT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
-	POWER_SUPPLY_PROP_INPUT_POWER_LIMIT,
 };
 
 static const struct power_supply_desc macsmc_ac_desc = {
@@ -789,6 +790,7 @@ static int macsmc_power_probe(struct platform_device *pdev)
 
 	power->dev = &pdev->dev;
 	power->smc = smc;
+	power->ac_desc = macsmc_ac_desc;
 	power->batt_desc = macsmc_battery_desc;
 	dev_set_drvdata(&pdev->dev, power);
 
@@ -832,7 +834,12 @@ static int macsmc_power_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	power->ac = devm_power_supply_register(&pdev->dev, &macsmc_ac_desc, &psy_cfg);
+	/* SMC firmware in macOS 15.4 dropped "AC-i" and "AC-n" (and all keys
+	 * with lower case last letter) without obvious replacement. */
+	if (apple_smc_read_u16(power->smc, SMC_KEY(AC-n), &vu16) < 0)
+		power->ac_desc.num_properties -= 2;
+
+	power->ac = devm_power_supply_register(&pdev->dev, &power->ac_desc, &psy_cfg);
 	if (IS_ERR(power->ac)) {
 		dev_err(&pdev->dev, "Failed to register AC adapter\n");
 		ret = PTR_ERR(power->ac);
