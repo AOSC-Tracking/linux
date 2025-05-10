@@ -58,7 +58,6 @@ struct pwm_loongson_ddata {
 	u32 irq;
 	u32 int_count;
 	u64 clk_rate;
-	struct pwm_loongson_suspend_store lss;
 	struct wait_queue_head capture_wait_queue;
 };
 
