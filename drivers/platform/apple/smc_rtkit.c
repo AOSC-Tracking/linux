@@ -145,7 +145,7 @@ static int apple_smc_cmd(struct apple_smc_rtkit *smc, u64 cmd, u64 arg,
 
 	result = FIELD_GET(SMC_RESULT, smc->cmd_ret);
 	if (result != 0)
-		return -result;
+		return -EIO;
 
 	if (ret_data)
 		*ret_data = FIELD_GET(SMC_DATA, smc->cmd_ret);
