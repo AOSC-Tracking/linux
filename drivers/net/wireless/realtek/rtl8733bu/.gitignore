@@ -1,0 +1,5 @@
+*.o
+*.o.cmd
+*.ko
+*.ko.cmd
+*.d
