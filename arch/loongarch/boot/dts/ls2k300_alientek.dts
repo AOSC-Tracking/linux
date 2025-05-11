@@ -169,6 +169,8 @@
 
 &i2c2 {
 	status = "ok";
+	pinctrl-0 = <&i2c2_mux_m1>;
+	pinctrl-names = "default";
 
 	touchpad: gt911@14 {
         compatible = "goodix,gt911";
@@ -184,6 +186,8 @@
 
 &i2c3 {
 	status = "ok";
+	pinctrl-0 = <&i2c3_mux_m1>;
+	pinctrl-names = "default";
     //8388音频芯片
 	codec: es8388@11{
 		compatible = "everest,es8388";
@@ -217,7 +221,6 @@
     //status = "disabled";
 };
 
-
 &adc {
 	status = "okay";
 };
@@ -242,6 +245,8 @@
 
 &audio {
 	status = "okay";
+	dmas = <&dma 6 0xaf
+			&dma 7 0xbf>;
 };
 
 &sound {
