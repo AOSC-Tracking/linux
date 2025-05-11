@@ -474,6 +474,19 @@ impl<'a> InitDataBuilder::ver<'a> {
                         raw.unk_hws2[i] = if *j == 0xffff { 0 } else { j / 2 };
                     }
 
+                    unsafe {
+                        let sla = core::slice::from_raw_parts(raw as *const raw::HwDataA::ver as *const u8, core::mem::size_of::<raw::HwDataA::ver>());
+
+                        pr_err!("!!! Hwdata A {} {}", sla.len(), dyncfg.hw_data_a.len());
+                        for i in 0..core::cmp::min(sla.len(), dyncfg.hw_data_a.len()) {
+                            if sla[i] != dyncfg.hw_data_a[i] {
+                                pr_err!("!!! Hwdata A first mismatch: {i}");
+                                break;
+                            }
+                        }
+                    }
+
+
                     Ok(())
                 })
             })
@@ -624,6 +637,18 @@ impl<'a> InitDataBuilder::ver<'a> {
                         raw.gpu_rev_id = hw::GpuRevisionID::B0 as u32;
                     }
 
+                    unsafe {
+                        let sla = core::slice::from_raw_parts(raw as *const raw::HwDataB::ver as *const u8, core::mem::size_of::<raw::HwDataB::ver>());
+
+                        pr_err!("!!! Hwdata B {} {}", sla.len(), dyncfg.hw_data_b.len());
+                        for i in 0..core::cmp::min(sla.len(), dyncfg.hw_data_b.len()) {
+                            if sla[i] != dyncfg.hw_data_b[i] {
+                                pr_err!("!!! Hwdata B first mismatch: {i}");
+                                break;
+                            }
+                        }
+                    }
+
                     Ok(())
                 })
             })
@@ -748,6 +773,19 @@ impl<'a> InitDataBuilder::ver<'a> {
                         }
                         raw.unk_118e8 = 1;
                     }
+
+                    unsafe {
+                        let sla = core::slice::from_raw_parts(raw as *const raw::Globals::ver as *const u8, core::mem::size_of::<raw::Globals::ver>());
+
+                        pr_err!("!!! Globals {} {}", sla.len(), dyncfg.hw_globals.len());
+                        for i in 0..core::cmp::min(sla.len(), dyncfg.hw_globals.len()) {
+                            if sla[i] != dyncfg.hw_globals[i] {
+                                pr_err!("!!! Globals first mismatch: {i}");
+                                break;
+                            }
+                        }
+                    }
+
                     Ok(())
                 })
             })
