@@ -44,10 +44,10 @@
 
 &i2c2 {
 	status = "okay";
-	pinctrl-0 = <&i2c2_G82_G83_pins>;
+	pinctrl-0 = <&i2c2_mux_m1>;
 };
 
 &i2c3 {
 	status = "okay";
-	pinctrl-0 = <&i2c3_G84_G85_pins>;
+	pinctrl-0 = <&i2c3_mux_m1>;
 };
