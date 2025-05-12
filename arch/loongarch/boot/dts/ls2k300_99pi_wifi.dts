@@ -10,5 +10,5 @@
 #include "ls2k300_99pi.dtsi"
 
 / {
-	model = "LS2K300-99PI-WIFI";
+	product = "LS2K300-99PI-WIFI";
 };
