@@ -10,7 +10,7 @@
 #include "ls2k300_99pi.dtsi"
 
 / {
-	model = "LS2K300-99PI-TF";
+	product = "LS2K300-99PI-TF";
 };
 
 &emmc {
