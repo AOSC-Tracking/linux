@@ -13,7 +13,7 @@
 #include <dt-bindings/input/linux-event-codes.h>
 
 / {
-	model = "loongson,generic";
+	model = "Loongson-2K0300";
 	compatible = "loongson,loongson3";
 	#address-cells = <2>;
 	#size-cells = <2>;

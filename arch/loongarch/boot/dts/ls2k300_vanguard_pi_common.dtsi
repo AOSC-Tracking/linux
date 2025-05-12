@@ -9,8 +9,6 @@
 #include "loongson_panel_param.dtsi"
 
 / {
-	model = "LS2K300-PAI";
-
 	chosen {
 		stdout-path = "serial0:115200n8";
 		bootargs = "earlycon";
