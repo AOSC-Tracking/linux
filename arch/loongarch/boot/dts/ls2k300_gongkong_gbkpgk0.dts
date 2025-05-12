@@ -10,8 +10,6 @@
 #include "loongson_panel_param.dtsi"
 
 / {
-	model = "LS2K300-GONGKONG-GBKPGK0";
-
 	leds {
 		compatible = "gpio-leds";
 
