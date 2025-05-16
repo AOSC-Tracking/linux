@@ -10,11 +10,13 @@ use crate::{
     alloc::flags::*,
     bindings, drm,
     drm::driver::{AllocImpl, AllocOps},
+    dma_buf,
     error::{to_result, Result},
     prelude::*,
     sync::aref::{ARef, AlwaysRefCounted},
     types::Opaque,
 };
+use core::marker::PhantomData;
 use core::{ops::Deref, ptr::NonNull};
 
 /// A macro for implementing [`AlwaysRefCounted`] for any GEM object type.
@@ -62,6 +64,7 @@ pub(crate) use impl_aref_for_gem_obj;
 pub type DriverFile<T> = drm::File<<<T as DriverObject>::Driver as drm::Driver>::File>;
 
 /// GEM object functions, which must be implemented by drivers.
+#[vtable]
 pub trait DriverObject: Sync + Send + Sized {
     /// Parent `Driver` for this object.
     type Driver: drm::Driver;
@@ -83,6 +86,11 @@ pub trait DriverObject: Sync + Send + Sized {
 
     /// Close a handle to an existing object, associated with a File.
     fn close(_obj: &<Self::Driver as drm::Driver>::Object, _file: &DriverFile<Self>) {}
+
+    /// Optional handle for exporting a gem object.
+    fn export(_obj: &<Self::Driver as drm::Driver>::Object, _flags: u32) -> Result<DmaBuf<<Self::Driver as drm::Driver>::Object>> {
+        unimplemented!()
+    }
 }
 
 /// Trait that represents a GEM object subtype
@@ -130,6 +138,21 @@ extern "C" fn close_callback<T: DriverObject>(
     let obj = unsafe { <<T::Driver as drm::Driver>::Object as IntoGEMObject>::from_raw(raw_obj) };
 
     T::close(obj, file);
+}
+
+extern "C" fn export_callback<T: DriverObject>(
+    raw_obj: *mut bindings::drm_gem_object,
+    flags: i32,
+) -> *mut bindings::dma_buf {
+    // SAFETY: `export_callback` is specified in the AllocOps structure for `Object<T>`, ensuring
+    // that `raw_obj` is contained within a `Object<T>`.
+    let obj = unsafe { <<T::Driver as drm::Driver>::Object as IntoGEMObject>::from_raw(raw_obj) };
+
+    match T::export(obj, flags as _) {
+        // DRM takes a hold of the reference
+        Ok(buf) => buf.into_raw(),
+        Err(e) => e.to_ptr(),
+    }
 }
 
 impl<T: DriverObject> IntoGEMObject for Object<T> {
@@ -238,7 +261,11 @@ impl<T: DriverObject> Object<T> {
         open: Some(open_callback::<T>),
         close: Some(close_callback::<T>),
         print_info: None,
-        export: None,
+        export: if T::HAS_EXPORT {
+            Some(export_callback::<T>)
+        } else {
+            None
+        },
         pin: None,
         unpin: None,
         get_sg_table: None,
@@ -333,6 +360,49 @@ impl<T: DriverObject> AllocImpl for Object<T> {
         dumb_create: None,
         dumb_map_offset: None,
     };
+}
+
+/// A [`dma_buf::DmaBuf`] which has been exported from a GEM object.
+///
+/// The [`dma_buf::DmaBuf`] will be released when this type is dropped.
+///
+/// # Invariants
+///
+/// - `self.0` points to a valid initialized [`dma_buf::DmaBuf`] for the lifetime of this object.
+/// - The GEM object from which this [`dma_buf::DmaBuf`] was exported from is guaranteed to be of
+///   type `T`.
+pub struct DmaBuf<T: IntoGEMObject>(NonNull<dma_buf::DmaBuf>, PhantomData<T>);
+
+impl<T: IntoGEMObject> Deref for DmaBuf<T> {
+    type Target = dma_buf::DmaBuf;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: This pointer is guaranteed to be valid by our type invariants.
+        unsafe { self.0.as_ref() }
+    }
+}
+
+impl<T: IntoGEMObject> Drop for DmaBuf<T> {
+    #[inline]
+    fn drop(&mut self) {
+        // SAFETY:
+        // - `dma_buf::DmaBuf` is guaranteed to have an identical layout to `struct dma_buf`
+        //   by its type invariants.
+        // - We hold the last reference to this `DmaBuf`, making it safe to destroy.
+        unsafe { bindings::drm_gem_dmabuf_release(self.0.cast().as_ptr()) }
+    }
+}
+
+impl<T: IntoGEMObject> DmaBuf<T> {
+    /// Leak the reference for this [`DmaBuf`] and return a raw pointer to it.
+    #[inline]
+    pub(crate) fn into_raw(self) -> *mut bindings::dma_buf {
+        let dma_ptr = self.as_raw();
+
+        core::mem::forget(self);
+        dma_ptr
+    }
 }
 
 pub(super) const fn create_fops() -> bindings::file_operations {

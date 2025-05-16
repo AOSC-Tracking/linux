@@ -9,6 +9,7 @@ use kernel::prelude::*;
 #[pin_data]
 pub(crate) struct TyrObject {}
 
+#[vtable]
 impl gem::DriverObject for TyrObject {
     type Driver = TyrDriver;
     type Args = ();
