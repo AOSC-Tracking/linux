@@ -14,6 +14,11 @@ properties:
     const: '/'
   compatible:
     oneOf:
+      - description: CTCISZ Forever Pi
+        items:
+          - const: ctcisz,forever-pi
+          - const: loongson,ls2k0300
+
       - description: Loongson-2K0500 processor based boards
         items:
           - const: loongson,ls2k0500-ref
