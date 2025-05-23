@@ -568,14 +568,6 @@ static int kvm_map_page_fast(struct kvm_vcpu *vcpu, unsigned long gpa, bool writ
 
 	/* Track access to pages marked old */
 	new = kvm_pte_mkyoung(*ptep);
-
-	/* We restore the write property of
-	 * the page table entry according to
-	 * KVM_RECORD_PAGE_WRITE_ABLE
-	 */
-	if (kvm_record_pte_write_able(new))
-		new |= _PAGE_WRITE;
-
 	if (write && !kvm_pte_dirty(new)) {
 		if (!kvm_pte_write(new)) {
 			ret = -EFAULT;
@@ -869,9 +861,9 @@ retry:
 		 * to record it to restore the write attribute of the page entry,
 		 * in the fast path kvm_map_page_fast for page table processing
 		 */
-		prot_bits |= _PAGE_WRITE | KVM_RECORD_PAGE_WRITE_ABLE;
+		prot_bits = kvm_pte_mkwrite(prot_bits);
 		if (write)
-			prot_bits |= __WRITEABLE;
+			prot_bits = kvm_pte_mkdirty(prot_bits);
 	}
 
 	/* Disable dirty logging on HugePages */
