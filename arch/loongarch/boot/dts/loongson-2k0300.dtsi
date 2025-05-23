@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2025 Loongson Technology Corporation Limited
+ * Copyright (C) 2025 Yao Zi <ziyao@disroot.org>
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "loongson,ls2k0300";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "loongson,la264";
+			reg = <0>;
+			device_type = "cpu";
+			clocks = <&cpu_clk>;
+		};
+
+	};
+
+	cpuintc: interrupt-controller {
+		compatible = "loongson,cpu-interrupt-controller";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	cpu_clk: clock-1000m {
+		compatible = "fixed-clock";
+		clock-frequency = <1000000000>;
+		#clock-cells = <0>;
+	};
+
+	soc@10000000 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges = <0x00 0x10000000 0x00 0x10000000 0x0 0x10000000>,
+			 <0x00 0x02000000 0x00 0x02000000 0x0 0x04000000>,
+			 <0x00 0x40000000 0x00 0x40000000 0x0 0x40000000>;
+
+		liointc0: interrupt-controller@16001400 {
+			compatible = "loongson,liointc-2.0";
+			reg = <0x0 0x16001400 0x0 0x40>,
+			      <0x0 0x16001040 0x0 0x8>;
+			reg-names = "main", "isr0";
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&cpuintc>;
+			interrupts = <2>;
+			interrupt-names = "int0";
+
+			loongson,parent_int_map = <0xffffffff>, /* int0 */
+						  <0x00000000>, /* int1 */
+						  <0x00000000>, /* int2 */
+						  <0x00000000>; /* int3 */
+		};
+
+		liointc1: interrupt-controller@16001440 {
+			compatible = "loongson,liointc-2.0";
+			reg = <0x0 0x16001440 0x0 0x40>,
+			      <0x0 0x16001048 0x0 0x8>;
+			reg-names = "main", "isr0";
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&cpuintc>;
+			interrupts = <4>;
+			interrupt-names = "int2";
+
+			loongson,parent_int_map = <0x00000000>, /* int0 */
+						  <0x00000000>, /* int1 */
+						  <0xffffffff>, /* int2 */
+						  <0x00000000>; /* int3 */
+		};
+
+		uart0: serial@16100000 {
+			compatible = "ns16550a";
+			reg = <0 0x16100000 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart1: serial@16100400 {
+			compatible = "ns16550a";
+			reg = <0 0x16100400 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <1 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart2: serial@16100800 {
+			compatible = "ns16550a";
+			reg = <0 0x16100800 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart3: serial@16100c00 {
+			compatible = "ns16550a";
+			reg = <0 0x16100c00 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart4: serial@16101000 {
+			compatible = "ns16550a";
+			reg = <0 0x16101000 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart5: serial@16101400 {
+			compatible = "ns16550a";
+			reg = <0 0x16101400 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart6: serial@16101800 {
+			compatible = "ns16550a";
+			reg = <0 0x16101800 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart7: serial@16101c00 {
+			compatible = "ns16550a";
+			reg = <0 0x16101c00 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart8: serial@16102000 {
+			compatible = "ns16550a";
+			reg = <0 0x16102000 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		uart9: serial@16102400 {
+			compatible = "ns16550a";
+			reg = <0 0x16102400 0 0x10>;
+			interrupt-parent = <&liointc0>;
+			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		isa@16400000 {
+			compatible = "isa";
+			#address-cells = <2>;
+			#size-cells = <1>;
+			ranges = <1 0x0 0x0 0x16400000 0x4000>;
+		};
+	};
+};
