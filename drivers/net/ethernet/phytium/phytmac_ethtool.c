@@ -507,13 +507,16 @@ static void phytmac_get_drvinfo(struct net_device *ndev, struct ethtool_drvinfo 
 {
 	struct phytmac *pdata = netdev_priv(ndev);
 
-	strscpy(drvinfo->driver, PHYTMAC_DRV_NAME, sizeof(drvinfo->driver));
 	strscpy(drvinfo->version, PHYTMAC_DRIVER_VERSION, sizeof(drvinfo->version));
+	strscpy(drvinfo->fw_version, pdata->fw_version, sizeof(drvinfo->fw_version));
 
-	if (pdata->platdev)
+	if (pdata->platdev) {
+		strscpy(drvinfo->driver, PHYTMAC_PLAT_DRV_NAME, sizeof(drvinfo->driver));
 		strscpy(drvinfo->bus_info, pdata->platdev->name, sizeof(drvinfo->bus_info));
-	else if (pdata->pcidev)
+	} else if (pdata->pcidev) {
+		strscpy(drvinfo->driver, PHYTMAC_PCI_DRV_NAME, sizeof(drvinfo->driver));
 		strscpy(drvinfo->bus_info, pci_name(pdata->pcidev), sizeof(drvinfo->bus_info));
+	}
 }
 
 static const struct ethtool_ops phytmac_ethtool_ops = {
