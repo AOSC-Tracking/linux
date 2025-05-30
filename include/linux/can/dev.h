@@ -61,7 +61,9 @@ struct can_priv {
 
 	unsigned int echo_skb_max;
 	struct sk_buff **echo_skb;
-
+	int frac_en;
+	short frac_val;
+	short frac_width;
 	enum can_state state;
 
 	/* CAN controller features - see include/uapi/linux/can/netlink.h */
