@@ -1,0 +1,327 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
+/* LOONGSON LSCANFD controller
+ *
+ * Copyright (C) 2024 Loongson Technology Corporation Limited
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+#ifndef __LSCANFD_KREGS_H__
+#define __LSCANFD_KREGS_H__
+
+#include <linux/bits.h>
+
+/* CAN_Registers memory map */
+enum lscanfd_can_registers {
+	LSCANFD_DEVICE_ID           = 0x0,
+	LSCANFD_VERSION             = 0x2,
+	LSCANFD_MODE                = 0x4,
+	LSCANFD_SETTINGS            = 0x8,
+	LSCANFD_STATUS              = 0xc,
+	LSCANFD_COMMAND             = 0x10,
+	LSCANFD_INT_STAT            = 0x14,
+	LSCANFD_INT_ENA             = 0x18,
+	LSCANFD_INT_MASK            = 0x1c,
+	LSCANFD_BTR                 = 0x20,
+	LSCANFD_BTR_FD              = 0x24,
+	LSCANFD_ERL                 = 0x28,
+	LSCANFD_FAULT_STATE         = 0x2c,
+	LSCANFD_ERC                 = 0x30,
+	LSCANFD_ERR_FD              = 0x34,
+	LSCANFD_ERR_NORM            = 0x36,
+	LSCANFD_CTR_PRES            = 0x38,
+	LSCANFD_ERR_CAPT            = 0x3c,
+	LSCANFD_RETR_CTR            = 0x40,
+	LSCANFD_ALC                 = 0x44,
+	LSCANFD_TRV_DELAY           = 0x48,
+	LSCANFD_SSP_CFG             = 0x4c,
+	LSCANFD_RX_FR_CTR           = 0x50,
+	LSCANFD_TX_FR_CTR           = 0x54,
+	LSCANFD_DEBUG_REGISTER      = 0x58,
+	LSCANFD_TS                  = 0x5c,
+	LSCANFD_TX_FRM_TST          = 0x60,
+	LSCANFD_FRC_DIV             = 0x64,
+	LSCANFD_FILTER_A_MASK       = 0x68,
+	LSCANFD_FILTER_A_VAL        = 0x6c,
+	LSCANFD_FILTER_B_MASK       = 0x70,
+	LSCANFD_FILTER_B_VAL        = 0x74,
+	LSCANFD_FILTER_C_MASK       = 0x78,
+	LSCANFD_FILTER_C_VAL        = 0x7c,
+	LSCANFD_FILTER_RAN_LOW      = 0x80,
+	LSCANFD_FILTER_RAN_HIGH     = 0x84,
+	LSCANFD_FILTER_CONTROL      = 0x88,
+	LSCANFD_RX_MEM_INFO         = 0x8c,
+	LSCANFD_RX_POINTERS         = 0x90,
+	LSCANFD_RX_STATUS           = 0x94,
+	LSCANFD_RX_DATA             = 0x98,
+	LSCANFD_TX_STATUS           = 0x9c,
+	LSCANFD_TX_COMMAND          = 0xa0,
+	LSCANFD_TX_SEL              = 0xa4,
+	LSCANFD_RESERVED0           = 0xa8,
+	LSCANFD_RESERVED1           = 0xac,
+	LSCANFD_TXTB1_DATA_1        = 0xb0,
+	LSCANFD_TXTB1_DATA_2        = 0xb4,
+	LSCANFD_TXTB1_DATA_3        = 0xb8,
+	LSCANFD_TXTB1_DATA_4        = 0xbc,
+	LSCANFD_TXTB1_DATA_5        = 0xc0,
+	LSCANFD_TXTB1_DATA_6        = 0xc4,
+	LSCANFD_TXTB1_DATA_7        = 0xc8,
+	LSCANFD_TXTB1_DATA_8        = 0xcc,
+	LSCANFD_TXTB1_DATA_9        = 0xd0,
+	LSCANFD_TXTB1_DATA_10       = 0xd4,
+	LSCANFD_TXTB1_DATA_11       = 0xd8,
+	LSCANFD_TXTB1_DATA_12       = 0xdc,
+	LSCANFD_TXTB1_DATA_13       = 0xe0,
+	LSCANFD_TXTB1_DATA_14       = 0xe4,
+	LSCANFD_TXTB1_DATA_15       = 0xe8,
+	LSCANFD_TXTB1_DATA_16       = 0xec,
+	LSCANFD_TXTB1_DATA_17       = 0xf0,
+	LSCANFD_TXTB1_DATA_18       = 0xf4,
+};
+
+/* Control_registers memory region
+ * DEVICE_ID VERSION registers
+ */
+#define REG_DEVICE_ID_DEVICE_ID GENMASK(15, 0)
+#define REG_DEVICE_ID_VER_MINOR GENMASK(23, 16)
+#define REG_DEVICE_ID_VER_MAJOR GENMASK(31, 24)
+
+/*  MODE registers */
+#define REG_MODE_RST BIT(0)
+#define REG_MODE_BMM BIT(1)
+#define REG_MODE_STM BIT(2)
+#define REG_MODE_AFM BIT(3)
+#define REG_MODE_FDE BIT(4)
+#define REG_MODE_TTTM BIT(5)
+#define REG_MODE_ROM BIT(6)
+#define REG_MODE_ACF BIT(7)
+#define REG_MODE_TSTM BIT(8)
+#define REG_MODE_RXBAM BIT(9)
+#define REG_MODE_ITSM BIT(10)
+#define REG_MODE_RTSOP BIT(12)
+#define REG_MODE_BUFM BIT(13)
+
+/*  SETTINGS registers */
+#define REG_SET_RTRLE BIT(0)
+#define REG_SET_RTRTH GENMASK(4, 1)
+#define REG_SET_ILBP BIT(5)
+#define REG_SET_ENA BIT(6)
+#define REG_SET_NISOFD BIT(7)
+#define REG_SET_PEX BIT(8)
+#define REG_SET_FDRF BIT(10)
+
+/*  STATUS registers */
+#define REG_STATUS_RXNE BIT(0)
+#define REG_STATUS_DOR BIT(1)
+//#define REG_STATUS_TXNF BIT(2)
+#define REG_STATUS_EFT BIT(3)
+#define REG_STATUS_RXS BIT(4)
+#define REG_STATUS_TXS BIT(5)
+#define REG_STATUS_EWL BIT(6)
+#define REG_STATUS_IDLE BIT(7)
+#define REG_STATUS_PEXS BIT(8)
+#define REG_STATUS_STCNT BIT(16)
+
+/*  COMMAND registers */
+#define REG_COMMAND_RXRPMV BIT(1)
+#define REG_COMMAND_RRB BIT(2)
+#define REG_COMMAND_CDO BIT(3)
+#define REG_COMMAND_ERCRST BIT(4)
+#define REG_COMMAND_RXFCRST BIT(5)
+#define REG_COMMAND_TXFCRST BIT(6)
+#define REG_COMMAND_CPEXS BIT(7)
+
+/*  INT_STAT registers */
+#define REG_INT_STAT_RXI BIT(0)
+#define REG_INT_STAT_TXI BIT(1)
+#define REG_INT_STAT_EWLI BIT(2)
+#define REG_INT_STAT_DOI BIT(3)
+#define REG_INT_STAT_FCSI BIT(4)
+#define REG_INT_STAT_ALI BIT(5)
+#define REG_INT_STAT_BEI BIT(6)
+#define REG_INT_STAT_RXFI BIT(7)
+#define REG_INT_STAT_BSI BIT(8)
+#define REG_INT_STAT_RBNEI BIT(9)
+#define REG_INT_STAT_TXBHCI BIT(10)
+#define REG_INT_STAT_OFI BIT(11)
+#define REG_INT_STAT_DMADI BIT(12)
+
+/*  INT_ENA registers */
+#define REG_INT_ENA_CLR GENMASK(28, 16)   // Clear
+#define REG_INT_ENA_SET GENMASK(12, 0)    // Set
+
+/*  INT_MASK registers */
+#define REG_INT_MASK_SET GENMASK(12, 0)   // Set
+#define REG_INT_MASK_CLR GENMASK(28, 16)  // Clear
+
+/*  BTR registers */
+#define REG_BTR_PROP GENMASK(6, 0)
+#define REG_BTR_PH1 GENMASK(12, 7)
+#define REG_BTR_PH2 GENMASK(18, 13)
+#define REG_BTR_BRP GENMASK(22, 19)
+#define REG_BTR_SJW GENMASK(31, 27)
+
+/*  BTR_FD registers */
+#define REG_BTR_FD_PROP_FD GENMASK(5, 0)
+#define REG_BTR_FD_PH1_FD GENMASK(11, 7)
+#define REG_BTR_FD_PH2_FD GENMASK(17, 13)
+#define REG_BTR_FD_BRP_FD GENMASK(26, 19)
+#define REG_BTR_FD_SJW_FD GENMASK(31, 27)
+
+/*  EWL ERP registers */
+#define REG_EWL_EW_LIMIT GENMASK(23, 16)
+#define REG_EWL_ERP_LIMIT GENMASK(7, 0)
+
+/*  FAULT_STATE registers */
+#define REG_EWL_ERA BIT(0)
+#define REG_EWL_ERP BIT(1)
+#define REG_EWL_BOF BIT(2)
+
+/*  REC TEC registers */
+#define REG_REC_REC_VAL GENMASK(24, 16)
+#define REG_REC_TEC_VAL GENMASK(8, 0)
+
+/*  ERR_NORM ERR_FD registers */
+#define REG_ERR_NORM_ERR_NORM_VAL GENMASK(15, 0)
+#define REG_ERR_NORM_ERR_FD_VAL GENMASK(31, 16)
+
+/*  CTR_PRES registers */
+#define REG_CTR_PRES_CTPV GENMASK(8, 0)
+#define REG_CTR_PRES_PTX BIT(9)
+#define REG_CTR_PRES_PRX BIT(10)
+
+/*  FILTER_A_MASK registers */
+#define REG_FILTER_A_MASK_BIT_MASK_A_VAL GENMASK(28, 0)
+
+/*  FILTER_A_VAL registers */
+#define REG_FILTER_A_VAL_BIT_VAL_A_VAL GENMASK(28, 0)
+
+/*  FILTER_B_MASK registers */
+#define REG_FILTER_B_MASK_BIT_MASK_B_VAL GENMASK(28, 0)
+
+/*  FILTER_B_VAL registers */
+#define REG_FILTER_B_VAL_BIT_VAL_B_VAL GENMASK(28, 0)
+
+/*  FILTER_C_MASK registers */
+#define REG_FILTER_C_MASK_BIT_MASK_C_VAL GENMASK(28, 0)
+
+/*  FILTER_C_VAL registers */
+#define REG_FILTER_C_VAL_BIT_VAL_C_VAL GENMASK(28, 0)
+
+/*  FILTER_RAN_LOW registers */
+#define REG_FILTER_RAN_LOW_BIT_RAN_LOW_VAL GENMASK(28, 0)
+
+/*  FILTER_RAN_HIGH registers */
+#define REG_FILTER_RAN_HIGH_BIT_RAN_HIGH_VAL GENMASK(28, 0)
+
+/*  FILTER_CONTROL FILTER_STATUS registers */
+#define REG_FILTER_CONTROL_FANB BIT(0)
+#define REG_FILTER_CONTROL_FANE BIT(1)
+#define REG_FILTER_CONTROL_FAFB BIT(2)
+#define REG_FILTER_CONTROL_FAFE BIT(3)
+#define REG_FILTER_CONTROL_FBNB BIT(4)
+#define REG_FILTER_CONTROL_FBNE BIT(5)
+#define REG_FILTER_CONTROL_FBFB BIT(6)
+#define REG_FILTER_CONTROL_FBFE BIT(7)
+#define REG_FILTER_CONTROL_FCNB BIT(8)
+#define REG_FILTER_CONTROL_FCNE BIT(9)
+#define REG_FILTER_CONTROL_FCFB BIT(10)
+#define REG_FILTER_CONTROL_FCFE BIT(11)
+#define REG_FILTER_CONTROL_FRNB BIT(12)
+#define REG_FILTER_CONTROL_FRNE BIT(13)
+#define REG_FILTER_CONTROL_FRFB BIT(14)
+#define REG_FILTER_CONTROL_FRFE BIT(15)
+#define REG_FILTER_CONTROL_SFA BIT(16)
+#define REG_FILTER_CONTROL_SFB BIT(17)
+#define REG_FILTER_CONTROL_SFC BIT(18)
+#define REG_FILTER_CONTROL_SFR BIT(19)
+
+/*  RX_MEM_INFO registers */
+#define REG_RX_MEM_INFO_RX_BUFF_SIZE GENMASK(12, 0)
+#define REG_RX_MEM_INFO_RX_MEM_FREE GENMASK(28, 16)
+
+/*  RX_POINTERS registers */
+#define REG_RX_POINTERS_RX_WPP GENMASK(11, 0)
+#define REG_RX_POINTERS_RX_RPP GENMASK(27, 16)
+
+/*  RX_STATUS RX_SETTINGS registers */
+#define REG_RX_STATUS_RXE BIT(0)
+#define REG_RX_STATUS_RXF BIT(1)
+#define REG_RX_STATUS_RXMOF BIT(2)
+#define REG_RX_STATUS_RXFRC GENMASK(14, 4)
+#define REG_RX_STATUS_RTSOP BIT(16)
+
+/*  RX_DATA registers */
+#define REG_RX_DATA_RX_DATA GENMASK(31, 0)
+
+/*  TX_STATUS registers */
+#define REG_TX_STATUS_BRP GENMASK(7, 0)
+#define REG_TX_STATUS_TXS GENMASK(10, 8)
+#define REG_TX_STATUS_BS  GENMASK(31, 16)
+
+#define REG_TX_STATUS_TX1BS GENMASK(17, 16)
+#define REG_TX_STATUS_TX2BS GENMASK(19, 18)
+#define REG_TX_STATUS_TX3BS GENMASK(21, 20)
+#define REG_TX_STATUS_TX4BS GENMASK(23, 22)
+#define REG_TX_STATUS_TX5BS GENMASK(25, 24)
+#define REG_TX_STATUS_TX6BS GENMASK(27, 26)
+#define REG_TX_STATUS_TX7BS GENMASK(29, 28)
+#define REG_TX_STATUS_TX8BS GENMASK(31, 30)
+
+/*  TX_COMMAND TXTB_INFO registers */
+#define REG_TX_COMMAND_BAR GENMASK(7, 0)
+#define REG_TX_COMMAND_BCR GENMASK(15, 8)
+#define REG_TX_COMMAND_BSC GENMASK(23, 16)
+
+/*  TX_SELECT registers */
+#define REG_TX_SELECT_BUF_SEL GENMASK(3, 0)
+#define REG_TX_SELECT_BUF_CNT GENMASK(7, 4)
+
+/*  ERR_CAPT registers */
+#define REG_ERR_CAPT_POS GENMASK(4, 0)
+#define REG_ERR_CAPT_TYPE GENMASK(7, 5)
+
+/*  RETR_CTR registers */
+#define REG_RETR_CTR_VAL GENMASK(3, 0)
+
+/*  ALC registers */
+#define REG_ALC_BIT GENMASK(4, 0)
+#define REG_ALC_ID_FIELD GENMASK(7, 5)
+
+/*  TRV_DELAY registers */
+#define REG_TRV_DELAY_VALUE GENMASK(6, 0)
+
+/*  SSP_CFG registers */
+#define REG_SSP_CFG_OFFSET GENMASK(7, 0)
+#define REG_SSP_CFG_SRC GENMASK(9, 8)
+#define REG_SSP_CFG_SAT BIT(10)
+
+/*  RX_FR_CTR registers */
+#define REG_RX_FR_CTR_RX_FR_CTR_VAL GENMASK(31, 0)
+
+/*  TX_FR_CTR registers */
+#define REG_TX_FR_CTR_TX_FR_CTR_VAL GENMASK(31, 0)
+
+/*  DEBUG_REGISTER registers */
+#define REG_DEBUG_REGISTER_STUFF_COUNT GENMASK(2, 0)
+#define REG_DEBUG_REGISTER_DESTUFF_COUNT GENMASK(5, 3)
+#define REG_DEBUG_REGISTER_PC_ARB BIT(6)
+#define REG_DEBUG_REGISTER_PC_CON BIT(7)
+#define REG_DEBUG_REGISTER_PC_DAT BIT(8)
+#define REG_DEBUG_REGISTER_PC_STC BIT(9)
+#define REG_DEBUG_REGISTER_PC_CRC BIT(10)
+#define REG_DEBUG_REGISTER_PC_CRCD BIT(11)
+#define REG_DEBUG_REGISTER_PC_ACK BIT(12)
+#define REG_DEBUG_REGISTER_PC_ACKD BIT(13)
+#define REG_DEBUG_REGISTER_PC_EOF BIT(14)
+#define REG_DEBUG_REGISTER_PC_INT BIT(15)
+#define REG_DEBUG_REGISTER_PC_SUSP BIT(16)
+#define REG_DEBUG_REGISTER_PC_OVR BIT(17)
+#define REG_DEBUG_REGISTER_PC_SOF BIT(18)
+
+/*  TIMESTAMP registers */
+#define REG_TIMESTAMP_TIMESTAMP GENMASK(15, 0)
+#define REG_TIMESTAMP_PSC GENMASK(24, 16)
+
+#endif
