@@ -62,7 +62,7 @@ MODULE_PARM_DESC(debug, "Debug level (0=none,...,16=all)");
 
 /* Max length of transmit frame must be a multiple of 8 bytes */
 #define PHYTMAC_TX_LEN_ALIGN		8
-/* Limit maximum TX length as per Cadence TSO errata. This is to avoid a
+/* Limit maximum TX length as per TSO errata. This is to avoid a
  * false amba_error in TX path from the DMA assuming there is not enough
  * space in the SRAM (16KB) even when there is.
  */
@@ -584,7 +584,8 @@ static int phytmac_alloc_rx_resource(struct phytmac *pdata)
 		}
 
 		xdp_rxq_info_unreg_mem_model(&queue->xdp_rxq);
-		WARN_ON(xdp_rxq_info_reg_mem_model(&queue->xdp_rxq, MEM_TYPE_PAGE_SHARED, NULL));
+		WARN_ON(xdp_rxq_info_reg_mem_model(&queue->xdp_rxq,
+						   MEM_TYPE_PAGE_SHARED, NULL));
 	}
 
 	return 0;
@@ -2684,6 +2685,16 @@ void phytmac_default_config(struct phytmac *pdata)
 
 	ndev->features = ndev->hw_features;
 	ndev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT;
+
+	switch (pdata->version) {
+	case VERSION_V3:
+		strscpy(pdata->fw_version, "MAC_FTM300", sizeof(pdata->fw_version));
+		break;
+
+	default:
+		strscpy(pdata->fw_version, "", sizeof(pdata->fw_version));
+		break;
+	}
 }
 
 static void phytmac_ncsi_handler(struct ncsi_dev *nd)
@@ -2835,8 +2846,8 @@ int phytmac_drv_suspend(struct phytmac *pdata)
 		rtnl_unlock();
 		spin_lock_irqsave(&pdata->lock, flags);
 		hw_if->reset_hw(pdata);
-		hw_if->poweron(pdata, PHYTMAC_POWEROFF);
 		spin_unlock_irqrestore(&pdata->lock, flags);
+		hw_if->poweron(pdata, PHYTMAC_POWEROFF);
 	}
 
 	return 0;
