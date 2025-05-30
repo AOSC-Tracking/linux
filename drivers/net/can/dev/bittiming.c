@@ -53,6 +53,7 @@ static int can_fixup_bittiming(const struct net_device *dev, struct can_bittimin
 {
 	const unsigned int tseg1 = bt->prop_seg + bt->phase_seg1;
 	const struct can_priv *priv = netdev_priv(dev);
+	unsigned int alltseg;
 	u64 brp64;
 	int err;
 
@@ -103,10 +104,19 @@ static int can_fixup_bittiming(const struct net_device *dev, struct can_bittimin
 		return -EINVAL;
 	}
 
-	bt->bitrate = priv->clock.freq / (bt->brp * can_bit_time(bt));
-	bt->sample_point = ((CAN_SYNC_SEG + tseg1) * 1000) / can_bit_time(bt);
-	bt->tq = DIV_U64_ROUND_CLOSEST(mul_u32_u32(bt->brp, NSEC_PER_SEC),
-				       priv->clock.freq);
+	if (priv->frac_en) {
+		alltseg = can_bit_time(bt) * priv->frac_width + priv->frac_val;
+		bt->bitrate = ((u64)priv->clock.freq * priv->frac_width) / (bt->brp * alltseg);
+		bt->sample_point = ((CAN_SYNC_SEG + tseg1) * 1000 * priv->frac_width) / alltseg;
+		bt->tq = DIV_U64_ROUND_CLOSEST(mul_u32_u32(bt->brp, NSEC_PER_SEC),
+					       (u64)priv->clock.freq * priv->frac_width);
+	} else {
+		alltseg = can_bit_time(bt);
+		bt->bitrate = priv->clock.freq / (bt->brp * alltseg);
+		bt->sample_point = ((CAN_SYNC_SEG + tseg1) * 1000) / alltseg;
+		bt->tq = DIV_U64_ROUND_CLOSEST(mul_u32_u32(bt->brp, NSEC_PER_SEC),
+					       priv->clock.freq);
+	}
 
 	return 0;
 }
