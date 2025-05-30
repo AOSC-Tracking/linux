@@ -117,8 +117,7 @@ static int phytmac_set_wol(struct net_device *ndev, struct ethtool_wolinfo *wol)
 
 	ret = phylink_ethtool_set_wol(pdata->phylink, wol);
 
-	/* Don't manage WoL on MAC, if PHY set_wol() fails */
-	if (ret && ret != -EOPNOTSUPP)
+	if (!ret || ret != -EOPNOTSUPP)
 		return ret;
 
 	pdata->wol = 0;
