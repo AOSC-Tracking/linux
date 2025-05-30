@@ -30,6 +30,14 @@ void numa_set_distance(int from, int to, int distance);
 #endif
 
 #ifdef CONFIG_SMP
+/*
+ * Return cpus that shares the last level cache.
+ */
+static inline const struct cpumask *cpu_coregroup_mask(int cpu)
+{
+	return &cpu_llc_shared_map[cpu];
+}
+
 extern unsigned int __max_packages;
 #define topology_max_packages()                 (__max_packages)
 #define topology_physical_package_id(cpu)	(cpu_data[cpu].package)
