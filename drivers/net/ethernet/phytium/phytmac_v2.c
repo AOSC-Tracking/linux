@@ -453,7 +453,7 @@ static int phytmac_v2_mdio_idle(struct phytmac *pdata)
 	int ret;
 
 	/* wait for end of transfer */
-	ret = readx_poll_timeout(PHTMAC_READ_NSTATUS, pdata, val, val & PHYTMAC_BIT(NDI_IDLE),
+	ret = readx_poll_timeout(PHYTMAC_READ_NSR, pdata, val, val & PHYTMAC_BIT(MIDLE),
 				 1, PHYTMAC_MDIO_TIMEOUT);
 	if (ret)
 		netdev_err(pdata->ndev, "mdio wait for idle time out!");
