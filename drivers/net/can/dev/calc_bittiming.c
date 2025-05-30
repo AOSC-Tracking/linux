@@ -103,8 +103,22 @@ int can_calc_bittiming(const struct net_device *dev, struct can_bittiming *bt,
 		if (brp < btc->brp_min || brp > btc->brp_max)
 			continue;
 
-		bitrate = priv->clock.freq / (brp * tsegall);
-		bitrate_error = abs(bt->bitrate - bitrate);
+		if (priv->frac_en) {
+			priv->frac_val = (((u64)priv->clock.freq *
+					priv->frac_width / bt->bitrate)
+					/ brp) - tsegall * priv->frac_width;
+			priv->frac_val = (priv->frac_val < 0) ? 0 :
+				(priv->frac_val > 0xff) ? 0xff : priv->frac_val;
+			bitrate = ((u64)priv->clock.freq * priv->frac_width) /
+				(brp * (tsegall * priv->frac_width +
+				priv->frac_val));
+			bitrate_error = abs(bt->bitrate - bitrate);
+			bitrate_error = (bitrate_error * priv->frac_width)
+				/ bt->bitrate;
+		} else {
+			bitrate = priv->clock.freq / (brp * tsegall);
+			bitrate_error = abs(bt->bitrate - bitrate);
+		}
 
 		/* tseg brp biterror */
 		if (bitrate_error > best_bitrate_error)
@@ -165,8 +179,13 @@ int can_calc_bittiming(const struct net_device *dev, struct can_bittiming *bt,
 	bt->brp = best_brp;
 
 	/* real bitrate */
-	bt->bitrate = priv->clock.freq /
-		(bt->brp * can_bit_time(bt));
+	if (priv->frac_en)
+		bt->bitrate = ((u64)priv->clock.freq * priv->frac_width) /
+			      (bt->brp * (can_bit_time(bt) *
+			      priv->frac_width + priv->frac_val));
+	else
+		bt->bitrate = priv->clock.freq /
+			(bt->brp * can_bit_time(bt));
 
 	return 0;
 }
