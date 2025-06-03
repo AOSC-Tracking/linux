@@ -5,9 +5,14 @@
 //! C header: [`include/linux/platform_device.h`](srctree/include/linux/platform_device.h)
 
 use crate::{
-    bindings, container_of, device, driver,
+    bindings, container_of, device,
+    devres::Devres,
+    driver,
     error::{to_result, Result},
-    io::resource::Resource,
+    io::{
+        mem::{ExclusiveIoMem, IoMem},
+        resource::Resource,
+    },
     of,
     prelude::*,
     str::CStr,
@@ -225,6 +230,120 @@ impl<Ctx: device::DeviceContext> Device<Ctx> {
         // SAFETY: `resource` is a valid pointer to a `struct resource` as
         // returned by `platform_get_resource`.
         Some(unsafe { Resource::as_ref(resource) })
+    }
+}
+
+impl Device<device::Bound> {
+    /// Maps a platform resource where the size is known at compile time.
+    ///
+    /// This uses the
+    /// [`ioremap()`](https://docs.kernel.org/driver-api/device-io.html#getting-access-to-the-device)
+    /// C API.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use kernel::{bindings, c_str, platform, of, device::Core};
+    /// # struct SampleDriver;
+    ///
+    /// impl platform::Driver for SampleDriver {
+    ///    # type IdInfo = ();
+    ///    # const OF_ID_TABLE: Option<of::IdTable<Self::IdInfo>> = None;
+    ///
+    ///    fn probe(
+    ///       pdev: &platform::Device<Core>,
+    ///       info: Option<&Self::IdInfo>,
+    ///    ) -> Result<Pin<KBox<Self>>> {
+    ///       let offset = 0; // Some offset.
+    ///
+    ///       // If the size is known at compile time, use [`Self::iomap_resource_sized`].
+    ///       //
+    ///       // No runtime checks will apply when reading and writing.
+    ///       let resource = pdev.resource_by_index(0).ok_or(ENODEV)?;
+    ///       let iomem = pdev.iomap_resource_sized::<42>(&resource)?;
+    ///       let io = iomem.access(pdev.as_ref())?;
+    ///
+    ///       // Read and write a 32-bit value at `offset`. Calling `try_access()` on
+    ///       // the `Devres` makes sure that the resource is still valid.
+    ///       let data = io.read32_relaxed(offset);
+    ///
+    ///       iomem.try_access().ok_or(ENODEV)?.write32_relaxed(data, offset);
+    ///
+    ///       # let sample_driver = KBox::new(SampleDriver, GFP_KERNEL).map_err(|_| ENOMEM)?;
+    ///       # Ok(sample_driver.into())
+    ///     }
+    /// }
+    /// ```
+    pub fn iomap_resource_sized<const SIZE: usize>(
+        &self,
+        resource: &Resource,
+    ) -> Result<Devres<IoMem<SIZE>>> {
+        IoMem::new(resource, self.as_ref())
+    }
+
+    /// Same as [`Self::iomap_resource_sized`] but with exclusive access to the
+    /// underlying region.
+    ///
+    /// This uses the
+    /// [`ioremap()`](https://docs.kernel.org/driver-api/device-io.html#getting-access-to-the-device)
+    /// C API.
+    pub fn iomap_resource_exclusive_sized<const SIZE: usize>(
+        &self,
+        resource: &Resource,
+    ) -> Result<Devres<ExclusiveIoMem<SIZE>>> {
+        ExclusiveIoMem::new(resource, self.as_ref())
+    }
+
+    /// Maps a platform resource through iomap().
+    ///
+    /// This uses the
+    /// [`ioremap()`](https://docs.kernel.org/driver-api/device-io.html#getting-access-to-the-device)
+    /// C API.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use kernel::{bindings, c_str, platform, of, device::Core};
+    /// # struct SampleDriver;
+    ///
+    /// impl platform::Driver for SampleDriver {
+    ///    # type IdInfo = ();
+    ///    # const OF_ID_TABLE: Option<of::IdTable<Self::IdInfo>> = None;
+    ///
+    ///    fn probe(
+    ///       pdev: &platform::Device<Core>,
+    ///       info: Option<&Self::IdInfo>,
+    ///    ) -> Result<Pin<KBox<Self>>> {
+    ///       let offset = 0; // Some offset.
+    ///
+    ///       // Unlike [`Self::iomap_resource_sized`], here the size of the memory region
+    ///       // is not known at compile time, so only the `try_read*` and `try_write*`
+    ///       // family of functions should be used, leading to runtime checks on every
+    ///       // access.
+    ///       let resource = pdev.resource_by_index(0).ok_or(ENODEV)?;
+    ///       let iomem = pdev.iomap_resource(&resource)?;
+    ///       let io = iomem.access(pdev.as_ref())?;
+    ///
+    ///       let data = io.try_read32_relaxed(offset)?;
+    ///
+    ///       io.try_write32_relaxed(data, offset)?;
+    ///
+    ///       # let sample_driver = KBox::new(SampleDriver, GFP_KERNEL).map_err(|_| ENOMEM)?;
+    ///       # Ok(sample_driver.into())
+    ///     }
+    /// }
+    /// ```
+    pub fn iomap_resource(&self, resource: &Resource) -> Result<Devres<IoMem<0>>> {
+        self.iomap_resource_sized::<0>(resource)
+    }
+
+    /// Same as [`Self::iomap_resource`] but with exclusive access to the underlying
+    /// region.
+    pub fn iomap_resource_exclusive(
+        &self,
+        resource: &Resource,
+    ) -> Result<Devres<ExclusiveIoMem<0>>> {
+        self.iomap_resource_exclusive_sized::<0>(resource)
     }
 }
 
