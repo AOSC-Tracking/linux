@@ -256,11 +256,11 @@
 		cpu0: cpu@0 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <0>;
@@ -283,11 +283,11 @@
 		cpu1: cpu@1 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <1>;
@@ -310,11 +310,11 @@
 		cpu2: cpu@2 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <2>;
@@ -337,11 +337,11 @@
 		cpu3: cpu@3 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <3>;
@@ -364,11 +364,11 @@
 		cpu4: cpu@4 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <4>;
@@ -391,11 +391,11 @@
 		cpu5: cpu@5 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <5>;
@@ -418,11 +418,11 @@
 		cpu6: cpu@6 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <6>;
@@ -445,11 +445,11 @@
 		cpu7: cpu@7 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <7>;
@@ -472,11 +472,11 @@
 		cpu8: cpu@8 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <8>;
@@ -499,11 +499,11 @@
 		cpu9: cpu@9 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <9>;
@@ -526,11 +526,11 @@
 		cpu10: cpu@10 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <10>;
@@ -553,11 +553,11 @@
 		cpu11: cpu@11 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <11>;
@@ -580,11 +580,11 @@
 		cpu12: cpu@12 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <12>;
@@ -607,11 +607,11 @@
 		cpu13: cpu@13 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <13>;
@@ -634,11 +634,11 @@
 		cpu14: cpu@14 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <14>;
@@ -661,11 +661,11 @@
 		cpu15: cpu@15 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <15>;
@@ -688,11 +688,11 @@
 		cpu16: cpu@16 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <16>;
@@ -715,11 +715,11 @@
 		cpu17: cpu@17 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <17>;
@@ -742,11 +742,11 @@
 		cpu18: cpu@18 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <18>;
@@ -769,11 +769,11 @@
 		cpu19: cpu@19 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <19>;
@@ -796,11 +796,11 @@
 		cpu20: cpu@20 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <20>;
@@ -823,11 +823,11 @@
 		cpu21: cpu@21 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <21>;
@@ -850,11 +850,11 @@
 		cpu22: cpu@22 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <22>;
@@ -877,11 +877,11 @@
 		cpu23: cpu@23 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <23>;
@@ -904,11 +904,11 @@
 		cpu24: cpu@24 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <24>;
@@ -931,11 +931,11 @@
 		cpu25: cpu@25 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <25>;
@@ -958,11 +958,11 @@
 		cpu26: cpu@26 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <26>;
@@ -985,11 +985,11 @@
 		cpu27: cpu@27 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <27>;
@@ -1012,11 +1012,11 @@
 		cpu28: cpu@28 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <28>;
@@ -1039,11 +1039,11 @@
 		cpu29: cpu@29 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <29>;
@@ -1066,11 +1066,11 @@
 		cpu30: cpu@30 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <30>;
@@ -1093,11 +1093,11 @@
 		cpu31: cpu@31 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <31>;
@@ -1120,11 +1120,11 @@
 		cpu32: cpu@32 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <32>;
@@ -1147,11 +1147,11 @@
 		cpu33: cpu@33 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <33>;
@@ -1174,11 +1174,11 @@
 		cpu34: cpu@34 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <34>;
@@ -1201,11 +1201,11 @@
 		cpu35: cpu@35 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <35>;
@@ -1228,11 +1228,11 @@
 		cpu36: cpu@36 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <36>;
@@ -1255,11 +1255,11 @@
 		cpu37: cpu@37 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <37>;
@@ -1282,11 +1282,11 @@
 		cpu38: cpu@38 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <38>;
@@ -1309,11 +1309,11 @@
 		cpu39: cpu@39 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <39>;
@@ -1336,11 +1336,11 @@
 		cpu40: cpu@40 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <40>;
@@ -1363,11 +1363,11 @@
 		cpu41: cpu@41 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <41>;
@@ -1390,11 +1390,11 @@
 		cpu42: cpu@42 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <42>;
@@ -1417,11 +1417,11 @@
 		cpu43: cpu@43 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <43>;
@@ -1444,11 +1444,11 @@
 		cpu44: cpu@44 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <44>;
@@ -1471,11 +1471,11 @@
 		cpu45: cpu@45 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <45>;
@@ -1498,11 +1498,11 @@
 		cpu46: cpu@46 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <46>;
@@ -1525,11 +1525,11 @@
 		cpu47: cpu@47 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <47>;
@@ -1552,11 +1552,11 @@
 		cpu48: cpu@48 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <48>;
@@ -1579,11 +1579,11 @@
 		cpu49: cpu@49 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <49>;
@@ -1606,11 +1606,11 @@
 		cpu50: cpu@50 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <50>;
@@ -1633,11 +1633,11 @@
 		cpu51: cpu@51 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <51>;
@@ -1660,11 +1660,11 @@
 		cpu52: cpu@52 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <52>;
@@ -1687,11 +1687,11 @@
 		cpu53: cpu@53 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <53>;
@@ -1714,11 +1714,11 @@
 		cpu54: cpu@54 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <54>;
@@ -1741,11 +1741,11 @@
 		cpu55: cpu@55 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <55>;
@@ -1768,11 +1768,11 @@
 		cpu56: cpu@56 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <56>;
@@ -1795,11 +1795,11 @@
 		cpu57: cpu@57 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <57>;
@@ -1822,11 +1822,11 @@
 		cpu58: cpu@58 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <58>;
@@ -1849,11 +1849,11 @@
 		cpu59: cpu@59 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <59>;
@@ -1876,11 +1876,11 @@
 		cpu60: cpu@60 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <60>;
@@ -1903,11 +1903,11 @@
 		cpu61: cpu@61 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <61>;
@@ -1930,11 +1930,11 @@
 		cpu62: cpu@62 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <62>;
@@ -1957,11 +1957,11 @@
 		cpu63: cpu@63 {
 			compatible = "thead,c920", "riscv";
 			device_type = "cpu";
-			riscv,isa = "rv64imafdc";
+			riscv,isa = "rv64imafdc_zfh";
 			riscv,isa-base = "rv64i";
 			riscv,isa-extensions = "i", "m", "a", "f", "d", "c",
 					       "ziccrse", "zicntr", "zicsr",
-					       "zifencei", "zihpm",
+					       "zifencei", "zihpm", "zfh",
 					       "xtheadvector";
 			thead,vlenb = <16>;
 			reg = <63>;
