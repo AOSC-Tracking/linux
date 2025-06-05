@@ -217,8 +217,6 @@ ia64_phys_addr_valid (unsigned long addr)
 /* Extract pfn from pte.  */
 #define pte_pfn(_pte)		((pte_val(_pte) & _PFN_MASK) >> PAGE_SHIFT)
 
-#define mk_pte(page, pgprot)	pfn_pte(page_to_pfn(page), (pgprot))
-
 /* This takes a physical page address that is used by the remapping functions */
 #define mk_pte_phys(physpage, pgprot) \
 ({ pte_t __pte; pte_val(__pte) = physpage + pgprot_val(pgprot); __pte; })
