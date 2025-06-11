@@ -77,7 +77,7 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	 * Force this PHY mode to rgmii-rxid and info of its use.
 	 * If the phy-mode rgmii is realy used, a blacklist may need to be added.
 	 */
-	if (acpi_match_device_ids(to_acpi_device(&pdev->dev), phytium_old_acpi_id) &&
+	if (acpi_match_device_ids(to_acpi_device(&pdev->dev), phytium_old_acpi_id) == 0 &&
 		plat->phy_interface == PHY_INTERFACE_MODE_RGMII) {
 		plat->phy_interface = PHY_INTERFACE_MODE_RGMII_RXID;
 		dev_info(&pdev->dev, "phytium workaround: phy-mode from rgmii to rgmii-rxid\n");
@@ -175,7 +175,7 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	/* Some old phytium 2000/4 FTGM0001 cannot auto deferred stmmac DMA settings
 	 * show kernel error 'DMA descriptors allocation failed'
 	 */
-	if (acpi_match_device_ids(to_acpi_device(&pdev->dev), phytium_old_acpi_id)) {
+	if (acpi_match_device_ids(to_acpi_device(&pdev->dev), phytium_old_acpi_id) == 0) {
 		pdev->dev.dma_ops = NULL; // solved set DMA mask Failed
 		plat->host_dma_width = 32;
 	}
