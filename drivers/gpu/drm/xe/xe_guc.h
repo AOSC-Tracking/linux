@@ -23,6 +23,9 @@
 #define GUC_FIRMWARE_VER(guc) \
 	MAKE_GUC_VER_STRUCT((guc)->fw.versions.found[XE_UC_FW_VER_RELEASE])
 
+/* GuC really expects command buffers aligned to 4K boundaries. */
+#define GUC_ALIGN SZ_4K
+
 struct drm_printer;
 
 void xe_guc_comm_init_early(struct xe_guc *guc);
