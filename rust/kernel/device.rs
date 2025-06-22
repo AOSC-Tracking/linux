@@ -8,7 +8,7 @@ use crate::{
     bindings,
     error::{Error, Result},
     str::CStr,
-    types::{ARef, Opaque},
+    types::{ARef, NotThreadSafe, Opaque},
 };
 use core::{fmt, marker::PhantomData, ptr};
 
@@ -255,6 +255,35 @@ impl<Ctx: DeviceContext> Device<Ctx> {
     pub fn property_present(&self, name: &CStr) -> bool {
         // SAFETY: By the invariant of `CStr`, `name` is null-terminated.
         unsafe { bindings::device_property_present(self.as_raw().cast_const(), name.as_char_ptr()) }
+    }
+
+    /// Locks the [`Device`] for exclusive access.
+    pub fn lock(&self) -> Guard<'_, Ctx> {
+        // SAFETY: `self` is always valid by the type invariant.
+        unsafe { bindings::device_lock(self.as_raw()) };
+
+        Guard {
+            dev: self,
+            _not_send: NotThreadSafe,
+        }
+    }
+}
+
+/// A lock guard.
+///
+/// The lock is unlocked when the guard goes out of scope.
+#[must_use = "the lock unlocks immediately when the guard is unused"]
+pub struct Guard<'a, Ctx: DeviceContext = Normal> {
+    dev: &'a Device<Ctx>,
+    _not_send: NotThreadSafe,
+}
+
+impl<Ctx: DeviceContext> Drop for Guard<'_, Ctx> {
+    fn drop(&mut self) {
+        // SAFETY:
+        // - `self.xa.xa` is always valid by the type invariant.
+        // - The caller holds the lock, so it is safe to unlock it.
+        unsafe { bindings::device_unlock(self.dev.as_raw()) };
     }
 }
 
