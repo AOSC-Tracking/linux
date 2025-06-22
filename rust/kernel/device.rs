@@ -410,6 +410,29 @@ impl<Ctx: DeviceContext> Device<Ctx> {
             _not_send: NotThreadSafe,
         }
     }
+
+    /// ensure Device is bound
+    pub fn is_bound(&self) -> Option<Guard<'_, Ctx>> {
+        let guard = self.lock();
+        if !unsafe { bindings::device_is_bound(self.as_raw()) } {
+            return None;
+        }
+        Some(guard)
+    }
+
+    /// excute closure while the device is bound
+    pub fn while_bound_with<F, U>(&self, f: F) -> Result<U>
+    where
+        F: FnOnce(&Device<Bound>) -> Result<U>,
+    {
+        let _guard = self.lock();
+        if unsafe { !bindings::device_is_bound(self.as_raw()) } {
+            return Err(ENODEV);
+        }
+        let ptr: *const Self = self;
+        let ptr = ptr.cast::<Device<Bound>>();
+        f(unsafe { &*ptr })
+    }
 }
 
 /// A lock guard.
