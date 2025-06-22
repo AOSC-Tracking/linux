@@ -9,9 +9,9 @@ use core::{mem::MaybeUninit, ptr};
 use crate::{
     alloc::KVec,
     bindings,
+    device::private::Sealed,
     error::{to_result, Result},
     prelude::*,
-    private::Sealed,
     str::{CStr, CString},
     types::{ARef, Opaque},
 };
