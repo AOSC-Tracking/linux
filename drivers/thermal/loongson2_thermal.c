@@ -130,12 +130,12 @@ static int loongson2_2k1000_get_temp(struct thermal_zone_device *tz, int *temp)
 		old_fuse_2k300 = 0;
 		val = temp_val;
 		if (temp_val < -55000) {
-			pr_info("look temp_val is %d\n", temp_val);
+			pr_info_once("look temp_val is %d\n", temp_val);
 			old_fuse_2k300 = 1;
 			temp_val = -55000;
 		}
 		else if (temp_val > 125000) {
-			pr_info("look temp_val is %d\n", temp_val);
+			pr_info_once("look temp_val is %d\n", temp_val);
 			old_fuse_2k300 = 1;
 			temp_val = 125000;
 		}
