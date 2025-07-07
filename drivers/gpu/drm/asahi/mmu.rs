@@ -15,30 +15,30 @@ use core::mem::size_of;
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::sync::atomic::{fence, AtomicU32, AtomicU64, AtomicU8, Ordering};
-use core::time::Duration;
 
 use kernel::{
-    c_str, delay, device,
-    drm::{self, gem::BaseObject, gpuvm, mm},
+    c_str, device,
+    drm::{self, gem::shmem, gpuvm, mm},
     error::Result,
     io_pgtable,
     io_pgtable::{prot, AppleUAT, IoPageTable},
-    io,
+    io, new_mutex,
     prelude::*,
     static_lock_class,
     sync::{
         lock::{mutex::MutexBackend, Guard},
         Arc, Mutex,
     },
-    time::{clock, Now},
-    types::{ARef, ForeignOwnable},
+    time::{delay::fsleep, Delta, Instant},
+    types::ARef,
 };
 
 use crate::debug::*;
-use crate::driver::AsahiDriver;
 use crate::module_parameters;
 use crate::no_debug;
 use crate::{driver, fw, gem, hw, mem, slotalloc, util::RangeExt};
+
+use pin_init;
 
 const DEBUG_CLASS: DebugFlags = DebugFlags::Mmu;
 
@@ -495,9 +495,11 @@ impl VmInner {
         let sgt = guard.as_ref().ok_or(EINVAL)?;
         let mut offset = node.offset;
 
-        for range in sgt.iter() {
-            let mut addr = range.dma_address();
-            let mut len = range.dma_len();
+        for range in unsafe { sgt.iter_raw() } {
+
+            // TODO: proper DMA address/length handling
+            let mut addr = range.dma_address() as usize;
+            let mut len: usize = range.dma_len() as usize;
 
             if (offset | addr | len | iova as usize) & UAT_PGMSK != 0 {
                 dev_err!(
@@ -1145,12 +1147,12 @@ impl Vm {
         &self,
         addr: u64,
         size: usize,
-        gem: &gem::Object,
+        gem: ARef<gem::Object>,
         prot: u32,
         guard: bool,
     ) -> Result<KernelMapping> {
-        let sgt = gem.sg_table()?;
-        let mut inner = self.inner.exec_lock(Some(gem))?;
+        let sgt = gem.owned_sg_table()?;
+        let mut inner = self.inner.exec_lock(Some(&gem))?;
 
         let vm_bo = inner.obtain_bo()?;
 
@@ -1167,7 +1169,7 @@ impl Vm {
                 uat_inner,
                 prot,
                 bo: Some(vm_bo),
-                _gem: Some(gem.into()),
+                _gem: Some(gem.clone()),
                 offset: 0,
                 mapped_size: size,
             },
