@@ -101,24 +101,24 @@ impl Node {
     }
 
     /// Returns the name of the node.
-    pub fn name(&self) -> &CStr {
+    pub(crate) fn name(&self) -> &CStr {
         // SAFETY: The lifetime of the `CStr` is the same as the lifetime of this `Node`.
         unsafe { CStr::from_char_ptr(self.node().name) }
     }
 
     /// Returns the phandle for this node.
-    pub fn phandle(&self) -> PHandle {
+    pub(crate) fn phandle(&self) -> PHandle {
         self.node().phandle
     }
 
     /// Returns the full name (with address) for this node.
-    pub fn full_name(&self) -> &CStr {
+    pub(crate) fn full_name(&self) -> &CStr {
         // SAFETY: The lifetime of the `CStr` is the same as the lifetime of this `Node`.
         unsafe { CStr::from_char_ptr(self.node().full_name) }
     }
 
     /// Returns `true` if the node is the root node.
-    pub fn is_root(&self) -> bool {
+    pub(crate) fn is_root(&self) -> bool {
         #[cfg(not(CONFIG_OF))]
         {
             false
@@ -131,7 +131,7 @@ impl Node {
     }
 
     /// Returns the parent node, if any.
-    pub fn parent(&self) -> Option<Node> {
+    pub(crate) fn parent(&self) -> Option<Node> {
         #[cfg(not(CONFIG_OF))]
         {
             None
@@ -162,7 +162,7 @@ impl Node {
 
     /// Find a child by its name and return it, or None if not found.
     #[allow(unused_variables)]
-    pub fn get_child_by_name(&self, name: &CStr) -> Option<Node> {
+    pub(crate) fn get_child_by_name(&self, name: &CStr) -> Option<Node> {
         #[cfg(not(CONFIG_OF))]
         {
             None
@@ -182,7 +182,7 @@ impl Node {
     /// Returns `None` if there is no match, or `Some<NonZeroU32>` if there is, with the value
     /// representing as match score (higher values for more specific compatible matches).
     #[allow(unused_variables)]
-    pub fn is_compatible(&self, compatible: &CStr) -> Option<NonZeroU32> {
+    pub(crate) fn is_compatible(&self, compatible: &CStr) -> Option<NonZeroU32> {
         #[cfg(not(CONFIG_OF))]
         let ret = 0;
         #[cfg(CONFIG_OF)]
@@ -240,7 +240,7 @@ impl Node {
 
     #[allow(unused_variables)]
     /// Look up a node property by name, returning a `Property` object if found.
-    pub fn find_property(&self, propname: &CStr) -> Option<Property<'_>> {
+    pub(crate) fn find_property(&self, propname: &CStr) -> Option<Property<'_>> {
         #[cfg(not(CONFIG_OF))]
         {
             None
