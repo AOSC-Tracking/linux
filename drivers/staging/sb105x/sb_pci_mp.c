@@ -2306,7 +2306,7 @@ static void serial_unlink_irq_chain(struct mp_port *mtpt)
 
 static void multi_timeout(struct timer_list *t)
 {
-	struct mp_port *mtpt = from_timer(mtpt, t, timer);
+	struct mp_port *mtpt = timer_container_of(mtpt, t, timer);
 
 	spin_lock(&mtpt->port.lock);
 	multi_handle_port(mtpt);
@@ -2481,7 +2481,7 @@ static void multi_shutdown(struct sb_uart_port *port)
 
 	if ((!is_real_interrupt(mtpt->port.irq))||(mtpt->poll_type==TYPE_POLL))
 	{
-		del_timer_sync(&mtpt->timer);
+		timer_delete_sync(&mtpt->timer);
 	}
 	else
 	{
