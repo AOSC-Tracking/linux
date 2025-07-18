@@ -25,10 +25,11 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	u32 tx_head, tx_tail, ring_size;
 	struct phytmac_msg_info msg;
 	struct phytmac_msg_info msg_rx;
+	unsigned long flags;
 	u32 retry = 0;
 	int ret = 0;
 
-	spin_lock(&pdata->msg_ring.msg_lock);
+	spin_lock_irqsave(&pdata->msg_ring.msg_lock, flags);
 	tx_head = PHYTMAC_READ(pdata, PHYTMAC_TX_MSG_HEAD) & 0xff;
 	tx_tail = phytmac_v2_tx_ring_wrap(pdata, pdata->msg_ring.tx_msg_wr_tail);
 	pdata->msg_ring.tx_msg_rd_tail = tx_tail;
@@ -42,8 +43,8 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 			netdev_err(pdata->ndev,
 				   "Time out waiting for Tx msg ring free, tx_tail:0x%x, tx_head:0x%x",
 				   tx_tail, tx_head);
-			spin_unlock(&pdata->msg_ring.msg_lock);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto err_out;
 		}
 	}
 
@@ -58,8 +59,8 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 	} else if (len > PHYTMAC_MSG_PARA_LEN) {
 		netdev_err(pdata->ndev, "Tx msg para len %d is greater than the max len %d",
 			   len, PHYTMAC_MSG_PARA_LEN);
-		spin_unlock(&pdata->msg_ring.msg_lock);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_out;
 	}
 
 	if (netif_msg_hw(pdata)) {
@@ -80,8 +81,8 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 			retry++;
 			if (retry >= PHYTMAC_RETRY_TIMES) {
 				netdev_err(pdata->ndev, "Msg process time out!");
-				spin_unlock(&pdata->msg_ring.msg_lock);
-				return -EINVAL;
+				ret = -EINVAL;
+				goto err_out;
 			}
 		}
 
@@ -90,12 +91,13 @@ static int phytmac_v2_msg_send(struct phytmac *pdata, u16 cmd_id,
 		if (!(msg_rx.status0 & PHYTMAC_CMD_PRC_SUCCESS)) {
 			netdev_err(pdata->ndev, "Msg process error, cmdid:%d, subid:%d, status0:%d, tail:%d",
 				   msg.cmd_type, msg.cmd_subid, msg.status0, tx_tail);
-			spin_unlock(&pdata->msg_ring.msg_lock);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto err_out;
 		}
 	}
 
-	spin_unlock(&pdata->msg_ring.msg_lock);
+err_out:
+	spin_unlock_irqrestore(&pdata->msg_ring.msg_lock, flags);
 	return ret;
 }
 
