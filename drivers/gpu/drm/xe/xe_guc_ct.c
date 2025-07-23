@@ -325,8 +325,8 @@ int xe_guc_ct_init_noalloc(struct xe_guc_ct *ct)
 	struct xe_gt *gt = ct_to_gt(ct);
 	int err;
 
-	xe_gt_assert(gt, !(guc_h2g_size() % PAGE_SIZE));
-	xe_gt_assert(gt, !(guc_g2h_size() % PAGE_SIZE));
+	xe_gt_assert(gt, !(guc_h2g_size() % GUC_ALIGN));
+	xe_gt_assert(gt, !(guc_g2h_size() % GUC_ALIGN));
 
 	err = drmm_mutex_init(&xe->drm, &ct->lock);
 	if (err)
