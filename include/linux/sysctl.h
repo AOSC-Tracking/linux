@@ -323,6 +323,7 @@ void do_sysctl_args(void);
 bool sysctl_is_alias(char *param);
 
 extern int unaligned_enabled;
+extern int unaligned_dump_stack;
 extern int no_unaligned_warning;
 
 #else /* CONFIG_SYSCTL */
