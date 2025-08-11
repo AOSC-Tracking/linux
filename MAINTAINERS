@@ -14448,6 +14448,7 @@ M:	Yao Zi <ziyao@disroot.org>
 L:	linux-gpio@vger.kernel.org
 S:	Maintained
 F:	Documentation/devicetree/bindings/pinctrl/loongson,ls2k0300-pinctrl.yaml
+F:	drivers/pinctrl/pinctrl-ls2k0300.c
 
 LOONGSON EDAC DRIVER
 M:	Zhao Qunqin <zhaoqunqin@loongson.cn>
