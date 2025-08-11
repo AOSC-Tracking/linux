@@ -346,6 +346,20 @@ config PINCTRL_LOONGSON2
 	 pull-down functions are not supported. Say yes to enable
 	 pinctrl for Loongson-2 SoC.
 
+config PINCTRL_LS2K0300
+	bool "Pinctrl driver for Loongson-2K0300 SoC"
+	depends on OF
+	depends on LOONGARCH || COMPILE_TEST
+	select GENERIC_PINCONF
+	select GENERIC_PINCTRL_GROUPS
+	select GENERIC_PINMUX_FUNCTIONS
+	help
+	  This selects pin controller driver for the Loongson-2K0300 SoC.
+	  It supports pin function multiplexing and drive-strength
+	  configuration.
+
+	  If compiled as a module, the module name will be pinctrl-ls2k0300.
+
 config PINCTRL_XWAY
 	bool
 	depends on SOC_TYPE_XWAY
