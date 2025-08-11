@@ -9,6 +9,8 @@
 #include <dt-bindings/clock/loongson,ls2k-clk.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 
+#define PINMUX(pin, func)	(((pin) << 8) | func)
+
 / {
 	compatible = "loongson,ls2k0300";
 	#address-cells = <2>;
@@ -53,6 +55,35 @@
 			reg = <0x0 0x16000400 0x0 0x30>;
 			clocks = <&refclk>;
 			#clock-cells = <1>;
+		};
+
+		pinctrl: pinctrl@16000490 {
+			compatible = "loongson,ls2k0300-pinctrl";
+			reg = <0x0 0x16000490 0x0 0x20>,
+			      <0x0 0x16000110 0x0 0x4>;
+			reg-names = "mux", "drive";
+
+			func-uart {
+				uart0_pins: uart0-pins {
+					pinmux = <PINMUX(40, 0x3)>,
+						 <PINMUX(41, 0x3)>;
+				};
+
+				uart1_pins: uart1-pins {
+					pinmux = <PINMUX(42, 0x3)>,
+						 <PINMUX(43, 0x3)>;
+				};
+
+				uart2_pins: uart2-pins {
+					pinmux = <PINMUX(44, 0x3)>,
+						 <PINMUX(45, 0x3)>;
+				};
+
+				uart3_pins: uart3-pins {
+					pinmux = <PINMUX(46, 0x3)>,
+						 <PINMUX(47, 0x3)>;
+				};
+			};
 		};
 
 		liointc0: interrupt-controller@16001400 {
@@ -100,6 +131,8 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins>;
 			status = "disabled";
 		};
 
@@ -109,6 +142,8 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <1 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pins>;
 			status = "disabled";
 		};
 
@@ -118,6 +153,8 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_pins>;
 			status = "disabled";
 		};
 
@@ -127,6 +164,8 @@
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart3_pins>;
 			status = "disabled";
 		};
 
