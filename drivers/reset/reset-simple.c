@@ -155,6 +155,8 @@ static const struct of_device_id reset_simple_dt_ids[] = {
 		.data = &reset_simple_active_low },
 	{ .compatible = "sophgo,sg2042-reset",
 		.data = &reset_simple_active_low },
+	{ .compatible = "loongson,ls2k0300-reset",
+		.data = &reset_simple_active_low },
 	{ /* sentinel */ },
 };
 
