@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <dt-bindings/clock/loongson,ls2k-clk.h>
+#include <dt-bindings/reset/loongson,ls2k0300-reset.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 
 #define PINMUX(pin, func)	(((pin) << 8) | func)
@@ -49,6 +50,12 @@
 		ranges = <0x00 0x10000000 0x00 0x10000000 0x0 0x10000000>,
 			 <0x00 0x02000000 0x00 0x02000000 0x0 0x04000000>,
 			 <0x00 0x40000000 0x00 0x40000000 0x0 0x40000000>;
+
+		rst: reset-controller@1600011c {
+			compatible = "loongson,ls2k0300-reset";
+			reg = <0x0 0x1600011c 0x0 0x8>;
+			#reset-cells = <1>;
+		};
 
 		clk: clock-controller@16000400 {
 			compatible = "loongson,ls2k0300-clk";
@@ -128,6 +135,7 @@
 			compatible = "ns16550a";
 			reg = <0 0x16100000 0 0x10>;
 			clocks = <&clk LS2K0300_CLK_APB_GATE>;
+			resets = <&rst RST_UART0>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
@@ -141,6 +149,7 @@
 			reg = <0 0x16100400 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <1 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART1>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart1_pins>;
@@ -152,6 +161,7 @@
 			reg = <0 0x16100800 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART2>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart2_pins>;
@@ -163,6 +173,7 @@
 			reg = <0 0x16100c00 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART3>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart3_pins>;
@@ -174,6 +185,7 @@
 			reg = <0 0x16101000 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART4>;
 			no-loopback-test;
 			status = "disabled";
 		};
@@ -183,6 +195,7 @@
 			reg = <0 0x16101400 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <2 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART5>;
 			no-loopback-test;
 			status = "disabled";
 		};
@@ -192,6 +205,7 @@
 			reg = <0 0x16101800 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART6>;
 			no-loopback-test;
 			status = "disabled";
 		};
@@ -201,6 +215,7 @@
 			reg = <0 0x16101c00 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART7>;
 			no-loopback-test;
 			status = "disabled";
 		};
@@ -210,6 +225,7 @@
 			reg = <0 0x16102000 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART8>;
 			no-loopback-test;
 			status = "disabled";
 		};
@@ -219,6 +235,7 @@
 			reg = <0 0x16102400 0 0x10>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&rst RST_UART9>;
 			no-loopback-test;
 			status = "disabled";
 		};
