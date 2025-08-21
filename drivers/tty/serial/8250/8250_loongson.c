@@ -46,7 +46,7 @@ static const struct loongson_uart_config ls2k2000_uart_config = {
 	.quirks = LOONGSON_UART_QUIRK_MCR
 };
 
-static unsigned int serial_fixup(struct uart_port *p, unsigned int offset, unsigned int val)
+static u32 serial_fixup(struct uart_port *p, unsigned int offset, u32 val)
 {
 	struct loongson_uart_data *data = p->private_data;
 
@@ -58,9 +58,10 @@ static unsigned int serial_fixup(struct uart_port *p, unsigned int offset, unsig
 	return val;
 }
 
-static unsigned int loongson_serial_in(struct uart_port *p, int offset)
+static u32 loongson_serial_in(struct uart_port *p, unsigned int offset)
 {
-	unsigned int val, offset0 = offset;
+	unsigned int offset0 = offset;
+	u32 val;
 
 	offset = offset << p->regshift;
 	val = readb(p->membase + offset);
@@ -68,7 +69,7 @@ static unsigned int loongson_serial_in(struct uart_port *p, int offset)
 	return serial_fixup(p, offset0, val);
 }
 
-static void loongson_serial_out(struct uart_port *p, int offset, int value)
+static void loongson_serial_out(struct uart_port *p, unsigned int offset, u32 value)
 {
 	offset = offset << p->regshift;
 	writeb(serial_fixup(p, offset, value), p->membase + offset);
