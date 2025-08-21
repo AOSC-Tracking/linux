@@ -58,19 +58,17 @@ static unsigned int serial_fixup(struct uart_port *p, unsigned int offset, unsig
 	return val;
 }
 
-static unsigned int loongson_serial_in(struct uart_port *p, int offset)
+static unsigned int loongson_serial_in(struct uart_port *p, unsigned int offset)
 {
-	unsigned int val, offset0 = offset;
-
-	offset = offset << p->regshift;
-	val = readb(p->membase + offset);
+	unsigned int offset = offset << p->regshift;
+	u32 val = readb(p->membase + offset);
 
 	return serial_fixup(p, offset0, val);
 }
 
-static void loongson_serial_out(struct uart_port *p, int offset, int value)
+static void loongson_serial_out(struct uart_port *p, unsigned int offset, u32 value)
 {
-	offset = offset << p->regshift;
+	unsigned int offset = offset << p->regshift;
 	writeb(serial_fixup(p, offset, value), p->membase + offset);
 }
 
