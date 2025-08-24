@@ -33,6 +33,7 @@
 //
 // Stable since Rust 1.79.0.
 #![feature(inline_const)]
+#![feature(pointer_is_aligned)]
 //
 // Stable since Rust 1.81.0.
 #![feature(lint_reasons)]
