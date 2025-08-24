@@ -2261,7 +2261,8 @@ int dwc3_core_probe(const struct dwc3_probe_data *data)
 	}
 
 	if (dev->of_node) {
-		if (of_device_is_compatible(dev->of_node, "apple,dwc3")) {
+		if (of_device_is_compatible(dev->of_node, "apple,dwc3") ||
+		    of_device_is_compatible(dev->of_node, "apple,t8103-dwc3")) {
 			if (!IS_ENABLED(CONFIG_USB_ROLE_SWITCH) ||
 			    !IS_ENABLED(CONFIG_USB_DWC3_DUAL_ROLE)) {
 				dev_err(dev,
@@ -2831,6 +2832,10 @@ static const struct of_device_id of_dwc3_match[] = {
 	},
 	{
 		.compatible = "synopsys,dwc3"
+	},
+	/* downstream forwards compatible for upstream dt-bindings */
+	{
+		.compatible = "apple,t8103-dwc3"
 	},
 	{ },
 };
