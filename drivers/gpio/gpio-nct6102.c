@@ -104,7 +104,7 @@ static int nct6102_gpio_get_value(struct gpio_chip *chip, unsigned offset)
 	return tmp;
 }
 
-static void nct6102_gpio_set_value(struct gpio_chip *chip, unsigned offset, int value)
+static int nct6102_gpio_set_value(struct gpio_chip *chip, unsigned offset, int value)
 {
 	u8 tmp;
 
@@ -116,6 +116,8 @@ static void nct6102_gpio_set_value(struct gpio_chip *chip, unsigned offset, int 
 		tmp &= ~(1 << REG_VALUE(offset));
 	write_dev(tmp, SIO_DEV_GPIO, SIO_GPIO_DATA_BASE + REG_ADDR_OFFSET(offset));
 	spin_unlock(&gpio_lock);
+
+	return 0;
 }
 
 static int nct6102_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
