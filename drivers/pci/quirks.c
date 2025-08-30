@@ -2007,8 +2007,8 @@ static void quirk_loongson_pci_bridge_supported_speeds(struct pci_dev *pdev)
 		break;
 	}
 }
-DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, 0x3c19, quirk_loongson_secondary_bridge_supported_speeds);
-DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, 0x3c29, quirk_loongson_secondary_bridge_supported_speeds);
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, 0x3c19, quirk_loongson_pci_bridge_supported_speeds);
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, 0x3c29, quirk_loongson_pci_bridge_supported_speeds);
 
 /*
  * HiSilicon KunPeng920 and KunPeng930 have devices appear as PCI but are
