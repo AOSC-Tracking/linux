@@ -88,7 +88,7 @@ static long do_sys_name_to_handle(const struct path *path,
 		if (fh_flags & EXPORT_FH_CONNECTABLE) {
 			handle->handle_type |= FILEID_IS_CONNECTABLE;
 			if (d_is_dir(path->dentry))
-				fh_flags |= FILEID_IS_DIR;
+				handle->handle_type |= FILEID_IS_DIR;
 		}
 		retval = 0;
 	}
@@ -404,7 +404,7 @@ static long do_handle_open(int mountdirfd, struct file_handle __user *ufh,
 	if (retval)
 		return retval;
 
-	CLASS(get_unused_fd, fd)(O_CLOEXEC);
+	CLASS(get_unused_fd, fd)(open_flag);
 	if (fd < 0)
 		return fd;
 

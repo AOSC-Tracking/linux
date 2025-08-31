@@ -17,6 +17,8 @@
 #include "fs.h"
 #include "accessors.h"
 #include "bio.h"
+#include "transaction.h"
+#include "sysfs.h"
 
 /* Maximum number of zones to report per blkdev_report_zones() call */
 #define BTRFS_REPORT_NR_ZONES   4096
@@ -2168,10 +2170,15 @@ bool btrfs_zone_activate(struct btrfs_block_group *block_group)
 		goto out_unlock;
 	}
 
-	/* No space left */
-	if (btrfs_zoned_bg_is_full(block_group)) {
-		ret = false;
-		goto out_unlock;
+	if (block_group->flags & BTRFS_BLOCK_GROUP_DATA) {
+		/* The caller should check if the block group is full. */
+		if (WARN_ON_ONCE(btrfs_zoned_bg_is_full(block_group))) {
+			ret = false;
+			goto out_unlock;
+		}
+	} else {
+		/* Since it is already written, it should have been active. */
+		WARN_ON_ONCE(block_group->meta_write_pointer != block_group->start);
 	}
 
 	for (i = 0; i < map->num_stripes; i++) {
@@ -2485,7 +2492,7 @@ void btrfs_schedule_zone_finish_bg(struct btrfs_block_group *bg,
 
 	/* For the work */
 	btrfs_get_block_group(bg);
-	atomic_inc(&eb->refs);
+	refcount_inc(&eb->refs);
 	bg->last_eb = eb;
 	INIT_WORK(&bg->zone_finish_work, btrfs_zone_finish_endio_workfn);
 	queue_work(system_unbound_wq, &bg->zone_finish_work);
@@ -2499,6 +2506,104 @@ void btrfs_clear_data_reloc_bg(struct btrfs_block_group *bg)
 	if (fs_info->data_reloc_bg == bg->start)
 		fs_info->data_reloc_bg = 0;
 	spin_unlock(&fs_info->relocation_bg_lock);
+}
+
+void btrfs_zoned_reserve_data_reloc_bg(struct btrfs_fs_info *fs_info)
+{
+	struct btrfs_space_info *data_sinfo = fs_info->data_sinfo;
+	struct btrfs_space_info *space_info = data_sinfo;
+	struct btrfs_trans_handle *trans;
+	struct btrfs_block_group *bg;
+	struct list_head *bg_list;
+	u64 alloc_flags;
+	bool first = true;
+	bool did_chunk_alloc = false;
+	int index;
+	int ret;
+
+	if (!btrfs_is_zoned(fs_info))
+		return;
+
+	if (fs_info->data_reloc_bg)
+		return;
+
+	if (sb_rdonly(fs_info->sb))
+		return;
+
+	alloc_flags = btrfs_get_alloc_profile(fs_info, space_info->flags);
+	index = btrfs_bg_flags_to_raid_index(alloc_flags);
+
+	/* Scan the data space_info to find empty block groups. Take the second one. */
+again:
+	bg_list = &space_info->block_groups[index];
+	list_for_each_entry(bg, bg_list, list) {
+		if (bg->alloc_offset != 0)
+			continue;
+
+		if (first) {
+			first = false;
+			continue;
+		}
+
+		if (space_info == data_sinfo) {
+			/* Migrate the block group to the data relocation space_info. */
+			struct btrfs_space_info *reloc_sinfo = data_sinfo->sub_group[0];
+			int factor;
+
+			ASSERT(reloc_sinfo->subgroup_id == BTRFS_SUB_GROUP_DATA_RELOC);
+			factor = btrfs_bg_type_to_factor(bg->flags);
+
+			down_write(&space_info->groups_sem);
+			list_del_init(&bg->list);
+			/* We can assume this as we choose the second empty one. */
+			ASSERT(!list_empty(&space_info->block_groups[index]));
+			up_write(&space_info->groups_sem);
+
+			spin_lock(&space_info->lock);
+			space_info->total_bytes -= bg->length;
+			space_info->disk_total -= bg->length * factor;
+			/* There is no allocation ever happened. */
+			ASSERT(bg->used == 0);
+			ASSERT(bg->zone_unusable == 0);
+			/* No super block in a block group on the zoned setup. */
+			ASSERT(bg->bytes_super == 0);
+			spin_unlock(&space_info->lock);
+
+			bg->space_info = reloc_sinfo;
+			if (reloc_sinfo->block_group_kobjs[index] == NULL)
+				btrfs_sysfs_add_block_group_type(bg);
+
+			btrfs_add_bg_to_space_info(fs_info, bg);
+		}
+
+		fs_info->data_reloc_bg = bg->start;
+		set_bit(BLOCK_GROUP_FLAG_ZONED_DATA_RELOC, &bg->runtime_flags);
+		btrfs_zone_activate(bg);
+
+		return;
+	}
+
+	if (did_chunk_alloc)
+		return;
+
+	trans = btrfs_join_transaction(fs_info->tree_root);
+	if (IS_ERR(trans))
+		return;
+
+	/* Allocate new BG in the data relocation space_info. */
+	space_info = data_sinfo->sub_group[0];
+	ASSERT(space_info->subgroup_id == BTRFS_SUB_GROUP_DATA_RELOC);
+	ret = btrfs_chunk_alloc(trans, space_info, alloc_flags, CHUNK_ALLOC_FORCE);
+	btrfs_end_transaction(trans);
+	if (ret == 1) {
+		/*
+		 * We allocated a new block group in the data relocation space_info. We
+		 * can take that one.
+		 */
+		first = false;
+		did_chunk_alloc = true;
+		goto again;
+	}
 }
 
 void btrfs_free_zone_cache(struct btrfs_fs_info *fs_info)
@@ -2523,8 +2628,8 @@ bool btrfs_zoned_should_reclaim(const struct btrfs_fs_info *fs_info)
 {
 	struct btrfs_fs_devices *fs_devices = fs_info->fs_devices;
 	struct btrfs_device *device;
+	u64 total = btrfs_super_total_bytes(fs_info->super_copy);
 	u64 used = 0;
-	u64 total = 0;
 	u64 factor;
 
 	ASSERT(btrfs_is_zoned(fs_info));
@@ -2537,7 +2642,6 @@ bool btrfs_zoned_should_reclaim(const struct btrfs_fs_info *fs_info)
 		if (!device->bdev)
 			continue;
 
-		total += device->disk_total_bytes;
 		used += device->bytes_used;
 	}
 	mutex_unlock(&fs_devices->device_list_mutex);
@@ -2591,7 +2695,7 @@ int btrfs_zone_finish_one_bg(struct btrfs_fs_info *fs_info)
 
 		spin_lock(&block_group->lock);
 		if (block_group->reserved || block_group->alloc_offset == 0 ||
-		    (block_group->flags & BTRFS_BLOCK_GROUP_SYSTEM) ||
+		    !(block_group->flags & BTRFS_BLOCK_GROUP_DATA) ||
 		    test_bit(BLOCK_GROUP_FLAG_ZONED_DATA_RELOC, &block_group->runtime_flags)) {
 			spin_unlock(&block_group->lock);
 			continue;

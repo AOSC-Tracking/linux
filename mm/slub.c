@@ -4269,7 +4269,12 @@ static void *___kmalloc_large_node(size_t size, gfp_t flags, int node)
 		flags = kmalloc_fix_flags(flags);
 
 	flags |= __GFP_COMP;
-	folio = (struct folio *)alloc_pages_node_noprof(node, flags, order);
+
+	if (node == NUMA_NO_NODE)
+		folio = (struct folio *)alloc_pages_noprof(flags, order);
+	else
+		folio = (struct folio *)__alloc_pages_noprof(flags, order, node, NULL);
+
 	if (folio) {
 		ptr = folio_address(folio);
 		lruvec_stat_mod_folio(folio, NR_SLAB_UNRECLAIMABLE_B,
@@ -4930,12 +4935,12 @@ alloc_new:
  * When slub_debug_orig_size() is off, krealloc() only knows about the bucket
  * size of an allocation (but not the exact size it was allocated with) and
  * hence implements the following semantics for shrinking and growing buffers
- * with __GFP_ZERO.
+ * with __GFP_ZERO::
  *
- *         new             bucket
- * 0       size             size
- * |--------|----------------|
- * |  keep  |      zero      |
+ *           new             bucket
+ *   0       size             size
+ *   |--------|----------------|
+ *   |  keep  |      zero      |
  *
  * Otherwise, the original allocation size 'orig_size' could be used to
  * precisely clear the requested size, and the new size will also be stored
