@@ -128,18 +128,6 @@
 	};
 };
 
-&pcie_rc0 {
-	status = "okay";
-};
-
-&pcie_rc1 {
-	status = "okay";
-};
-
-&pcie_rc2 {
-	status = "okay";
-};
-
 &sd {
 	pinctrl-0 = <&sd_cfg>;
 	pinctrl-names = "default";
