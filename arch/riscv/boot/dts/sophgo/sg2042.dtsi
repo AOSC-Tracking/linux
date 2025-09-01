@@ -262,15 +262,8 @@
 			vendor-id = <0x1f1c>;
 			device-id = <0x2042>;
 			cdns,no-bar-match-nbits = <48>;
-			sophgo,link-id = <0>;
-			sophgo,syscon-pcie-ctrl = <&cdns_pcie0_ctrl>;
 			msi-parent = <&msi>;
 			status = "disabled";
-		};
-
-		cdns_pcie0_ctrl: syscon@7061800000 {
-			compatible = "sophgo,sg2042-pcie-ctrl", "syscon";
-			reg = <0x70 0x61800000 0x0 0x800000>;
 		};
 
 		pcie_rc1: pcie@7062000000 {
@@ -291,17 +284,8 @@
 			vendor-id = <0x1f1c>;
 			device-id = <0x2042>;
 			cdns,no-bar-match-nbits = <48>;
-			sophgo,link-id = <0>;
-			sophgo,syscon-pcie-ctrl = <&cdns_pcie1_ctrl>;
-			msi-parent = <&msi_pcie>;
+			msi-parent = <&msi>;
 			status = "disabled";
-			msi_pcie: msi {
-				compatible = "sophgo,sg2042-pcie-msi";
-				msi-controller;
-				interrupt-parent = <&intc>;
-				interrupts = <123 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-names = "msi";
-			};
 		};
 
 		pcie_rc2: pcie@7062800000 {
@@ -322,15 +306,8 @@
 			vendor-id = <0x1f1c>;
 			device-id = <0x2042>;
 			cdns,no-bar-match-nbits = <48>;
-			sophgo,link-id = <1>;
-			sophgo,syscon-pcie-ctrl = <&cdns_pcie1_ctrl>;
 			msi-parent = <&msi>;
 			status = "disabled";
-		};
-
-		cdns_pcie1_ctrl: syscon@7063800000 {
-			compatible = "sophgo,sg2042-pcie-ctrl", "syscon";
-			reg = <0x70 0x63800000 0x0 0x800000>;
 		};
 
 		clint_mswi: interrupt-controller@7094000000 {

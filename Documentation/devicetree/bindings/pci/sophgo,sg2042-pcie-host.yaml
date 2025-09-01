@@ -30,77 +30,7 @@ properties:
   device-id:
     const: 0x2042
 
-  msi:
-    type: object
-    $ref: /schemas/interrupt-controller/msi-controller.yaml#
-    unevaluatedProperties: false
-
-    properties:
-      compatible:
-        items:
-          - const: sophgo,sg2042-pcie-msi
-
-      interrupts:
-        maxItems: 1
-
-      interrupt-names:
-        const: msi
-
   msi-parent: true
-
-  sophgo,link-id:
-    $ref: /schemas/types.yaml#/definitions/uint32
-    description: |
-      SG2042 uses Cadence IP, every IP is composed of 2 cores (called link0
-      & link1 as Cadence's term). Each core corresponds to a host bridge,
-      and each host bridge has only one root port. Their configuration
-      registers are completely independent. SG2042 integrates two Cadence IPs,
-      so there can actually be up to four host bridges. "sophgo,link-id" is
-      used to identify which core/link the PCIe host bridge node corresponds to.
-
-      The Cadence IP has two modes of operation, selected by a strap pin.
-
-      In the single-link mode, the Cadence PCIe core instance associated
-      with Link0 is connected to all the lanes and the Cadence PCIe core
-      instance associated with Link1 is inactive.
-
-      In the dual-link mode, the Cadence PCIe core instance associated
-      with Link0 is connected to the lower half of the lanes and the
-      Cadence PCIe core instance associated with Link1 is connected to
-      the upper half of the lanes.
-
-      SG2042 contains 2 Cadence IPs and configures the Cores as below:
-
-                     +-- Core (Link0) <---> pcie_rc0  +-----------------+
-                     |                                |                 |
-      Cadence IP 1 --+                                | cdns_pcie0_ctrl |
-                     |                                |                 |
-                     +-- Core (Link1) <---> disabled  +-----------------+
-
-                     +-- Core (Link0) <---> pcie_rc1  +-----------------+
-                     |                                |                 |
-      Cadence IP 2 --+                                | cdns_pcie1_ctrl |
-                     |                                |                 |
-                     +-- Core (Link1) <---> pcie_rc2  +-----------------+
-
-      pcie_rcX is PCIe node ("sophgo,sg2042-pcie-host") defined in DTS.
-
-      Sophgo defines some new register files to add support for their MSI
-      controller inside PCIe. These new register files are defined in DTS as
-      syscon node ("sophgo,sg2042-pcie-ctrl"), i.e. "cdns_pcie0_ctrl" /
-      "cdns_pcie1_ctrl". cdns_pcieX_ctrl contains some registers shared by
-      pcie_rcX, even two RC (Link)s may share different bits of the same
-      register. For example, cdns_pcie1_ctrl contains registers shared by
-      link0 & link1 for Cadence IP 2.
-
-      "sophgo,link-id" is defined to distinguish the two RC's in one Cadence IP,
-      so we can know what registers (bits) we should use.
-
-  sophgo,syscon-pcie-ctrl:
-    $ref: /schemas/types.yaml#/definitions/phandle
-    description:
-      Phandle to the PCIe System Controller DT node. It's required to
-      access some MSI operation registers shared by PCIe RCs.
 
 allOf:
   - $ref: cdns-pcie-host.yaml#
@@ -111,8 +41,6 @@ required:
   - reg-names
   - vendor-id
   - device-id
-  - sophgo,link-id
-  - sophgo,syscon-pcie-ctrl
 
 unevaluatedProperties: false
 
@@ -134,14 +62,5 @@ examples:
       vendor-id = <0x1f1c>;
       device-id = <0x2042>;
       cdns,no-bar-match-nbits = <48>;
-      sophgo,link-id = <0>;
-      sophgo,syscon-pcie-ctrl = <&cdns_pcie1_ctrl>;
-      msi-parent = <&msi_pcie>;
-      msi_pcie: msi {
-        compatible = "sophgo,sg2042-pcie-msi";
-        msi-controller;
-        interrupt-parent = <&intc>;
-        interrupts = <123 IRQ_TYPE_LEVEL_HIGH>;
-        interrupt-names = "msi";
-      };
+      msi-parent = <&msi>;
     };
