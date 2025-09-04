@@ -631,9 +631,10 @@ int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node,
 {
 	return vmemmap_populate_basepages(start, end, node, NULL);
 }
-
+#ifdef CONFIG_MEMORY_HOTPLUG
 void vmemmap_free(unsigned long start, unsigned long end,
 		struct vmem_altmap *altmap)
 {
 }
 #endif
+#endif /* CONFIG_SPARSEMEM_VMEMMAP */
