@@ -6,6 +6,7 @@
 #include <linux/timex.h>
 #include <linux/clocksource.h>
 #include <linux/io.h>
+#include <asm/cyclone.h>
 
 /* IBM Summit (EXA) Cyclone counter code*/
 #define CYCLONE_CBAR_ADDR 0xFEB00CD0
