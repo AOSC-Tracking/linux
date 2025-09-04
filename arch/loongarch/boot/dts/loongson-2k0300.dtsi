@@ -174,6 +174,26 @@
 			status = "disabled";
 		};
 
+		gpio: gpio@16104000 {
+			compatible = "loongson,ls2k0300-gpio";
+			reg = <0x0 0x16104000 0x0 0x4000>;
+			interrupt-parent = <&liointc1>;
+			interrupts = <21 IRQ_TYPE_LEVEL_HIGH>,
+				     <22 IRQ_TYPE_LEVEL_HIGH>,
+				     <23 IRQ_TYPE_LEVEL_HIGH>,
+				     <24 IRQ_TYPE_LEVEL_HIGH>,
+				     <25 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>,
+				     <27 IRQ_TYPE_LEVEL_HIGH>;
+			ngpios = <106>;
+			gpio-controller;
+			gpio-ranges = <&pinctrl 0 0 106>;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			resets = <&rst RST_GPIO>;
+		};
+
 		isa@16400000 {
 			compatible = "isa";
 			#address-cells = <2>;
