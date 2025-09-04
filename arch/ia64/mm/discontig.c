@@ -625,7 +625,7 @@ void arch_refresh_nodedata(int update_node, pg_data_t *update_pgdat)
 	scatter_node_data();
 }
 
-#ifdef CONFIG_SPARSEMEM_VMEMMAP
+#if defined(CONFIG_SPARSEMEM_VMEMMAP && CONFIG_MEMORY_HOTPLUG)
 int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node,
 		struct vmem_altmap *altmap)
 {
