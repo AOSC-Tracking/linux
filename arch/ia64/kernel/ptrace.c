@@ -30,6 +30,7 @@
 #include <asm/rse.h>
 #include <linux/uaccess.h>
 #include <asm/unwind.h>
+#include <asm/syscall.h>
 
 #include "entry.h"
 
