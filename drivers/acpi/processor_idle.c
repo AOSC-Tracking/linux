@@ -695,8 +695,9 @@ static int __cpuidle acpi_idle_enter(struct cpuidle_device *dev,
 		}
 	}
 
-	if (cx->type == ACPI_STATE_C3)
-		ACPI_FLUSH_CPU_CACHE();
+	if (cx->type == ACPI_STATE_C3) {
+		ACPI_FLUSH_CPU_CACHE()
+	}
 
 	acpi_idle_do_entry(cx);
 
