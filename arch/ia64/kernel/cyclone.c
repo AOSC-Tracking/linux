@@ -35,7 +35,7 @@ static struct clocksource clocksource_cyclone = {
         .flags          = CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
-int __init init_cyclone_clock(void)
+static int __init init_cyclone_clock(void)
 {
 	u64 __iomem *reg;
 	u64 base;	/* saved cyclone base address */
