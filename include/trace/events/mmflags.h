@@ -113,6 +113,12 @@ TRACE_DEFINE_ENUM(___GFP_LAST_BIT);
 #define IF_HAVE_PG_MLOCK(_name)
 #endif
 
+#ifdef CONFIG_ARCH_USES_PG_UNCACHED
+#define IF_HAVE_PG_UNCACHED(_name) ,{1UL << PG_##_name, __stringify(_name)}
+#else
+#define IF_HAVE_PG_UNCACHED(_name)
+#endif
+
 #ifdef CONFIG_MEMORY_FAILURE
 #define IF_HAVE_PG_HWPOISON(_name) ,{1UL << PG_##_name, __stringify(_name)}
 #else
@@ -161,6 +167,7 @@ TRACE_DEFINE_ENUM(___GFP_LAST_BIT);
 	DEF_PAGEFLAG_NAME(unevictable),					\
 	DEF_PAGEFLAG_NAME(dropbehind)					\
 IF_HAVE_PG_MLOCK(mlocked)						\
+IF_HAVE_PG_UNCACHED(uncached)						\
 IF_HAVE_PG_HWPOISON(hwpoison)						\
 IF_HAVE_PG_IDLE(idle)							\
 IF_HAVE_PG_IDLE(young)							\
@@ -174,7 +181,7 @@ IF_HAVE_PG_ARCH_3(arch_3)
 
 #if defined(CONFIG_PPC64)
 #define __VM_ARCH_SPECIFIC_1 {VM_SAO,     "sao"           }
-#elif defined(CONFIG_PARISC)
+#elif defined(CONFIG_PARISC) || defined(CONFIG_IA64)
 #define __VM_ARCH_SPECIFIC_1 {VM_GROWSUP,	"growsup"	}
 #elif !defined(CONFIG_MMU)
 #define __VM_ARCH_SPECIFIC_1 {VM_MAPPED_COPY,"mappedcopy"	}

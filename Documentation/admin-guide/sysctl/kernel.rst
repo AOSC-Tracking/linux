@@ -475,8 +475,8 @@ ignore-unaligned-usertrap
 
 On architectures where unaligned accesses cause traps, and where this
 feature is supported (``CONFIG_SYSCTL_ARCH_UNALIGN_NO_WARN``;
-currently, ``arc``, ``parisc`` and ``loongarch``), controls whether all
-unaligned traps are logged.
+currently, ``arc``, ``ia64``, ``parisc`` and ``loongarch``), controls whether
+all unaligned traps are logged.
 
 = =============================================================
 0 Log all unaligned accesses.
@@ -484,7 +484,10 @@ unaligned traps are logged.
   setting.
 = =============================================================
 
-See also `unaligned-trap`_.
+See also `unaligned-trap`_ and `unaligned-dump-stack`_. On ``ia64``,
+this allows system administrators to override the
+``IA64_THREAD_UAC_NOPRINT`` ``prctl`` and avoid logs being flooded.
+
 
 io_uring_disabled
 =================
@@ -1604,6 +1607,22 @@ This only works if the kernel was booted with ``tp_printk`` enabled.
 
 See Documentation/admin-guide/kernel-parameters.rst and
 Documentation/trace/boottime-trace.rst.
+
+
+.. _unaligned-dump-stack:
+
+unaligned-dump-stack (ia64)
+===========================
+
+When logging unaligned accesses, controls whether the stack is
+dumped.
+
+= ===================================================
+0 Do not dump the stack. This is the default setting.
+1 Dump the stack.
+= ===================================================
+
+See also `ignore-unaligned-usertrap`_.
 
 
 unaligned-trap

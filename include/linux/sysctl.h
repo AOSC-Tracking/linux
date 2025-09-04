@@ -243,6 +243,7 @@ int do_proc_douintvec(const struct ctl_table *table, int write,
 		      void *data);
 
 extern int unaligned_enabled;
+extern int unaligned_dump_stack;
 extern int no_unaligned_warning;
 
 #else /* CONFIG_SYSCTL */

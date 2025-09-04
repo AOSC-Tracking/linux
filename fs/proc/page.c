@@ -241,6 +241,10 @@ u64 stable_page_flags(const struct page *page)
 		u |= kpf_copy_bit(ps.page_snapshot.flags, KPF_HWPOISON, PG_hwpoison);
 #endif
 
+#ifdef CONFIG_ARCH_USES_PG_UNCACHED
+	u |= kpf_copy_bit(k, KPF_UNCACHED,	PG_uncached);
+#endif
+
 	u |= kpf_copy_bit(k, KPF_RESERVED,	PG_reserved);
 	u |= kpf_copy_bit(k, KPF_OWNER_2,	PG_owner_2);
 	u |= kpf_copy_bit(k, KPF_PRIVATE,	PG_private);

@@ -85,6 +85,10 @@ patch -p1 < %{SOURCE2}
 
 %install
 mkdir -p %{buildroot}/lib/modules/%{KERNELRELEASE}
+%ifarch ia64
+mkdir -p %{buildroot}/boot/efi
+ln -s efi/vmlinuz-%{KERNELRELEASE} %{buildroot}/boot/
+%endif
 cp $(%{make} %{makeflags} -s image_name) %{buildroot}/lib/modules/%{KERNELRELEASE}/vmlinuz
 # DEPMOD=true makes depmod no-op. We do not package depmod-generated files.
 %{make} %{makeflags} INSTALL_MOD_PATH=%{buildroot} DEPMOD=true modules_install
@@ -139,9 +143,14 @@ rm -f debugfiles.list debuglinks.list debugsourcefiles.list debugsources.list \
 if [ -x /usr/bin/kernel-install ]; then
 	/usr/bin/kernel-install add %{KERNELRELEASE} /lib/modules/%{KERNELRELEASE}/vmlinuz
 fi
+%ifarch ia64
+boot_subdir="efi/"
+%else
+boot_subdir=""
+%endif
 for file in vmlinuz System.map config; do
-	if ! cmp --silent "/lib/modules/%{KERNELRELEASE}/${file}" "/boot/${file}-%{KERNELRELEASE}"; then
-		cp "/lib/modules/%{KERNELRELEASE}/${file}" "/boot/${file}-%{KERNELRELEASE}"
+	if ! cmp --silent "/lib/modules/%{KERNELRELEASE}/${file}" "/boot/${boot_subdir}${file}-%{KERNELRELEASE}"; then
+		cp "/lib/modules/%{KERNELRELEASE}/${file}" "/boot/${boot_subdir}${file}-%{KERNELRELEASE}"
 	fi
 done
 if [ -d "/lib/modules/%{KERNELRELEASE}/dtb" ] && \

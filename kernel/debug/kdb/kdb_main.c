@@ -150,6 +150,16 @@ static char *__env[31] = {
 
 static const int __nenv = ARRAY_SIZE(__env);
 
+struct task_struct *kdb_curr_task(int cpu)
+{
+	struct task_struct *p = curr_task(cpu);
+#ifdef	_TIF_MCA_INIT
+	if ((task_thread_info(p)->flags & _TIF_MCA_INIT) && KDB_TSK(cpu))
+		p = krp->p;
+#endif
+	return p;
+}
+
 /*
  * Update the permissions flags (kdb_cmd_enabled) to match the
  * current lockdown state.
@@ -1158,7 +1168,7 @@ static int kdb_local(kdb_reason_t reason, int error, struct pt_regs *regs,
 	char *cmdbuf;
 	int diag;
 	struct task_struct *kdb_current =
-		curr_task(raw_smp_processor_id());
+		kdb_curr_task(raw_smp_processor_id());
 
 	KDB_DEBUG_STATE("kdb_local 1", reason);
 
@@ -2177,7 +2187,7 @@ void kdb_ps_suppressed(void)
 	unsigned long cpu;
 	const struct task_struct *p, *g;
 	for_each_online_cpu(cpu) {
-		p = curr_task(cpu);
+		p = kdb_curr_task(cpu);
 		if (kdb_task_state(p, "-"))
 			++idle;
 	}
@@ -2213,7 +2223,7 @@ void kdb_ps1(const struct task_struct *p)
 		   kdb_task_has_cpu(p), kdb_process_cpu(p),
 		   kdb_task_state_char(p),
 		   (void *)(&p->thread),
-		   p == curr_task(raw_smp_processor_id()) ? '*' : ' ',
+		   p == kdb_curr_task(raw_smp_processor_id()) ? '*' : ' ',
 		   p->comm);
 	if (kdb_task_has_cpu(p)) {
 		if (!KDB_TSK(cpu)) {
@@ -2249,7 +2259,7 @@ static int kdb_ps(int argc, const char **argv)
 	for_each_online_cpu(cpu) {
 		if (KDB_FLAG(CMD_INTERRUPT))
 			return 0;
-		p = curr_task(cpu);
+		p = kdb_curr_task(cpu);
 		if (kdb_task_state(p, mask))
 			kdb_ps1(p);
 	}

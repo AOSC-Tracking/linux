@@ -1498,6 +1498,15 @@ static const struct ctl_table sysctl_subsys_table[] = {
 		.proc_handler	= proc_dointvec,
 	},
 #endif
+#ifdef CONFIG_IA64
+	{
+		.procname	= "unaligned-dump-stack",
+		.data		= &unaligned_dump_stack,
+		.maxlen		= sizeof (int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+#endif
 };
 
 int __init sysctl_init_bases(void)
