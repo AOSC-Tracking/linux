@@ -1997,12 +1997,16 @@ static void quirk_loongson_pci_bridge_supported_speeds(struct pci_dev *pdev)
 	switch (pdev->bus->max_bus_speed) {
 	case PCIE_SPEED_16_0GT:
 		pdev->supported_speeds |= PCI_EXP_LNKCAP2_SLS_16_0GB;
+		break;
 	case PCIE_SPEED_8_0GT:
 		pdev->supported_speeds |= PCI_EXP_LNKCAP2_SLS_8_0GB;
+		break;
 	case PCIE_SPEED_5_0GT:
 		pdev->supported_speeds |= PCI_EXP_LNKCAP2_SLS_5_0GB;
+		break;
 	case PCIE_SPEED_2_5GT:
 		pdev->supported_speeds |= PCI_EXP_LNKCAP2_SLS_2_5GB;
+		break;
 	default:
 		break;
 	}
