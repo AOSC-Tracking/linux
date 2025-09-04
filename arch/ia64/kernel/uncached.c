@@ -174,7 +174,7 @@ failed:
  * requested node. If not enough contiguous uncached pages are available
  * on the requested node, roundrobin starting with the next higher node.
  */
-unsigned long uncached_alloc_page(int starting_nid, int n_pages)
+static unsigned long uncached_alloc_page(int starting_nid, int n_pages)
 {
 	unsigned long uc_addr;
 	struct uncached_pool *uc_pool;
@@ -215,7 +215,7 @@ EXPORT_SYMBOL(uncached_alloc_page);
  *
  * Free the specified number of uncached pages.
  */
-void uncached_free_page(unsigned long uc_addr, int n_pages)
+static void uncached_free_page(unsigned long uc_addr, int n_pages)
 {
 	int nid = paddr_to_nid(uc_addr - __IA64_UNCACHED_OFFSET);
 	struct gen_pool *pool = uncached_pools[nid].pool;
