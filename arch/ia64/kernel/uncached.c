@@ -37,6 +37,8 @@ struct uncached_pool {
 
 struct uncached_pool uncached_pools[MAX_NUMNODES];
 
+unsigned long uncached_alloc_page(int starting_nid, int n_pages);
+void uncached_free_page(unsigned long uc_addr, int n_pages);
 
 static void uncached_ipi_visibility(void *data)
 {
