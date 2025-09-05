@@ -34,6 +34,10 @@ struct pci_vector_struct {
 #define ARCH_GENERIC_PCI_MMAP_RESOURCE
 #define arch_can_pci_mmap_wc()	1
 
+extern void pci_adjust_legacy_attr(struct pci_bus *bus,
+				   enum pci_mmap_state mmap_type);
+
+
 #define HAVE_PCI_LEGACY
 extern int pci_mmap_legacy_page_range(struct pci_bus *bus,
 				      struct vm_area_struct *vma,
