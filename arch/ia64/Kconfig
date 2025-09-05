@@ -398,3 +398,10 @@ config MSPEC
 	  If you have an ia64 and you want to enable memory special
 	  operations support (formerly known as fetchop), say Y here,
 	  otherwise say N.
+
+config IA64_UNW_DEBUG
+	bool "Enable IA-64 Unwind Debugging Output"
+	depends on IA64
+	help
+	  If you would like to enable debugging output for unwind, say Y here,
+	  otherwise say N.
