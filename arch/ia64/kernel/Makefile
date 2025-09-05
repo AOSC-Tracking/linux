@@ -39,6 +39,8 @@ obj-$(CONFIG_INTEL_IOMMU)	+= pci-dma.o
 
 obj-$(CONFIG_ELF_CORE)		+= elfcore.o
 
+cflags-$(CONFIG_IA64_UNW_DEBUG)	+= -DUNW_DEBUG=0
+
 # fp_emulate() expects f2-f5,f16-f31 to contain the user-level state.
 CFLAGS_traps.o  += -mfixed-range=f2-f5,f16-f31
 
