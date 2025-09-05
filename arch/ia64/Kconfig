@@ -380,3 +380,10 @@ endmenu
 endif
 
 endmenu
+
+config IA64_UNW_DEBUG
+	bool "Enable IA-64 Unwind Debugging Output"
+	depends on IA64
+	help
+	  If you would like to enable debugging output for unwind, say Y here,
+	  otherwise say N.
