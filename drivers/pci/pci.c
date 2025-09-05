@@ -6063,6 +6063,7 @@ int pcie_set_readrq(struct pci_dev *dev, int rq)
 {
 	u16 v;
 	int ret;
+	unsigned int firstbit;
 #ifdef CONFIG_MACH_LOONGSON64
 	struct pci_host_bridge *bridge = pci_find_host_bridge(dev->bus);
 #endif
@@ -6081,7 +6082,10 @@ int pcie_set_readrq(struct pci_dev *dev, int rq)
 			rq = mps;
 	}
 
-	v = FIELD_PREP(PCI_EXP_DEVCTL_READRQ, ffs(rq) - 8);
+	firstbit = ffs(rq);
+	if (firstbit < 8)
+		return -EINVAL;
+	v = FIELD_PREP(PCI_EXP_DEVCTL_READRQ, firstbit - 8);
 
 #ifdef CONFIG_MACH_LOONGSON64
 	if (pm_suspend_target_state == PM_SUSPEND_ON &&
