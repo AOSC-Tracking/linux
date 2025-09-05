@@ -1638,7 +1638,7 @@ build_script (struct unw_frame_info *info)
 	}
 
 #ifdef UNW_DEBUG
-	UNW_DPRINT(1, "unwind.%s: state record for func 0x%lx, t=%u:\n",
+	UNW_DPRINT(1, "unwind.%s: state record for func 0x%llx, t=%u:\n",
 		__func__, table->segment_base + e->start_offset, sr.when_target);
 	for (r = sr.curr.reg; r < sr.curr.reg + UNW_NUM_REGS; ++r) {
 		if (r->where != UNW_WHERE_NONE || r->when != UNW_WHEN_NEVER) {
