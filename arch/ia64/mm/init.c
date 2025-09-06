@@ -438,10 +438,8 @@ nolwsys_setup (char *s)
 __setup("nolwsys", nolwsys_setup);
 
 void __init
-mem_init (void)
+arch_mm_preinit (void)
 {
-	int i;
-
 	BUG_ON(PTRS_PER_PGD * sizeof(pgd_t) != PAGE_SIZE);
 	BUG_ON(PTRS_PER_PMD * sizeof(pmd_t) != PAGE_SIZE);
 	BUG_ON(PTRS_PER_PTE * sizeof(pte_t) != PAGE_SIZE);
@@ -465,7 +463,12 @@ mem_init (void)
 #endif
 
 	high_memory = __va(max_low_pfn * PAGE_SIZE);
-	memblock_free_all();
+}
+
+void __init
+mem_init (void)
+{
+	int i;
 
 	/*
 	 * For fsyscall entrypoints with no light-weight handler, use the ordinary
