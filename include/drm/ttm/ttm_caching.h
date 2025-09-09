@@ -47,8 +47,7 @@ enum ttm_caching {
 
 	/**
 	 * @ttm_cached: Fully cached like normal system memory, requires that
-	 * devices snoop the CPU cache on accesses. Downgraded to
-	 * ttm_write_combined when the snooping capaiblity is missing.
+	 * devices snoop the CPU cache on accesses.
 	 */
 	ttm_cached
 };
