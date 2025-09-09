@@ -1645,7 +1645,10 @@ void __init *memmap_alloc(phys_addr_t size, phys_addr_t align,
 static void __init alloc_node_mem_map(struct pglist_data *pgdat)
 {
 	unsigned long __maybe_unused start = 0;
+	unsigned long __maybe_unused size = 0;
+	unsigned long __maybe_unused end = 0;
 	unsigned long __maybe_unused offset = 0;
+	struct page *map = NULL;
 
 	/* Skip empty nodes */
 	if (!pgdat->node_spanned_pages)
