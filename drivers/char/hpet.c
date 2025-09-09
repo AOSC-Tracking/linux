@@ -64,6 +64,25 @@
 static DEFINE_MUTEX(hpet_mutex); /* replaces BKL */
 static u32 hpet_nhpet, hpet_max_freq = HPET_USER_FREQ;
 
+/* This clocksource driver currently only works on ia64 */
+#ifdef CONFIG_IA64
+static void __iomem *hpet_mctr;
+
+static u64 read_hpet(struct clocksource *cs)
+{
+	return (u64)read_counter((void __iomem *)hpet_mctr);
+}
+
+static struct clocksource clocksource_hpet = {
+	.name		= "hpet",
+	.rating		= 250,
+	.read		= read_hpet,
+	.mask		= CLOCKSOURCE_MASK(64),
+	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
+};
+static struct clocksource *hpet_clocksource;
+#endif
+
 /* A lock for concurrent access by app and isr hpet activity. */
 static DEFINE_SPINLOCK(hpet_lock);
 
@@ -87,6 +106,7 @@ struct hpets {
 	struct hpets *hp_next;
 	struct hpet __iomem *hp_hpet;
 	unsigned long hp_hpet_phys;
+	struct clocksource *hp_clocksource;
 	unsigned long long hp_tick_freq;
 	unsigned long hp_delta;
 	unsigned int hp_ntimer;
@@ -909,6 +929,17 @@ int hpet_alloc(struct hpet_data *hdp)
 	}
 
 	hpetp->hp_delta = hpet_calibrate(hpetp);
+
+/* This clocksource driver currently only works on ia64 */
+#ifdef CONFIG_IA64
+	if (!hpet_clocksource) {
+		hpet_mctr = (void __iomem *)&hpetp->hp_hpet->hpet_mc;
+		clocksource_hpet.archdata.fsys_mmio = hpet_mctr;
+		clocksource_register_hz(&clocksource_hpet, hpetp->hp_tick_freq);
+		hpetp->hp_clocksource = &clocksource_hpet;
+		hpet_clocksource = &clocksource_hpet;
+	}
+#endif
 
 	return 0;
 }

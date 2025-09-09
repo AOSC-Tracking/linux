@@ -77,6 +77,10 @@ const struct raid6_calls * const raid6_algos[] = {
 	&raid6_lsx,
 #endif
 #endif
+#if defined(__ia64__)
+	&raid6_intx32,
+	&raid6_intx16,
+#endif
 #ifdef CONFIG_RISCV_ISA_V
 	&raid6_rvvx1,
 	&raid6_rvvx2,

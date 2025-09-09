@@ -219,7 +219,7 @@ void acpi_processor_ppc_exit(struct cpufreq_policy *policy)
 	}
 }
 
-#ifdef CONFIG_X86
+#if defined(CONFIG_X86) || defined(CONFIG_IA64)
 
 static DEFINE_MUTEX(performance_mutex);
 
@@ -281,6 +281,7 @@ end:
 	return result;
 }
 
+#ifdef CONFIG_X86
 /*
  * Some AMDs have 50MHz frequency multiples, but only provide 100MHz rounding
  * in their ACPI data. Calculate the real values and fix up the _PSS data.
@@ -311,6 +312,7 @@ static void amd_fixup_frequency(struct acpi_processor_px *px, int i)
 			px->core_frequency = (100 * (fid + 8)) >> did;
 	}
 }
+#endif
 
 static int acpi_processor_get_performance_states(struct acpi_processor *pr)
 {
@@ -368,7 +370,9 @@ static int acpi_processor_get_performance_states(struct acpi_processor *pr)
 			goto end;
 		}
 
+#ifdef CONFIG_X86
 		amd_fixup_frequency(px, i);
+#endif
 
 		acpi_handle_debug(pr->handle,
 				  "State [%d]: core_frequency[%d] power[%d] transition_latency[%d] bus_master_latency[%d] control[0x%x] status[0x%x]\n",
@@ -450,11 +454,13 @@ int acpi_processor_get_performance_info(struct acpi_processor *pr)
 	 * the BIOS is older than the CPU and does not know its frequencies
 	 */
  update_bios:
+#ifdef CONFIG_X86
 	if (acpi_has_method(pr->handle, "_PPC")) {
 		if(boot_cpu_has(X86_FEATURE_EST))
 			pr_warn(FW_BUG "BIOS needs update for CPU "
 			       "frequency support\n");
 	}
+#endif
 	return result;
 }
 EXPORT_SYMBOL_GPL(acpi_processor_get_performance_info);

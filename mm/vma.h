@@ -594,7 +594,7 @@ static inline bool can_modify_vma_madv(struct vm_area_struct *vma, int behavior)
 
 #endif
 
-#if defined(CONFIG_STACK_GROWSUP)
+#if defined(CONFIG_STACK_GROWSUP) || defined(CONFIG_IA64)
 int expand_upwards(struct vm_area_struct *vma, unsigned long address);
 #endif
 

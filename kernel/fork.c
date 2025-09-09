@@ -176,6 +176,7 @@ void __weak arch_release_task_struct(struct task_struct *tsk)
 {
 }
 
+#ifndef CONFIG_ARCH_TASK_STRUCT_ALLOCATOR
 static struct kmem_cache *task_struct_cachep;
 
 static inline struct task_struct *alloc_task_struct_node(int node)
@@ -187,6 +188,9 @@ static inline void free_task_struct(struct task_struct *tsk)
 {
 	kmem_cache_free(task_struct_cachep, tsk);
 }
+#endif
+
+#ifndef CONFIG_ARCH_THREAD_STACK_ALLOCATOR
 
 /*
  * Allocate pages if THREAD_SIZE is >= PAGE_SIZE, otherwise use a
@@ -418,6 +422,24 @@ void thread_stack_cache_init(void)
 }
 
 # endif /* THREAD_SIZE >= PAGE_SIZE || defined(CONFIG_VMAP_STACK) */
+#else /* CONFIG_ARCH_THREAD_STACK_ALLOCATOR */
+
+static int alloc_thread_stack_node(struct task_struct *tsk, int node)
+{
+	unsigned long *stack;
+
+	stack = arch_alloc_thread_stack_node(tsk, node);
+	tsk->stack = stack;
+	return stack ? 0 : -ENOMEM;
+}
+
+static void free_thread_stack(struct task_struct *tsk)
+{
+	arch_free_thread_stack(tsk);
+	tsk->stack = NULL;
+}
+
+#endif /* !CONFIG_ARCH_THREAD_STACK_ALLOCATOR */
 
 /* SLAB cache for signal_struct structures (tsk->signal) */
 static struct kmem_cache *signal_cachep;
@@ -784,6 +806,7 @@ static void __init set_max_threads(unsigned int max_threads_suggested)
 int arch_task_struct_size __read_mostly;
 #endif
 
+#ifndef CONFIG_ARCH_TASK_STRUCT_ALLOCATOR
 static void __init task_struct_whitelist(unsigned long *offset, unsigned long *size)
 {
 	/* Fetch thread_struct whitelist for the architecture. */
@@ -798,10 +821,12 @@ static void __init task_struct_whitelist(unsigned long *offset, unsigned long *s
 	else
 		*offset += offsetof(struct task_struct, thread);
 }
+#endif /* CONFIG_ARCH_TASK_STRUCT_ALLOCATOR */
 
 void __init fork_init(void)
 {
 	int i;
+#ifndef CONFIG_ARCH_TASK_STRUCT_ALLOCATOR
 #ifndef ARCH_MIN_TASKALIGN
 #define ARCH_MIN_TASKALIGN	0
 #endif
@@ -814,6 +839,7 @@ void __init fork_init(void)
 			arch_task_struct_size, align,
 			SLAB_PANIC|SLAB_ACCOUNT,
 			useroffset, usersize, NULL);
+#endif
 
 	/* do the arch specific task caches init */
 	arch_task_cache_init();
@@ -2832,7 +2858,7 @@ static inline bool clone3_stack_valid(struct kernel_clone_args *kargs)
 		if (!access_ok((void __user *)kargs->stack, kargs->stack_size))
 			return false;
 
-#if !defined(CONFIG_STACK_GROWSUP)
+#if !defined(CONFIG_STACK_GROWSUP) && !defined(CONFIG_IA64)
 		kargs->stack += kargs->stack_size;
 #endif
 	}
