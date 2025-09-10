@@ -10,6 +10,7 @@
 #include <asm/extable.h>
 #include <asm/errno.h>
 #include <asm/processor.h>
+#include <asm/exception.h>
 
 void
 ia64_handle_exception (struct pt_regs *regs, const struct exception_table_entry *e)

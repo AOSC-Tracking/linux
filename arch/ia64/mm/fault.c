@@ -19,8 +19,6 @@
 #include <asm/processor.h>
 #include <asm/exception.h>
 
-extern int die(char *, struct pt_regs *, long);
-
 /*
  * Return TRUE if ADDRESS points at a page in the kernel's mapped segment
  * (inside region 5, on ia64) and that page is present.
