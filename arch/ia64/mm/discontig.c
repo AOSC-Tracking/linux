@@ -608,19 +608,6 @@ void __init paging_init(void)
 	zero_page_memmap_ptr = virt_to_page(ia64_imva(empty_zero_page));
 }
 
-pg_data_t * __init arch_alloc_nodedata(int nid)
-{
-	unsigned long size = compute_pernodesize(nid);
-
-	return memblock_alloc(size, SMP_CACHE_BYTES);
-}
-
-void arch_refresh_nodedata(int update_node, pg_data_t *update_pgdat)
-{
-	pgdat_list[update_node] = update_pgdat;
-	scatter_node_data();
-}
-
 #ifdef CONFIG_SPARSEMEM_VMEMMAP
 int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node,
 		struct vmem_altmap *altmap)
