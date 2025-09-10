@@ -12,6 +12,7 @@
 #include <linux/dmar.h>
 #include <linux/efi.h>
 #include <linux/elf.h>
+#include <linux/initrd.h>
 #include <linux/memblock.h>
 #include <linux/mm.h>
 #include <linux/sched/signal.h>
