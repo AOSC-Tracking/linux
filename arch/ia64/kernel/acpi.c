@@ -908,6 +908,3 @@ EXPORT_SYMBOL(acpi_unregister_ioapic);
  */
 int acpi_suspend_lowlevel(void) { return 0; }
 
-void acpi_proc_quirk_mwait_check(void)
-{
-}

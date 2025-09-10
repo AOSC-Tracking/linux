@@ -238,6 +238,8 @@ static struct {
 #endif
 };
 
+asmlinkage long sys_getunwind (void __user *buf, size_t buf_size);
+
 static inline int
 read_only (void *addr)
 {

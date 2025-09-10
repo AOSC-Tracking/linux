@@ -23,6 +23,18 @@
 #include <asm/shmparam.h>
 #include <linux/uaccess.h>
 
+asmlinkage long ia64_getpriority (int which, int who);
+asmlinkage unsigned long ia64_brk (unsigned long brk);
+
+asmlinkage unsigned long
+ia64_mremap (unsigned long addr, unsigned long old_len, unsigned long new_len,
+	     unsigned long flags, unsigned long new_addr);
+
+asmlinkage long ia64_clock_getres(const clockid_t which_clock,
+				  struct __kernel_timespec __user *tp);
+
+asmlinkage unsigned long sys_getpagesize (void);
+
 unsigned long
 arch_get_unmapped_area (struct file *filp, unsigned long addr, unsigned long len,
 			unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags)

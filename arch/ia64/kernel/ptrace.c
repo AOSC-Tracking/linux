@@ -58,6 +58,16 @@
 # define dprintk(format...)
 #endif
 
+asmlinkage long
+syscall_trace_enter (long arg0, long arg1, long arg2, long arg3,
+		     long arg4, long arg5, long arg6, long arg7,
+		     struct pt_regs regs);
+
+asmlinkage void
+syscall_trace_leave (long arg0, long arg1, long arg2, long arg3,
+		     long arg4, long arg5, long arg6, long arg7,
+		     struct pt_regs regs);
+
 /* Return TRUE if PT was created due to kernel-entry via a system-call.  */
 
 static inline int
