@@ -967,7 +967,7 @@ efi_uart_console_only(void)
  * that is big enough to hold EFI memory map. Make sure this
  * descriptor is at least granule sized so it does not get trimmed
  */
-struct kern_memdesc *
+static struct kern_memdesc *
 find_memmap_space (void)
 {
 	u64	contig_low=0, contig_high=0;
