@@ -56,6 +56,7 @@
 #include <asm/efi.h>
 #include <asm/mca.h>
 #include <asm/meminit.h>
+#include <asm/mmu.h>
 #include <asm/page.h>
 #include <asm/patch.h>
 #include <asm/processor.h>
