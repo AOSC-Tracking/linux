@@ -47,4 +47,6 @@
 
 #include <asm-generic/tlb.h>
 
+extern void ia64_tlb_init (void);
+
 #endif /* _ASM_IA64_TLB_H */
