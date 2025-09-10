@@ -323,7 +323,7 @@ int pcibios_root_bridge_prepare(struct pci_host_bridge *bridge)
 	return 0;
 }
 
-void pcibios_fixup_device_resources(struct pci_dev *dev)
+static void pcibios_fixup_device_resources(struct pci_dev *dev)
 {
 	int idx;
 
@@ -339,7 +339,6 @@ void pcibios_fixup_device_resources(struct pci_dev *dev)
 		pci_claim_resource(dev, idx);
 	}
 }
-EXPORT_SYMBOL_GPL(pcibios_fixup_device_resources);
 
 static void pcibios_fixup_bridge_resources(struct pci_dev *dev)
 {
