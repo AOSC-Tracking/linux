@@ -27,6 +27,8 @@
 #include <asm/mca.h>
 #include <asm/xtp.h>
 
+#include "irq.h"
+
 /*
  * 'what should we do if we get a hw irq event on an illegal vector'.
  * each architecture has to answer this themselves.
@@ -128,7 +130,6 @@ static void migrate_irqs(void)
 void fixup_irqs(void)
 {
 	unsigned int irq;
-	extern void ia64_process_pending_intr(void);
 	extern volatile int time_keeper_id;
 
 	/* Mask ITV to disable timer */
