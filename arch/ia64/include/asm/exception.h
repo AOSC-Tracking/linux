@@ -14,6 +14,18 @@ extern void ia64_handle_exception(struct pt_regs *regs,
 extern void
 __kprobes ia64_do_page_fault (unsigned long address, unsigned long isr,
 			      struct pt_regs *regs);
+extern void
+__kprobes ia64_bad_break (unsigned long break_num, struct pt_regs *regs);
+
+extern struct illegal_op_return
+ia64_illegal_op_fault (unsigned long ec, long arg1, long arg2, long arg3,
+		       long arg4, long arg5, long arg6, long arg7,
+		       struct pt_regs regs);
+
+extern void __kprobes
+ia64_fault (unsigned long vector, unsigned long isr, unsigned long ifa,
+	    unsigned long iim, unsigned long itir, long arg5, long arg6,
+	    long arg7, struct pt_regs regs);
 
 #define ia64_done_with_exception(regs)					  \
 ({									  \
