@@ -40,6 +40,8 @@
 #include <asm/hw_irq.h>
 #include <asm/tlbflush.h>
 
+#include "irq.h"
+
 #define IRQ_DEBUG	0
 
 #define IRQ_VECTOR_UNASSIGNED	(0)
