@@ -42,6 +42,12 @@ static int sal_rec_max = 10000;
 /* from mca_drv_asm.S */
 extern void *mca_handler_bhhook(void);
 
+int __init mca_external_handler_init(void);
+void __exit mca_external_handler_exit(void);
+
+/* called by mca_handler_bhhook in assembly code. */
+void mca_handler_bh(unsigned long paddr, void *iip, unsigned long ipsr);
+
 static DEFINE_SPINLOCK(mca_bh_lock);
 
 typedef enum {

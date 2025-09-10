@@ -203,6 +203,10 @@ static int loglevel_save = -1;
 	mlogbuf_finished = 0;				\
 	oops_in_progress = 0;
 
+/* called by ia64_os_mca_virtual_begin in the assembly code. */
+void ia64_mca_handler(struct pt_regs *regs, struct switch_stack *sw,
+		      struct ia64_sal_os_state *sos);
+
 /*
  * Push messages into buffer, print them later if not urgent.
  */
@@ -500,7 +504,7 @@ ia64_mca_log_sal_error_record(int sal_info_type)
  * Return value:
  *      1 on Success (in the table)/ 0 on Failure (not in the  table)
  */
-int
+static int
 search_mca_table (const struct mca_table_entry *first,
                 const struct mca_table_entry *last,
                 unsigned long ip)
@@ -603,7 +607,7 @@ out:
  *  Outputs
  *      None
  */
-void
+static void
 ia64_mca_register_cpev (int cpev)
 {
 	/* Register the CPE interrupt vector with SAL */
