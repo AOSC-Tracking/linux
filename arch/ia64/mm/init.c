@@ -40,8 +40,6 @@
 #include <asm/unistd.h>
 #include <asm/mca.h>
 
-extern void ia64_tlb_init (void);
-
 unsigned long MAX_DMA_ADDRESS = PAGE_OFFSET + 0x100000000UL;
 
 struct page *zero_page_memmap_ptr;	/* map entry for zero page */
