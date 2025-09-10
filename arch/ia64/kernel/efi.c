@@ -1349,12 +1349,3 @@ vmcore_find_descriptor_size (unsigned long address)
 	return ret;
 }
 #endif
-
-char *efi_systab_show_arch(char *str)
-{
-	if (mps_phys != EFI_INVALID_TABLE_ADDR)
-		str += sprintf(str, "MPS=0x%lx\n", mps_phys);
-	if (hcdp_phys != EFI_INVALID_TABLE_ADDR)
-		str += sprintf(str, "HCDP=0x%lx\n", hcdp_phys);
-	return str;
-}
