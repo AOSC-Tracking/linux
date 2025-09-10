@@ -241,7 +241,7 @@ patch_plt (struct module *mod, struct plt_entry *plt, long target_ip, unsigned l
 	return 0;
 }
 
-unsigned long
+static unsigned long
 plt_target (struct plt_entry *plt)
 {
 	uint64_t b0, b1, *b = (uint64_t *) plt->bundle[1];

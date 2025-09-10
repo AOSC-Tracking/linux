@@ -174,6 +174,8 @@ static DEFINE_SPINLOCK(data_saved_lock);
  */
 int (*salinfo_platform_oemdata)(const u8 *sect_header, u8 **oemdata, u64 *oemdata_size);
 
+void salinfo_log_wakeup(int type, u8 *buffer, u64 size, int irqsafe);
+
 struct salinfo_platform_oemdata_parms {
 	const u8 *efi_guid;
 	u8 **oemdata;

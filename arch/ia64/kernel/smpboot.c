@@ -88,6 +88,7 @@ struct sal_to_os_boot *sal_state_for_booting_cpu = &sal_boot_rendez_state[0];
 #define set_brendez_area(x)
 #endif
 
+int start_secondary (void *unused);
 
 /*
  * ITC synchronization related stuff:
@@ -186,7 +187,7 @@ static void fix_b0_for_bsp(void)
 #endif
 }
 
-void
+static void
 sync_master (void *arg)
 {
 	unsigned long flags, i;
@@ -271,7 +272,7 @@ get_delta (long *rt, long *master)
  * almost perfectly synchronized, but we shouldn't assume that the accuracy is much better
  * than half a micro second or so.
  */
-void
+static void
 ia64_sync_itc (unsigned int master)
 {
 	long i, delta, adj, adjust_latency = 0, done = 0;
@@ -589,6 +590,7 @@ remove_siblinginfo(int cpu)
 
 extern void fixup_irqs(void);
 
+static
 int migrate_platform_irqs(unsigned int cpu)
 {
 	int new_cpei_cpu;

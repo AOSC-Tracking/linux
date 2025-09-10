@@ -105,6 +105,10 @@
 #define DBG(fmt...)
 #endif
 
+#ifdef CONFIG_KEXEC
+void kexec_disable_iosapic(void);
+#endif
+
 static DEFINE_SPINLOCK(iosapic_lock);
 
 /*

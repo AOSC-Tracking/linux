@@ -39,6 +39,8 @@
 # define GET_SIGSET(k,u)	__get_user((k)->sig[0], &(u)->sig[0])
 #endif
 
+long ia64_rt_sigreturn (struct sigscratch *scr);
+
 static long
 restore_sigcontext (struct sigcontext __user *sc, struct sigscratch *scr)
 {

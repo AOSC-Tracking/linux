@@ -241,6 +241,8 @@ static u16 fr_info[32]={
 	RSW(f30), RSW(f31)
 };
 
+void ia64_handle_unaligned (unsigned long ifa, struct pt_regs *regs);
+
 /* Invalidate ALAT entry for integer register REGNO.  */
 static void
 invala_gr (int regno)

@@ -54,6 +54,13 @@
 
 #include "sigframe.h"
 
+void do_notify_resume_user(sigset_t *unused,
+		           struct sigscratch *scr, long in_syscall);
+/* Used by clone2() syscall implementation in entry.S */
+asmlinkage long ia64_clone(unsigned long clone_flags, unsigned long stack_start,
+			   unsigned long stack_size, unsigned long parent_tidptr,
+			   unsigned long child_tidptr, unsigned long tls);
+
 void (*ia64_mark_idle)(int);
 
 unsigned long boot_option_idle_override = IDLE_NO_OVERRIDE;
