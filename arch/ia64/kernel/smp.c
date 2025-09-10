@@ -67,8 +67,6 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(unsigned short [NR_CPUS],
 /* This needs to be cacheline aligned because it is written to by *other* CPUs.  */
 static DEFINE_PER_CPU_SHARED_ALIGNED(unsigned long, ipi_operation);
 
-extern void cpu_halt (void);
-
 static void
 stop_this_cpu(void)
 {
