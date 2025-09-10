@@ -11,4 +11,6 @@ typedef volatile unsigned long mm_context_t;
 
 typedef unsigned long nv_mm_context_t;
 
+void ia64_mmu_init(void *my_cpu_data);
+
 #endif
