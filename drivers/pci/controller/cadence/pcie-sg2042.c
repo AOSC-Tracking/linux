@@ -78,9 +78,43 @@ static int sg2042_pcie_probe(struct platform_device *pdev)
 static void sg2042_pcie_remove(struct platform_device *pdev)
 {
 	struct cdns_pcie *pcie = platform_get_drvdata(pdev);
+	struct device *dev = &pdev->dev;
+	struct cdns_pcie_rc *rc;
+
+	rc = container_of(pcie, struct cdns_pcie_rc, pcie);
+	cdns_pcie_host_disable(rc);
 
 	cdns_pcie_disable_phy(pcie);
+
+	pm_runtime_disable(dev);
 }
+
+static int sg2042_pcie_suspend_noirq(struct device *dev)
+{
+	struct cdns_pcie *pcie = dev_get_drvdata(dev);
+
+	cdns_pcie_disable_phy(pcie);
+
+	return 0;
+}
+
+static int sg2042_pcie_resume_noirq(struct device *dev)
+{
+	struct cdns_pcie *pcie = dev_get_drvdata(dev);
+	int ret;
+
+	ret = cdns_pcie_enable_phy(pcie);
+	if (ret) {
+		dev_err(dev, "failed to enable PHY\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static DEFINE_NOIRQ_DEV_PM_OPS(sg2042_pcie_pm_ops,
+			       sg2042_pcie_suspend_noirq,
+			       sg2042_pcie_resume_noirq);
 
 static const struct of_device_id sg2042_pcie_of_match[] = {
 	{ .compatible = "sophgo,sg2042-pcie-host" },
@@ -92,7 +126,7 @@ static struct platform_driver sg2042_pcie_driver = {
 	.driver = {
 		.name		= "sg2042-pcie",
 		.of_match_table	= sg2042_pcie_of_match,
-		.pm		= &cdns_pcie_pm_ops,
+		.pm		= pm_sleep_ptr(&sg2042_pcie_pm_ops),
 	},
 	.probe		= sg2042_pcie_probe,
 	.remove		= sg2042_pcie_remove,
