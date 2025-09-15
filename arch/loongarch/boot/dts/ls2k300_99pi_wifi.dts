@@ -11,4 +11,18 @@
 
 / {
 	product = "LS2K300-99PI-WIFI";
+
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&sdio0en>;
+		reset-gpios = <&gpio 81 GPIO_ACTIVE_HIGH>;
+	};
+
+};
+
+&pinmux {
+	sdio0en: pinmux_G81_as_sdio0en {
+		pinctrl-single,bits = <0x14 0x00000000 0x0000000c>;
+	};
 };
