@@ -179,6 +179,5 @@
 };
 
 &sdio1 {
-	cd-gpios = <&gpio 82 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
