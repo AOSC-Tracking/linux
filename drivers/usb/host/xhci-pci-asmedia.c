@@ -66,21 +66,18 @@
 static int asmedia_mbox_tx(struct pci_dev *pdev, u64 data)
 {
 	u8 op;
-	int i;
+	int ret, err;
 
-	for (i = 0; i < TIMEOUT_USEC; i++) {
-		pci_read_config_byte(pdev, ASMT_CFG_CONTROL, &op);
-		if (!(op & ASMT_CFG_CONTROL_WRITE))
-			break;
-		udelay(1);
+	ret = read_poll_timeout(pci_read_config_byte, err,
+				err || !(op & ASMT_CFG_CONTROL_WRITE),
+				1, TIMEOUT_USEC, false, pdev, ASMT_CFG_CONTROL,
+				&op);
+	if (ret) {
+		dev_err(&pdev->dev, "Timed out on mailbox tx: 0x%llx\n", data);
+		return ret;
 	}
-
-	if (op & ASMT_CFG_CONTROL_WRITE) {
-		dev_err(&pdev->dev,
-			"Timed out on mailbox tx: 0x%llx\n",
-			data);
-		return -ETIMEDOUT;
-	}
+	if (err)
+		return err;
 
 	pci_write_config_dword(pdev, ASMT_CFG_DATA_WRITE0, data);
 	pci_write_config_dword(pdev, ASMT_CFG_DATA_WRITE1, data >> 32);
@@ -93,19 +90,18 @@ static int asmedia_mbox_rx(struct pci_dev *pdev, u64 *data)
 {
 	u8 op;
 	u32 low, high;
-	int i;
+	int ret, err;
 
-	for (i = 0; i < TIMEOUT_USEC; i++) {
-		pci_read_config_byte(pdev, ASMT_CFG_CONTROL, &op);
-		if (op & ASMT_CFG_CONTROL_READ)
-			break;
-		udelay(1);
-	}
-
-	if (!(op & ASMT_CFG_CONTROL_READ)) {
+	ret = read_poll_timeout(pci_read_config_byte, err,
+				err || (op & ASMT_CFG_CONTROL_READ),
+				1, TIMEOUT_USEC, false, pdev, ASMT_CFG_CONTROL,
+				&op);
+	if (ret) {
 		dev_err(&pdev->dev, "Timed out on mailbox rx\n");
-		return -ETIMEDOUT;
+		return ret;
 	}
+	if (err)
+		return err;
 
 	pci_read_config_dword(pdev, ASMT_CFG_DATA_READ0, &low);
 	pci_read_config_dword(pdev, ASMT_CFG_DATA_READ1, &high);
@@ -223,8 +219,8 @@ static int asmedia_read_reg(struct usb_hcd *hcd, u16 addr, u8 *val) {
 
 static int asmedia_write_reg(struct usb_hcd *hcd, u16 addr, u8 data, bool wait) {
 	void __iomem *regs = hcd->regs;
-	u8 status;
-	int ret, i;
+	u8 status, val;
+	int ret, err;
 
 	writew_relaxed(addr, regs + ASMT_REG_ADDR);
 
@@ -255,19 +251,19 @@ static int asmedia_write_reg(struct usb_hcd *hcd, u16 addr, u8 data, bool wait) 
 	if (!wait)
 		return 0;
 
-	for (i = 0; i < TIMEOUT_USEC; i++) {
-		ret = asmedia_read_reg(hcd, addr, &status);
-		if (ret)
-			return ret;
-		if (status == data)
-			break;
-	}
-
-	if (i >= TIMEOUT_USEC) {
+	ret = read_poll_timeout(asmedia_read_reg, err, err || val == data,
+				0, TIMEOUT_USEC, false, hcd, addr, &val);
+	if (ret) {
 		dev_err(hcd->self.controller,
 			"Verify register timed out ([%04x] = %02x)\n",
 			addr, data);
-		return -ETIMEDOUT;
+		return ret;
+	}
+	if (err) {
+		dev_err(hcd->self.controller,
+			"Verify register read error ([%04x] = %02x)\n",
+			addr, data);
+		return err;
 	}
 
 	return 0;
@@ -282,7 +278,7 @@ static int asmedia_load_fw(struct pci_dev *pdev, const struct firmware *fw)
 	u32 data;
 	size_t index = 0, addr = 0;
 	size_t words = fw->size >> 1;
-	int ret, i;
+	int ret, err;
 
 	hcd = dev_get_drvdata(&pdev->dev);
 	regs = hcd->regs;
@@ -328,17 +324,16 @@ static int asmedia_load_fw(struct pci_dev *pdev, const struct firmware *fw)
 
 		writel_relaxed(data, regs + ASMT_REG_CODE_WDATA);
 
-		for (i = 0; i < TIMEOUT_USEC; i++) {
-			pci_read_config_word(pdev, ASMT_CFG_SRAM_ADDR, &raddr);
-			if (raddr != addr)
-				break;
-			udelay(1);
-		}
-
-		if (raddr == addr) {
+		ret = read_poll_timeout(pci_read_config_word, err,
+					err || (raddr != addr),
+					1, TIMEOUT_USEC, false, pdev,
+					ASMT_CFG_SRAM_ADDR, &raddr);
+		if (ret) {
 			dev_err(hcd->self.controller, "Word write timed out\n");
-			return -ETIMEDOUT;
+			return ret;
 		}
+		if (err)
+			return err;
 
 		if (++index & 0x4000)
 			index += 0x4000;
