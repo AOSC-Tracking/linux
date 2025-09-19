@@ -6,6 +6,7 @@
 
 /dts-v1/;
 
+#include <dt-bindings/clock/loongson,ls2k-clk.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
@@ -21,7 +22,7 @@
 			compatible = "loongson,la264";
 			reg = <0>;
 			device_type = "cpu";
-			clocks = <&cpu_clk>;
+			clocks = <&clk LS2K0300_CLK_NODE_GATE>;
 		};
 
 	};
@@ -32,9 +33,10 @@
 		#interrupt-cells = <1>;
 	};
 
-	cpu_clk: clock-1000m {
+	refclk: clock-120m {
 		compatible = "fixed-clock";
-		clock-frequency = <1000000000>;
+		clock-frequency = <120000000>;
+		clock-output-names = "refclk_120m";
 		#clock-cells = <0>;
 	};
 
@@ -45,6 +47,13 @@
 		ranges = <0x00 0x10000000 0x00 0x10000000 0x0 0x10000000>,
 			 <0x00 0x02000000 0x00 0x02000000 0x0 0x04000000>,
 			 <0x00 0x40000000 0x00 0x40000000 0x0 0x40000000>;
+
+		clk: clock-controller@16000400 {
+			compatible = "loongson,ls2k0300-clk";
+			reg = <0x0 0x16000400 0x0 0x30>;
+			clocks = <&refclk>;
+			#clock-cells = <1>;
+		};
 
 		liointc0: interrupt-controller@16001400 {
 			compatible = "loongson,liointc-2.0";
@@ -87,6 +96,7 @@
 		uart0: serial@16100000 {
 			compatible = "ns16550a";
 			reg = <0 0x16100000 0 0x10>;
+			clocks = <&clk LS2K0300_CLK_APB_GATE>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
