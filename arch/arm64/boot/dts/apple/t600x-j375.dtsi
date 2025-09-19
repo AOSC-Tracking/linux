@@ -10,6 +10,8 @@
  */
 
 / {
+	chassis-type = "desktop";
+
 	aliases {
 		atcphy0 = &atcphy0;
 		atcphy1 = &atcphy1;
