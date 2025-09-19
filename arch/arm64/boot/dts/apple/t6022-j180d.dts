@@ -16,6 +16,8 @@
 / {
 	compatible = "apple,j180d", "apple,t6022", "apple,arm-platform";
 	model = "Apple Mac Pro (M2 Ultra, 2023)";
+	chassis-type = "server";
+
 	aliases {
 		atcphy0 = &atcphy0;
 		atcphy1 = &atcphy1;
