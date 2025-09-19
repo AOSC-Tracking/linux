@@ -1712,6 +1712,7 @@
 			iommus = <&dwc3_0_dart_0 0>, <&dwc3_0_dart_1 1>;
 			power-domains = <&ps_atc0_usb>;
 			resets = <&atcphy0>;
+			dma-coherent;
 			phys = <&atcphy0 PHY_TYPE_USB2>, <&atcphy0 PHY_TYPE_USB3>;
 			phy-names = "usb2-phy", "usb3-phy";
 		};
@@ -1782,6 +1783,7 @@
 			role-switch-default-mode = "host";
 			iommus = <&dwc3_1_dart_0 0>, <&dwc3_1_dart_1 1>;
 			power-domains = <&ps_atc1_usb>;
+			dma-coherent;
 			resets = <&atcphy1>;
 			phys = <&atcphy1 PHY_TYPE_USB2>, <&atcphy1 PHY_TYPE_USB3>;
 			phy-names = "usb2-phy", "usb3-phy";
@@ -1919,6 +1921,8 @@
 			power-domains = <&ps_apcie_gp>;
 			pinctrl-0 = <&pcie_pins>;
 			pinctrl-names = "default";
+
+			dma-coherent;
 
 			port00: pci@0,0 {
 				device_type = "pci";
