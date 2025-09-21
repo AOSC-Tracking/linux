@@ -6,13 +6,17 @@
 
 use crate::{
     bindings,
+    error::{code::*, Error, Result},
+    of,
     str::CStr,
-    types::{ARef, Opaque},
+    types::{ARef, NotThreadSafe, Opaque},
 };
 use core::{fmt, marker::PhantomData, ptr};
 
 #[cfg(CONFIG_PRINTK)]
 use crate::c_str;
+
+pub mod property;
 
 /// A reference-counted device.
 ///
@@ -97,6 +101,13 @@ impl<Ctx: DeviceContext> Device<Ctx> {
     pub unsafe fn as_ref<'a>(ptr: *mut bindings::device) -> &'a Self {
         // SAFETY: Guaranteed by the safety requirements of the function.
         unsafe { &*ptr.cast() }
+    }
+
+    /// Gets the OpenFirmware node attached to this device
+    pub fn of_node(&self) -> Option<of::Node> {
+        let ptr = self.0.get();
+        // SAFETY: This is safe as long as of_node is NULL or valid.
+        unsafe { of::Node::get_from_raw((*ptr).of_node) }
     }
 
     /// Prints an emergency-level message (level 0) prefixed with device information.
@@ -203,10 +214,107 @@ impl<Ctx: DeviceContext> Device<Ctx> {
         };
     }
 
+    /// Inform the kernel about the device's DMA addressing capabilities.
+    ///
+    /// Set both the DMA mask and the coherent DMA mask to the same value.
+    ///
+    /// Note that we don't check the return value from the C `dma_set_coherent_mask` as the DMA API
+    /// guarantees that the coherent DMA mask can be set to the same or smaller than the streaming
+    /// DMA mask.
+    #[allow(dead_code)]
+    pub fn dma_set_mask_and_coherent(&self, mask: u64) -> Result {
+        // SAFETY: By the type invariant of `device::Device`, `self.as_raw()` is valid.
+        let ret = unsafe { bindings::dma_set_mask_and_coherent(self.as_raw(), mask) };
+        if ret != 0 {
+            Err(Error::from_errno(ret))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Same as [`Self::dma_set_mask_and_coherent`], but set the mask only for streaming mappings.
+    #[allow(dead_code)]
+    pub fn dma_set_mask(&self, mask: u64) -> Result {
+        // SAFETY: By the type invariant of `device::Device`, `self.as_raw()` is valid.
+        let ret = unsafe { bindings::dma_set_mask(self.as_raw(), mask) };
+        if ret != 0 {
+            Err(Error::from_errno(ret))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Obtain the [`FwNode`](property::FwNode) corresponding to the device.
+    pub fn fwnode(&self) -> Option<&property::FwNode> {
+        // SAFETY: `self` is valid.
+        let fwnode_handle = unsafe { bindings::__dev_fwnode(self.as_raw()) };
+        if fwnode_handle.is_null() {
+            return None;
+        }
+        // SAFETY: `fwnode_handle` is valid. Its lifetime is tied to `&self`. We
+        // return a reference instead of an `ARef<FwNode>` because `dev_fwnode()`
+        // doesn't increment the refcount. It is safe to cast from a
+        // `struct fwnode_handle*` to a `*const FwNode` because `FwNode` is
+        // defined as a `#[repr(transparent)]` wrapper around `fwnode_handle`.
+        Some(unsafe { &*fwnode_handle.cast() })
+    }
+
     /// Checks if property is present or not.
     pub fn property_present(&self, name: &CStr) -> bool {
         // SAFETY: By the invariant of `CStr`, `name` is null-terminated.
         unsafe { bindings::device_property_present(self.as_raw().cast_const(), name.as_char_ptr()) }
+    }
+
+    /// Locks the [`Device`] for exclusive access.
+    pub fn lock(&self) -> Guard<'_, Ctx> {
+        // SAFETY: `self` is always valid by the type invariant.
+        unsafe { bindings::device_lock(self.as_raw()) };
+
+        Guard {
+            dev: self,
+            _not_send: NotThreadSafe,
+        }
+    }
+
+    /// ensure Device is bound
+    pub fn is_bound(&self) -> Option<Guard<'_, Ctx>> {
+        let guard = self.lock();
+        if !unsafe { bindings::device_is_bound(self.as_raw()) } {
+            return None;
+        }
+        Some(guard)
+    }
+
+    /// excute closure while the device is bound
+    pub fn while_bound_with<F, U>(&self, f: F) -> Result<U>
+    where
+        F: FnOnce(&Device<Bound>) -> Result<U>,
+    {
+        let _guard = self.lock();
+        if unsafe { !bindings::device_is_bound(self.as_raw()) } {
+            return Err(ENODEV);
+        }
+        let ptr: *const Self = self;
+        let ptr = ptr.cast::<Device<Bound>>();
+        f(unsafe { &*ptr })
+    }
+}
+
+/// A lock guard.
+///
+/// The lock is unlocked when the guard goes out of scope.
+#[must_use = "the lock unlocks immediately when the guard is unused"]
+pub struct Guard<'a, Ctx: DeviceContext = Normal> {
+    dev: &'a Device<Ctx>,
+    _not_send: NotThreadSafe,
+}
+
+impl<Ctx: DeviceContext> Drop for Guard<'_, Ctx> {
+    fn drop(&mut self) {
+        // SAFETY:
+        // - `self.xa.xa` is always valid by the type invariant.
+        // - The caller holds the lock, so it is safe to unlock it.
+        unsafe { bindings::device_unlock(self.dev.as_raw()) };
     }
 }
 
