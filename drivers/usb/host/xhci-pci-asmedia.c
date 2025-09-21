@@ -193,8 +193,8 @@ static int asmedia_read_reg(struct usb_hcd *hcd, u16 addr, u8 *val) {
 	u8 status;
 	int ret;
 
-	ret = readb_poll_timeout(regs + ASMT_REG_STATUS,
-				 status, !(status & ASMT_REG_STATUS_BUSY),
+	ret = readb_poll_timeout(regs + ASMT_REG_STATUS, status,
+				 !(status & ASMT_REG_STATUS_BUSY),
 				 1000, TIMEOUT_USEC);
 
 	if (ret) {
@@ -205,8 +205,8 @@ static int asmedia_read_reg(struct usb_hcd *hcd, u16 addr, u8 *val) {
 
 	writew_relaxed(addr, regs + ASMT_REG_ADDR);
 
-	ret = readb_poll_timeout(regs + ASMT_REG_STATUS,
-				 status, !(status & ASMT_REG_STATUS_BUSY),
+	ret = readb_poll_timeout(regs + ASMT_REG_STATUS, status,
+				 !(status & ASMT_REG_STATUS_BUSY),
 				 1000, TIMEOUT_USEC);
 
 	if (ret) {
@@ -226,8 +226,8 @@ static int asmedia_write_reg(struct usb_hcd *hcd, u16 addr, u8 data, bool wait) 
 
 	writew_relaxed(addr, regs + ASMT_REG_ADDR);
 
-	ret = readb_poll_timeout(regs + ASMT_REG_STATUS,
-				 status, !(status & ASMT_REG_STATUS_BUSY),
+	ret = readb_poll_timeout(regs + ASMT_REG_STATUS, status,
+				 !(status & ASMT_REG_STATUS_BUSY),
 				 1000, TIMEOUT_USEC);
 
 	if (ret) {
@@ -239,8 +239,8 @@ static int asmedia_write_reg(struct usb_hcd *hcd, u16 addr, u8 data, bool wait) 
 
 	writeb_relaxed(data, regs + ASMT_REG_WDATA);
 
-	ret = readb_poll_timeout(regs + ASMT_REG_STATUS,
-				 status, !(status & ASMT_REG_STATUS_BUSY),
+	ret = readb_poll_timeout(regs + ASMT_REG_STATUS, status,
+				 !(status & ASMT_REG_STATUS_BUSY),
 				 1000, TIMEOUT_USEC);
 
 	if (ret) {
