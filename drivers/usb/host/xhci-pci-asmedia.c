@@ -84,8 +84,7 @@ static int asmedia_mbox_tx(struct pci_dev *pdev, u64 data)
 
 	pci_write_config_dword(pdev, ASMT_CFG_DATA_WRITE0, data);
 	pci_write_config_dword(pdev, ASMT_CFG_DATA_WRITE1, data >> 32);
-	pci_write_config_byte(pdev, ASMT_CFG_CONTROL,
-			      ASMT_CFG_CONTROL_WRITE);
+	pci_write_config_byte(pdev, ASMT_CFG_CONTROL, ASMT_CFG_CONTROL_WRITE);
 
 	return 0;
 }
@@ -110,8 +109,7 @@ static int asmedia_mbox_rx(struct pci_dev *pdev, u64 *data)
 
 	pci_read_config_dword(pdev, ASMT_CFG_DATA_READ0, &low);
 	pci_read_config_dword(pdev, ASMT_CFG_DATA_READ1, &high);
-	pci_write_config_byte(pdev, ASMT_CFG_CONTROL,
-			      ASMT_CFG_CONTROL_READ);
+	pci_write_config_byte(pdev, ASMT_CFG_CONTROL, ASMT_CFG_CONTROL_READ);
 
 	*data = ((u64)high << 32) | low;
 	return 0;
