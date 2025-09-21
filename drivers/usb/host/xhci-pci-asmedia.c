@@ -73,7 +73,9 @@ static int asmedia_mbox_tx(struct pci_dev *pdev, u64 data)
 				1, TIMEOUT_USEC, false, pdev, ASMT_CFG_CONTROL,
 				&op);
 	if (ret) {
-		dev_err(&pdev->dev, "Timed out on mailbox tx: 0x%llx\n", data);
+		dev_err(&pdev->dev,
+			"Timed out on mailbox tx: 0x%llx\n",
+			data);
 		return ret;
 	}
 	if (err)
