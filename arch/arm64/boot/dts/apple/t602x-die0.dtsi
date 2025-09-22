@@ -738,8 +738,10 @@
 			<AIC_IRQ 0 1142 IRQ_TYPE_LEVEL_HIGH>;
 		mboxes = <&agx_mbox>;
 		power-domains = <&ps_gfx>;
-		memory-region = <&uat_ttbs>, <&uat_pagetables>, <&uat_handoff>;
-		memory-region-names = "ttbs", "pagetables", "handoff";
+		memory-region = <&uat_ttbs>, <&uat_pagetables>, <&uat_handoff>,
+				<&gpu_hw_cal_a>, <&gpu_hw_cal_b>, <&gpu_globals>;
+		memory-region-names = "ttbs", "pagetables", "handoff",
+				      "hw-cal-a", "hw-cal-b", "globals";
 
 		apple,firmware-version = <0 0 0>;
 		apple,firmware-compat = <0 0 0>;
