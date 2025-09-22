@@ -116,18 +116,7 @@ typedef union ia64_va {
 extern unsigned int hpage_shift;
 #endif
 
-static __inline__ int
-get_order (unsigned long size)
-{
-	long double d = size - 1;
-	long order;
-
-	order = ia64_getf_exp(d);
-	order = order - PAGE_SHIFT - 0xffff + 1;
-	if (order < 0)
-		order = 0;
-	return order;
-}
+#include <asm-generic/getorder.h>
 
 #endif /* !__ASSEMBLY__ */
 
