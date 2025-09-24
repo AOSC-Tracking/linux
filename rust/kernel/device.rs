@@ -5,8 +5,8 @@
 //! C header: [`include/linux/device.h`](srctree/include/linux/device.h)
 
 use crate::{
-    bindings,
-    of,
+    bindings, of,
+    prelude::*,
     types::{ARef, ForeignOwnable, NotThreadSafe, Opaque},
 };
 use core::{fmt, marker::PhantomData, ptr};
