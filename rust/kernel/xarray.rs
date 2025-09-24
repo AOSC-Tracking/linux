@@ -378,7 +378,7 @@ impl<'a, T: ForeignOwnable> Guard<'a, T> {
         gfp: alloc::Flags,
     ) -> Result<(), StoreError<T>> {
         build_assert!(
-            mem::align_of::<T::PointedTo>() >= 4,
+            T::FOREIGN_ALIGN >= 4,
             "pointers stored in XArray must be 4-byte aligned"
         );
         let ptr = value.into_foreign();
@@ -411,7 +411,7 @@ impl<'a, T: ForeignOwnable> Guard<'a, T> {
     unsafe fn alloc(
         &mut self,
         limit: impl ops::RangeBounds<u32>,
-        ptr: *mut T::PointedTo,
+        ptr: *mut c_void,
         gfp: alloc::Flags,
     ) -> Result<usize> {
         // NB: `xa_limit::{max,min}` are inclusive.
@@ -461,7 +461,7 @@ impl<'a, T: ForeignOwnable> Guard<'a, T> {
         gfp: alloc::Flags,
     ) -> Result<usize, StoreError<T>> {
         build_assert!(
-            mem::align_of::<T::PointedTo>() >= 4,
+            T::FOREIGN_ALIGN >= 4,
             "pointers stored in XArray must be 4-byte aligned"
         );
         let ptr = value.into_foreign();
@@ -532,7 +532,7 @@ impl<T: ForeignOwnable> Reservation<'_, T> {
     /// # Safety
     ///
     /// `ptr` must be `NULL` or have come from a previous call to `T::into_foreign`.
-    unsafe fn replace(guard: &mut Guard<'_, T>, index: usize, ptr: *mut T::PointedTo) -> Result {
+    unsafe fn replace(guard: &mut Guard<'_, T>, index: usize, ptr: *mut c_void) -> Result {
         // SAFETY: `xa_zero_entry` wraps `XA_ZERO_ENTRY` which is always safe to use.
         let old = unsafe { bindings::xa_zero_entry() };
 
