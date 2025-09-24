@@ -27,6 +27,7 @@ mod queue;
 mod regs;
 mod slotalloc;
 mod util;
+mod vm;
 mod workqueue;
 
 kernel::module_platform_driver! {
