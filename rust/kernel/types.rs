@@ -6,8 +6,9 @@ use crate::ffi::c_void;
 use core::{
     cell::UnsafeCell,
     marker::{PhantomData, PhantomPinned},
-    mem::MaybeUninit,
+    mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
+    ptr::NonNull,
 };
 use pin_init::{PinInit, Wrapper, Zeroable};
 
