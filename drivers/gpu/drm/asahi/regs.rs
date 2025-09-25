@@ -145,23 +145,18 @@ pub(crate) struct FaultInfo {
 /// Device resources for this GPU instance.
 pub(crate) struct Resources {
     dev: ARef<platform::Device>,
-    asc: Devres<IoMem<ASC_CTL_SIZE>>,
-    sgx: Devres<IoMem<SGX_SIZE>>,
+    sgx: Pin<KBox<Devres<IoMem<SGX_SIZE>>>>,
 }
 
 impl Resources {
     /// Map the required resources given our platform device.
     pub(crate) fn new(pdev: &platform::Device<Core>) -> Result<Resources> {
-        let asc_res = pdev.resource_by_name(c_str!("asc")).ok_or(EINVAL)?;
-        let asc_iomem = pdev.iomap_resource_sized::<ASC_CTL_SIZE>(asc_res)?;
-
-        let sgx_res = pdev.resource_by_name(c_str!("sgx")).ok_or(EINVAL)?;
-        let sgx_iomem = pdev.iomap_resource_sized::<SGX_SIZE>(sgx_res)?;
+        let sgx_req = pdev.io_request_by_name(c_str!("sgx")).ok_or(EINVAL)?;
+        let sgx_iomem = KBox::pin_init(sgx_req.iomap_sized::<SGX_SIZE>(), GFP_KERNEL)?;
 
         Ok(Resources {
             // SAFETY: This device does DMA via the UAT IOMMU.
             dev: pdev.into(),
-            asc: asc_iomem,
             sgx: sgx_iomem,
         })
     }
