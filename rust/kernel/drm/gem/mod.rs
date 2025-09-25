@@ -114,7 +114,7 @@ unsafe impl<T: IntoGEMObject> AlwaysRefCounted for T {
     }
 }
 
-extern "C" fn open_callback<T: DriverObject>(
+extern "C" fn open_callback<T: BaseDriverObject>(
     raw_obj: *mut bindings::drm_gem_object,
     raw_file: *mut bindings::drm_file,
 ) -> core::ffi::c_int {
@@ -131,7 +131,7 @@ extern "C" fn open_callback<T: DriverObject>(
     }
 }
 
-extern "C" fn close_callback<T: DriverObject>(
+extern "C" fn close_callback<T: BaseDriverObject>(
     raw_obj: *mut bindings::drm_gem_object,
     raw_file: *mut bindings::drm_file,
 ) {
@@ -186,7 +186,7 @@ pub trait BaseObject: IntoGEMObject {
     where
         Self: AllocImpl<Driver = D>,
         D: drm::Driver<Object = O, File = F>,
-        F: drm::file::DriverFile<Driver = D>,
+        F: drm::file::DriverFile,
         O: BaseDriverObject<Object = Self>,
     {
         let mut handle: u32 = 0;
@@ -202,7 +202,7 @@ pub trait BaseObject: IntoGEMObject {
     where
         Self: AllocImpl<Driver = D>,
         D: drm::Driver<Object = O, File = F>,
-        F: drm::file::DriverFile<Driver = D>,
+        F: drm::file::DriverFile,
         O: BaseDriverObject<Object = Self>,
     {
         // SAFETY: The arguments are all valid per the type invariants.
@@ -280,14 +280,14 @@ impl<T: IntoGEMObject> BaseObjectPrivate for T {}
 /// - `self.dev` is always a valid pointer to a `struct drm_device`.
 #[repr(C)]
 #[pin_data]
-pub struct Object<T: DriverObject + Send + Sync> {
+pub struct Object<T: BaseDriverObject + Send + Sync> {
     obj: Opaque<bindings::drm_gem_object>,
     dev: NonNull<drm::Device<T::Driver>>,
     #[pin]
     data: T,
 }
 
-impl<T: DriverObject> Object<T> {
+impl<T: BaseDriverObject> Object<T> {
     const OBJECT_FUNCS: bindings::drm_gem_object_funcs = bindings::drm_gem_object_funcs {
         free: Some(Self::free_callback),
         open: Some(open_callback::<T>),
@@ -381,7 +381,7 @@ impl<T: BaseDriverObject> Deref for Object<T> {
     }
 }
 
-impl<T: DriverObject> AllocImpl for Object<T> {
+impl<T: BaseDriverObject> AllocImpl for Object<T> {
     type Driver = T::Driver;
 
     const ALLOC_OPS: AllocOps = AllocOps {
