@@ -303,7 +303,7 @@ impl File {
             *(params.core_masks.get_mut(i).ok_or(EIO)?) = (*mask).into();
         }
 
-        if *module_parameters::fault_control.get() == 0xb {
+        if *module_parameters::fault_control.value() == 0xb {
             params.features |= uapi::drm_asahi_feature_DRM_ASAHI_FEATURE_SOFT_FAULTS as u64;
         }
 
