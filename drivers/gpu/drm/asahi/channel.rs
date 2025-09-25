@@ -18,7 +18,7 @@ use kernel::{
     c_str,
     prelude::*,
     sync::Arc,
-    time::{delay::fsleep, Delta, Instant},
+    time::{delay::fsleep, Delta, Instant, Monotonic},
 };
 
 pub(crate) use crate::fw::channels::PipeType;
@@ -164,7 +164,7 @@ where
     /// If the poll takes longer than 10ms, this switches to sleeping between polls.
     pub(crate) fn wait_for(&mut self, wptr: u32, timeout_ms: i64) -> Result {
         const MAX_FAST_POLL: i64 = 10;
-        let start = Instant::now();
+        let start = Instant::<Monotonic>::now();
         let timeout_ms = timeout_ms.max(1);
         let timeout_fast = Delta::from_millis(timeout_ms.min(MAX_FAST_POLL));
         let timeout_slow = Delta::from_millis(timeout_ms);

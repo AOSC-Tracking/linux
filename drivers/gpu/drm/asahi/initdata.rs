@@ -162,7 +162,7 @@ impl<'a> InitDataBuilder::ver<'a> {
 
     /// Create the HwDataShared3 structure, which is used in two places in InitData.
     fn hw_shared3(cfg: &'static hw::HwConfig) -> impl Init<raw::HwDataShared3> {
-        pin_init::zeroed::<raw::HwDataShared3>().chain(|ret| {
+        pin_init::init_zeroed::<raw::HwDataShared3>().chain(|ret| {
             if !cfg.shared3_tab.is_empty() {
                 ret.unk_0 = 1;
                 ret.unk_4 = 500;
@@ -181,7 +181,7 @@ impl<'a> InitDataBuilder::ver<'a> {
     ) -> impl Init<raw::T81xxData> {
         let _perf_max_pstate = dyncfg.pwr.perf_max_pstate;
 
-        pin_init::zeroed::<raw::T81xxData>().chain(move |_ret| {
+        pin_init::init_zeroed::<raw::T81xxData>().chain(move |_ret| {
             match cfg.chip_id {
                 0x8103 | 0x8112 => {
                     #[ver(V < V13_3)]
@@ -235,7 +235,7 @@ impl<'a> InitDataBuilder::ver<'a> {
 
         self.alloc
             .private
-            .new_init(pin_init::zeroed(), |_inner, _ptr| {
+            .new_init(pin_init::init_zeroed(), |_inner, _ptr| {
                 let cfg = &self.cfg;
                 let dyncfg = &self.dyncfg;
                 try_init!(raw::HwDataA::ver {
@@ -399,7 +399,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                             unk_114: f32!(65536.0),
                             unk_124: 40,
                             max_pstate_scaled_2: max_ps_scaled,
-                            ..Zeroable::zeroed()
+                            ..Zeroable::init_zeroed()
                         })
                     },
                     fast_die0_sensor_mask_2: U64(cfg.fast_sensor_mask[0]),
@@ -418,7 +418,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                     hws2 <- Self::hw_shared2(cfg, dyncfg),
                     hws3 <- Self::hw_shared3(cfg),
                     unk_3ce8: 1,
-                    ..Zeroable::zeroed()
+                    ..Zeroable::init_zeroed()
                 })
                 .chain(|raw| {
                     for i in 0..self.dyncfg.pwr.perf_states.len() {
@@ -512,7 +512,7 @@ impl<'a> InitDataBuilder::ver<'a> {
     fn hwdata_b(&mut self) -> Result<GpuObject<HwDataB::ver>> {
         self.alloc
             .private
-            .new_init(pin_init::zeroed(), |_inner, _ptr| {
+            .new_init(pin_init::init_zeroed(), |_inner, _ptr| {
                 let cfg = &self.cfg;
                 let dyncfg = &self.dyncfg;
                 try_init!(raw::HwDataB::ver {
@@ -589,7 +589,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                     unk_c3c: 0x19,
                     #[ver(V >= V13_3)]
                     unk_c3c: 0x1a,
-                    ..Zeroable::zeroed()
+                    ..Zeroable::init_zeroed()
                 })
                 .chain(|raw| {
                     #[ver(V >= V13_3)]
@@ -692,7 +692,7 @@ impl<'a> InitDataBuilder::ver<'a> {
     fn globals(&mut self) -> Result<GpuObject<Globals::ver>> {
         self.alloc
             .private
-            .new_init(pin_init::zeroed(), |_inner, _ptr| {
+            .new_init(pin_init::init_zeroed(), |_inner, _ptr| {
                 let cfg = &self.cfg;
                 let dyncfg = &self.dyncfg;
                 let pwr = &dyncfg.pwr;
@@ -725,7 +725,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                         unk_58: 0xffff,
                         unk_5e: U32(1),
                         unk_66: U32(1),
-                        ..Zeroable::zeroed()
+                        ..Zeroable::init_zeroed()
                     }),
                     unk_8900: 1,
                     pending_submissions: AtomicU32::new(0),
@@ -768,7 +768,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                     unk_903c: 1,
                     #[ver(V < V13_0B4)]
                     unk_903c: 0,
-                    fault_control: *module_parameters::fault_control.get(),
+                    fault_control: *module_parameters::fault_control.value(),
                     do_init: 1,
                     progress_check_interval_3d: 40,
                     progress_check_interval_ta: 10,
@@ -860,7 +860,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                         try_init!(Stats::ver {
                             vtx: alloc.private.new_default::<GpuGlobalStatsVtx>()?,
                             frag: alloc.private.new_init(
-                                pin_init::zeroed::<GpuGlobalStatsFrag::ver>(),
+                                pin_init::init_zeroed::<GpuGlobalStatsFrag::ver>(),
                                 |_inner, _ptr| {
                                     try_init!(raw::GpuGlobalStatsFrag::ver {
                                         total_cmds: 0,

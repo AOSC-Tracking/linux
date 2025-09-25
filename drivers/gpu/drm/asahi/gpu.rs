@@ -28,7 +28,7 @@ use kernel::{
         lock::{mutex::MutexBackend, Guard},
         Arc, Mutex, UniqueArc,
     },
-    time::{msecs_to_jiffies, Delta, Instant},
+    time::{msecs_to_jiffies, Delta, Instant, Monotonic},
     types::ForeignOwnable,
 };
 
@@ -1017,7 +1017,7 @@ impl GpuManager::ver {
             dev_err!(self.dev.as_ref(), "  Halted: {}\n", halted);
 
             if halted == 0 {
-                let start = Instant::now();
+                let start = Instant::<Monotonic>::now();
                 while start.elapsed() < HALT_ENTER_TIMEOUT {
                     halted = raw.flags.halted.load(Ordering::Relaxed);
                     if halted != 0 {

@@ -28,7 +28,7 @@ use kernel::{
         lock::{mutex::MutexBackend, Guard},
         Arc, Mutex,
     },
-    time::{delay::fsleep, Delta, Instant},
+    time::{delay::fsleep, Delta, Instant, Monotonic},
     types::ARef,
 };
 
@@ -414,7 +414,7 @@ impl VmInner {
         let mut offset = node.offset;
         let mut left = node.mapped_size;
 
-        for range in unsafe { sgt.iter_raw() } {
+        for range in sgt.iter() {
             if left == 0 {
                 break;
             }

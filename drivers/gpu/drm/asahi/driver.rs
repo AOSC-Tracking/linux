@@ -3,7 +3,7 @@
 //! Top-level GPU driver implementation.
 
 use kernel::{
-    c_str, device::Core, drm, drm::ioctl, error::Result, of, platform, prelude::*, sync::Arc,
+    c_str, device::Core, dma::{Device, DmaMask}, drm, drm::ioctl, error::Result, of, platform, prelude::*, sync::Arc,
 };
 
 use crate::{debug, file, gem, gpu, hw, regs};
@@ -149,8 +149,7 @@ impl platform::Driver for AsahiDriver {
 
         let cfg = info.ok_or(ENODEV)?;
 
-        pdev.as_ref()
-            .dma_set_mask_and_coherent((1 << cfg.uat_oas) - 1)?;
+        unsafe { pdev.dma_set_mask_and_coherent(DmaMask::try_new((1 << cfg.uat_oas) - 1)?)? };
 
         let res = regs::Resources::new(pdev)?;
 
