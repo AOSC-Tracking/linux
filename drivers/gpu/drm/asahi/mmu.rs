@@ -859,7 +859,7 @@ impl Handoff {
         self.unk3.store(0, Ordering::Relaxed);
         fence(Ordering::SeqCst);
 
-        let start = Instant::now();
+        let start = Instant::<Monotonic>::now();
         const TIMEOUT: Delta = Delta::from_millis(1000);
 
         self.lock();

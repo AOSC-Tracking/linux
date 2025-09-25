@@ -145,7 +145,7 @@ impl SyncItem {
         let size = STRIDE * count as usize;
 
         // SAFETY: We only read this once, so there are no TOCTOU issues.
-        let mut reader = UserSlice::new(ptr as UserPtr, size).reader();
+        let mut reader = UserSlice::new(UserPtr::from_addr(ptr as _), size).reader();
 
         for i in 0..count {
             let mut sync: MaybeUninit<uapi::drm_asahi_sync> = MaybeUninit::uninit();

@@ -54,7 +54,7 @@ impl<'a> InitDataBuilder::ver<'a> {
     fn hw_shared1(cfg: &'static hw::HwConfig) -> impl Init<raw::HwDataShared1> {
         init!(raw::HwDataShared1 {
             unk_a4: cfg.shared1_a4,
-            ..Zeroable::zeroed()
+            ..Zeroable::init_zeroed()
         })
         .chain(|ret| {
             for (i, val) in cfg.shared1_tab.iter().enumerate() {
@@ -96,7 +96,7 @@ impl<'a> InitDataBuilder::ver<'a> {
             unk_28: Array::new([0xff; 16]),
             g14: Default::default(),
             unk_508: cfg.shared2_unk_508,
-            ..Zeroable::zeroed()
+            ..Zeroable::init_zeroed()
         })
         .chain(|ret| {
             for (i, val) in cfg.shared2_tab.iter().enumerate() {
@@ -791,7 +791,7 @@ impl<'a> InitDataBuilder::ver<'a> {
                     unk_11edc: 0,
                     #[ver(V >= V13_0B4)]
                     unk_11efc: 0,
-                    ..Zeroable::zeroed()
+                    ..Zeroable::init_zeroed()
                 })
                 .chain(|raw| {
                     for (i, pz) in self.dyncfg.pwr.power_zones.iter().enumerate() {

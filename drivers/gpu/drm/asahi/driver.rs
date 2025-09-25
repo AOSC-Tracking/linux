@@ -158,7 +158,7 @@ impl platform::Driver for AsahiDriver {
         res.init_mmio()?;
 
         // Start the coprocessor CPU, so UAT can initialize the handoff
-        res.start_cpu()?;
+        regs::Resources::start_cpu(pdev)?;
 
         let node = pdev.as_ref().of_node().ok_or(EIO)?;
         let compat: KVec<u32> = node.get_property(c_str!("apple,firmware-compat"))?;

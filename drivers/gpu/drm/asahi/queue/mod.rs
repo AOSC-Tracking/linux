@@ -154,8 +154,6 @@ impl JobFence::ver {
 #[versions(AGX)]
 #[vtable]
 impl dma_fence::FenceOps for JobFence::ver {
-    const USE_64BIT_SEQNO: bool = true;
-
     fn get_driver_name<'a>(self: &'a FenceObject<Self>) -> &'a CStr {
         c_str!("asahi")
     }

@@ -75,7 +75,7 @@ pub(crate) enum DebugFlags {
 
 /// Update the cached global debug flags from the module parameter
 pub(crate) fn update_debug_flags() {
-    let flags = *module_parameters::debug_flags.get();
+    let flags = *module_parameters::debug_flags.value();
 
     DEBUG_FLAGS.store(flags, Ordering::Relaxed);
 }

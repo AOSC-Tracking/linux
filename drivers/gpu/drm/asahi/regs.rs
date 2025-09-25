@@ -201,12 +201,13 @@ impl Resources {
     }
 
     /// Start the ASC coprocessor CPU.
-    pub(crate) fn start_cpu(&self) -> Result {
-        let res = self.asc.try_access().ok_or(ENXIO)?;
+    pub(crate) fn start_cpu(pdev: &platform::Device<Core>) -> Result {
+        let asc_req = pdev.io_request_by_name(c_str!("asc")).ok_or(EINVAL)?;
+        let asc_iomem = KBox::pin_init(asc_req.iomap_sized::<ASC_CTL_SIZE>(), GFP_KERNEL)?;
+        let res = asc_iomem.access(pdev.as_ref())?;
+
         let val = res.read32_relaxed(CPU_CONTROL);
-
         res.write32_relaxed(val | CPU_RUN, CPU_CONTROL);
-
         Ok(())
     }
 
