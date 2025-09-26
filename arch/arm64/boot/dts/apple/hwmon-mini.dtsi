@@ -8,13 +8,9 @@
 
 #include "hwmon-fan.dtsi"
 
-&smc {
-	hwmon {
-		apple,temp-keys {
-			temp-TW0P {
-				apple,key-id = "TW0P";
-				label = "WiFi/BT Module Temp";
-			};
-		};
+&smc_hwmon {
+	temperature-TW0P {
+		apple,key-id = "TW0P";
+		label = "WiFi/BT Module Temp";
 	};
 };
