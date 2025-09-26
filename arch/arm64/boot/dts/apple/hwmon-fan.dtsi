@@ -5,17 +5,13 @@
  * Fan hwmon sensors for machines with a single fan.
  */
 
-&smc {
-	hwmon {
-		apple,fan-keys {
-			fan-F0Ac {
-				apple,key-id = "F0Ac";
-				label = "Fan";
-				apple,fan-minimum = "F0Mn";
-				apple,fan-maximum = "F0Mx";
-				apple,fan-target = "F0Tg";
-				apple,fan-mode = "F0Md";
-			};
-		};
+&smc_hwmon {
+	fan-F0Ac {
+		apple,key-id = "F0Ac";
+		label = "Fan";
+		apple,fan-minimum = "F0Mn";
+		apple,fan-maximum = "F0Mx";
+		apple,fan-target = "F0Tg";
+		apple,fan-mode = "F0Md";
 	};
 };
