@@ -384,8 +384,13 @@ static int phytmac_get_link_ksettings(struct net_device *ndev,
 	if (!ndev->phydev) {
 		kset->base.port = PORT_FIBRE;
 		kset->base.transceiver = XCVR_INTERNAL;
-		kset->base.duplex = pdata->duplex;
-		kset->base.speed = pdata->speed;
+		if (netif_carrier_ok(ndev)) {
+			kset->base.duplex = pdata->duplex;
+			kset->base.speed = pdata->speed;
+		} else {
+			kset->base.duplex = DUPLEX_UNKNOWN;
+			kset->base.speed = SPEED_UNKNOWN;
+		}
 
 		if (pdata->phy_interface == PHY_INTERFACE_MODE_USXGMII ||
 		    pdata->phy_interface == PHY_INTERFACE_MODE_10GBASER) {
