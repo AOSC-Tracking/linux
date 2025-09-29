@@ -235,7 +235,7 @@ pub(crate) struct UatPageTable {
 }
 
 impl UatPageTable {
-    pub(crate) fn new(oas: usize) -> Result<Self> {
+    pub(crate) fn new(oas: u32) -> Result<Self> {
         mod_pr_debug!("UATPageTable::new: oas={}\n", oas);
         let ttb_page = Page::alloc_page(GFP_KERNEL | __GFP_ZERO)?;
         let ttb = Page::into_phys(ttb_page);
@@ -250,7 +250,7 @@ impl UatPageTable {
     pub(crate) fn new_with_ttb(
         ttb: PhysicalAddr,
         va_range: Range<u64>,
-        oas: usize,
+        oas: u32,
     ) -> Result<Self> {
         mod_pr_debug!(
             "UATPageTable::new_with_ttb: ttb={:#x} range={:#x?} oas={}\n",
@@ -277,7 +277,7 @@ impl UatPageTable {
             ttb,
             ttb_owned: false,
             va_range,
-            oas_mask: (1 << oas) - 1,
+            oas_mask: (1u64 << oas) - 1,
         })
     }
 
