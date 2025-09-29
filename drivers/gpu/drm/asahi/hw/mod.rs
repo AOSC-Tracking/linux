@@ -210,7 +210,7 @@ pub(crate) struct HwConfig {
     /// Base clock used used for timekeeping.
     pub(crate) base_clock_hz: u32,
     /// Output address space for the UAT on this SoC.
-    pub(crate) uat_oas: usize,
+    pub(crate) uat_oas: u32,
     /// Number of dies on this SoC.
     pub(crate) num_dies: u32,
     /// Maximum number of clusters on this SoC.
