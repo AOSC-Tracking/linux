@@ -149,7 +149,7 @@ impl platform::Driver for AsahiDriver {
 
         let cfg = info.ok_or(ENODEV)?;
 
-        unsafe { pdev.dma_set_mask_and_coherent(DmaMask::try_new((1 << cfg.uat_oas) - 1)?)? };
+        unsafe { pdev.dma_set_mask_and_coherent(DmaMask::try_new(cfg.uat_oas)?)? };
 
         let res = regs::Resources::new(pdev)?;
 
