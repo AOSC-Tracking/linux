@@ -5,6 +5,7 @@
  * to extract and format the required data.
  */
 
+#define COMPILE_OFFSETS
 #define ASM_OFFSETS_C 1
 
 #include <linux/sched/signal.h>
