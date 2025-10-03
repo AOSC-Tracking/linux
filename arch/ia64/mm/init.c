@@ -55,11 +55,11 @@ __ia64_sync_icache_dcache (pte_t pte)
 	folio = page_folio(pte_page(pte));
 	addr = (unsigned long)folio_address(folio);
 
-	if (test_bit(PG_arch_1, &folio->flags))
+	if (test_bit(PG_arch_1, &folio->flags.f))
 		return;				/* i-cache is already coherent with d-cache */
 
 	flush_icache_range(addr, addr + folio_size(folio));
-	set_bit(PG_arch_1, &folio->flags);	/* mark page as clean */
+	set_bit(PG_arch_1, &folio->flags.f);	/* mark page as clean */
 }
 
 /*
