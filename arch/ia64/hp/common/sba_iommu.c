@@ -818,7 +818,7 @@ static void mark_clean(void *addr, size_t size)
 
 	while (left >= folio_size(folio)) {
 		left -= folio_size(folio);
-		set_bit(PG_arch_1, &folio->flags);
+		set_bit(PG_arch_1, &folio->flags.f);
 		if (!left)
 			break;
 		folio = folio_next(folio);

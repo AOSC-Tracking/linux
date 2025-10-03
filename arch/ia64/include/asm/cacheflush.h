@@ -15,7 +15,7 @@
 #define ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE 1
 static inline void flush_dcache_folio(struct folio *folio)
 {
-	clear_bit(PG_arch_1, &folio->flags);
+	clear_bit(PG_arch_1, &folio->flags.f);
 }
 #define flush_dcache_folio flush_dcache_folio
 
