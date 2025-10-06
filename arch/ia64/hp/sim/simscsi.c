@@ -117,7 +117,7 @@ simscsi_interrupt (unsigned long val)
 }
 
 static int
-simscsi_biosparam (struct scsi_device *sdev, struct block_device *n,
+simscsi_biosparam (struct scsi_device *sdev, struct gendisk *disk,
 		sector_t capacity, int ip[])
 {
 	ip[0] = 64;		/* heads */
