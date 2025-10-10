@@ -21,6 +21,7 @@ static unsigned int priority_to_irq[EXCCODE_INT_NUM] = {
 	[INT_HWI5]	= CPU_IP5,
 	[INT_HWI6]	= CPU_IP6,
 	[INT_HWI7]	= CPU_IP7,
+	[INT_AVEC]	= CPU_AVEC,
 };
 
 static int kvm_irq_deliver(struct kvm_vcpu *vcpu, unsigned int priority)
@@ -36,6 +37,7 @@ static int kvm_irq_deliver(struct kvm_vcpu *vcpu, unsigned int priority)
 	case INT_IPI:
 	case INT_SWI0:
 	case INT_SWI1:
+	case INT_AVEC:
 		set_gcsr_estat(irq);
 		break;
 
@@ -63,6 +65,7 @@ static int kvm_irq_clear(struct kvm_vcpu *vcpu, unsigned int priority)
 	case INT_IPI:
 	case INT_SWI0:
 	case INT_SWI1:
+	case INT_AVEC:
 		clear_gcsr_estat(irq);
 		break;
 

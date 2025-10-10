@@ -37,6 +37,9 @@ static void kvm_vm_init_features(struct kvm *kvm)
 		kvm->arch.support_features |= BIT(KVM_LOONGARCH_VM_FEAT_PV_STEALTIME);
 	}
 
+	if (cpu_has_msgint())
+		kvm->arch.support_features |= BIT(KVM_LOONGARCH_VM_FEAT_MSGINT);
+
 	val = read_csr_gcfg();
 	if (val & CSR_GCFG_GPMP)
 		kvm->arch.support_features |= BIT(KVM_LOONGARCH_VM_FEAT_PMU);
@@ -153,6 +156,7 @@ static int kvm_vm_feature_has_attr(struct kvm *kvm, struct kvm_device_attr *attr
 	case KVM_LOONGARCH_VM_FEAT_PMU:
 	case KVM_LOONGARCH_VM_FEAT_PV_IPI:
 	case KVM_LOONGARCH_VM_FEAT_PV_STEALTIME:
+        case KVM_LOONGARCH_VM_FEAT_MSGINT:
 		if (kvm_vm_support(&kvm->arch, attr->attr))
 			return 0;
 		return -ENXIO;
