@@ -16,6 +16,21 @@
 // Please see https://github.com/Rust-for-Linux/linux/issues/2 for details on
 // the unstable features in use.
 //
+// ============ start asahi downstream features ===========
+#![feature(associated_type_defaults)]
+//
+#![feature(cfg_version)]
+//
+// Stable since Rust 1.87.0.
+#![feature(ptr_sub_ptr)]
+//
+#![feature(sized_type_properties)]
+//
+#![feature(slice_range)]
+//
+#![cfg_attr(CONFIG_RUSTC_HAS_COERCE_POINTEE, feature(pin_coerce_unsized_trait))]
+// ============ end asahi dowanstream features ============
+//
 // Stable since Rust 1.79.0.
 #![feature(inline_const)]
 //
@@ -54,6 +69,7 @@ extern crate self as kernel;
 
 pub use ffi;
 
+pub mod addr;
 pub mod alloc;
 #[cfg(CONFIG_AUXILIARY_BUS)]
 pub mod auxiliary;
@@ -69,10 +85,14 @@ pub mod cpu;
 pub mod cpufreq;
 pub mod cpumask;
 pub mod cred;
+pub mod devcoredump;
 pub mod device;
 pub mod device_id;
 pub mod devres;
 pub mod dma;
+pub mod dma_buf;
+#[cfg(CONFIG_DMA_SHARED_BUFFER)]
+pub mod dma_fence;
 pub mod driver;
 #[cfg(CONFIG_DRM = "y")]
 pub mod drm;
@@ -81,6 +101,8 @@ pub mod faux;
 #[cfg(CONFIG_RUST_FW_LOADER_ABSTRACTIONS)]
 pub mod firmware;
 pub mod fs;
+#[cfg(CONFIG_IIO)]
+pub mod iio;
 pub mod init;
 pub mod io;
 pub mod ioctl;
@@ -90,6 +112,7 @@ pub mod kunit;
 pub mod list;
 pub mod miscdevice;
 pub mod mm;
+pub mod module_param;
 #[cfg(CONFIG_NET)]
 pub mod net;
 pub mod of;
@@ -104,9 +127,11 @@ pub mod prelude;
 pub mod print;
 pub mod rbtree;
 pub mod revocable;
+pub mod scatterlist;
 pub mod security;
 pub mod seq_file;
 pub mod sizes;
+pub mod soc;
 mod static_assert;
 #[doc(hidden)]
 pub mod std_vendor;
