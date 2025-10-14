@@ -227,14 +227,12 @@ int ipc_sm_handle(struct apple_isp *isp, struct isp_channel *chan)
 	int err;
 
 	if (req->arg0 == 0x0) {
-		struct isp_sm_deferred_work *dwork;
 		struct isp_surf *surf;
 
 		surf = isp_alloc_surface_gc(isp, req->arg1);
 		if (!surf) {
 			isp_err(isp, "failed to alloc requested size 0x%llx\n",
 				req->arg1);
-			kfree(dwork);
 			return -ENOMEM;
 		}
 		surf->type = req->arg2;
