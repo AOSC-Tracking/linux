@@ -86,9 +86,9 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	if (plat->phy_interface < 0)
 		return plat->phy_interface;
 
-	plat->mac_interface = phytium_get_mac_mode(fwnode);
-	if (plat->mac_interface < 0)
-		plat->mac_interface = plat->phy_interface;
+	plat->phy_interface = phytium_get_mac_mode(fwnode);
+	if (plat->phy_interface < 0)
+		plat->phy_interface = plat->phy_interface;
 
 	/* Configure PHY if using device-tree */
 	if (pdev->dev.of_node) {
