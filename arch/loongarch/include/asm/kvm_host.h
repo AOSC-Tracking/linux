@@ -285,6 +285,10 @@ static inline bool kvm_guest_has_lbt(struct kvm_vcpu_arch *arch)
 	return arch->cpucfg[2] & (CPUCFG2_X86BT | CPUCFG2_ARMBT | CPUCFG2_MIPSBT);
 }
 
+static inline bool cpu_has_msgint(void)
+{
+	return read_cpucfg(LOONGARCH_CPUCFG1) & CPUCFG1_MSGINT;
+}
 static inline bool kvm_guest_has_pmu(struct kvm_vcpu_arch *arch)
 {
 	return arch->cpucfg[6] & CPUCFG6_PMP;
