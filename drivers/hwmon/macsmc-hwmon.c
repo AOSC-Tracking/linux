@@ -20,6 +20,7 @@
  * Copyright The Asahi Linux Contributors
  */
 
+#include <linux/bitfield.h>
 #include <linux/hwmon.h>
 #include <linux/mfd/macsmc.h>
 #include <linux/module.h>
