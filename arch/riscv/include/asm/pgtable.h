@@ -656,6 +656,8 @@ static inline pgprot_t pgprot_writecombine(pgprot_t _prot)
 	return __pgprot(prot);
 }
 
+#define pgprot_dmacoherent pgprot_writecombine
+
 /*
  * DMA allocations for non-coherent devices use what the RISC-V architecture
  * call "Non-Cacheable" memory attribute, which permits idempotent, weakly-ordered
