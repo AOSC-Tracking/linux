@@ -301,6 +301,7 @@ pub(crate) struct DynConfig {
     /// Power calibration configuration for this specific chip/device.
     pub(crate) pwr: PwrConfig,
     /// Firmware version.
+    #[cfg(CONFIG_DEV_COREDUMP)]
     pub(crate) firmware_version: KVec<u32>,
 
     pub(crate) hw_data_a: KVVec<u8>,

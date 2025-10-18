@@ -11,8 +11,12 @@ use core::mem::size_of;
 use core::ops::Range;
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use kernel::uapi::{PF_R, PF_W, PF_X};
-use kernel::{addr::PhysicalAddr, error::Result, page::Page, prelude::*, types::Owned};
+#[cfg(CONFIG_DEV_COREDUMP)]
+use kernel::{
+    uapi::{PF_R, PF_W, PF_X},
+    types::Owned,
+};
+use kernel::{addr::PhysicalAddr, error::Result, page::Page, prelude::*};
 
 use crate::debug::*;
 use crate::util::align;
@@ -74,6 +78,7 @@ const HIGH_BITS_PXN: u16 = 1 << 1;
 const HIGH_BITS_UXN: u16 = 1 << 2;
 const HIGH_BITS_GPU_ACCESS: u16 = 1 << 3;
 
+#[cfg(CONFIG_DEV_COREDUMP)]
 pub(crate) const PTE_ADDR_BITS: u64 = (!UAT_PGMSK as u64) & (!UAT_HIGH_BITS);
 
 #[derive(Debug, Copy, Clone)]
@@ -101,16 +106,20 @@ const PROT_GPU_WO: Prot = Prot::from_bits(AP_GPU, 0, 1);
 const PROT_GPU_RW: Prot = Prot::from_bits(AP_GPU, 1, 0);
 const _PROT_GPU_NA: Prot = Prot::from_bits(AP_GPU, 1, 1);
 
+#[cfg(CONFIG_DEV_COREDUMP)]
 const PF_RW: u32 = PF_R | PF_W;
+#[cfg(CONFIG_DEV_COREDUMP)]
 const PF_RX: u32 = PF_R | PF_X;
 
 // For crash dumps
+#[cfg(CONFIG_DEV_COREDUMP)]
 const PROT_TO_PERMS_FW: [[u32; 4]; 4] = [
     [0, 0, 0, PF_RW],
     [0, PF_RW, 0, PF_RW],
     [PF_RX, PF_RX, 0, PF_R],
     [PF_RX, PF_RW, 0, PF_R],
 ];
+#[cfg(CONFIG_DEV_COREDUMP)]
 const PROT_TO_PERMS_OS: [[u32; 4]; 4] = [
     [0, PF_R, PF_W, PF_RW],
     [PF_R, 0, PF_RW, PF_RW],
@@ -159,6 +168,7 @@ impl Prot {
         }
     }
 
+    #[cfg(CONFIG_DEV_COREDUMP)]
     pub(crate) const fn from_pte(pte: u64) -> Self {
         Prot {
             high_bits: (pte >> UAT_HIGH_BITS_SHIFT) as u16,
@@ -167,6 +177,7 @@ impl Prot {
         }
     }
 
+    #[cfg(CONFIG_DEV_COREDUMP)]
     pub(crate) const fn elf_flags(&self) -> u32 {
         let ap = (self.ap & 3) as usize;
         let uxn = if self.high_bits & HIGH_BITS_UXN != 0 {
@@ -221,6 +232,7 @@ impl Default for Prot {
     }
 }
 
+#[cfg(CONFIG_DEV_COREDUMP)]
 pub(crate) struct DumpedPage {
     pub(crate) iova: u64,
     pub(crate) pte: u64,
@@ -541,6 +553,7 @@ impl UatPageTable {
         })
     }
 
+    #[cfg(CONFIG_DEV_COREDUMP)]
     pub(crate) fn dump_pages(&mut self, iova_range: Range<u64>) -> Result<KVVec<DumpedPage>> {
         let mut pages = KVVec::new();
         let oas_mask = self.oas_mask;

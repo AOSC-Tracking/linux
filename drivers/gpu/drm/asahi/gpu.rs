@@ -17,7 +17,7 @@ use core::slice;
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use kernel::{
-    c_str, devcoredump,
+    c_str,
     error::code::*,
     io::mem::{Mem, MemFlags},
     macros::versions,
@@ -28,9 +28,11 @@ use kernel::{
         lock::{mutex::MutexBackend, Guard},
         Arc, Mutex, UniqueArc,
     },
-    time::{msecs_to_jiffies, Delta, Instant, Monotonic},
+    time::{Delta, Instant, Monotonic},
     types::ForeignOwnable,
 };
+#[cfg(CONFIG_DEV_COREDUMP)]
+use kernel::devcoredump;
 
 use crate::alloc::Allocator;
 use crate::debug::*;
@@ -341,6 +343,8 @@ impl rtkit::Operations for GpuManager::ver {
         if let Err(e) = data.generate_crashdump(crashlog) {
             dev_err!(dev.as_ref(), "Could not generate crashdump: {:?}\n", e);
         }
+        #[cfg(not(CONFIG_DEV_COREDUMP))]
+        let _ = crashlog;
 
         if debug_enabled(DebugFlags::OopsOnGpuCrash) {
             panic!("GPU firmware crashed");
@@ -853,6 +857,7 @@ impl GpuManager::ver {
             return Err(EIO);
         }
 
+        #[cfg(CONFIG_DEV_COREDUMP)]
         let node = dev.as_ref().of_node().ok_or(EIO)?;
 
         Ok(KBox::new(
@@ -860,6 +865,7 @@ impl GpuManager::ver {
                 pwr: pwr_cfg,
                 uat_ttb_base: uat.ttb_base(),
                 id: gpu_id,
+                #[cfg(CONFIG_DEV_COREDUMP)]
                 firmware_version: node.get_property(c_str!("apple,firmware-version"))?,
 
                 hw_data_a: Self::load_hwdata_blob(
