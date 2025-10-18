@@ -32,7 +32,10 @@ use kernel::{
     types::ForeignOwnable,
 };
 #[cfg(CONFIG_DEV_COREDUMP)]
-use kernel::devcoredump;
+use kernel::{
+    devcoredump,
+    time::msecs_to_jiffies, //
+};
 
 use crate::alloc::Allocator;
 use crate::debug::*;
