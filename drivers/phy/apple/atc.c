@@ -2177,11 +2177,6 @@ static int atcphy_parse_legacy_tunable(struct apple_atcphy *atcphy,
 	const __le32 *p = NULL;
 	int i;
 
-#if 0
-	WARN_TAINT_ONCE(1, TAINT_FIRMWARE_WORKAROUND,
-			"parsing legacy tunable; please update m1n1");
-#endif
-
 	prop = of_find_property(atcphy->np, name, NULL);
 	if (!prop) {
 		dev_err(atcphy->dev, "tunable %s not found\n", name);
@@ -2208,88 +2203,16 @@ static int atcphy_parse_legacy_tunable(struct apple_atcphy *atcphy,
 	return 0;
 }
 
-static int atcphy_parse_new_tunable(struct apple_atcphy *atcphy,
-				    struct atcphy_tunable *tunable,
-				    const char *name)
-{
-	struct property *prop;
-	u64 *fdt_tunable;
-	int ret, i;
-
-	prop = of_find_property(atcphy->np, name, NULL);
-	if (!prop) {
-		dev_err(atcphy->dev, "tunable %s not found\n", name);
-		return -ENOENT;
-	}
-
-	if (prop->length % (4 * sizeof(u64)))
-		return -EINVAL;
-
-	fdt_tunable = kzalloc(prop->length, GFP_KERNEL);
-	if (!fdt_tunable)
-		return -ENOMEM;
-
-	tunable->sz = prop->length / (4 * sizeof(u64));
-	ret = of_property_read_variable_u64_array(atcphy->np, name, fdt_tunable,
-						  tunable->sz, tunable->sz);
-	if (ret < 0)
-		goto err_free_fdt;
-
-	tunable->values = devm_kcalloc(atcphy->dev, tunable->sz,
-				       sizeof(*tunable->values), GFP_KERNEL);
-	if (!tunable->values) {
-		ret = -ENOMEM;
-		goto err_free_fdt;
-	}
-
-	for (i = 0; i < tunable->sz; ++i) {
-		u32 offset, size, mask, value;
-
-		offset = fdt_tunable[4 * i];
-		size = fdt_tunable[4 * i + 1];
-		mask = fdt_tunable[4 * i + 2];
-		value = fdt_tunable[4 * i + 3];
-
-		if (offset > U32_MAX || size != 4 || mask > U32_MAX ||
-		    value > U32_MAX) {
-			ret = -EINVAL;
-			goto err_free_values;
-		}
-
-		tunable->values[i].offset = offset;
-		tunable->values[i].mask = mask;
-		tunable->values[i].value = value;
-	}
-
-	trace_atcphy_parsed_tunable(name, tunable);
-	kfree(fdt_tunable);
-
-	BUG_ON(1);
-	return 0;
-
-err_free_values:
-	devm_kfree(atcphy->dev, tunable->values);
-err_free_fdt:
-	kfree(fdt_tunable);
-	return ret;
-}
-
 static int atcphy_parse_tunable(struct apple_atcphy *atcphy,
 				struct atcphy_tunable *tunable,
 				const char *name)
 {
-	int ret;
-
 	if (!of_find_property(atcphy->np, name, NULL)) {
 		dev_err(atcphy->dev, "tunable %s not found\n", name);
 		return -ENOENT;
 	}
 
-	ret = atcphy_parse_new_tunable(atcphy, tunable, name);
-	if (ret)
-		ret = atcphy_parse_legacy_tunable(atcphy, tunable, name);
-
-	return ret;
+	return atcphy_parse_legacy_tunable(atcphy, tunable, name);
 }
 
 static int atcphy_load_tunables(struct apple_atcphy *atcphy)
