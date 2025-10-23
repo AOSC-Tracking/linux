@@ -29,6 +29,7 @@
 #include <linux/mm_inline.h>
 #include <linux/pagewalk.h>
 #include <linux/stop_machine.h>
+#include <linux/proc_fs.h>
 
 #include <asm/barrier.h>
 #include <asm/cputype.h>
@@ -52,6 +53,17 @@
 #define INVALID_PHYS_ADDR	(-1ULL)
 
 DEFINE_STATIC_KEY_FALSE(arm64_ptdump_lock_key);
+
+enum direct_map_type {
+	PTE,
+	CONT_PTE,
+	PMD,
+	CONT_PMD,
+	PUD,
+	NR_DIRECT_MAP_TYPE,
+};
+
+static unsigned long direct_map_size[NR_DIRECT_MAP_TYPE];
 
 u64 kimage_voffset __ro_after_init;
 EXPORT_SYMBOL(kimage_voffset);
@@ -173,6 +185,45 @@ static void init_clear_pgtable(void *table)
 	dsb(ishst);
 }
 
+#ifdef CONFIG_PROC_FS
+void arch_report_meminfo(struct seq_file *m)
+{
+	char *size[NR_DIRECT_MAP_TYPE];
+
+#if defined(CONFIG_ARM64_4K_PAGES)
+	size[PTE] = "4k";
+	size[CONT_PTE] = "64k";
+	size[PMD] = "2M";
+	size[CONT_PMD] = "32M";
+	size[PUD] = "1G";
+#elif defined(CONFIG_ARM64_16K_PAGES)
+	size[PTE] = "16k";
+	size[CONT_PTE] = "2M";
+	size[PMD] = "32M";
+	size[CONT_PMD] = "1G";
+#elif defined(CONFIG_ARM64_64K_PAGES)
+	size[PTE] = "64k";
+	size[CONT_PTE] = "2M";
+	size[PMD] = "512M";
+	size[CONT_PMD] = "16G";
+#endif
+
+	seq_printf(m, "DirectMap%s:	%8lu kB\n",
+			size[PTE], direct_map_size[PTE] >> 10);
+	seq_printf(m, "DirectMap%s:	%8lu kB\n",
+			size[CONT_PTE],
+			direct_map_size[CONT_PTE] >> 10);
+	seq_printf(m, "DirectMap%s:	%8lu kB\n",
+			size[PMD], direct_map_size[PMD] >> 10);
+	seq_printf(m, "DirectMap%s:	%8lu kB\n",
+			size[CONT_PMD],
+			direct_map_size[CONT_PMD] >> 10);
+	if (pud_sect_supported())
+		seq_printf(m, "DirectMap%s:	%8lu kB\n",
+			size[PUD], direct_map_size[PUD] >> 10);
+}
+#endif
+
 static void init_pte(pte_t *ptep, unsigned long addr, unsigned long end,
 		     phys_addr_t phys, pgprot_t prot)
 {
@@ -238,6 +289,11 @@ static int alloc_init_cont_pte(pmd_t *pmdp, unsigned long addr,
 
 		init_pte(ptep, addr, next, phys, __prot);
 
+		if (pgprot_val(__prot) & PTE_CONT)
+			direct_map_size[CONT_PTE] += next - addr;
+		else
+			direct_map_size[PTE] += next - addr;
+
 		ptep += pte_index(next) - pte_index(addr);
 		phys += next - addr;
 	} while (addr = next, addr != end);
@@ -268,6 +324,17 @@ static int init_pmd(pmd_t *pmdp, unsigned long addr, unsigned long end,
 		    (flags & NO_BLOCK_MAPPINGS) == 0) {
 			pmd_set_huge(pmdp, phys, prot);
 
+			/*
+			 * It is possible to have mappings allow cont mapping
+			 * but disallow block mapping. For example,
+			 * map_entry_trampoline().
+			 * So we have to increase CONT_PMD and PMD size here
+			 * to avoid double counting.
+			 */
+			if (pgprot_val(prot) & PTE_CONT)
+				direct_map_size[CONT_PMD] += next - addr;
+			else
+				direct_map_size[PMD] += next - addr;
 			/*
 			 * After the PMD entry has been populated once, we
 			 * only allow updates to the permission attributes.
@@ -391,6 +458,7 @@ static int alloc_init_pud(p4d_t *p4dp, unsigned long addr, unsigned long end,
 		    (flags & NO_BLOCK_MAPPINGS) == 0) {
 			pud_set_huge(pudp, phys, prot);
 
+			direct_map_size[PUD] += next - addr;
 			/*
 			 * After the PUD entry has been populated once, we
 			 * only allow updates to the permission attributes.
@@ -581,9 +649,13 @@ static void split_contpte(pte_t *ptep)
 {
 	int i;
 
+	direct_map_size[CONT_PTE] -= CONT_PTE_SIZE;
+
 	ptep = PTR_ALIGN_DOWN(ptep, sizeof(*ptep) * CONT_PTES);
 	for (i = 0; i < CONT_PTES; i++, ptep++)
 		__set_pte(ptep, pte_mknoncont(__ptep_get(ptep)));
+
+	direct_map_size[PTE] += CONT_PTE_SIZE;
 }
 
 static int split_pmd(pmd_t *pmdp, pmd_t pmd, gfp_t gfp, bool to_cont)
@@ -608,8 +680,13 @@ static int split_pmd(pmd_t *pmdp, pmd_t pmd, gfp_t gfp, bool to_cont)
 	if (to_cont)
 		prot = __pgprot(pgprot_val(prot) | PTE_CONT);
 
+	direct_map_size[PMD] -= PMD_SIZE;
 	for (i = 0; i < PTRS_PER_PTE; i++, ptep++, pfn++)
 		__set_pte(ptep, pfn_pte(pfn, prot));
+	if (to_cont)
+		direct_map_size[CONT_PTE] += PMD_SIZE;
+	else
+		direct_map_size[PTE] += PMD_SIZE;
 
 	/*
 	 * Ensure the pte entries are visible to the table walker by the time
@@ -625,9 +702,13 @@ static void split_contpmd(pmd_t *pmdp)
 {
 	int i;
 
+	direct_map_size[CONT_PMD] -= CONT_PMD_SIZE;
+
 	pmdp = PTR_ALIGN_DOWN(pmdp, sizeof(*pmdp) * CONT_PMDS);
 	for (i = 0; i < CONT_PMDS; i++, pmdp++)
 		set_pmd(pmdp, pmd_mknoncont(pmdp_get(pmdp)));
+
+	direct_map_size[PMD] += CONT_PMD_SIZE;
 }
 
 static int split_pud(pud_t *pudp, pud_t pud, gfp_t gfp, bool to_cont)
@@ -653,8 +734,13 @@ static int split_pud(pud_t *pudp, pud_t pud, gfp_t gfp, bool to_cont)
 	if (to_cont)
 		prot = __pgprot(pgprot_val(prot) | PTE_CONT);
 
+	direct_map_size[PUD] -= PUD_SIZE;
 	for (i = 0; i < PTRS_PER_PMD; i++, pmdp++, pfn += step)
 		set_pmd(pmdp, pfn_pmd(pfn, prot));
+	if (to_cont)
+		direct_map_size[CONT_PMD] += PUD_SIZE;
+	else
+		direct_map_size[PMD] += PUD_SIZE;
 
 	/*
 	 * Ensure the pmd entries are visible to the table walker by the time
