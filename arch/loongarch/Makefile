@@ -131,7 +131,7 @@ LDFLAGS_vmlinux			+= -static -pie --no-dynamic-linker -z notext $(call ld-option
 endif
 
 entry-y = $(shell LC_ALL=C readelf -e vmlinux | grep 'Entry point address:'|grep -o '0x[0-9a-f]\{16\}')
-cflags-y += $(call cc-option, -mno-check-zero-division)
+cflags-y += $(call cc-option, -mno-check-zero-division -fno-isolate-erroneous-paths-dereference)
 
 ifndef CONFIG_KASAN
 cflags-y += -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset
