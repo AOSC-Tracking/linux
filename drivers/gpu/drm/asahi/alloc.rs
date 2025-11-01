@@ -780,6 +780,13 @@ impl HeapAllocator {
                 );
             })?;
 
+        if self.cpu_maps {
+            // Create virtual mapping here ahead of time so that the vmap() in
+            // alloc_inner() does not take the the object's dma_resv lock while
+            // the mm lock is locked. mmu::Vm requires the opposite lock order.
+            obj.vmap()?;
+        }
+
         self.mm
             .with_inner(|inner| inner.backing_objects.reserve(1, GFP_KERNEL))?;
 
