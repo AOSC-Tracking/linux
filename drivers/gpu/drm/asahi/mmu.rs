@@ -399,7 +399,7 @@ impl VmInner {
                 .lock()
                 .bind_token
                 .as_ref()
-                .map(|token| (token.last_slot() + UAT_USER_CTX_START as u32))
+                .map(|token| token.last_slot() + UAT_USER_CTX_START as u32)
         }
     }
 
