@@ -3034,6 +3034,7 @@ EXPORT_SYMBOL_GPL(drm_gpuvm_prefetch_ops_create);
 int
 drm_gpuvm_bo_unmap(struct drm_gpuvm_bo *vm_bo, void *priv)
 {
+	struct drm_gpuva_ops *ops;
 	struct drm_gpuva_op *op;
 	int ret;
 
@@ -3045,7 +3046,12 @@ drm_gpuvm_bo_unmap(struct drm_gpuvm_bo *vm_bo, void *priv)
 	if (unlikely(!(vm_ops && vm_ops->sm_step_unmap)))
 		return -EINVAL;
 
-	struct drm_gpuva_ops *ops = drm_gpuvm_bo_unmap_ops_create(vm_bo);
+	if (drm_gpuvm_immediate_mode(vm_bo->vm)) {
+		guard(mutex)(&vm_bo->obj->gpuva.lock);
+		ops = drm_gpuvm_bo_unmap_ops_create(vm_bo);
+	} else {
+		ops = drm_gpuvm_bo_unmap_ops_create(vm_bo);
+	}
 	if (IS_ERR(ops))
 		return PTR_ERR(ops);
 
