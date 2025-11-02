@@ -25,6 +25,11 @@ struct drm_gpuvm_bo *rust_helper_drm_gpuvm_bo_get(struct drm_gpuvm_bo *vm_bo)
 	return drm_gpuvm_bo_get(vm_bo);
 }
 
+bool rust_helper_drm_gpuvm_immediate_mode(struct drm_gpuvm *gpuvm)
+{
+	return drm_gpuvm_immediate_mode(gpuvm);
+}
+
 bool rust_helper_drm_gpuvm_is_extobj(struct drm_gpuvm *gpuvm, struct drm_gem_object *obj)
 {
 	return drm_gpuvm_is_extobj(gpuvm, obj);
