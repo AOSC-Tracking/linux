@@ -648,6 +648,8 @@ impl File {
 
         vm.bind_object(&bo, data.addr, data.range, data.offset, prot, single_page)?;
 
+        vm.bo_deferred_cleanup();
+
         Ok(0)
     }
 
@@ -709,6 +711,8 @@ impl File {
         }
 
         vm.unmap_range(range.start, range.range())?;
+
+        vm.bo_deferred_cleanup();
 
         Ok(0)
     }

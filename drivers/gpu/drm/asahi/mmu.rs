@@ -18,6 +18,7 @@ use core::sync::atomic::{fence, AtomicU32, AtomicU64, AtomicU8, Ordering};
 
 use kernel::{
     addr::PhysicalAddr,
+    bindings::drm_gpuvm_flags_DRM_GPUVM_IMMEDIATE_MODE,
     c_str, device,
     drm::{self, gem::shmem, gpuvm, mm},
     error::Result,
@@ -296,7 +297,7 @@ impl gpuvm::DriverGpuVm for VmInner {
             mem::sync();
         }
 
-        if op.unmap_and_unlink_va().is_none() {
+        if op.unmap_and_unlink_va_defer().is_none() {
             dev_err!(self.dev.as_ref(), "step_unmap: could not unlink gpuva");
         }
         Ok(())
@@ -350,7 +351,7 @@ impl gpuvm::DriverGpuVm for VmInner {
             mem::sync();
         }
 
-        if op.unmap().unmap_and_unlink_va().is_none() {
+        if op.unmap().unmap_and_unlink_va_defer().is_none() {
             dev_err!(self.dev.as_ref(), "step_unmap: could not unlink gpuva");
         }
 
@@ -975,6 +976,8 @@ impl Vm {
             dummy_obj: dummy_obj.gem.clone(),
             inner: gpuvm::GpuVm::new(
                 c_str!("Asahi::GpuVm"),
+                // TODO: should we using DRM_GPUVM_RESV_PROTECTED as well?
+                drm_gpuvm_flags_DRM_GPUVM_IMMEDIATE_MODE,
                 dev,
                 dummy_obj.gem.clone(),
                 gpuvm_range,
@@ -1013,7 +1016,7 @@ impl Vm {
         let size = object_range.range();
         let sgt = gem.owned_sg_table()?;
         let mut inner = self.inner.exec_lock(Some(gem), false)?;
-        let vm_bo = inner.obtain_bo()?;
+        let vm_bo = self.inner.obtain_bo(gem)?;
 
         let mut vm_bo_guard = vm_bo.inner().sgt.lock();
         if vm_bo_guard.is_none() {
@@ -1061,7 +1064,7 @@ impl Vm {
         let sgt = gem.owned_sg_table()?;
         let mut inner = self.inner.exec_lock(Some(&gem), false)?;
 
-        let vm_bo = inner.obtain_bo()?;
+        let vm_bo = self.inner.obtain_bo(&gem)?;
 
         let mut vm_bo_guard = vm_bo.inner().sgt.lock();
         if vm_bo_guard.is_none() {
@@ -1119,7 +1122,7 @@ impl Vm {
         // Preallocate the page tables, to fail early if we ENOMEM
         inner.page_table.alloc_pages(addr..(addr + size))?;
 
-        let vm_bo = inner.obtain_bo()?;
+        let vm_bo = self.inner.obtain_bo(gem)?;
 
         let mut vm_bo_guard = vm_bo.inner().sgt.lock();
         if vm_bo_guard.is_none() {
@@ -1235,11 +1238,11 @@ impl Vm {
         // Removing whole mappings only does unmaps, so no preallocated VAs
         let mut ctx = Default::default();
 
-        let mut inner = self.inner.exec_lock(Some(gem), false)?;
+        let inner = self.inner.exec_lock(Some(gem), false)?;
 
-        if let Some(bo) = inner.find_bo() {
+        if let Some(bo) = self.inner.find_bo(gem) {
             mod_dev_dbg!(inner.dev, "MMU: bo_unmap\n");
-            inner.bo_unmap(&mut ctx, &bo)?;
+            self.inner.bo_unmap(&mut ctx, &bo)?;
             mod_dev_dbg!(inner.dev, "MMU: bo_unmap done\n");
             // We need to drop the exec_lock first, then the GpuVmBo since that will take the lock itself.
             core::mem::drop(inner);
@@ -1257,6 +1260,11 @@ impl Vm {
     /// Check whether an object is external to this GpuVm
     pub(crate) fn is_extobj(&self, gem: &drm::gem::OpaqueObject<driver::AsahiDriver>) -> bool {
         self.inner.is_extobj(gem)
+    }
+
+    /// Check whether an object is external to this GpuVm
+    pub(crate) fn bo_deferred_cleanup(&self) {
+        self.inner.bo_deferred_cleanup()
     }
 }
 
