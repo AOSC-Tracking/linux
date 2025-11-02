@@ -3046,8 +3046,8 @@ drm_gpuvm_bo_unmap(struct drm_gpuvm_bo *vm_bo, void *priv)
 		return -EINVAL;
 
 	struct drm_gpuva_ops *ops = drm_gpuvm_bo_unmap_ops_create(vm_bo);
-        if (IS_ERR(ops))
-                return PTR_ERR(ops);
+	if (IS_ERR(ops))
+		return PTR_ERR(ops);
 
 	drm_gpuva_for_each_op(op, ops) {
 		drm_WARN_ON(vm_bo->vm->drm, op->op != DRM_GPUVA_OP_UNMAP);
