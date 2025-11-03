@@ -17,6 +17,8 @@ font-objs-$(CONFIG_FONT_6x10)      += font_6x10.o
 font-objs-$(CONFIG_FONT_TER10x18)  += font_ter10x18.o
 font-objs-$(CONFIG_FONT_TER16x32)  += font_ter16x32.o
 font-objs-$(CONFIG_FONT_6x8)       += font_6x8.o
+font-objs-$(CONFIG_FONT_CJK_16x16) += font_cjk_16x16.o
+font-objs-$(CONFIG_FONT_CJK_32x32) += font_cjk_32x32.o
 
 font-objs += $(font-objs-y)
 
