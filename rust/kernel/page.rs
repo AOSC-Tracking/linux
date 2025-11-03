@@ -3,14 +3,21 @@
 //! Kernel page allocation and management.
 
 use crate::{
+    addr::*,
     alloc::{AllocError, Flags},
     bindings,
     error::code::*,
     error::Result,
+    types::{Opaque, Ownable, Owned},
     uaccess::UserSliceReader,
 };
-use core::ptr::{self, NonNull};
 
+use core::{
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    ops::Deref,
+    ptr::{self, NonNull},
+};
 /// A bitwise shift for the page size.
 pub const PAGE_SHIFT: usize = bindings::PAGE_SHIFT as usize;
 
@@ -30,13 +37,94 @@ pub const fn page_align(addr: usize) -> usize {
     (addr + (PAGE_SIZE - 1)) & PAGE_MASK
 }
 
+/// Representation of a non-owning reference to a [`Page`].
+///
+/// This type provides a borrowed version of a [`Page`] that is owned by some other entity, e.g. a
+/// [`Vmalloc`] allocation such as [`VBox`].
+///
+/// # Example
+///
+/// ```
+/// # use kernel::{bindings, prelude::*};
+/// use kernel::page::{BorrowedPage, Page, PAGE_SIZE};
+/// # use core::{mem::MaybeUninit, ptr, ptr::NonNull };
+///
+/// fn borrow_page<'a>(vbox: &'a mut VBox<MaybeUninit<[u8; PAGE_SIZE]>>) -> BorrowedPage<'a> {
+///     let ptr = ptr::from_ref(&**vbox);
+///
+///     // SAFETY: `ptr` is a valid pointer to `Vmalloc` memory.
+///     let page = unsafe { bindings::vmalloc_to_page(ptr.cast()) };
+///
+///     // SAFETY: `vmalloc_to_page` returns a valid pointer to a `struct page` for a valid
+///     // pointer to `Vmalloc` memory.
+///     let page = unsafe { NonNull::new_unchecked(page) };
+///
+///     // SAFETY:
+///     // - `self.0` is a valid pointer to a `struct page`.
+///     // - `self.0` is valid for the entire lifetime of `self`.
+///     unsafe { BorrowedPage::from_raw(page) }
+/// }
+///
+/// let mut vbox = VBox::<[u8; PAGE_SIZE]>::new_uninit(GFP_KERNEL)?;
+/// let page = borrow_page(&mut vbox);
+///
+/// // SAFETY: There is no concurrent read or write to this page.
+/// unsafe { page.fill_zero_raw(0, PAGE_SIZE)? };
+/// # Ok::<(), Error>(())
+/// ```
+///
+/// # Invariants
+///
+/// The borrowed underlying pointer to a `struct page` is valid for the entire lifetime `'a`.
+///
+/// [`VBox`]: kernel::alloc::VBox
+/// [`Vmalloc`]: kernel::alloc::allocator::Vmalloc
+pub struct BorrowedPage<'a>(ManuallyDrop<Owned<Page>>, PhantomData<&'a Page>);
+
+impl<'a> BorrowedPage<'a> {
+    /// Constructs a [`BorrowedPage`] from a raw pointer to a `struct page`.
+    ///
+    /// # Safety
+    ///
+    /// - `ptr` must point to a valid `bindings::page`.
+    /// - `ptr` must remain valid for the entire lifetime `'a`.
+    pub unsafe fn from_raw(ptr: NonNull<bindings::page>) -> Self {
+        let page = unsafe { Page::from_phys(bindings::page_to_phys(ptr.as_ptr()))};
+
+        // INVARIANT: The safety requirements guarantee that `ptr` is valid for the entire lifetime
+        // `'a`.
+        Self(ManuallyDrop::new(page), PhantomData)
+    }
+}
+
+impl<'a> Deref for BorrowedPage<'a> {
+    type Target = Page;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Trait to be implemented by types which provide an [`Iterator`] implementation of
+/// [`BorrowedPage`] items, such as [`VmallocPageIter`](kernel::alloc::allocator::VmallocPageIter).
+pub trait AsPageIter {
+    /// The [`Iterator`] type, e.g. [`VmallocPageIter`](kernel::alloc::allocator::VmallocPageIter).
+    type Iter<'a>: Iterator<Item = BorrowedPage<'a>>
+    where
+        Self: 'a;
+
+    /// Returns an [`Iterator`] of [`BorrowedPage`] items over all pages owned by `self`.
+    fn page_iter(&mut self) -> Self::Iter<'_>;
+}
+
 /// A pointer to a page that owns the page allocation.
 ///
 /// # Invariants
 ///
 /// The pointer is valid, and has ownership over the page.
+#[repr(transparent)]
 pub struct Page {
-    page: NonNull<bindings::page>,
+    page: Opaque<bindings::page>,
 }
 
 // SAFETY: Pages have no logic that relies on them staying on a given thread, so moving them across
@@ -70,19 +158,20 @@ impl Page {
     /// # Ok::<(), kernel::alloc::AllocError>(())
     /// ```
     #[inline]
-    pub fn alloc_page(flags: Flags) -> Result<Self, AllocError> {
+    pub fn alloc_page(flags: Flags) -> Result<Owned<Self>, AllocError> {
         // SAFETY: Depending on the value of `gfp_flags`, this call may sleep. Other than that, it
         // is always safe to call this method.
         let page = unsafe { bindings::alloc_pages(flags.as_raw(), 0) };
         let page = NonNull::new(page).ok_or(AllocError)?;
-        // INVARIANT: We just successfully allocated a page, so we now have ownership of the newly
-        // allocated page. We transfer that ownership to the new `Page` object.
-        Ok(Self { page })
+        // SAFETY: We just successfully allocated a page, so we now have ownership of the newly
+        // allocated page. We transfer that ownership to the new `Owned<Page>` object.
+        // Since `Page` is transparent, we can cast the pointer directly.
+        Ok(unsafe { Owned::from_raw(page.cast()) })
     }
 
     /// Returns a raw pointer to the page.
     pub fn as_ptr(&self) -> *mut bindings::page {
-        self.page.as_ptr()
+        Opaque::cast_into(&self.page)
     }
 
     /// Runs a piece of code with this page mapped to an address.
@@ -101,7 +190,7 @@ impl Page {
     /// different addresses. However, even if the addresses are different, the underlying memory is
     /// still the same for these purposes (e.g., it's still a data race if they both write to the
     /// same underlying byte at the same time).
-    fn with_page_mapped<T>(&self, f: impl FnOnce(*mut u8) -> T) -> T {
+    pub fn with_page_mapped<T>(&self, f: impl FnOnce(*mut u8) -> T) -> T {
         // SAFETY: `page` is valid due to the type invariants on `Page`.
         let mapped_addr = unsafe { bindings::kmap_local_page(self.as_ptr()) };
 
@@ -142,7 +231,7 @@ impl Page {
     /// different addresses. However, even if the addresses are different, the underlying memory is
     /// still the same for these purposes (e.g., it's still a data race if they both write to the
     /// same underlying byte at the same time).
-    fn with_pointer_into_page<T>(
+    pub fn with_pointer_into_page<T>(
         &self,
         off: usize,
         len: usize,
@@ -249,12 +338,77 @@ impl Page {
             reader.read_raw(unsafe { core::slice::from_raw_parts_mut(dst.cast(), len) })
         })
     }
+
+    /// Returns the physical address of this page.
+    pub fn phys(&self) -> PhysicalAddr {
+        // SAFETY: `page` is valid due to the type invariants on `Page`.
+        unsafe { bindings::page_to_phys(self.as_ptr()) }
+    }
+
+    /// Converts a Rust-owned Page into its physical address.
+    /// The caller is responsible for calling `from_phys()` to avoid
+    /// leaking memory.
+    pub fn into_phys(this: Owned<Self>) -> PhysicalAddr {
+        ManuallyDrop::new(this).phys()
+    }
+
+    /// Converts a physical address to a Rust-owned Page.
+    ///
+    /// SAFETY:
+    /// The caller must ensure that the physical address was previously returned
+    /// by a call to `Page::into_phys()`, and that the physical address is no
+    /// longer used after this call, nor is `from_phys()` called again on it.
+    pub unsafe fn from_phys(phys: PhysicalAddr) -> Owned<Self> {
+        // SAFETY: By the safety requirements, the physical address must be valid and
+        // have come from `into_phys()`, so phys_to_page() cannot fail and
+        // must return the original struct page pointer.
+        unsafe { Owned::from_raw(NonNull::new_unchecked(bindings::phys_to_page(phys)).cast()) }
+    }
+
+    /// Borrows a Page from a physical address, without taking over ownership.
+    ///
+    /// If the physical address does not have a `struct page` entry or is not
+    /// part of the System RAM region, returns None.
+    ///
+    /// SAFETY:
+    /// The caller must ensure that the physical address, if it is backed by a
+    /// `struct page`, remains available for the duration of the borrowed
+    /// lifetime.
+    pub unsafe fn borrow_phys(phys: &PhysicalAddr) -> Option<&Self> {
+        // SAFETY: This is always safe, as it is just arithmetic
+        let pfn = unsafe { bindings::phys_to_pfn(*phys) };
+        // SAFETY: This function is safe to call with any pfn
+        if !unsafe { bindings::pfn_valid(pfn) && bindings::page_is_ram(pfn) != 0 } {
+            None
+        } else {
+            // SAFETY: We have just checked that the pfn is valid above, so it must
+            // have a corresponding struct page. By the safety requirements, we can
+            // return a borrowed reference to it.
+            Some(unsafe { &*(bindings::pfn_to_page(pfn) as *mut Self as *const Self) })
+        }
+    }
+
+    /// Borrows a Page from a physical address, without taking over ownership
+    /// nor checking for validity.
+    ///
+    /// SAFETY:
+    /// The caller must ensure that the physical address is backed by a
+    /// `struct page` and corresponds to System RAM.
+    pub unsafe fn borrow_phys_unchecked(phys: &PhysicalAddr) -> &Self {
+        // SAFETY: This is always safe, as it is just arithmetic
+        let pfn = unsafe { bindings::phys_to_pfn(*phys) };
+        // SAFETY: The caller guarantees that the pfn is valid. By the safety
+        // requirements, we can return a borrowed reference to it.
+        unsafe { &*(bindings::pfn_to_page(pfn) as *mut Self as *const Self) }
+    }
 }
 
-impl Drop for Page {
+// SAFETY: See below.
+unsafe impl Ownable for Page {
     #[inline]
-    fn drop(&mut self) {
+    unsafe fn release(this: NonNull<Self>) {
         // SAFETY: By the type invariants, we have ownership of the page and can free it.
-        unsafe { bindings::__free_pages(self.page.as_ptr(), 0) };
+        // Since Page is transparent, we can cast the raw pointer directly.
+        unsafe { bindings::__free_pages(this.cast().as_ptr(), 0) };
     }
 }
