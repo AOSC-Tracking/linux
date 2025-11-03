@@ -5,8 +5,9 @@
 //! C header: [`include/linux/device.h`](srctree/include/linux/device.h)
 
 use crate::{
-    bindings,
-    types::{ARef, ForeignOwnable, Opaque},
+    bindings, of,
+    prelude::*,
+    types::{ARef, ForeignOwnable, NotThreadSafe, Opaque},
 };
 use core::{fmt, marker::PhantomData, ptr};
 
@@ -280,6 +281,13 @@ impl<Ctx: DeviceContext> Device<Ctx> {
         unsafe { &*ptr.cast() }
     }
 
+    /// Gets the OpenFirmware node attached to this device
+    pub fn of_node(&self) -> Option<of::Node> {
+        let ptr = self.0.get();
+        // SAFETY: This is safe as long as of_node is NULL or valid.
+        unsafe { of::Node::get_from_raw((*ptr).of_node) }
+    }
+
     /// Prints an emergency-level message (level 0) prefixed with device information.
     ///
     /// More details are available from [`dev_emerg`].
@@ -397,6 +405,58 @@ impl<Ctx: DeviceContext> Device<Ctx> {
         // `struct fwnode_handle*` to a `*const FwNode` because `FwNode` is
         // defined as a `#[repr(transparent)]` wrapper around `fwnode_handle`.
         Some(unsafe { &*fwnode_handle.cast() })
+    }
+
+    /// Locks the [`Device`] for exclusive access.
+    pub fn lock(&self) -> Guard<'_, Ctx> {
+        // SAFETY: `self` is always valid by the type invariant.
+        unsafe { bindings::device_lock(self.as_raw()) };
+
+        Guard {
+            dev: self,
+            _not_send: NotThreadSafe,
+        }
+    }
+
+    /// ensure Device is bound
+    pub fn is_bound(&self) -> Option<Guard<'_, Ctx>> {
+        let guard = self.lock();
+        if !unsafe { bindings::device_is_bound(self.as_raw()) } {
+            return None;
+        }
+        Some(guard)
+    }
+
+    /// excute closure while the device is bound
+    pub fn while_bound_with<F, U>(&self, f: F) -> Result<U>
+    where
+        F: FnOnce(&Device<Bound>) -> Result<U>,
+    {
+        let _guard = self.lock();
+        if unsafe { !bindings::device_is_bound(self.as_raw()) } {
+            return Err(ENODEV);
+        }
+        let ptr: *const Self = self;
+        let ptr = ptr.cast::<Device<Bound>>();
+        f(unsafe { &*ptr })
+    }
+}
+
+/// A lock guard.
+///
+/// The lock is unlocked when the guard goes out of scope.
+#[must_use = "the lock unlocks immediately when the guard is unused"]
+pub struct Guard<'a, Ctx: DeviceContext = Normal> {
+    dev: &'a Device<Ctx>,
+    _not_send: NotThreadSafe,
+}
+
+impl<Ctx: DeviceContext> Drop for Guard<'_, Ctx> {
+    fn drop(&mut self) {
+        // SAFETY:
+        // - `self.xa.xa` is always valid by the type invariant.
+        // - The caller holds the lock, so it is safe to unlock it.
+        unsafe { bindings::device_unlock(self.dev.as_raw()) };
     }
 }
 

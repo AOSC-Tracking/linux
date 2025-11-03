@@ -7,7 +7,9 @@
  * Sorted alphabetically.
  */
 
+#include "atomic.c"
 #include "auxiliary.c"
+#include "barrier.c"
 #include "blk.c"
 #include "bug.c"
 #include "build_assert.c"
@@ -20,6 +22,7 @@
 #include "cred.c"
 #include "device.c"
 #include "dma.c"
+#include "dma-mapping.c"
 #include "drm.c"
 #include "err.c"
 #include "fs.c"
