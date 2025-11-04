@@ -349,6 +349,14 @@ config DWMAC_VISCONTI
 
 endif
 
+config STMMAC_LIBPCI
+	tristate "STMMAC PCI helper library"
+	depends on PCI
+	default y
+	help
+	  This selects the PCI bus helpers for the stmmac driver. If you
+	  have a controller with PCI interface, say Y or M here.
+
 config DWMAC_INTEL
 	tristate "Intel GMAC support"
 	default X86
