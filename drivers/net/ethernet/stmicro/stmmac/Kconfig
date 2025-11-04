@@ -367,6 +367,8 @@ config DWMAC_INTEL
 	  This selects the Intel platform specific bus support for the
 	  stmmac driver. This driver is used for Intel Quark/EHL/TGL.
 
+if STMMAC_LIBPCI
+
 config DWMAC_LOONGSON
 	tristate "Loongson PCI DWMAC support"
 	default MACH_LOONGSON64
@@ -375,6 +377,8 @@ config DWMAC_LOONGSON
 	help
 	  This selects the LOONGSON PCI bus support for the stmmac driver,
 	  Support for ethernet controller on Loongson-2K1000 SoC and LS7A1000 bridge.
+
+endif
 
 config STMMAC_PCI
 	tristate "STMMAC PCI bus support"
