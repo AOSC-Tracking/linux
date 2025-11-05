@@ -106,7 +106,7 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 
 	plat->phy_addr = -1;
 	plat->clk_csr = -1;
-	plat->has_gmac = 1;
+	plat->core_type = DWMAC_CORE_GMAC;
 	plat->enh_desc = 1;
 	plat->bugged_jumbo = 1;
 	plat->pmt = 1;
@@ -184,7 +184,6 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	plat->axi->axi_xit_frm = false;
 	plat->axi->axi_wr_osr_lmt = 7;
 	plat->axi->axi_rd_osr_lmt = 7;
-	plat->axi->axi_blen[0] = 16;
 
 	memset(&stmmac_res, 0, sizeof(stmmac_res));
 	stmmac_res.addr = devm_platform_ioremap_resource(pdev, 0);
