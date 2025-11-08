@@ -328,9 +328,10 @@ unsafe impl<T: DriverGpuVm> AlwaysRefCounted for GpuVmBo<T> {
         // The drm_gpuvm_put function satisfies the requirements for dec_ref().
         // (We do not support custom locks yet.)
         unsafe {
-            obj.as_mut().lock_gpuva();
+            let resv = (*obj.as_mut().bo.obj).resv;
+            bindings::dma_resv_lock(resv, core::ptr::null_mut());
             bindings::drm_gpuvm_bo_put(&mut obj.as_mut().bo);
-            obj.as_mut().unlock_gpuva();
+            bindings::dma_resv_unlock(resv);
         }
     }
 }
