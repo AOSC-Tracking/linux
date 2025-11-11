@@ -432,8 +432,7 @@
  * DRM GPUVM also does not take care of the locking of the backing
  * &drm_gem_object buffers GPU VA lists and &drm_gpuvm_bo abstractions by
  * itself; drivers are responsible to enforce mutual exclusion using either the
- * GEMs dma_resv lock or alternatively a driver specific external lock. For the
- * latter see also drm_gem_gpuva_set_lock().
+ * GEMs dma_resv lock or the GEMs gpuva.lock mutex.
  *
  * However, DRM GPUVM contains lockdep checks to ensure callers of its API hold
  * the corresponding lock whenever the &drm_gem_objects GPU VA list is accessed
@@ -672,6 +671,12 @@
  */
 
 /**
+ * Mask of flags which must match to consider a drm_gpuva eligible for merging
+ * with a new overlaid mapping.
+ */
+#define DRM_GPUVA_UNMERGEABLE_FLAGS DRM_GPUVA_SINGLE_PAGE
+
+/**
  * get_next_vm_bo_from_list() - get the next vm_bo element
  * @__gpuvm: the &drm_gpuvm
  * @__list_name: the name of the list we're iterating on
@@ -805,6 +810,31 @@ __drm_gpuvm_bo_list_add(struct drm_gpuvm *gpuvm, spinlock_t *lock,
 	if (list_empty(entry))
 		list_add_tail(entry, list);
 	cond_spin_unlock(lock, !!lock);
+}
+
+/**
+ * drm_gpuvm_bo_is_zombie() - check whether this vm_bo is scheduled for cleanup
+ * @vm_bo: the &drm_gpuvm_bo
+ *
+ * When a vm_bo is scheduled for cleanup using the bo_defer list, it is not
+ * immediately removed from the evict and extobj lists. Therefore, anyone
+ * iterating these lists should skip entries that are being destroyed.
+ *
+ * Checking the refcount without incrementing it is okay as long as the lock
+ * protecting the evict/extobj list is held for as long as you are using the
+ * vm_bo, because even if the refcount hits zero while you are using it, freeing
+ * the vm_bo requires taking the list's lock.
+ *
+ * Zombie entries can be observed on the evict and extobj lists regardless of
+ * whether DRM_GPUVM_RESV_PROTECTED is used, but they remain on the lists for a
+ * longer time when the resv lock is used because we can't take the resv lock
+ * during run_job() in immediate mode, meaning that they need to remain on the
+ * lists until drm_gpuvm_bo_deferred_cleanup() is called.
+ */
+static bool
+drm_gpuvm_bo_is_zombie(struct drm_gpuvm_bo *vm_bo)
+{
+	return !kref_read(&vm_bo->kref);
 }
 
 /**
@@ -1012,6 +1042,8 @@ drm_gpuvm_init(struct drm_gpuvm *gpuvm, const char *name,
 	INIT_LIST_HEAD(&gpuvm->evict.list);
 	spin_lock_init(&gpuvm->evict.lock);
 
+	init_llist_head(&gpuvm->bo_defer);
+
 	kref_init(&gpuvm->kref);
 
 	gpuvm->name = name ? name : "unknown";
@@ -1053,6 +1085,8 @@ drm_gpuvm_fini(struct drm_gpuvm *gpuvm)
 		 "Extobj list should be empty.\n");
 	drm_WARN(gpuvm->drm, !list_empty(&gpuvm->evict.list),
 		 "Evict list should be empty.\n");
+	drm_WARN(gpuvm->drm, !llist_empty(&gpuvm->bo_defer),
+		 "VM BO cleanup list should be empty.\n");
 
 	drm_gem_object_put(gpuvm->r_obj);
 }
@@ -1148,6 +1182,9 @@ drm_gpuvm_prepare_objects_locked(struct drm_gpuvm *gpuvm,
 
 	drm_gpuvm_resv_assert_held(gpuvm);
 	list_for_each_entry(vm_bo, &gpuvm->extobj.list, list.entry.extobj) {
+		if (drm_gpuvm_bo_is_zombie(vm_bo))
+			continue;
+
 		ret = exec_prepare_obj(exec, vm_bo->obj, num_fences);
 		if (ret)
 			break;
@@ -1391,6 +1428,9 @@ drm_gpuvm_validate_locked(struct drm_gpuvm *gpuvm, struct drm_exec *exec)
 
 	list_for_each_entry_safe(vm_bo, next, &gpuvm->evict.list,
 				 list.entry.evict) {
+		if (drm_gpuvm_bo_is_zombie(vm_bo))
+			continue;
+
 		ret = ops->vm_bo_validate(vm_bo, exec);
 		if (ret)
 			break;
@@ -1491,6 +1531,7 @@ drm_gpuvm_bo_create(struct drm_gpuvm *gpuvm,
 
 	INIT_LIST_HEAD(&vm_bo->list.entry.extobj);
 	INIT_LIST_HEAD(&vm_bo->list.entry.evict);
+	init_llist_node(&vm_bo->list.entry.bo_defer);
 
 	return vm_bo;
 }
@@ -1512,7 +1553,7 @@ drm_gpuvm_bo_destroy(struct kref *kref)
 	drm_gpuvm_bo_list_del(vm_bo, extobj, lock);
 	drm_gpuvm_bo_list_del(vm_bo, evict, lock);
 
-	drm_gem_gpuva_assert_lock_held(obj);
+	drm_gem_gpuva_assert_lock_held(gpuvm, obj);
 	list_del(&vm_bo->list.entry.gem);
 
 	if (ops && ops->vm_bo_free)
@@ -1533,7 +1574,8 @@ drm_gpuvm_bo_destroy(struct kref *kref)
  * If the reference count drops to zero, the &gpuvm_bo is destroyed, which
  * includes removing it from the GEMs gpuva list. Hence, if a call to this
  * function can potentially let the reference count drop to zero the caller must
- * hold the dma-resv or driver specific GEM gpuva lock.
+ * hold the lock that the GEM uses for its gpuva list (either the GEM's
+ * dma-resv or gpuva.lock mutex).
  *
  * This function may only be called from non-atomic context.
  *
@@ -1551,13 +1593,133 @@ drm_gpuvm_bo_put(struct drm_gpuvm_bo *vm_bo)
 }
 EXPORT_SYMBOL_GPL(drm_gpuvm_bo_put);
 
+/*
+ * drm_gpuvm_bo_into_zombie() - called when the vm_bo becomes a zombie due to
+ * deferred cleanup
+ *
+ * If deferred cleanup is used, then this must be called right after the vm_bo
+ * refcount drops to zero. Must be called with GEM mutex held. After releasing
+ * the GEM mutex, drm_gpuvm_bo_defer_zombie_cleanup() must be called.
+ */
+static void
+drm_gpuvm_bo_into_zombie(struct kref *kref)
+{
+	struct drm_gpuvm_bo *vm_bo = container_of(kref, struct drm_gpuvm_bo,
+						  kref);
+
+	if (!drm_gpuvm_resv_protected(vm_bo->vm)) {
+		drm_gpuvm_bo_list_del(vm_bo, extobj, true);
+		drm_gpuvm_bo_list_del(vm_bo, evict, true);
+	}
+
+	list_del(&vm_bo->list.entry.gem);
+}
+
+/*
+ * drm_gpuvm_bo_defer_zombie_cleanup() - adds a new zombie vm_bo to the
+ * bo_defer list
+ *
+ * Called after drm_gpuvm_bo_into_zombie(). GEM mutex must not be held.
+ *
+ * It's important that the GEM stays alive for the duration in which we hold
+ * the mutex, but the instant we add the vm_bo to bo_defer, another thread
+ * might call drm_gpuvm_bo_deferred_cleanup() and put the GEM. Therefore, to
+ * avoid kfreeing a mutex we are holding, the GEM mutex must be released
+ * *before* calling this function.
+ */
+static void
+drm_gpuvm_bo_defer_zombie_cleanup(struct drm_gpuvm_bo *vm_bo)
+{
+	llist_add(&vm_bo->list.entry.bo_defer, &vm_bo->vm->bo_defer);
+}
+
+static void
+drm_gpuvm_bo_defer_free(struct kref *kref)
+{
+	struct drm_gpuvm_bo *vm_bo = container_of(kref, struct drm_gpuvm_bo,
+						  kref);
+
+	drm_gpuvm_bo_into_zombie(kref);
+	mutex_unlock(&vm_bo->obj->gpuva.lock);
+	drm_gpuvm_bo_defer_zombie_cleanup(vm_bo);
+}
+
+/**
+ * drm_gpuvm_bo_put_deferred() - drop a struct drm_gpuvm_bo reference with
+ * deferred cleanup
+ * @vm_bo: the &drm_gpuvm_bo to release the reference of
+ *
+ * This releases a reference to @vm_bo.
+ *
+ * This might take and release the GEMs GPUVA lock. You should call
+ * drm_gpuvm_bo_deferred_cleanup() later to complete the cleanup process.
+ *
+ * Returns: true if vm_bo is being destroyed, false otherwise.
+ */
+bool
+drm_gpuvm_bo_put_deferred(struct drm_gpuvm_bo *vm_bo)
+{
+	if (!vm_bo)
+		return false;
+
+	drm_WARN_ON(vm_bo->vm->drm, !drm_gpuvm_immediate_mode(vm_bo->vm));
+
+	return !!kref_put_mutex(&vm_bo->kref,
+				drm_gpuvm_bo_defer_free,
+				&vm_bo->obj->gpuva.lock);
+}
+EXPORT_SYMBOL_GPL(drm_gpuvm_bo_put_deferred);
+
+/**
+ * drm_gpuvm_bo_deferred_cleanup() - clean up BOs in the deferred list
+ * deferred cleanup
+ * @gpuvm: the VM to clean up
+ *
+ * Cleans up &drm_gpuvm_bo instances in the deferred cleanup list.
+ */
+void
+drm_gpuvm_bo_deferred_cleanup(struct drm_gpuvm *gpuvm)
+{
+	const struct drm_gpuvm_ops *ops = gpuvm->ops;
+	struct drm_gpuvm_bo *vm_bo;
+	struct drm_gem_object *obj;
+	struct llist_node *bo_defer;
+
+	bo_defer = llist_del_all(&gpuvm->bo_defer);
+	if (!bo_defer)
+		return;
+
+	if (drm_gpuvm_resv_protected(gpuvm)) {
+		dma_resv_lock(drm_gpuvm_resv(gpuvm), NULL);
+		llist_for_each_entry(vm_bo, bo_defer, list.entry.bo_defer) {
+			drm_gpuvm_bo_list_del(vm_bo, extobj, false);
+			drm_gpuvm_bo_list_del(vm_bo, evict, false);
+		}
+		dma_resv_unlock(drm_gpuvm_resv(gpuvm));
+	}
+
+	while (bo_defer) {
+		vm_bo = llist_entry(bo_defer, struct drm_gpuvm_bo, list.entry.bo_defer);
+		bo_defer = bo_defer->next;
+		obj = vm_bo->obj;
+		if (ops && ops->vm_bo_free)
+			ops->vm_bo_free(vm_bo);
+		else
+			kfree(vm_bo);
+
+		drm_gpuvm_put(gpuvm);
+		drm_gem_object_put(obj);
+	}
+}
+EXPORT_SYMBOL_GPL(drm_gpuvm_bo_deferred_cleanup);
+
 static struct drm_gpuvm_bo *
 __drm_gpuvm_bo_find(struct drm_gpuvm *gpuvm,
 		    struct drm_gem_object *obj)
 {
 	struct drm_gpuvm_bo *vm_bo;
 
-	drm_gem_gpuva_assert_lock_held(obj);
+	drm_gem_gpuva_assert_lock_held(gpuvm, obj);
 	drm_gem_for_each_gpuvm_bo(vm_bo, obj)
 		if (vm_bo->vm == gpuvm)
 			return vm_bo;
@@ -1616,7 +1778,7 @@ drm_gpuvm_bo_obtain(struct drm_gpuvm *gpuvm,
 	if (!vm_bo)
 		return ERR_PTR(-ENOMEM);
 
-	drm_gem_gpuva_assert_lock_held(obj);
+	drm_gem_gpuva_assert_lock_held(gpuvm, obj);
 	list_add_tail(&vm_bo->list.entry.gem, &obj->gpuva.list);
 
 	return vm_bo;
@@ -1652,7 +1814,7 @@ drm_gpuvm_bo_obtain_prealloc(struct drm_gpuvm_bo *__vm_bo)
 		return vm_bo;
 	}
 
-	drm_gem_gpuva_assert_lock_held(obj);
+	drm_gem_gpuva_assert_lock_held(gpuvm, obj);
 	list_add_tail(&__vm_bo->list.entry.gem, &obj->gpuva.list);
 
 	return __vm_bo;
@@ -1824,8 +1986,7 @@ EXPORT_SYMBOL_GPL(drm_gpuva_remove);
  * reference of the latter is taken.
  *
  * This function expects the caller to protect the GEM's GPUVA list against
- * concurrent access using either the GEMs dma_resv lock or a driver specific
- * lock set through drm_gem_gpuva_set_lock().
+ * concurrent access using either the GEM's dma-resv or gpuva.lock mutex.
  */
 void
 drm_gpuva_link(struct drm_gpuva *va, struct drm_gpuvm_bo *vm_bo)
@@ -1840,7 +2001,7 @@ drm_gpuva_link(struct drm_gpuva *va, struct drm_gpuvm_bo *vm_bo)
 
 	va->vm_bo = drm_gpuvm_bo_get(vm_bo);
 
-	drm_gem_gpuva_assert_lock_held(obj);
+	drm_gem_gpuva_assert_lock_held(gpuvm, obj);
 	list_add_tail(&va->gem.entry, &vm_bo->list.gpuva);
 }
 EXPORT_SYMBOL_GPL(drm_gpuva_link);
@@ -1860,8 +2021,7 @@ EXPORT_SYMBOL_GPL(drm_gpuva_link);
  * the latter is dropped.
  *
  * This function expects the caller to protect the GEM's GPUVA list against
- * concurrent access using either the GEMs dma_resv lock or a driver specific
- * lock set through drm_gem_gpuva_set_lock().
+ * concurrent access using either the GEM's dma-resv or gpuva.lock mutex.
  */
 void
 drm_gpuva_unlink(struct drm_gpuva *va)
@@ -1872,13 +2032,47 @@ drm_gpuva_unlink(struct drm_gpuva *va)
 	if (unlikely(!obj))
 		return;
 
-	drm_gem_gpuva_assert_lock_held(obj);
+	drm_gem_gpuva_assert_lock_held(va->vm, obj);
 	list_del_init(&va->gem.entry);
 
 	va->vm_bo = NULL;
 	drm_gpuvm_bo_put(vm_bo);
 }
 EXPORT_SYMBOL_GPL(drm_gpuva_unlink);
+
+/**
+ * drm_gpuva_unlink_defer() - unlink a &drm_gpuva with deferred vm_bo cleanup
+ * @va: the &drm_gpuva to unlink
+ *
+ * Similar to drm_gpuva_unlink(), but uses drm_gpuvm_bo_put_deferred() and takes
+ * the lock for the caller.
+ */
+void
+drm_gpuva_unlink_defer(struct drm_gpuva *va)
+{
+	struct drm_gem_object *obj = va->gem.obj;
+	struct drm_gpuvm_bo *vm_bo = va->vm_bo;
+	bool should_defer_bo;
+
+	if (unlikely(!obj))
+		return;
+
+	drm_WARN_ON(vm_bo->vm->drm, !drm_gpuvm_immediate_mode(vm_bo->vm));
+
+	mutex_lock(&obj->gpuva.lock);
+	list_del_init(&va->gem.entry);
+
+	/*
+	 * This is drm_gpuvm_bo_put_deferred() except we already hold the mutex.
+	 */
+	should_defer_bo = kref_put(&vm_bo->kref, drm_gpuvm_bo_into_zombie);
+	mutex_unlock(&obj->gpuva.lock);
+	if (should_defer_bo)
+		drm_gpuvm_bo_defer_zombie_cleanup(vm_bo);
+
+	va->vm_bo = NULL;
+}
+EXPORT_SYMBOL_GPL(drm_gpuva_unlink_defer);
 
 /**
  * drm_gpuva_find_first() - find the first &drm_gpuva in the given range
@@ -2055,7 +2249,8 @@ EXPORT_SYMBOL_GPL(drm_gpuva_unmap);
 static int
 op_map_cb(const struct drm_gpuvm_ops *fn, void *priv,
 	  u64 addr, u64 range,
-	  struct drm_gem_object *obj, u64 offset)
+	  struct drm_gem_object *obj, u64 offset,
+	  enum drm_gpuva_flags flags)
 {
 	struct drm_gpuva_op op = {};
 
@@ -2064,6 +2259,7 @@ op_map_cb(const struct drm_gpuvm_ops *fn, void *priv,
 	op.map.va.range = range;
 	op.map.gem.obj = obj;
 	op.map.gem.offset = offset;
+	op.map.flags = flags;
 
 	return fn->sm_step_map(&op, priv);
 }
@@ -2103,7 +2299,8 @@ static int
 __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 		   const struct drm_gpuvm_ops *ops, void *priv,
 		   u64 req_addr, u64 req_range,
-		   struct drm_gem_object *req_obj, u64 req_offset)
+		   struct drm_gem_object *req_obj, u64 req_offset,
+		   enum drm_gpuva_flags req_flags)
 {
 	struct drm_gpuva *va, *next;
 	u64 req_end = req_addr + req_range;
@@ -2119,6 +2316,9 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 		u64 range = va->va.range;
 		u64 end = addr + range;
 		bool merge = !!va->gem.obj;
+		bool single_page = va->flags & DRM_GPUVA_SINGLE_PAGE;
+
+		merge &= !((va->flags ^ req_flags) & DRM_GPUVA_UNMERGEABLE_FLAGS);
 
 		if (addr == req_addr) {
 			merge &= obj == req_obj &&
@@ -2143,7 +2343,9 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 					.va.addr = req_end,
 					.va.range = range - req_range,
 					.gem.obj = obj,
-					.gem.offset = offset + req_range,
+					.gem.offset = offset +
+						(single_page ? 0 : req_range),
+					.flags = va->flags,
 				};
 				struct drm_gpuva_op_unmap u = {
 					.va = va,
@@ -2162,11 +2364,16 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 				.va.range = ls_range,
 				.gem.obj = obj,
 				.gem.offset = offset,
+				.flags = va->flags,
 			};
 			struct drm_gpuva_op_unmap u = { .va = va };
 
-			merge &= obj == req_obj &&
-				 offset + ls_range == req_offset;
+			merge &= obj == req_obj;
+			if (single_page)
+				merge &= offset == req_offset;
+			else
+				merge &= offset + ls_range == req_offset;
+
 			u.keep = merge;
 
 			if (end == req_end) {
@@ -2188,8 +2395,10 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 					.va.addr = req_end,
 					.va.range = end - req_end,
 					.gem.obj = obj,
-					.gem.offset = offset + ls_range +
-						      req_range,
+					.gem.offset = offset +
+						(single_page ? 0 :
+						 ls_range + req_range),
+					.flags = va->flags,
 				};
 
 				ret = op_remap_cb(ops, priv, &p, &n, &u);
@@ -2198,9 +2407,13 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 				break;
 			}
 		} else if (addr > req_addr) {
-			merge &= obj == req_obj &&
-				 offset == req_offset +
-					   (addr - req_addr);
+			merge &= obj == req_obj;
+
+			if (single_page)
+				merge &= offset == req_offset;
+			else
+				merge &= offset == req_offset +
+					 (addr - req_addr);
 
 			if (end == req_end) {
 				ret = op_unmap_cb(ops, priv, va, merge);
@@ -2221,7 +2434,10 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 					.va.addr = req_end,
 					.va.range = end - req_end,
 					.gem.obj = obj,
-					.gem.offset = offset + req_end - addr,
+					.gem.offset = offset +
+						(single_page ? 0 :
+						 req_end - addr),
+					.flags = va->flags,
 				};
 				struct drm_gpuva_op_unmap u = {
 					.va = va,
@@ -2238,7 +2454,8 @@ __drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm,
 
 	return op_map_cb(ops, priv,
 			 req_addr, req_range,
-			 req_obj, req_offset);
+			 req_obj, req_offset,
+			 req_flags);
 }
 
 static int
@@ -2261,12 +2478,14 @@ __drm_gpuvm_sm_unmap(struct drm_gpuvm *gpuvm,
 		u64 addr = va->va.addr;
 		u64 range = va->va.range;
 		u64 end = addr + range;
+		bool single_page = va->flags & DRM_GPUVA_SINGLE_PAGE;
 
 		if (addr < req_addr) {
 			prev.va.addr = addr;
 			prev.va.range = req_addr - addr;
 			prev.gem.obj = obj;
 			prev.gem.offset = offset;
+			prev.flags = va->flags;
 
 			prev_split = true;
 		}
@@ -2275,7 +2494,10 @@ __drm_gpuvm_sm_unmap(struct drm_gpuvm *gpuvm,
 			next.va.addr = req_end;
 			next.va.range = end - req_end;
 			next.gem.obj = obj;
-			next.gem.offset = offset + (req_end - addr);
+			next.gem.offset = offset;
+			if (!single_page)
+				next.gem.offset += req_end - addr;
+			next.flags = va->flags;
 
 			next_split = true;
 		}
@@ -2334,7 +2556,8 @@ __drm_gpuvm_sm_unmap(struct drm_gpuvm *gpuvm,
 int
 drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm, void *priv,
 		 u64 req_addr, u64 req_range,
-		 struct drm_gem_object *req_obj, u64 req_offset)
+		 struct drm_gem_object *req_obj, u64 req_offset,
+		 enum drm_gpuva_flags req_flags)
 {
 	const struct drm_gpuvm_ops *ops = gpuvm->ops;
 
@@ -2345,7 +2568,8 @@ drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm, void *priv,
 
 	return __drm_gpuvm_sm_map(gpuvm, ops, priv,
 				  req_addr, req_range,
-				  req_obj, req_offset);
+				  req_obj, req_offset,
+				  req_flags);
 }
 EXPORT_SYMBOL_GPL(drm_gpuvm_sm_map);
 
@@ -2425,6 +2649,7 @@ static const struct drm_gpuvm_ops lock_ops = {
  * @req_range: the range of the mappings to unmap
  * @req_obj: the &drm_gem_object to map
  * @req_offset: the offset within the &drm_gem_object
+ * @req_flags: drm_gpuva flags
  *
  * This function locks (drm_exec_lock_obj()) objects that will be unmapped/
  * remapped, and locks+prepares (drm_exec_prepare_object()) objects that
@@ -2479,7 +2704,8 @@ int
 drm_gpuvm_sm_map_exec_lock(struct drm_gpuvm *gpuvm,
 			   struct drm_exec *exec, unsigned int num_fences,
 			   u64 req_addr, u64 req_range,
-			   struct drm_gem_object *req_obj, u64 req_offset)
+			   struct drm_gem_object *req_obj, u64 req_offset,
+			   enum drm_gpuva_flags req_flags)
 {
 	if (req_obj) {
 		int ret = drm_exec_prepare_obj(exec, req_obj, num_fences);
@@ -2489,7 +2715,8 @@ drm_gpuvm_sm_map_exec_lock(struct drm_gpuvm *gpuvm,
 
 	return __drm_gpuvm_sm_map(gpuvm, &lock_ops, exec,
 				  req_addr, req_range,
-				  req_obj, req_offset);
+				  req_obj, req_offset,
+				  req_flags);
 
 }
 EXPORT_SYMBOL_GPL(drm_gpuvm_sm_map_exec_lock);
@@ -2643,7 +2870,8 @@ static const struct drm_gpuvm_ops gpuvm_list_ops = {
 struct drm_gpuva_ops *
 drm_gpuvm_sm_map_ops_create(struct drm_gpuvm *gpuvm,
 			    u64 req_addr, u64 req_range,
-			    struct drm_gem_object *req_obj, u64 req_offset)
+			    struct drm_gem_object *req_obj, u64 req_offset,
+			    enum drm_gpuva_flags req_flags)
 {
 	struct drm_gpuva_ops *ops;
 	struct {
@@ -2663,7 +2891,8 @@ drm_gpuvm_sm_map_ops_create(struct drm_gpuvm *gpuvm,
 
 	ret = __drm_gpuvm_sm_map(gpuvm, &gpuvm_list_ops, &args,
 				 req_addr, req_range,
-				 req_obj, req_offset);
+				 req_obj, req_offset,
+				 req_flags);
 	if (ret)
 		goto err_free_ops;
 
@@ -2792,6 +3021,55 @@ err_free_ops:
 EXPORT_SYMBOL_GPL(drm_gpuvm_prefetch_ops_create);
 
 /**
+ * drm_gpuvm_bo_unmap() - unmaps a GEM
+ * @vm_bo: the &drm_gpuvm_bo abstraction
+ *
+ * This function calls the unmap callback for every GPUVA attached to a GEM.
+ *
+ * It is the callers responsibility to protect the GEMs GPUVA list against
+ * concurrent access using the GEMs dma_resv lock.
+ *
+ * Returns: a pointer to the &drm_gpuva_ops on success, an ERR_PTR on failure
+ */
+int
+drm_gpuvm_bo_unmap(struct drm_gpuvm_bo *vm_bo, void *priv)
+{
+	struct drm_gpuva_ops *ops;
+	struct drm_gpuva_op *op;
+	int ret;
+
+	if (unlikely(!vm_bo->vm))
+		return -EINVAL;
+
+	const struct drm_gpuvm_ops *vm_ops = vm_bo->vm->ops;
+
+	if (unlikely(!(vm_ops && vm_ops->sm_step_unmap)))
+		return -EINVAL;
+
+	if (drm_gpuvm_immediate_mode(vm_bo->vm)) {
+		guard(mutex)(&vm_bo->obj->gpuva.lock);
+		ops = drm_gpuvm_bo_unmap_ops_create(vm_bo);
+	} else {
+		ops = drm_gpuvm_bo_unmap_ops_create(vm_bo);
+	}
+	if (IS_ERR(ops))
+		return PTR_ERR(ops);
+
+	drm_gpuva_for_each_op(op, ops) {
+		drm_WARN_ON(vm_bo->vm->drm, op->op != DRM_GPUVA_OP_UNMAP);
+
+		ret = op_unmap_cb(vm_ops, priv, op->unmap.va, false);
+		if (ret)
+			goto cleanup;
+	}
+
+cleanup:
+	drm_gpuva_ops_free(vm_bo->vm, ops);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(drm_gpuvm_bo_unmap);
+
+/**
  * drm_gpuvm_bo_unmap_ops_create() - creates the &drm_gpuva_ops to unmap a GEM
  * @vm_bo: the &drm_gpuvm_bo abstraction
  *
@@ -2804,8 +3082,8 @@ EXPORT_SYMBOL_GPL(drm_gpuvm_prefetch_ops_create);
  * After the caller finished processing the returned &drm_gpuva_ops, they must
  * be freed with &drm_gpuva_ops_free.
  *
- * It is the callers responsibility to protect the GEMs GPUVA list against
- * concurrent access using the GEMs dma_resv lock.
+ * This function expects the caller to protect the GEM's GPUVA list against
+ * concurrent access using either the GEM's dma-resv or gpuva.lock mutex.
  *
  * Returns: a pointer to the &drm_gpuva_ops on success, an ERR_PTR on failure
  */
@@ -2817,7 +3095,7 @@ drm_gpuvm_bo_unmap_ops_create(struct drm_gpuvm_bo *vm_bo)
 	struct drm_gpuva *va;
 	int ret;
 
-	drm_gem_gpuva_assert_lock_held(vm_bo->obj);
+	drm_gem_gpuva_assert_lock_held(vm_bo->vm, vm_bo->obj);
 
 	ops = kzalloc(sizeof(*ops), GFP_KERNEL);
 	if (!ops)

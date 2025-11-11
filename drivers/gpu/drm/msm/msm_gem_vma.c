@@ -396,7 +396,7 @@ msm_gem_vma_new(struct drm_gpuvm *gpuvm, struct drm_gem_object *obj,
 	if (obj)
 		GEM_WARN_ON((range_end - range_start) > obj->size);
 
-	drm_gpuva_init(&vma->base, range_start, range_end - range_start, obj, offset);
+	drm_gpuva_init(&vma->base, range_start, range_end - range_start, obj, offset, 0);
 	vma->mapped = false;
 
 	ret = drm_gpuva_insert(&vm->base, &vma->base);
@@ -1222,7 +1222,8 @@ vm_bind_job_lock_objects(struct msm_vm_bind_job *job, struct drm_exec *exec)
 			case MSM_VM_BIND_OP_MAP_NULL:
 				ret = drm_gpuvm_sm_map_exec_lock(job->vm, exec, 1,
 							    op->iova, op->range,
-							    op->obj, op->obj_offset);
+							    op->obj, op->obj_offset,
+							    0);
 				break;
 			default:
 				/*
@@ -1333,7 +1334,8 @@ vm_bind_job_prepare(struct msm_vm_bind_job *job)
 			fallthrough;
 		case MSM_VM_BIND_OP_MAP_NULL:
 			ret = drm_gpuvm_sm_map(job->vm, &arg, op->iova,
-					       op->range, op->obj, op->obj_offset);
+					       op->range, op->obj, op->obj_offset,
+					       0);
 			break;
 		default:
 			/*
