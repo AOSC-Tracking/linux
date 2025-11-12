@@ -11732,7 +11732,7 @@ redo:
 		goto out_balanced;
 	}
 
-	if (!need_unlock && (sd->flags & SD_SERIALIZE) && idle != CPU_NEWLY_IDLE) {
+	if (!need_unlock && (sd->flags & SD_SERIALIZE)) {
 		if (!atomic_try_cmpxchg_acquire(&sched_balance_running, 0, 1))
 			goto out_balanced;
 
