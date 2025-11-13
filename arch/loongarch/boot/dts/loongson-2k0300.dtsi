@@ -909,16 +909,11 @@
 		};
 
 		emmc: sdio@0x16140000 {
-			#address-cells = <2>;
-			compatible = "loongson,ls2k_sdio_1.2";
-			reg = <0 0x16140000 0 0x1000>;
+			compatible = "loongson,ls2k2000-mmc";
+			reg = <0x0 0x16140000 0x0 0x1000>;
 			interrupt-parent = <&liointc0>;
 			interrupts = <31 IRQ_TYPE_LEVEL_HIGH>;
-			//interrupt-parent = <&icu>;
-			//interrupts = <53>;
-			interrupt-names = "ls2k_mci_irq";
-			dma-mask = <0xffffffff 0xffffffff>;
-			clock-frequency = <0 200000000>;
+			clocks = <&clocks CLK_SDIO>;
 			bus-width = <8>;
 			cap-mmc-highspeed;
 			no-sd;
@@ -927,14 +922,11 @@
 		};
 
 		sdio1: sdio@0x16148000 {
-			#address-cells = <2>;
-			compatible = "loongson,ls2k_sdio_1.2";
-			reg = <0 0x16148000 0 0x8000>;
+			compatible = "loongson,ls2k2000-mmc";
+			reg = <0x0 0x16148000 0x0 0x1000>;
 			interrupt-parent = <&liointc1>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>; // 32 - 32 = 0
-			interrupt-names = "ls2k_mci_irq";
-			dma-mask = <0xffffffff 0xffffffff>;
-			clock-frequency = <0 200000000>;
+			clocks = <&clocks CLK_SDIO>;
 			pinctrl-0 = <&sdio1_pins>;
 			pinctrl-names = "default";
 			cap-sd-highspeed;
