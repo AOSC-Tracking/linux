@@ -6,7 +6,6 @@
  */
 
 #include "uffd-common.h"
-#include "asm-generic/mman-common.h"
 
 uffd_test_ops_t *uffd_test_ops;
 uffd_test_case_ops_t *uffd_test_case_ops;
@@ -151,7 +150,7 @@ static int shmem_allocate_area(uffd_global_test_opts_t *gopts, void **alloc_area
 		return -errno;
 	}
 
-	p = (char *)reserve;
+	p = reserve;
 	p_alias = p;
 	p_alias += bytes;
 	p_alias += hpage_size;  /* Prevent src/dst VMA merge */
@@ -159,8 +158,8 @@ static int shmem_allocate_area(uffd_global_test_opts_t *gopts, void **alloc_area
 	*alloc_area = mmap(p, bytes, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED,
 			   mem_fd, offset);
 	if (*alloc_area == MAP_FAILED) {
-		munmap(reserve, region_size);
 		*alloc_area = NULL;
+		munmap(reserve, region_size);
 		close(mem_fd);
 		return -errno;
 	}
@@ -170,8 +169,8 @@ static int shmem_allocate_area(uffd_global_test_opts_t *gopts, void **alloc_area
 	area_alias = mmap(p_alias, bytes, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED,
 			  mem_fd, offset);
 	if (area_alias == MAP_FAILED) {
-		munmap(reserve, region_size);
 		*alloc_area = NULL;
+		munmap(reserve, region_size);
 		close(mem_fd);
 		return -errno;
 	}
