@@ -370,7 +370,7 @@ void destroy_and_reserve_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	irq_init_desc(irq);
+	irq_free_descs(irq, 1);
 	spin_lock_irqsave(&vector_lock, flags);
 	__clear_irq_vector(irq);
 	irq_status[irq] = IRQ_RSVD;
@@ -403,13 +403,13 @@ int create_irq(void)
  out:
 	spin_unlock_irqrestore(&vector_lock, flags);
 	if (irq >= 0)
-		irq_init_desc(irq);
+		irq_free_descs(irq, 1);
 	return irq;
 }
 
 void destroy_irq(unsigned int irq)
 {
-	irq_init_desc(irq);
+	irq_free_descs(irq, 1);
 	clear_irq_vector(irq);
 }
 
