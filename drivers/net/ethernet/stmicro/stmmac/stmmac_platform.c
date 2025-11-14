@@ -186,7 +186,6 @@ static int stmmac_mtl_setup(struct platform_device *pdev,
 		if (of_property_read_u32(q_node, "snps,priority",
 					&plat->rx_queues_cfg[queue].prio)) {
 			plat->rx_queues_cfg[queue].prio = 0;
-			plat->rx_queues_cfg[queue].use_prio = false;
 		} else {
 			plat->rx_queues_cfg[queue].use_prio = true;
 		}
@@ -263,7 +262,6 @@ static int stmmac_mtl_setup(struct platform_device *pdev,
 		if (of_property_read_u32(q_node, "snps,priority",
 					&plat->tx_queues_cfg[queue].prio)) {
 			plat->tx_queues_cfg[queue].prio = 0;
-			plat->tx_queues_cfg[queue].use_prio = false;
 		} else {
 			plat->tx_queues_cfg[queue].use_prio = true;
 		}
