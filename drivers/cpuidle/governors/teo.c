@@ -148,6 +148,16 @@ struct teo_cpu {
 
 static DEFINE_PER_CPU(struct teo_cpu, teo_cpus);
 
+static void teo_decay(unsigned int *metric)
+{
+	unsigned int delta = *metric >> DECAY_SHIFT;
+
+	if (delta)
+		*metric -= delta;
+	else
+		*metric = 0;
+}
+
 /**
  * teo_update - Update CPU metrics after wakeup.
  * @drv: cpuidle driver containing state data.
@@ -157,19 +167,19 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 {
 	struct teo_cpu *cpu_data = this_cpu_ptr(&teo_cpus);
 	int i, idx_timer = 0, idx_duration = 0;
-	s64 target_residency_ns;
-	u64 measured_ns;
+	s64 target_residency_ns, measured_ns;
+	unsigned int total = 0;
 
-	cpu_data->short_idles -= cpu_data->short_idles >> DECAY_SHIFT;
+	teo_decay(&cpu_data->short_idles);
 
 	if (cpu_data->artificial_wakeup) {
 		/*
 		 * If one of the safety nets has triggered, assume that this
 		 * might have been a long sleep.
 		 */
-		measured_ns = U64_MAX;
+		measured_ns = S64_MAX;
 	} else {
-		u64 lat_ns = drv->states[dev->last_state_idx].exit_latency_ns;
+		s64 lat_ns = drv->states[dev->last_state_idx].exit_latency_ns;
 
 		measured_ns = dev->last_residency_ns;
 		/*
@@ -196,8 +206,10 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	for (i = 0; i < drv->state_count; i++) {
 		struct teo_bin *bin = &cpu_data->state_bins[i];
 
-		bin->hits -= bin->hits >> DECAY_SHIFT;
-		bin->intercepts -= bin->intercepts >> DECAY_SHIFT;
+		teo_decay(&bin->hits);
+		total += bin->hits;
+		teo_decay(&bin->intercepts);
+		total += bin->intercepts;
 
 		target_residency_ns = drv->states[i].target_residency_ns;
 
@@ -208,7 +220,9 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 		}
 	}
 
-	cpu_data->tick_intercepts -= cpu_data->tick_intercepts >> DECAY_SHIFT;
+	cpu_data->total = total + PULSE;
+
+	teo_decay(&cpu_data->tick_intercepts);
 	/*
 	 * If the measured idle duration falls into the same bin as the sleep
 	 * length, this is a "hit", so update the "hits" metric for that bin.
@@ -222,9 +236,6 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 		if (TICK_NSEC <= measured_ns)
 			cpu_data->tick_intercepts += PULSE;
 	}
-
-	cpu_data->total -= cpu_data->total >> DECAY_SHIFT;
-	cpu_data->total += PULSE;
 }
 
 static bool teo_state_ok(int i, struct cpuidle_driver *drv)
@@ -239,17 +250,15 @@ static bool teo_state_ok(int i, struct cpuidle_driver *drv)
  * @dev: Target CPU.
  * @state_idx: Index of the capping idle state.
  * @duration_ns: Idle duration value to match.
- * @no_poll: Don't consider polling states.
  */
 static int teo_find_shallower_state(struct cpuidle_driver *drv,
 				    struct cpuidle_device *dev, int state_idx,
-				    s64 duration_ns, bool no_poll)
+				    s64 duration_ns)
 {
 	int i;
 
 	for (i = state_idx - 1; i >= 0; i--) {
-		if (dev->states_usage[i].disable ||
-				(no_poll && drv->states[i].flags & CPUIDLE_FLAG_POLLING))
+		if (dev->states_usage[i].disable)
 			continue;
 
 		state_idx = i;
@@ -458,11 +467,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	 * If the closest expected timer is before the target residency of the
 	 * candidate state, a shallower one needs to be found.
 	 */
-	if (drv->states[idx].target_residency_ns > duration_ns) {
-		i = teo_find_shallower_state(drv, dev, idx, duration_ns, false);
-		if (teo_state_ok(i, drv))
-			idx = i;
-	}
+	if (drv->states[idx].target_residency_ns > duration_ns)
+		idx = teo_find_shallower_state(drv, dev, idx, duration_ns);
 
 	/*
 	 * If the selected state's target residency is below the tick length
@@ -490,7 +496,7 @@ end:
 	 */
 	if (idx > idx0 &&
 	    drv->states[idx].target_residency_ns > delta_tick)
-		idx = teo_find_shallower_state(drv, dev, idx, delta_tick, false);
+		idx = teo_find_shallower_state(drv, dev, idx, delta_tick);
 
 out_tick:
 	*stop_tick = false;
