@@ -1926,6 +1926,13 @@ config LOONGSON1_WDT
 	help
 	  Hardware driver for the Loongson1 SoC Watchdog Timer.
 
+config LOONGSON2_WDT
+	tristate "Loongson2 SoC hardware watchdog"
+	depends on MACH_LOONGSON64
+	select WATCHDOG_CORE
+	help
+	  Hardware driver for the Loongson2 SoC Watchdog Timer.
+
 config RALINK_WDT
 	tristate "Ralink SoC watchdog"
 	select WATCHDOG_CORE
