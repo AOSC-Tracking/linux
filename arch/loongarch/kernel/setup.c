@@ -297,10 +297,14 @@ static void __init arch_reserve_crashkernel(void)
 #ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
 
 char *board_names[] = {
+	"LS2K300-ATK-DL2K0300B-V01",
+	"LS2K300-99PI-WIFI",
 	NULL
 };
 
 void *fdts[] = {
+	&__dtb_loongson_2k0300_alientek_begin,
+	&__dtb_loongson_2k0300_ctcisz_forever_pi_begin,
 	NULL
 };
 

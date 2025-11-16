@@ -104,6 +104,8 @@ struct loongsonlist_screeninfo{
 // };
 
 extern void *loongson_fdt_blob;
+extern u32 __dtb_loongson_2k0300_alientek_begin[];
+extern u32 __dtb_loongson_2k0300_ctcisz_forever_pi_begin[];
 extern char __dtb_start[];
 extern struct boot_params *efi_bp;
 extern struct loongson_board_info b_info;
