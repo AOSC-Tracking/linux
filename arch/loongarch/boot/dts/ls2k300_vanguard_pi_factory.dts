@@ -1,0 +1,48 @@
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#include "ls2k300_vanguard_pi_common.dtsi"
+
+/ {
+	factory {
+		tags = "factory-test";
+	};
+};
+
+&uart2 {
+	status = "disable";
+};
+
+&uart5 {
+	status = "disabled";
+};
+
+&uart6 {
+	status = "disabled";
+};
+
+&uart7 {
+	status = "disabled";
+};
+
+&uart8 {
+	status = "disabled";
+};
+
+&can0 {
+	status = "disabled";
+};
+
+&can1 {
+	status = "disabled";
+};
+
+&can2 {
+	status = "disabled";
+};
+
+&can3 {
+	status = "disabled";
+};
