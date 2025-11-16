@@ -123,8 +123,62 @@ static const struct drm_panel_funcs panel_lvds_funcs = {
 	.get_orientation = panel_lvds_get_orientation,
 };
 
+static char cmdline_panel_buf[128];
+extern char* saved_command_line;
+
+static int get_panel_by_cmdline(void)
+{
+	char* cmdline_part;
+	cmdline_part = strstr(saved_command_line, "panel=");
+	if (cmdline_part) {
+		memset(cmdline_panel_buf, 0, 128);
+		sscanf(cmdline_part, "panel=%s", cmdline_panel_buf);
+		cmdline_panel_buf[127] = 0;
+	}
+
+	if (!strcmp(cmdline_panel_buf, "default"))
+		return 2;
+
+	return 0;
+}
+
+static int cmpare_panel_name_cmdline(struct device_node *panel)
+{
+	const char* label = NULL;
+	of_property_read_string(panel, "label", &label);
+	if (!label)
+		return -EINVAL;
+	return strcmp(label, cmdline_panel_buf);
+}
+
+static struct device_node* panel_lvds_cmdline_match_dt(void)
+{
+	struct device_node *panel_set_node;
+	struct device_node *child;
+	panel_set_node = of_find_node_by_name(NULL, "panel_param_set");
+
+	if (!panel_set_node)
+		return NULL;
+
+	child = NULL;
+	do {
+		child = of_get_next_child(panel_set_node, child);
+
+		if (!child)
+			break;
+
+		if (!cmpare_panel_name_cmdline(child)) {
+			pr_info("cmdline panel property(%s) select ofnode is %s\n", cmdline_panel_buf, child->full_name);
+			return child;
+		}
+	} while(child);
+
+	return NULL;
+}
+
 static int panel_lvds_parse_dt(struct panel_lvds *lvds)
 {
+	struct device_node *panel_by_cmdline = NULL;
 	struct device_node *np = lvds->dev->of_node;
 	int ret;
 
@@ -133,6 +187,14 @@ static int panel_lvds_parse_dt(struct panel_lvds *lvds)
 		dev_err(lvds->dev, "%pOF: failed to get orientation %d\n", np, ret);
 		return ret;
 	}
+
+	cmdline_panel_buf[0] = 0;
+	ret = get_panel_by_cmdline();
+	if (!ret)
+		panel_by_cmdline = panel_lvds_cmdline_match_dt();
+
+	if (panel_by_cmdline)
+		np = panel_by_cmdline;
 
 	ret = of_get_drm_panel_display_mode(np, &lvds->dmode, &lvds->bus_flags);
 	if (ret < 0) {
