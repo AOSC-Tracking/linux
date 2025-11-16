@@ -167,6 +167,12 @@
 #define YT8531_LDO_VOL_3V3			0x0
 #define YT8531_LDO_VOL_1V8			0x2
 
+#define YT8531_LED_GEN_CFG  0xa00b
+#define YT8531_LED0_CFG     0xa00c
+#define YT8531_LED1_CFG     0xa00d
+#define YT8531_LED2_CFG     0xa00e
+#define YT8531_BLINK_CFG    0xa00f
+
 /* 1b0 disable 1.9ns rxc clock delay  *default*
  * 1b1 enable 1.9ns rxc clock delay
  */
@@ -1681,6 +1687,30 @@ err_restore_page:
 	return phy_restore_page(phydev, old_page, ret);
 }
 
+static int yt8531_led_init(struct phy_device *phydev)
+{
+	u32 val;
+	struct device_node *of_node;
+
+	of_node = phydev->mdio.dev.of_node;
+	if (!of_node)
+		return 0;
+
+	if (!of_property_read_u32(of_node, "motorcomm,led0_cfg", &val)) {
+		val &= 0xffff;
+		ytphy_write_ext(phydev, YT8531_LED0_CFG, val);
+	}
+	if (!of_property_read_u32(of_node, "motorcomm,led1_cfg", &val)) {
+		val &= 0xffff;
+		ytphy_write_ext(phydev, YT8531_LED1_CFG, val);
+	}
+	if (!of_property_read_u32(of_node, "motorcomm,led2_cfg", &val)) {
+		val &= 0xffff;
+		ytphy_write_ext(phydev, YT8531_LED2_CFG, val);
+	}
+	return 0;
+}
+
 static int yt8531_config_init(struct phy_device *phydev)
 {
 	struct device_node *node = phydev->mdio.dev.of_node;
@@ -1707,6 +1737,8 @@ static int yt8531_config_init(struct phy_device *phydev)
 		if (ret < 0)
 			return ret;
 	}
+
+	yt8531_led_init(phydev);
 
 	ret = yt8531_set_ds(phydev);
 	if (ret < 0)
