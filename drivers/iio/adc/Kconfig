@@ -1648,4 +1648,10 @@ config XILINX_AMS
 	  The driver can also be built as a module. If so, the module will be called
 	  xilinx-ams.
 
+config LS_2K300_ADC
+	tristate "ls2k300 driver"
+	select IIO_BUFFER
+	select IIO_TRIGGERED_BUFFER
+	help
+	  loongson 2k300 ADC driver
 endmenu
