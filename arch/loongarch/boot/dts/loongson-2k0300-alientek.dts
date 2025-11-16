@@ -8,9 +8,9 @@
 #include "loongson-2k0300.dtsi"
 
 / {
-	compatible = "ctcisz,forever-pi", "loongson,ls2k0300";
-	model = "CTCISZ Forever Pi";
-	product = "LS2K0300-99PI-WIFI";
+	compatible = "loongson,ls2k0300";
+	model = "LS2K0300-ALIENTEK";
+	product = "ATK-DL2K0300B-V01";
 
 	aliases {
 		serial0 = &uart0;
@@ -23,10 +23,16 @@
 	leds {
 		compatible = "gpio-leds";
 
-		led1 {
-			label = "led1";
-			gpios = <&gpio 83 GPIO_ACTIVE_LOW>;
+		led0 {
+			label = "sys-led";
+			gpios = <&gpio 89 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "heartbeat";
+			default-state = "on";
+		};
+		led1 {
+			label = "user-led";
+			gpios = <&gpio 70 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "none";
 			default-state = "on";
 		};
 	};
@@ -34,7 +40,7 @@
 	memory@200000 {
 		device_type = "memory";
 		reg = <0 0x00200000 0 0x0ee00000>,
-		      <0 0x90000000 0 0x10000000>;
+		      <0 0x90000000 0 0x30000000>;
 	};
 
 	reserved-memory {
@@ -49,24 +55,16 @@
 			linux,cma-default;
 		};
 	};
-
-	sdio_pwrseq: sdio-pwrseq {
-		compatible = "mmc-pwrseq-simple";
-		pinctrl-names = "default";
-		pinctrl-0 = <&sdio0en>;
-		reset-gpios = <&gpio 81 GPIO_ACTIVE_HIGH>;
-	};
 };
 
 &pinctrl {
-	func-gpio {
-		sdio0en: pinmux_G81_as_sdio0en {
-			pinmux = <PINMUX(81, 0x0)>;
-		};
-	};
 };
 
 &uart0 {
+	status = "okay";
+};
+
+&uart1 {
 	status = "okay";
 };
 
@@ -88,6 +86,30 @@
 	};
 };
 
+&gmac1 {
+	status = "okay";
+	phy-handle = <&yt8531h1>;
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "snps,dwmac-mdio";
+
+		yt8531h1: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
+
 &sdio1 {
+	pinctrl-0 = <&sdio1_pins>;
+	pinctrl-names = "default";
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	bus-width = <4>;
+	cd-gpios = <&gpio 63 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
