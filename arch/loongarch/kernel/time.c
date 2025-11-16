@@ -12,6 +12,8 @@
 #include <linux/kernel.h>
 #include <linux/sched_clock.h>
 #include <linux/spinlock.h>
+#include <linux/of_clk.h>
+#include <linux/clk.h>
 
 #include <asm/cpu-features.h>
 #include <asm/loongarch.h>
@@ -206,6 +208,27 @@ int __init constant_clocksource_init(void)
 
 void __init time_init(void)
 {
+#if defined(CONFIG_OF) && defined(CONFIG_COMMON_CLK_LOONGSON2X)
+	struct clk* cpu_clk;
+	struct clk* ref_clk;
+	of_clk_init(NULL);
+
+	if (!cpu_clock_freq) {
+		cpu_clk = clk_get(NULL, "cpu_clk");
+		if (IS_ERR(cpu_clk))
+			pr_info("cpu clk cant get from clock driver");
+		else
+			cpu_clock_freq = clk_get_rate(cpu_clk);
+	}
+	if (!const_clock_freq) {
+		ref_clk = clk_get(NULL, "ref_clk");
+		if (IS_ERR(ref_clk))
+			pr_info("reference clock cant get from clock driver");
+		else
+			const_clock_freq = clk_get_rate(ref_clk);
+	}
+#endif
+
 	if (!cpu_has_cpucfg)
 		const_clock_freq = cpu_clock_freq;
 	else
