@@ -757,4 +757,13 @@ config PWM_XILINX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-xilinx.
 
+config PWM_LS
+	tristate "Loongson PWM support"
+	depends on LOONGSON_2K500 || LOONGSON_2K1000 || LOONGSON_2K300 || LOONGSON_2P500
+	help
+	  Generic PWM framework driver for loongson3.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-ls.
+
 endif
