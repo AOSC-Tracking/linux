@@ -5,6 +5,7 @@
 
 #include <linux/pci.h>
 #include <linux/vgaarb.h>
+#include <linux/of_address.h>
 
 #include <drm/drm_aperture.h>
 #include <drm/drm_atomic.h>
@@ -16,6 +17,12 @@
 #include <drm/drm_modeset_helper.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
+#include <drm/drm_of.h>
+#include <drm/drm_bridge_connector.h>
+
+#include <linux/platform_device.h>
+#include <linux/of_device.h>
+#include <linux/of_reserved_mem.h>
 
 #include "loongson_module.h"
 #include "lsdc_drv.h"
@@ -57,6 +64,9 @@ static const struct drm_mode_config_funcs lsdc_mode_config_funcs = {
 
 /* Display related */
 
+static int lsdc_attach_output(struct lsdc_device *ldev, uint32_t num_crtc);
+static int lsdc_common_probe(struct lsdc_device *ldev);
+
 static int lsdc_modeset_init(struct lsdc_device *ldev,
 			     unsigned int num_crtc,
 			     const struct lsdc_kms_funcs *funcs,
@@ -78,18 +88,31 @@ static int lsdc_modeset_init(struct lsdc_device *ldev,
 			return ret;
 	}
 
-	for (i = 0; i < num_crtc; i++) {
-		struct i2c_adapter *ddc = NULL;
-
-		dispipe = &ldev->dispipe[i];
-		if (dispipe->li2c)
-			ddc = &dispipe->li2c->adapter;
-
-		ret = funcs->output_init(ddev, dispipe, ddc, i);
+	if (ldev->has_ports_node) {
+		drm_info(ddev, "Has OF graph support\n");
+		ret = lsdc_attach_output(ldev, num_crtc);
 		if (ret)
 			return ret;
+	}
 
-		ldev->num_output++;
+	/*
+	 * 之前的处理是 OF扫描到 dc之后，就按照ACPI的做法处理
+	 * 这样的话就不会扫到edid（2k300 没i2c去读）
+	 */
+	if (!ldev->num_output) {
+		for (i = 0; i < num_crtc; i++) {
+			struct i2c_adapter *ddc = NULL;
+
+			dispipe = &ldev->dispipe[i];
+			if (dispipe->li2c)
+				ddc = &dispipe->li2c->adapter;
+
+			ret = funcs->output_init(ddev, dispipe, ddc, i);
+			if (ret)
+				return ret;
+
+			ldev->num_output++;
+		}
 	}
 
 	for (i = 0; i < num_crtc; i++) {
@@ -155,8 +178,7 @@ static int lsdc_mode_config_init(struct drm_device *ddev,
  * the DC could access the on-board VRAM.
  */
 static int lsdc_get_dedicated_vram(struct lsdc_device *ldev,
-				   struct pci_dev *pdev_dc,
-				   const struct lsdc_desc *descp)
+				   struct pci_dev *pdev_dc)
 {
 	struct drm_device *ddev = &ldev->base;
 	struct pci_dev *pdev_gpu;
@@ -187,27 +209,78 @@ static int lsdc_get_dedicated_vram(struct lsdc_device *ldev,
 	return (size > SZ_1M) ? 0 : -ENODEV;
 }
 
+static int lsdc_of_get_reserved_mem(struct lsdc_device *ldev)
+{
+	struct drm_device *ddev = &ldev->base;
+	unsigned long size = 0;
+	struct device_node *node;
+	struct resource r;
+	int ret;
+
+	if (!ddev->dev->of_node)
+		return -ENOENT;
+
+	node = of_parse_phandle(ddev->dev->of_node, "memory-region", 0);
+	if (!node) {
+		drm_err(ddev, "No memory-region property\n");
+		return -ENOENT;
+	}
+
+	ret = of_address_to_resource(node, 0, &r);
+	of_node_put(node);
+	if (ret)
+		return ret;
+
+	size = r.end - r.start + 1;
+
+	ldev->vram_base = r.start;
+	ldev->vram_size = size;
+
+	drm_info(ddev, "Using of reserved mem: %lx@%pa\n", size, &r.start);
+
+	return 0;
+}
+
 static struct lsdc_device *
-lsdc_create_device(struct pci_dev *pdev,
+lsdc_create_device(struct device *dev,
 		   const struct lsdc_desc *descp,
-		   const struct drm_driver *driver)
+		const struct drm_driver *driver,
+		struct pci_dev *pdev,
+	struct platform_device *pfdev)
 {
 	struct lsdc_device *ldev;
 	struct drm_device *ddev;
 	int ret;
 
-	ldev = devm_drm_dev_alloc(&pdev->dev, driver, struct lsdc_device, base);
+	ldev = devm_drm_dev_alloc(dev, driver, struct lsdc_device, base);
 	if (IS_ERR(ldev))
 		return ldev;
 
 	ldev->dc = pdev;
 	ldev->descp = descp;
 
+	// 先注册了 dev， lsdc_common_probe里面需要扫描 OF
+	ldev->dev = dev;
 	ddev = &ldev->base;
 
 	loongson_gfxpll_create(ddev, &ldev->gfxpll);
 
-	ret = lsdc_get_dedicated_vram(ldev, pdev, descp);
+	if (descp->has_dedicated_vram)
+		ret = lsdc_get_dedicated_vram(ldev, pdev);
+	else {
+		ret = lsdc_of_get_reserved_mem(ldev);
+		if (ret) {
+			dma_addr_t  daddr = 0;
+			void *vaddr;
+			ldev->vram_size = 0x900000;
+			vaddr = dma_alloc_wc(dev, ldev->vram_size, &daddr,
+						GFP_KERNEL | __GFP_NOWARN);
+
+			ret = !vaddr;
+			ldev->vram_base = daddr;
+		}
+	}
+
 	if (ret) {
 		drm_err(ddev, "Init VRAM failed: %d\n", ret);
 		return ERR_PTR(ret);
@@ -230,11 +303,19 @@ lsdc_create_device(struct pci_dev *pdev,
 	lsdc_gem_init(ddev);
 
 	/* Bar 0 of the DC device contains the MMIO register's base address */
-	ldev->reg_base = pcim_iomap(pdev, 0, 0);
+	if (pdev)
+		ldev->reg_base = pcim_iomap(pdev, 0, 0);
+	else {
+		struct resource *res;
+		res = platform_get_resource(pfdev, IORESOURCE_MEM, 0);
+		ldev->reg_base = devm_ioremap_resource(dev, res);
+	}
 	if (!ldev->reg_base)
 		return ERR_PTR(-ENODEV);
 
 	spin_lock_init(&ldev->reglock);
+
+	lsdc_common_probe(ldev);
 
 	ret = lsdc_mode_config_init(ddev, descp);
 	if (ret)
@@ -296,7 +377,11 @@ static int lsdc_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev_info(&pdev->dev, "Found %s, revision: %u",
 		 to_loongson_gfx(descp)->model, pdev->revision);
 
-	ldev = lsdc_create_device(pdev, descp, &lsdc_drm_driver);
+	if (!descp->hw_vblank_enable)
+		loongson_vblank = 0;
+
+	// ldev = lsdc_create_device(pdev, descp, &lsdc_drm_driver);
+	ldev = lsdc_create_device(&pdev->dev, descp, &lsdc_drm_driver, pdev, NULL);
 	if (IS_ERR(ldev))
 		return PTR_ERR(ldev);
 
@@ -475,3 +560,246 @@ MODULE_DEVICE_TABLE(pci, lsdc_pciid_list);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
+
+static const struct of_device_id lsdc_dt_ids[] = {
+	{ .compatible = "loongson,ls2k0300-dc", .data = (void *)CHIP_LS2K0300, },
+	{}
+};
+
+static int lsdc_platform_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	const struct lsdc_desc *descp = NULL;
+	const struct of_device_id *of_id;
+	struct lsdc_device *ldev;
+	struct drm_device *ddev;
+	int ret;
+
+	ret = dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
+	if (ret) {
+		dev_err(dev, "Failed to set dma mask\n");
+		return ret;
+	}
+
+	of_id = of_match_device(lsdc_dt_ids, dev);
+	if (of_id && of_id->data)
+		descp = lsdc_device_probe(NULL, (enum loongson_chip_id)of_id->data);
+
+	if (!descp) {
+		dev_err(dev, "unknown dc chip core\n");
+		return -ENOENT;
+	}
+
+	if (!descp->hw_vblank_enable)
+		loongson_vblank = 0;
+
+	ldev = lsdc_create_device(&pdev->dev, descp, &lsdc_drm_driver, NULL, pdev);
+	if (IS_ERR(ldev))
+		return PTR_ERR(ldev);
+
+	ddev = &ldev->base;
+
+	platform_set_drvdata(pdev, ddev);
+	drm_kms_helper_poll_init(ddev);
+
+	if (loongson_vblank) {
+		int irq;
+		ret = drm_vblank_init(ddev, descp->num_of_crtc);
+		if (ret)
+			return ret;
+
+		irq = platform_get_irq(pdev, 0);
+		ret = devm_request_irq(&pdev->dev, irq,
+				       descp->funcs->irq_handler,
+				       IRQF_SHARED /* | IRQF_TRIGGER_RISING */,
+				       dev_name(&pdev->dev), ddev);
+		if (ret) {
+			drm_err(ddev, "Failed to register interrupt: %d\n", ret);
+			return ret;
+		}
+
+		drm_info(ddev, "registered irq: %u\n", irq);
+	}
+
+	ret = drm_dev_register(ddev, 0);
+	if (ret)
+		return ret;
+
+	drm_fbdev_ttm_setup(ddev, 32);
+
+	return 0;
+}
+
+static void lsdc_platform_remove(struct platform_device *pdev)
+{
+	return ;
+}
+struct platform_driver lsdc_platform_driver = {
+	.probe = lsdc_platform_probe,
+	.remove = lsdc_platform_remove,
+	.driver = {
+		.name = "lsdc",
+		.pm = &lsdc_pm_ops,
+		.of_match_table = of_match_ptr(lsdc_dt_ids),
+	},
+};
+
+MODULE_DEVICE_TABLE(of, lsdc_dt_ids);
+
+/*
+ * 从 5.10 移植而来
+ * 这一套就包括了对 encoder connector (bridge)初始化
+ * 最终作用于 lsdc_modeset_init 函数对完整链路的扫描（替代了原来的类ACPI的处理）
+ * 暂时应该不支持 i2c 对 encoder connector 的沟通
+ * 以后遇到实际情况再修改
+ */
+
+static void lsdc_encoder_reset(struct drm_encoder *encoder)
+{
+	return;
+}
+
+static const struct drm_encoder_funcs lsdc_encoder_funcs = {
+	.reset = lsdc_encoder_reset,
+	.destroy = drm_encoder_cleanup,
+};
+
+static int lsdc_attach_bridges(struct lsdc_device *ldev,
+				struct device_node *ports,
+				unsigned int i)
+{
+	struct lsdc_display_pipe * const dispipe = &ldev->dispipe[i];
+	struct drm_device *ddev = &ldev->base;
+	struct drm_bridge *bridge = NULL;
+	struct drm_panel *panel = NULL;
+	struct drm_connector *connector;
+	struct drm_encoder *encoder;
+	struct lsdc_output *output;
+	int ret;
+
+	ret = drm_of_find_panel_or_bridge(ports, i, 0, &panel, &bridge);
+
+	if (panel) {
+		bridge = devm_drm_panel_bridge_add_typed(ddev->dev, panel, DRM_MODE_CONNECTOR_DPI);
+		drm_info(ddev, "output-%u is a DPI panel\n", i);
+	}
+
+	if (!bridge)
+		return ret;
+
+	output = devm_kzalloc(ddev->dev, sizeof(*output), GFP_KERNEL);
+	if (!output)
+		return -ENOMEM;
+
+	encoder = &output->encoder;
+
+	ret = drm_encoder_init(ddev, encoder, &lsdc_encoder_funcs,
+				DRM_MODE_ENCODER_DPI, "encoder-%u", i);
+
+	if (ret) {
+		drm_err(ddev, "Failed to init encoder: %d\n", ret);
+		return ret;
+	}
+
+	encoder->possible_crtcs = BIT(i);
+
+	ret = drm_bridge_attach(encoder, bridge, NULL, 0);
+	//ret = drm_bridge_attach(encoder, bridge, NULL, DRM_BRIDGE_ATTACH_NO_CONNECTOR);
+
+	if (ret)
+	{
+		connector = drm_bridge_connector_init(ddev, encoder);
+		if (IS_ERR(connector)) {
+			drm_err(ddev, "Unable to init connector\n");
+			return PTR_ERR(connector);
+		}
+
+		drm_connector_attach_encoder(connector, encoder);
+	}
+	drm_info(ddev, "bridge-%u attached to %s\n", i, encoder->name);
+
+	dispipe->output = output[0];
+
+	return 0;
+}
+
+static int lsdc_attach_output(struct lsdc_device *ldev, uint32_t num_crtc)
+{
+	struct drm_device *ddev = &ldev->base;
+	struct device_node *ports;
+	struct lsdc_display_pipe *disp;
+	unsigned int i;
+	int ret;
+
+	ldev->num_output = 0;
+
+	ports = of_get_child_by_name(ldev->dev->of_node, "ports");
+
+	for (i = 0; i < num_crtc; i++) {
+		struct drm_bridge *b;
+		struct drm_panel *p;
+
+		disp = &ldev->dispipe[i];
+		disp->available = false;
+
+		ret = drm_of_find_panel_or_bridge(ports, i, 0, &p, &b);
+		if (ret) {
+			if (ret == -ENODEV) {
+				drm_dbg(ddev, "No active panel or bridge for port%u\n", i);
+				disp->available = false;
+				continue;
+			}
+
+			if (ret == -EPROBE_DEFER)
+				drm_dbg(ddev, "Bridge for port%d is defer probed\n", i);
+
+			goto RET;
+		}
+
+		disp->available = true;
+		ldev->num_output++;
+	}
+
+	if (ldev->num_output == 0) {
+		drm_err(ddev, "No valid output, abort\n");
+		ret = -ENODEV;
+		goto RET;
+	}
+
+	for (i = 0; i < num_crtc; i++) {
+		disp = &ldev->dispipe[i];
+		if (disp->available) {
+			ret = lsdc_attach_bridges(ldev, ports, i);
+			if (ret)
+				goto RET;
+		} else {
+			drm_info(ddev, "output-%u is not available\n", i);
+		}
+	}
+
+	drm_info(ddev, "number of outputs: %u\n", ldev->num_output);
+RET:
+	of_node_put(ports);
+	return ret;
+}
+
+static void lsdc_of_probe(struct lsdc_device *ldev, struct device_node *np)
+{
+	struct device_node *ports;
+
+	if (!np) {
+		ldev->has_ports_node = false;
+		dev_info(ldev->dev, "don't has DT support\n");
+		return;
+	}
+
+	ports = of_get_child_by_name(np, "ports");
+	ldev->has_ports_node = ports ? true : false;
+	of_node_put(ports);
+}
+
+static int lsdc_common_probe(struct lsdc_device *ldev)
+{
+	lsdc_of_probe(ldev, ldev->dev->of_node);
+	return 0;
+}

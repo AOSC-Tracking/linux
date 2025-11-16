@@ -163,7 +163,14 @@ static int loongson_gfxpll_init(struct loongson_gfxpll * const this)
 	return 0;
 }
 
-static const struct loongson_gfxpll_funcs lsdc_gmc_gpu_funcs = {
+const struct loongson_gfxpll_funcs ls7a1000_gfx_pll_funcs = {
+	.init = loongson_gfxpll_init,
+	.update = loongson_gfxpll_update,
+	.get_rates = loongson_gfxpll_get_rates,
+	.print = loongson_gfxpll_print,
+};
+
+const struct loongson_gfxpll_funcs ls7a2000_gfx_pll_funcs = {
 	.init = loongson_gfxpll_init,
 	.update = loongson_gfxpll_update,
 	.get_rates = loongson_gfxpll_get_rates,
@@ -185,7 +192,7 @@ int loongson_gfxpll_create(struct drm_device *ddev,
 	this->ddev = ddev;
 	this->reg_size = gfx->gfxpll.reg_size;
 	this->reg_base = gfx->conf_reg_base + gfx->gfxpll.reg_offset;
-	this->funcs = &lsdc_gmc_gpu_funcs;
+	this->funcs = gfx->gfxpll_funcs;
 
 	ret = this->funcs->init(this);
 	if (unlikely(ret)) {

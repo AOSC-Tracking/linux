@@ -42,6 +42,12 @@
 /* For LSDC_CRTCx_CFG_REG */
 #define CFG_PIX_FMT_MASK                GENMASK(2, 0)
 
+/* LS2K0300 */
+#define LS2K0300_DDR_PLL_REG            0x0408
+#define LS2K0300_PIX_PLL0_REG           0x0410
+#define LS2K0300_PIX_PLL1_REG           0x0414
+#define LS2K0300_CFG_REG_BASE           0x16000000
+
 enum lsdc_pixel_format {
 	LSDC_PF_NONE = 0,
 	LSDC_PF_XRGB444 = 1,    /* [12 bits] */
