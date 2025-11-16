@@ -605,6 +605,13 @@ static void dwc2_hc_enable_dma_ints(struct dwc2_hsotg *hsotg,
 	dwc2_writel(hsotg, hcintmsk, HCINTMSK(chan->hc_num));
 	if (dbg_hc(chan))
 		dev_vdbg(hsotg->dev, "set HCINTMSK to %08x\n", hcintmsk);
+
+	// EP0 & CONTROL & BULK must delay for a while
+	if(hsotg->params.loongson_fix == DWC2_LOONGSON_FIX_DELAY &&
+		chan->ep_num == 0 &&
+		(chan->ep_type == USB_ENDPOINT_XFER_CONTROL ||
+		chan->ep_type == USB_ENDPOINT_XFER_BULK) )
+		mdelay(2);
 }
 
 static void dwc2_hc_enable_ints(struct dwc2_hsotg *hsotg,
@@ -662,7 +669,6 @@ static void dwc2_hc_init(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan)
 	hcintmsk = 0xffffffff;
 	hcintmsk &= ~HCINTMSK_RESERVED14_31;
 	dwc2_writel(hsotg, hcintmsk, HCINT(hc_num));
-
 	/* Enable channel interrupts required for this transfer */
 	dwc2_hc_enable_ints(hsotg, chan);
 
@@ -698,6 +704,11 @@ static void dwc2_hc_init(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan)
 		dev_vdbg(hsotg->dev, "	 Max Pkt: %d\n",
 			 chan->max_packet);
 	}
+
+	// EP0 must delay for a while
+	if(hsotg->params.loongson_fix == DWC2_LOONGSON_FIX_DELAY &&
+		chan->ep_num == 0)
+		udelay(500);
 
 	/* Program the HCSPLT register for SPLITs */
 	if (chan->do_split) {
@@ -3703,6 +3714,7 @@ static int dwc2_hcd_hub_control(struct dwc2_hsotg *hsotg, u16 typereq,
 			hprt0 &= ~HPRT0_RST;
 			dwc2_writel(hsotg, hprt0, HPRT0);
 			hsotg->lx_state = DWC2_L0; /* Now back to On state */
+			msleep(50);
 			break;
 
 		case USB_PORT_FEAT_INDICATOR:
