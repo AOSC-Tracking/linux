@@ -107,6 +107,7 @@ obj-y					+= imgtec/
 obj-y					+= imx/
 obj-y					+= ingenic/
 obj-y					+= keystone/
+obj-$(CONFIG_LOONGARCH)			+= loongson/
 obj-y					+= mediatek/
 obj-$(CONFIG_ARCH_MESON)		+= meson/
 obj-y					+= microchip/
