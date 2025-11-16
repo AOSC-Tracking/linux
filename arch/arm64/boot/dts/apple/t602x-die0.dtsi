@@ -7,7 +7,7 @@
  */
 
 	nco: clock-controller@28e03c000 {
-		compatible = "apple,t6020-nco", "apple,t8103-nco";
+		compatible = "apple,t6020-nco", "apple,t8103-nco", "apple,nco";
 		reg = <0x2 0x8e03c000 0x0 0x14000>;
 		clocks = <&nco_clkref>;
 		#clock-cells = <1>;
@@ -30,7 +30,7 @@
 	};
 
 	nub_spmi0: spmi@29e114000 {
-		compatible = "apple,t6020-spmi", "apple,t8103-spmi";
+		compatible = "apple,t6020-spmi", "apple,t8103-spmi", "apple,spmi";
 		reg = <0x2 0x9e114000 0x0 0x100>;
 		#address-cells = <2>;
 		#size-cells = <0>;
@@ -87,7 +87,7 @@
 	};
 
 	wdt: watchdog@29e2c4000 {
-		compatible = "apple,t6020-wdt", "apple,t8103-wdt";
+		compatible = "apple,t6020-wdt", "apple,t8103-wdt", "apple,wdt";
 		reg = <0x2 0x9e2c4000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -136,7 +136,7 @@
 	};
 
 	pinctrl_smc: pinctrl@2a2820000 {
-		compatible = "apple,t6020-pinctrl", "apple,t8103-pinctrl";
+		compatible = "apple,t6020-pinctrl", "apple,t8103-pinctrl", "apple,pinctrl";
 		reg = <0x2 0xa2820000 0x0 0x4000>;
 
 		gpio-controller;
@@ -244,7 +244,7 @@
 	};
 
 	i2c0: i2c@39b040000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b040000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -257,7 +257,7 @@
 	};
 
 	i2c1: i2c@39b044000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b044000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -271,7 +271,7 @@
 	};
 
 	i2c2: i2c@39b048000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b048000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -285,7 +285,7 @@
 	};
 
 	i2c3: i2c@39b04c000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b04c000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -299,7 +299,7 @@
 	};
 
 	i2c4: i2c@39b050000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b050000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -313,7 +313,7 @@
 	};
 
 	i2c5: i2c@39b054000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b054000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -327,7 +327,7 @@
 	};
 
 	i2c6: i2c@39b054000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b054000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -341,7 +341,7 @@
 	};
 
 	i2c7: i2c@39b054000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b054000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -355,7 +355,7 @@
 	};
 
 	i2c8: i2c@39b054000 {
-		compatible = "apple,t6020-i2c", "apple,t8103-i2c";
+		compatible = "apple,t6020-i2c", "apple,t8103-i2c", "apple,i2c";
 		reg = <0x3 0x9b054000 0x0 0x4000>;
 		clocks = <&clkref>;
 		interrupt-parent = <&aic>;
@@ -369,7 +369,7 @@
 	};
 
 	spi1: spi@39b104000 {
-		compatible = "apple,t6020-spi", "apple,t8103-spi";
+		compatible = "apple,t6020-spi", "apple,t8103-spi", "apple,spi";
 		reg = <0x3 0x9b104000 0x0 0x4000>;
 		interrupt-parent = <&aic>;
 		interrupts = <AIC_IRQ 0 1206 IRQ_TYPE_LEVEL_HIGH>;
@@ -383,7 +383,7 @@
 	};
 
 	spi2: spi@39b108000 {
-		compatible = "apple,t6020-spi", "apple,t8103-spi";
+		compatible = "apple,t6020-spi", "apple,t8103-spi", "apple,spi";
 		reg = <0x3 0x9b108000 0x0 0x4000>;
 		interrupt-parent = <&aic>;
 		interrupts = <AIC_IRQ 0 1207 IRQ_TYPE_LEVEL_HIGH>;
@@ -397,7 +397,7 @@
 	};
 
 	spi4: spi@39b110000 {
-		compatible = "apple,t6020-spi", "apple,t8103-spi";
+		compatible = "apple,t6020-spi", "apple,t8103-spi", "apple,spi";
 		reg = <0x3 0x9b110000 0x0 0x4000>;
 		interrupt-parent = <&aic>;
 		interrupts = <AIC_IRQ 0 1209 IRQ_TYPE_LEVEL_HIGH>;
@@ -427,7 +427,7 @@
 	};
 
 	admac: dma-controller@39b400000 {
-		compatible = "apple,t6020-admac", "apple,t8103-admac";
+		compatible = "apple,t6020-admac", "apple,t8103-admac", "apple,admac";
 		reg = <0x3 0x9b400000 0x0 0x34000>;
 		#dma-cells = <1>;
 		dma-channels = <16>;
@@ -441,7 +441,7 @@
 	};
 
 	mca: mca@39b600000 {
-		compatible = "apple,t6020-mca", "apple,t8103-mca";
+		compatible = "apple,t6020-mca", "apple,t8103-mca", "apple,mca";
 		reg = <0x3 0x9b600000 0x0 0x10000>,
 		      <0x3 0x9b500000 0x0 0x20000>;
 		clocks = <&nco 0>, <&nco 1>, <&nco 2>, <&nco 3>;
