@@ -83,4 +83,9 @@ int lsdc_pixpll_init(struct lsdc_pixpll * const this,
 		     struct drm_device *ddev,
 		     unsigned int index);
 
+extern const struct lsdc_pixpll_funcs ls2k0300_pixpll_funcs;
+extern const struct lsdc_pixpll_funcs ls2k1000_pixpll_funcs;
+extern const struct lsdc_pixpll_funcs ls7a1000_pixpll_funcs;
+extern const struct lsdc_pixpll_funcs ls7a2000_pixpll_funcs;
+
 #endif

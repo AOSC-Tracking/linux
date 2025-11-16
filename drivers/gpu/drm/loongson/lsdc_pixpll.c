@@ -41,6 +41,26 @@ union lsdc_pixpll_reg_bitmap {
 	u64 d;
 };
 
+/* u32 */
+union ls2k0300_pixpll_reg_bitmap {
+struct ls2k0300_pixpll_bitmap {
+	unsigned sel_out      : 1;
+	unsigned reserved_1   : 2;
+	unsigned sw_adj_en    : 1;   /* allow software adjust              */
+	unsigned bypass       : 1;   /* bypass L1 PLL                      */
+	unsigned powerdown    : 1;   /* write 1 to powerdown the PLL       */
+	unsigned reserved_2   : 1;
+	unsigned locked       : 1;   /*  7     Is L1 PLL locked, read only */
+	unsigned div_ref      : 7;   /*  8:14  ref clock divider           */
+	unsigned loopc        : 9;   /* 15:23   Clock Multiplier           */
+	unsigned div_out      : 7;   /* 24:30   output clock divider       */
+	unsigned reserved_4   : 1;   /* 31                                 */
+	} bitmap;
+
+	u32 w[4];
+	u64 d[2];
+};
+
 struct clk_to_pixpll_parms_lookup_t {
 	unsigned int clock;        /* kHz */
 
@@ -452,15 +472,93 @@ static void lsdc_pixpll_print(struct lsdc_pixpll * const this,
 }
 
 /*
- * LS7A1000, LS7A2000 and ls2k2000's pixel pll setting register is same,
+ * LS7A1000, LS7A2000 and LS2K2000's pixel PLL register layout is same,
  * we take this as default, create a new instance if a different model is
  * introduced.
  */
-static const struct lsdc_pixpll_funcs __pixpll_default_funcs = {
+const struct lsdc_pixpll_funcs ls7a1000_pixpll_funcs = {
 	.setup = lsdc_pixel_pll_setup,
 	.compute = lsdc_pixel_pll_compute,
 	.update = lsdc_pixpll_update,
 	.get_rate = lsdc_pixpll_get_freq,
+	.print = lsdc_pixpll_print,
+};
+
+const struct lsdc_pixpll_funcs ls7a2000_pixpll_funcs = {
+	.setup = lsdc_pixel_pll_setup,
+	.compute = lsdc_pixel_pll_compute,
+	.update = lsdc_pixpll_update,
+	.get_rate = lsdc_pixpll_get_freq,
+	.print = lsdc_pixpll_print,
+};
+
+static int ls2k0300_pixpll_param_update(struct lsdc_pixpll * const this,
+					struct lsdc_pixpll_parms const *pin)
+{
+	void __iomem *reg = this->mmio;
+	unsigned int counter = 0;
+	unsigned long val;
+	bool locked;
+
+	/* set sel_pll_out0 0 */
+	val = readl(reg);
+	val &= ~(1UL << 0);
+	writel(val, reg);
+
+	/* bypass */
+	val |= (1UL << 4);
+
+	/* allow software setting the PLL */
+	val |= (1UL << 3);
+	writel(val, reg);
+
+	/* pll powerdown */
+	val = readl(reg);
+	val |= (1UL << 5);
+	writel(val, reg);
+
+	val = (pin->div_out << 24) |
+	      (pin->loopc << 15) |
+	      (pin->div_ref << 8);
+
+	writel(val, reg);
+	/* unbypass */
+	val &= ~(1UL << 4);
+	/* power up */
+	val &= ~(1UL << 5);
+
+	writel(val, reg);
+
+	/* wait pll setup and locked */
+	do {
+		val = readl(reg);
+		locked = val & 0x80;
+		counter++;
+	} while (locked == false);
+
+	DRM_DEBUG_DRIVER("%u loop waited\n", counter);
+	/* select PIX0 */
+	writel((val | 1), reg);
+
+	return 0;
+}
+
+static unsigned int
+ls2k0300_pixpll_get_clock_rate(struct lsdc_pixpll * const this)
+{
+	struct lsdc_pixpll_parms *ppar = this->priv;
+	union ls2k0300_pixpll_reg_bitmap reg_bitmap;
+	struct ls2k0300_pixpll_bitmap *obj = &reg_bitmap.bitmap;
+
+	reg_bitmap.w[0] = readl(this->mmio);
+	return ppar->ref_clock / obj->div_ref * obj->loopc / obj->div_out;
+}
+
+const struct lsdc_pixpll_funcs ls2k0300_pixpll_funcs = {
+	.setup = lsdc_pixel_pll_setup,
+	.compute = lsdc_pixel_pll_compute,
+	.update = ls2k0300_pixpll_param_update,
+	.get_rate = ls2k0300_pixpll_get_clock_rate,
 	.print = lsdc_pixpll_print,
 };
 
@@ -477,7 +575,7 @@ int lsdc_pixpll_init(struct lsdc_pixpll * const this,
 	this->ddev = ddev;
 	this->reg_size = 8;
 	this->reg_base = gfx->conf_reg_base + gfx->pixpll[index].reg_offset;
-	this->funcs = &__pixpll_default_funcs;
+	this->funcs = gfx->pixpll_funcs;
 
 	return this->funcs->setup(this);
 }
