@@ -1101,3 +1101,13 @@ config MMC_LITEX
 	  module will be called litex_mmc.
 
 	  If unsure, say N.
+
+config MMC_LS2K
+	tristate "loongson 2k SD/MMC Card Interface support"
+	depends on LOONGARCH && LOONGSON2_APB_DMA
+	help
+	  This selects a driver for the MCI interface found in
+	  loongson 2k CPU.If you have a board based on it and a MMC/SD
+	  slot, say Y or M here.
+
+	  If unsure, say N.
