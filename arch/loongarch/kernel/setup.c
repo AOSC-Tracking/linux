@@ -50,6 +50,11 @@
 #include <asm/unwind.h>
 
 #include "legacy_boot.h"
+#include <boot_param.h>
+
+#ifndef CONFIG_BUILTIN_DTB_NAME
+#define CONFIG_BUILTIN_DTB_NAME ""
+#endif
 
 #define SMBIOS_BIOSSIZE_OFFSET		0x09
 #define SMBIOS_BIOSEXTERN_OFFSET	0x13
@@ -75,6 +80,7 @@ static const char dmi_empty_string[] = "        ";
  * These are initialized so they are in the .data section
  */
 char init_command_line[COMMAND_LINE_SIZE] __initdata;
+char board_name_desc[] = "board_name="; // 这是 command line 里面的内容 一定要有=
 
 static int num_standard_resources;
 static struct resource *standard_resources;
@@ -276,6 +282,30 @@ static void __init arch_reserve_crashkernel(void)
 	reserve_crashkernel_generic(cmdline, crash_size, crash_base, low_size, high);
 }
 
+#ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
+static void* __init get_fdt_by_board_name(void)
+{
+	void *fdt = NULL;
+	char* board_name;
+	char temp[128]; // 不想申请空间 应该不会有这么长的名字吧
+	board_name = strstr(boot_command_line, board_name_desc);
+	if (board_name) {
+		int i;
+		memset(temp, 0, 128);
+		board_name += strlen(board_name_desc); // 跳过 = 和前面的字段
+		for (i = 0; i < 127; ++i) {
+			if (board_name[i] == 0 || board_name[i] == ' ')
+				break;
+			temp[i] = board_name[i];
+		}
+		board_name = temp;
+	}
+	if (board_name) {
+	}
+	return fdt;
+}
+#endif
+
 static void __init fdt_setup(void)
 {
 #ifdef CONFIG_OF_EARLY_FLATTREE
@@ -285,11 +315,19 @@ static void __init fdt_setup(void)
 	if (acpi_os_get_root_pointer())
 		return;
 
+	fdt_pointer = NULL;
+
+#ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
+	fdt_pointer = efi_fdt_pointer(); /* Fallback to firmware dtb */
+	if (!fdt_pointer)
+		fdt_pointer = get_fdt_by_board_name();
+#else
 	/* Prefer to use built-in dtb, checking its legality first. */
-	if (IS_ENABLED(CONFIG_BUILTIN_DTB) && !fdt_check_header(__dtb_start))
+	if (!fdt_check_header(__dtb_start) && strcmp(CONFIG_BUILTIN_DTB_NAME, ""))
 		fdt_pointer = __dtb_start;
 	else
 		fdt_pointer = efi_fdt_pointer(); /* Fallback to firmware dtb */
+#endif
 
 	if (!fdt_pointer || fdt_check_header(fdt_pointer))
 		return;
