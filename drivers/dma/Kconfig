@@ -733,6 +733,14 @@ config XILINX_ZYNQMP_DPDMA
 	  driver provides the dmaengine required by the DisplayPort subsystem
 	  display driver.
 
+config LSIA_DMA
+	tristate "Loongson LSIA DMA support"
+	depends on LOONGARCH
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+	help
+	  Support the Loongson LSIA DMA controller.
+
 # driver files
 source "drivers/dma/amd/Kconfig"
 
