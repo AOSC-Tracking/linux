@@ -1,0 +1,74 @@
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#include "ls2k300_vanguard_pi_common.dtsi"
+
+/ {
+	onewire {
+		compatible = "w1-gpio";
+		gpios = <&gpio 68 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&uart2 {
+	status = "ok";
+};
+
+&uart5 {
+	status = "disabled";
+};
+
+&uart6 {
+	status = "disabled";
+};
+
+&uart7 {
+	status = "disabled";
+};
+
+&uart8 {
+	status = "disabled";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&spi2 {
+	status = "ok";
+	pinctrl-0 = <&spi2_cs_as_gpio>;
+	pinctrl-names = "default";
+	num-chipselects = <2>;
+	cs-gpios = <&gpio 67 0>,
+			<&gpio 85 0>;
+
+	mcp3004@0 {
+		compatible = "mcp3004";
+		reg = <0>;
+		spi-max-frequency = <1500000>;
+	};
+
+	spidev1@1 {
+		compatible = "rohm,dh2228fv";
+		reg = <1>;
+		spi-max-frequency = <25000000>;
+	};
+};
+
+&can0 {
+	status = "disabled";
+};
+
+&can1 {
+	status = "disabled";
+};
+
+&can2 {
+	status = "disabled";
+};
+
+&can3 {
+	status = "disabled";
+};

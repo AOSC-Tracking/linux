@@ -1,0 +1,66 @@
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#include "loongson2k300.dtsi"
+
+/ {
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "earlycon";
+	};
+
+	/* not need memory node, we get memory info from boot params. */
+	//memory {
+	//	name = "memory";
+	//	device_type = "memory";
+	//	reg =  <0 0x00200000 0 0x0ee00000
+	//		0 0x90000000 0 0x10000000>;
+	//};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x02000000>;
+			linux,cma-default;
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+
+	spi-flash@0 {
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <25000000>;
+		reg = <0>;
+	};
+};
+
+&gmac0 {
+	status = "okay";
+	phy-handle = <&yt8511h0>;
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		yt8511h0: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			motorcomm,led0_cfg = <0x40>; //千兆常亮
+			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
+			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
+		};
+	};
+};
