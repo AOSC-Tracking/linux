@@ -505,6 +505,12 @@ struct dwc2_core_params {
 	u32 g_tx_fifo_size[MAX_EPS_CHANNELS];
 
 	bool change_speed_quirk;
+
+#define DWC2_LOONGSON_FIX_NONE		0
+#define DWC2_LOONGSON_FIX_DMA		1
+#define DWC2_LOONGSON_FIX_DELAY		2
+#define DWC2_LOONGSON_FIX_DELAY_FULL	3
+	u32 loongson_fix;
 };
 
 /**

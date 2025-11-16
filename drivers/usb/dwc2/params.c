@@ -66,6 +66,13 @@ static void dwc2_set_loongson_params(struct dwc2_hsotg *hsotg)
 
 	p->phy_utmi_width = 8;
 	p->power_down = DWC2_POWER_DOWN_PARAM_PARTIAL;
+
+	device_property_read_u32(hsotg->dev, "loongson,dwc2-fix",
+				 &p->loongson_fix);
+	dev_info(hsotg->dev, "Loongson Fix Param: %d\n", p->loongson_fix);
+
+	if (p->loongson_fix == DWC2_LOONGSON_FIX_DMA)
+		p->dma_desc_enable = true;
 }
 
 static void dwc2_set_x1600_params(struct dwc2_hsotg *hsotg)
@@ -347,6 +354,8 @@ const struct of_device_id dwc2_of_match_table[] = {
 	  .data = dwc2_set_stm32mp15_hsotg_params },
 	{ .compatible = "intel,socfpga-agilex-hsotg",
 	  .data = dwc2_set_socfpga_agilex_params },
+	{ .compatible = "loongson,loongson2-dwc2",
+	  .data = dwc2_set_loongson_params },
 	{},
 };
 MODULE_DEVICE_TABLE(of, dwc2_of_match_table);
