@@ -311,7 +311,9 @@ static int damon_mkold_pmd_entry(pmd_t *pmd, unsigned long addr,
 
 	ptl = pmd_trans_huge_lock(pmd, walk->vma);
 	if (ptl) {
-		if (pmd_present(pmdp_get(pmd)))
+		pmd_t pmde = pmdp_get(pmd);
+
+		if (pmd_present(pmde))
 			damon_pmdp_mkold(pmd, walk->vma, addr);
 		spin_unlock(ptl);
 		return 0;
