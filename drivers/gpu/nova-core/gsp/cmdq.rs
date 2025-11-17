@@ -529,13 +529,13 @@ impl Cmdq {
                 dst.contents.1,
             ])));
 
-        dev_dbg!(
-            &self.dev,
-            "GSP RPC: send: seq# {}, function={}, length=0x{:x}\n",
-            self.seq,
-            M::FUNCTION,
-            dst.header.length(),
-        );
+//        dev_dbg!(
+//            &self.dev,
+//            "GSP RPC: send: seq# {}, function={}, length=0x{:x}\n",
+//            self.seq,
+//            M::FUNCTION,
+//            dst.header.length(),
+//        );
 
         // All set - update the write pointer and inform the GSP of the new command.
         let elem_count = dst.header.element_count();
