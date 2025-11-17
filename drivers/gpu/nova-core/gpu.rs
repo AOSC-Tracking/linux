@@ -178,7 +178,7 @@ impl fmt::Display for Revision {
 /// Structure holding a basic description of the GPU: `Chipset` and `Revision`.
 pub(crate) struct Spec {
     chipset: Chipset,
-    revision: Revision,
+//  revision: Revision,
 }
 
 impl Spec {
@@ -220,7 +220,7 @@ impl TryFrom<regs::NV_PMC_BOOT_42> for Spec {
     fn try_from(boot42: regs::NV_PMC_BOOT_42) -> Result<Self> {
         Ok(Self {
             chipset: boot42.chipset()?,
-            revision: boot42.into(),
+//          revision: boot42.into(),
         })
     }
 }
@@ -229,10 +229,11 @@ impl fmt::Display for Spec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Chipset: {}, Architecture: {:?}, Revision: {}",
-            self.chipset,
-            self.chipset.arch(),
-            self.revision
+            "Chipset"
+//          "Chipset: {}, Architecture: {:?}, Revision: {}",
+//          self.chipset,
+//          self.chipset.arch(),
+//          self.revision
         )
     }
 }
