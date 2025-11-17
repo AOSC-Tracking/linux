@@ -83,7 +83,7 @@ int base64_encode(const u8 *src, int srclen, char *dst, bool padding, enum base6
 	const char *base64_table = base64_tables[variant];
 
 	while (srclen >= 3) {
-		ac = (u32)src[0] << 16 | (u32)src[1] << 8 | (u32)src[2];
+		ac = src[0] << 16 | src[1] << 8 | src[2];
 		*cp++ = base64_table[ac >> 18];
 		*cp++ = base64_table[(ac >> 12) & 0x3f];
 		*cp++ = base64_table[(ac >> 6) & 0x3f];
@@ -95,7 +95,7 @@ int base64_encode(const u8 *src, int srclen, char *dst, bool padding, enum base6
 
 	switch (srclen) {
 	case 2:
-		ac = (u32)src[0] << 16 | (u32)src[1] << 8;
+		ac = src[0] << 16 | src[1] << 8;
 		*cp++ = base64_table[ac >> 18];
 		*cp++ = base64_table[(ac >> 12) & 0x3f];
 		*cp++ = base64_table[(ac >> 6) & 0x3f];
@@ -103,7 +103,7 @@ int base64_encode(const u8 *src, int srclen, char *dst, bool padding, enum base6
 			*cp++ = '=';
 		break;
 	case 1:
-		ac = (u32)src[0] << 16;
+		ac = src[0] << 16;
 		*cp++ = base64_table[ac >> 18];
 		*cp++ = base64_table[(ac >> 12) & 0x3f];
 		if (padding) {
