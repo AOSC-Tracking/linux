@@ -172,6 +172,9 @@ static int madvise_update_vma(vm_flags_t new_flags,
 	if (IS_ERR(vma))
 		return PTR_ERR(vma);
 
+	/* Account for sticky flags. */
+	new_flags |= vma->vm_flags;
+
 	madv_behavior->vma = vma;
 
 	/* vm_flags is protected by the mmap_lock held in write mode. */
