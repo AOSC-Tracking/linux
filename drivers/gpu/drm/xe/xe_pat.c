@@ -115,7 +115,8 @@ static const struct xe_pat_table_entry xelpg_pat_table[] = {
 			REG_FIELD_PREP(XE2_L4_POLICY, l4_policy) | \
 			REG_FIELD_PREP(XE2_COH_MODE, __coh_mode), \
 		.coh_mode = (BUILD_BUG_ON_ZERO(__coh_mode && comp_en) || __coh_mode) ? \
-			XE_COH_AT_LEAST_1WAY : XE_COH_NONE \
+			XE_COH_AT_LEAST_1WAY : XE_COH_NONE, \
+		.valid = 1 \
 	}
 
 static const struct xe_pat_table_entry xe2_pat_table[] = {
@@ -193,6 +194,12 @@ u16 xe_pat_index_get_coh_mode(struct xe_device *xe, u16 pat_index)
 {
 	WARN_ON(pat_index >= xe->pat.n_entries);
 	return xe->pat.table[pat_index].coh_mode;
+}
+
+bool xe_pat_index_get_comp_en(struct xe_device *xe, u16 pat_index)
+{
+	WARN_ON(pat_index >= xe->pat.n_entries);
+	return !!(xe->pat.table[pat_index].value & XE2_COMP_EN);
 }
 
 static void program_pat(struct xe_gt *gt, const struct xe_pat_table_entry table[],
@@ -368,7 +375,7 @@ static int xe2_dump(struct xe_gt *gt, struct drm_printer *p)
 	if (!fw_ref)
 		return -ETIMEDOUT;
 
-	drm_printf(p, "PAT table:\n");
+	drm_printf(p, "PAT table: (* = reserved entry)\n");
 
 	for (i = 0; i < xe->pat.n_entries; i++) {
 		if (xe_gt_is_media_type(gt))
@@ -376,14 +383,14 @@ static int xe2_dump(struct xe_gt *gt, struct drm_printer *p)
 		else
 			pat = xe_gt_mcr_unicast_read_any(gt, XE_REG_MCR(_PAT_INDEX(i)));
 
-		drm_printf(p, "PAT[%2d] = [ %u, %u, %u, %u, %u, %u ]  (%#8x)\n", i,
+		drm_printf(p, "PAT[%2d] = [ %u, %u, %u, %u, %u, %u ]  (%#8x)%s\n", i,
 			   !!(pat & XE2_NO_PROMOTE),
 			   !!(pat & XE2_COMP_EN),
 			   REG_FIELD_GET(XE2_L3_CLOS, pat),
 			   REG_FIELD_GET(XE2_L3_POLICY, pat),
 			   REG_FIELD_GET(XE2_L4_POLICY, pat),
 			   REG_FIELD_GET(XE2_COH_MODE, pat),
-			   pat);
+			   pat, xe->pat.table[i].valid ? "" : " *");
 	}
 
 	/*
@@ -426,18 +433,18 @@ static int xe3p_xpc_dump(struct xe_gt *gt, struct drm_printer *p)
 	if (!fw_ref)
 		return -ETIMEDOUT;
 
-	drm_printf(p, "PAT table:\n");
+	drm_printf(p, "PAT table: (* = reserved entry)\n");
 
 	for (i = 0; i < xe->pat.n_entries; i++) {
 		pat = xe_gt_mcr_unicast_read_any(gt, XE_REG_MCR(_PAT_INDEX(i)));
 
-		drm_printf(p, "PAT[%2d] = [ %u, %u, %u, %u, %u ]  (%#8x)\n", i,
+		drm_printf(p, "PAT[%2d] = [ %u, %u, %u, %u, %u ]  (%#8x)%s\n", i,
 			   !!(pat & XE2_NO_PROMOTE),
 			   REG_FIELD_GET(XE2_L3_CLOS, pat),
 			   REG_FIELD_GET(XE2_L3_POLICY, pat),
 			   REG_FIELD_GET(XE2_L4_POLICY, pat),
 			   REG_FIELD_GET(XE2_COH_MODE, pat),
-			   pat);
+			   pat, xe->pat.table[i].valid ? "" : " *");
 	}
 
 	/*

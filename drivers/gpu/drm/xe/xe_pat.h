@@ -29,6 +29,11 @@ struct xe_pat_table_entry {
 #define XE_COH_NONE          1
 #define XE_COH_AT_LEAST_1WAY 2
 	u16 coh_mode;
+
+	/**
+	 * @valid: Set to 1 if the entry is valid, 0 if it's reserved.
+	 */
+	u16 valid;
 };
 
 /**
@@ -52,5 +57,15 @@ int xe_pat_dump(struct xe_gt *gt, struct drm_printer *p);
  * @pat_index: The pat_index to query
  */
 u16 xe_pat_index_get_coh_mode(struct xe_device *xe, u16 pat_index);
+
+/**
+ * xe_pat_index_get_comp_en - Extract the compression enable flag for
+ * the given pat_index.
+ * @xe: xe device
+ * @pat_index: The pat_index to query
+ *
+ * Return: true if compression is enabled for this pat_index, false otherwise.
+ */
+bool xe_pat_index_get_comp_en(struct xe_device *xe, u16 pat_index);
 
 #endif
