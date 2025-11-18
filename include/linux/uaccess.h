@@ -198,7 +198,7 @@ _inline_copy_to_user(void __user *to, const void *from, unsigned long n)
 	}
 	return n;
 }
-#ifndef INLINE_COPY_FROM_USER
+#ifndef INLINE_COPY_TO_USER
 extern __must_check unsigned long
 _copy_to_user(void __user *, const void *, unsigned long);
 #endif
