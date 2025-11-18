@@ -252,7 +252,7 @@ static int __init register_memory(void)
 __initcall(register_memory);
 
 
-#ifdef CONFIG_KEXEC
+#if defined(CONFIG_KEXEC) && defined(CONFIG_CRASH_DUMP)
 
 /*
  * This function checks if the reserved crashkernel is allowed on the specific

@@ -31,6 +31,7 @@ static int kdump_on_fatal_mca = 1;
 
 extern void ia64_dump_cpu_regs(void *);
 
+#ifdef CONFIG_CRASH_DUMP
 static DEFINE_PER_CPU(struct elf_prstatus, elf_prstatus);
 
 void
@@ -60,6 +61,12 @@ crash_save_this_cpu(void)
 			sizeof(*prstatus));
 	final_note(buf);
 }
+#else
+void
+crash_save_this_cpu(void)
+{
+}
+#endif
 
 #ifdef CONFIG_SMP
 static int
