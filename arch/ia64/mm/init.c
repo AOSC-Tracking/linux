@@ -390,7 +390,7 @@ int __init register_active_ranges(u64 start, u64 len, int nid)
 {
 	u64 end = start + len;
 
-#ifdef CONFIG_KEXEC
+#ifdef CONFIG_CRASH_RESERVE
 	if (start > crashk_res.start && start < crashk_res.end)
 		start = crashk_res.end;
 	if (end > crashk_res.start && end < crashk_res.end)
