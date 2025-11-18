@@ -111,6 +111,26 @@ acpi_status __wrap_acpi_evaluate_integer(acpi_handle handle,
 }
 EXPORT_SYMBOL(__wrap_acpi_evaluate_integer);
 
+int __wrap_hmat_get_extended_linear_cache_size(struct resource *backing_res,
+					       int nid,
+					       resource_size_t *cache_size)
+{
+	int index, rc;
+	struct cxl_mock_ops *ops = get_cxl_mock_ops(&index);
+
+	if (ops)
+		rc = ops->hmat_get_extended_linear_cache_size(backing_res, nid,
+							      cache_size);
+	else
+		rc = hmat_get_extended_linear_cache_size(backing_res, nid,
+							 cache_size);
+
+	put_cxl_mock_ops(index);
+
+	return rc;
+}
+EXPORT_SYMBOL_GPL(__wrap_hmat_get_extended_linear_cache_size);
+
 struct acpi_pci_root *__wrap_acpi_pci_find_root(acpi_handle handle)
 {
 	int index;
@@ -171,21 +191,6 @@ int __wrap_devm_cxl_endpoint_decoders_setup(struct cxl_port *port)
 	return rc;
 }
 EXPORT_SYMBOL_NS_GPL(__wrap_devm_cxl_endpoint_decoders_setup, "CXL");
-
-int __wrap_devm_cxl_port_enumerate_dports(struct cxl_port *port)
-{
-	int rc, index;
-	struct cxl_mock_ops *ops = get_cxl_mock_ops(&index);
-
-	if (ops && ops->is_mock_port(port->uport_dev))
-		rc = ops->devm_cxl_port_enumerate_dports(port);
-	else
-		rc = devm_cxl_port_enumerate_dports(port);
-	put_cxl_mock_ops(index);
-
-	return rc;
-}
-EXPORT_SYMBOL_NS_GPL(__wrap_devm_cxl_port_enumerate_dports, "CXL");
 
 int __wrap_cxl_await_media_ready(struct cxl_dev_state *cxlds)
 {
