@@ -21,7 +21,7 @@ static const char base64_tables[][65] = {
 	[BASE64_IMAP] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+,",
 };
 
-/**
+/*
  * Initialize the base64 reverse mapping for a single character
  * This macro maps a character to its corresponding base64 value,
  * returning -1 if the character is invalid.
@@ -33,7 +33,8 @@ static const char base64_tables[][65] = {
 		: (v) >= 'a' && (v) <= 'z' ? (v) - 'a' + 26 \
 		: (v) >= '0' && (v) <= '9' ? (v) - '0' + 52 \
 		: (v) == (ch_62) ? 62 : (v) == (ch_63) ? 63 : -1
-/**
+
+/*
  * Recursive macros to generate multiple Base64 reverse mapping table entries.
  * Each macro generates a sequence of entries in the lookup table:
  * INIT_2 generates 2 entries, INIT_4 generates 4, INIT_8 generates 8, and so on up to INIT_32.
