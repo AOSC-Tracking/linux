@@ -3133,8 +3133,11 @@ int ksys_unshare(unsigned long unshare_flags)
 
 	if (new_cred) {
 		err = set_cred_ucounts(new_cred);
-		if (err)
+		if (err) {
+			if (new_nsproxy)
+				free_nsproxy(new_nsproxy);
 			goto bad_unshare_cleanup_cred;
+		}
 	}
 
 	if (new_fs || new_fd || do_sysvsem || new_cred || new_nsproxy) {
