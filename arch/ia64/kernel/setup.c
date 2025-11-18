@@ -307,8 +307,10 @@ static void __init setup_crashkernel(unsigned long total, int *n)
 			rsvd_region[*n].end =
 				(unsigned long)__va(base + size);
 			(*n)++;
+# ifdef CONFIG_CRASH_RESERVE
 			crashk_res.start = base;
 			crashk_res.end = base + size - 1;
+# endif
 		}
 	}
 	efi_memmap_res.start = ia64_boot_param->efi_memmap;
