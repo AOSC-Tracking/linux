@@ -1270,8 +1270,10 @@ efi_initialize_iomem_resources(struct resource *code_resource,
 #ifdef CONFIG_KEXEC
                         insert_resource(res, &efi_memmap_res);
                         insert_resource(res, &boot_param_res);
+# ifdef CONFIG_CRASH_RESERVE
 			if (crashk_res.end > crashk_res.start)
 				insert_resource(res, &crashk_res);
+# endif
 #endif
 		}
 	}
