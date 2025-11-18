@@ -484,6 +484,9 @@ static int mlock_fixup(struct vma_iterator *vmi, struct vm_area_struct *vma,
 		goto out;
 	}
 
+	/* Account for sticky flags. */
+	newflags |= vma->vm_flags;
+
 	/*
 	 * Keep track of amount of locked VM.
 	 */
