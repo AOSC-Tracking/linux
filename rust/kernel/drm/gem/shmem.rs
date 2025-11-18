@@ -60,6 +60,11 @@ pub struct Object<T: DriverObject> {
 
 super::impl_aref_for_gem_obj!(impl<T> for Object<T> where T: DriverObject);
 
+// SAFETY: This object is thread-safe via our type invariants.
+unsafe impl<T: DriverObject> Send for Object<T> {}
+// SAFETY: This object is thread-safe via our type invariants.
+unsafe impl<T: DriverObject> Sync for Object<T> {}
+
 impl<T: DriverObject> Object<T> {
     /// `drm_gem_object_funcs` vtable suitable for GEM shmem objects.
     const VTABLE: bindings::drm_gem_object_funcs = bindings::drm_gem_object_funcs {
