@@ -20,6 +20,7 @@
 
 #include <net/mana/mana.h>
 #include <net/mana/mana_auxiliary.h>
+#include <net/mana/hw_channel.h>
 
 static DEFINE_IDA(mana_adev_ida);
 
@@ -84,7 +85,6 @@ static int mana_open(struct net_device *ndev)
 	/* Ensure port state updated before txq state */
 	smp_wmb();
 
-	netif_carrier_on(ndev);
 	netif_tx_wake_all_queues(ndev);
 	netdev_dbg(ndev, "%s successful\n", __func__);
 	return 0;
@@ -98,6 +98,46 @@ static int mana_close(struct net_device *ndev)
 		return 0;
 
 	return mana_detach(ndev, true);
+}
+
+static void mana_link_state_handle(struct work_struct *w)
+{
+	struct mana_context *ac;
+	struct net_device *ndev;
+	u32 link_event;
+	bool link_up;
+	int i;
+
+	ac = container_of(w, struct mana_context, link_change_work);
+
+	rtnl_lock();
+
+	link_event = READ_ONCE(ac->link_event);
+
+	if (link_event == HWC_DATA_HW_LINK_CONNECT)
+		link_up = true;
+	else if (link_event == HWC_DATA_HW_LINK_DISCONNECT)
+		link_up = false;
+	else
+		goto out;
+
+	/* Process all ports */
+	for (i = 0; i < ac->num_ports; i++) {
+		ndev = ac->ports[i];
+		if (!ndev)
+			continue;
+
+		if (link_up) {
+			netif_carrier_on(ndev);
+
+			__netdev_notify_peers(ndev);
+		} else {
+			netif_carrier_off(ndev);
+		}
+	}
+
+out:
+	rtnl_unlock();
 }
 
 static bool mana_can_tx(struct gdma_queue *wq)
@@ -494,6 +534,11 @@ static void mana_get_stats64(struct net_device *ndev,
 
 	netdev_stats_to_stats64(st, &ndev->stats);
 
+	if (apc->ac->hwc_timeout_occurred)
+		netdev_warn_once(ndev, "HWC timeout occurred\n");
+
+	st->rx_missed_errors = apc->ac->hc_stats.hc_rx_discards_no_wqe;
+
 	for (q = 0; q < num_queues; q++) {
 		rx_stats = &apc->rxqs[q]->stats;
 
@@ -814,7 +859,7 @@ static int mana_shaper_del(struct net_shaper_binding *binding,
 		/* Reset mana port context parameters */
 		apc->handle.id = 0;
 		apc->handle.scope = NET_SHAPER_SCOPE_UNSPEC;
-		apc->speed = 0;
+		apc->speed = apc->max_speed;
 	}
 
 	return err;
@@ -2769,11 +2814,12 @@ int mana_config_rss(struct mana_port_context *apc, enum TRI_STATE rx,
 	return 0;
 }
 
-void mana_query_gf_stats(struct mana_port_context *apc)
+int mana_query_gf_stats(struct mana_context *ac)
 {
+	struct gdma_context *gc = ac->gdma_dev->gdma_context;
 	struct mana_query_gf_stat_resp resp = {};
 	struct mana_query_gf_stat_req req = {};
-	struct net_device *ndev = apc->ndev;
+	struct device *dev = gc->dev;
 	int err;
 
 	mana_gd_init_req_hdr(&req.hdr, MANA_QUERY_GF_STAT,
@@ -2807,52 +2853,54 @@ void mana_query_gf_stats(struct mana_port_context *apc)
 			STATISTICS_FLAGS_HC_TX_BCAST_BYTES |
 			STATISTICS_FLAGS_TX_ERRORS_GDMA_ERROR;
 
-	err = mana_send_request(apc->ac, &req, sizeof(req), &resp,
+	err = mana_send_request(ac, &req, sizeof(req), &resp,
 				sizeof(resp));
 	if (err) {
-		netdev_err(ndev, "Failed to query GF stats: %d\n", err);
-		return;
+		dev_err(dev, "Failed to query GF stats: %d\n", err);
+		return err;
 	}
 	err = mana_verify_resp_hdr(&resp.hdr, MANA_QUERY_GF_STAT,
 				   sizeof(resp));
 	if (err || resp.hdr.status) {
-		netdev_err(ndev, "Failed to query GF stats: %d, 0x%x\n", err,
-			   resp.hdr.status);
-		return;
+		dev_err(dev, "Failed to query GF stats: %d, 0x%x\n", err,
+			resp.hdr.status);
+		return err;
 	}
 
-	apc->eth_stats.hc_rx_discards_no_wqe = resp.rx_discards_nowqe;
-	apc->eth_stats.hc_rx_err_vport_disabled = resp.rx_err_vport_disabled;
-	apc->eth_stats.hc_rx_bytes = resp.hc_rx_bytes;
-	apc->eth_stats.hc_rx_ucast_pkts = resp.hc_rx_ucast_pkts;
-	apc->eth_stats.hc_rx_ucast_bytes = resp.hc_rx_ucast_bytes;
-	apc->eth_stats.hc_rx_bcast_pkts = resp.hc_rx_bcast_pkts;
-	apc->eth_stats.hc_rx_bcast_bytes = resp.hc_rx_bcast_bytes;
-	apc->eth_stats.hc_rx_mcast_pkts = resp.hc_rx_mcast_pkts;
-	apc->eth_stats.hc_rx_mcast_bytes = resp.hc_rx_mcast_bytes;
-	apc->eth_stats.hc_tx_err_gf_disabled = resp.tx_err_gf_disabled;
-	apc->eth_stats.hc_tx_err_vport_disabled = resp.tx_err_vport_disabled;
-	apc->eth_stats.hc_tx_err_inval_vportoffset_pkt =
+	ac->hc_stats.hc_rx_discards_no_wqe = resp.rx_discards_nowqe;
+	ac->hc_stats.hc_rx_err_vport_disabled = resp.rx_err_vport_disabled;
+	ac->hc_stats.hc_rx_bytes = resp.hc_rx_bytes;
+	ac->hc_stats.hc_rx_ucast_pkts = resp.hc_rx_ucast_pkts;
+	ac->hc_stats.hc_rx_ucast_bytes = resp.hc_rx_ucast_bytes;
+	ac->hc_stats.hc_rx_bcast_pkts = resp.hc_rx_bcast_pkts;
+	ac->hc_stats.hc_rx_bcast_bytes = resp.hc_rx_bcast_bytes;
+	ac->hc_stats.hc_rx_mcast_pkts = resp.hc_rx_mcast_pkts;
+	ac->hc_stats.hc_rx_mcast_bytes = resp.hc_rx_mcast_bytes;
+	ac->hc_stats.hc_tx_err_gf_disabled = resp.tx_err_gf_disabled;
+	ac->hc_stats.hc_tx_err_vport_disabled = resp.tx_err_vport_disabled;
+	ac->hc_stats.hc_tx_err_inval_vportoffset_pkt =
 					     resp.tx_err_inval_vport_offset_pkt;
-	apc->eth_stats.hc_tx_err_vlan_enforcement =
+	ac->hc_stats.hc_tx_err_vlan_enforcement =
 					     resp.tx_err_vlan_enforcement;
-	apc->eth_stats.hc_tx_err_eth_type_enforcement =
+	ac->hc_stats.hc_tx_err_eth_type_enforcement =
 					     resp.tx_err_ethtype_enforcement;
-	apc->eth_stats.hc_tx_err_sa_enforcement = resp.tx_err_SA_enforcement;
-	apc->eth_stats.hc_tx_err_sqpdid_enforcement =
+	ac->hc_stats.hc_tx_err_sa_enforcement = resp.tx_err_SA_enforcement;
+	ac->hc_stats.hc_tx_err_sqpdid_enforcement =
 					     resp.tx_err_SQPDID_enforcement;
-	apc->eth_stats.hc_tx_err_cqpdid_enforcement =
+	ac->hc_stats.hc_tx_err_cqpdid_enforcement =
 					     resp.tx_err_CQPDID_enforcement;
-	apc->eth_stats.hc_tx_err_mtu_violation = resp.tx_err_mtu_violation;
-	apc->eth_stats.hc_tx_err_inval_oob = resp.tx_err_inval_oob;
-	apc->eth_stats.hc_tx_bytes = resp.hc_tx_bytes;
-	apc->eth_stats.hc_tx_ucast_pkts = resp.hc_tx_ucast_pkts;
-	apc->eth_stats.hc_tx_ucast_bytes = resp.hc_tx_ucast_bytes;
-	apc->eth_stats.hc_tx_bcast_pkts = resp.hc_tx_bcast_pkts;
-	apc->eth_stats.hc_tx_bcast_bytes = resp.hc_tx_bcast_bytes;
-	apc->eth_stats.hc_tx_mcast_pkts = resp.hc_tx_mcast_pkts;
-	apc->eth_stats.hc_tx_mcast_bytes = resp.hc_tx_mcast_bytes;
-	apc->eth_stats.hc_tx_err_gdma = resp.tx_err_gdma;
+	ac->hc_stats.hc_tx_err_mtu_violation = resp.tx_err_mtu_violation;
+	ac->hc_stats.hc_tx_err_inval_oob = resp.tx_err_inval_oob;
+	ac->hc_stats.hc_tx_bytes = resp.hc_tx_bytes;
+	ac->hc_stats.hc_tx_ucast_pkts = resp.hc_tx_ucast_pkts;
+	ac->hc_stats.hc_tx_ucast_bytes = resp.hc_tx_ucast_bytes;
+	ac->hc_stats.hc_tx_bcast_pkts = resp.hc_tx_bcast_pkts;
+	ac->hc_stats.hc_tx_bcast_bytes = resp.hc_tx_bcast_bytes;
+	ac->hc_stats.hc_tx_mcast_pkts = resp.hc_tx_mcast_pkts;
+	ac->hc_stats.hc_tx_mcast_bytes = resp.hc_tx_mcast_bytes;
+	ac->hc_stats.hc_tx_err_gdma = resp.tx_err_gdma;
+
+	return 0;
 }
 
 void mana_query_phy_stats(struct mana_port_context *apc)
@@ -3059,9 +3107,6 @@ int mana_attach(struct net_device *ndev)
 	/* Ensure port state updated before txq state */
 	smp_wmb();
 
-	if (apc->port_is_up)
-		netif_carrier_on(ndev);
-
 	netif_device_attach(ndev);
 
 	return 0;
@@ -3154,7 +3199,6 @@ int mana_detach(struct net_device *ndev, bool from_close)
 	smp_wmb();
 
 	netif_tx_disable(ndev);
-	netif_carrier_off(ndev);
 
 	if (apc->port_st_save) {
 		err = mana_dealloc_queues(ndev);
@@ -3242,6 +3286,8 @@ static int mana_probe_port(struct mana_context *ac, int port_idx,
 		netdev_err(ndev, "Unable to register netdev.\n");
 		goto free_indir;
 	}
+
+	netif_carrier_on(ndev);
 
 	debugfs_create_u32("current_speed", 0400, apc->mana_port_debugfs, &apc->speed);
 
@@ -3389,6 +3435,24 @@ int mana_rdma_service_event(struct gdma_context *gc, enum gdma_service_type even
 	return 0;
 }
 
+#define MANA_GF_STATS_PERIOD (2 * HZ)
+
+static void mana_gf_stats_work_handler(struct work_struct *work)
+{
+	struct mana_context *ac =
+		container_of(to_delayed_work(work), struct mana_context, gf_stats_work);
+	int err;
+
+	err = mana_query_gf_stats(ac);
+	if (err == -ETIMEDOUT) {
+		/* HWC timeout detected - reset stats and stop rescheduling */
+		ac->hwc_timeout_occurred = true;
+		memset(&ac->hc_stats, 0, sizeof(ac->hc_stats));
+		return;
+	}
+	schedule_delayed_work(&ac->gf_stats_work, MANA_GF_STATS_PERIOD);
+}
+
 int mana_probe(struct gdma_dev *gd, bool resuming)
 {
 	struct gdma_context *gc = gd->gdma_context;
@@ -3431,6 +3495,8 @@ int mana_probe(struct gdma_dev *gd, bool resuming)
 
 	if (!resuming) {
 		ac->num_ports = num_ports;
+
+		INIT_WORK(&ac->link_change_work, mana_link_state_handle);
 	} else {
 		if (ac->num_ports != num_ports) {
 			dev_err(dev, "The number of vPorts changed: %d->%d\n",
@@ -3438,6 +3504,8 @@ int mana_probe(struct gdma_dev *gd, bool resuming)
 			err = -EPROTO;
 			goto out;
 		}
+
+		enable_work(&ac->link_change_work);
 	}
 
 	if (ac->num_ports == 0)
@@ -3477,6 +3545,10 @@ int mana_probe(struct gdma_dev *gd, bool resuming)
 	}
 
 	err = add_adev(gd, "eth");
+
+	INIT_DELAYED_WORK(&ac->gf_stats_work, mana_gf_stats_work_handler);
+	schedule_delayed_work(&ac->gf_stats_work, MANA_GF_STATS_PERIOD);
+
 out:
 	if (err) {
 		mana_remove(gd, false);
@@ -3499,6 +3571,9 @@ void mana_remove(struct gdma_dev *gd, bool suspending)
 	struct net_device *ndev;
 	int err;
 	int i;
+
+	disable_work_sync(&ac->link_change_work);
+	cancel_delayed_work_sync(&ac->gf_stats_work);
 
 	/* adev currently doesn't support suspending, always remove it */
 	if (gd->adev)
