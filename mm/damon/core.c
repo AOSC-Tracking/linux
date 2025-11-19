@@ -20,11 +20,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/damon.h>
 
-#ifdef CONFIG_DAMON_KUNIT_TEST
-#undef DAMON_MIN_REGION
-#define DAMON_MIN_REGION 1
-#endif
-
 static DEFINE_MUTEX(damon_lock);
 static int nr_running_ctxs;
 static bool running_exclusive_ctxs;
@@ -306,7 +301,7 @@ void damos_add_filter(struct damos *s, struct damos_filter *f)
 	if (damos_filter_for_ops(f->type))
 		list_add_tail(&f->list, &s->ops_filters);
 	else
-		list_add_tail(&f->list, &s->filters);
+		list_add_tail(&f->list, &s->core_filters);
 }
 
 static void damos_del_filter(struct damos_filter *f)
@@ -397,7 +392,7 @@ struct damos *damon_new_scheme(struct damos_access_pattern *pattern,
 	 */
 	scheme->next_apply_sis = 0;
 	scheme->walk_completed = false;
-	INIT_LIST_HEAD(&scheme->filters);
+	INIT_LIST_HEAD(&scheme->core_filters);
 	INIT_LIST_HEAD(&scheme->ops_filters);
 	scheme->stat = (struct damos_stat){};
 	INIT_LIST_HEAD(&scheme->list);
@@ -450,7 +445,7 @@ void damon_destroy_scheme(struct damos *s)
 	damos_for_each_quota_goal_safe(g, g_next, &s->quota)
 		damos_destroy_quota_goal(g);
 
-	damos_for_each_filter_safe(f, next, s)
+	damos_for_each_core_filter_safe(f, next, s)
 		damos_destroy_filter(f);
 
 	damos_for_each_ops_filter_safe(f, next, s)
@@ -864,12 +859,12 @@ static int damos_commit_quota(struct damos_quota *dst, struct damos_quota *src)
 	return 0;
 }
 
-static struct damos_filter *damos_nth_filter(int n, struct damos *s)
+static struct damos_filter *damos_nth_core_filter(int n, struct damos *s)
 {
 	struct damos_filter *filter;
 	int i = 0;
 
-	damos_for_each_filter(filter, s) {
+	damos_for_each_core_filter(filter, s) {
 		if (i++ == n)
 			return filter;
 	}
@@ -923,15 +918,15 @@ static int damos_commit_core_filters(struct damos *dst, struct damos *src)
 	struct damos_filter *dst_filter, *next, *src_filter, *new_filter;
 	int i = 0, j = 0;
 
-	damos_for_each_filter_safe(dst_filter, next, dst) {
-		src_filter = damos_nth_filter(i++, src);
+	damos_for_each_core_filter_safe(dst_filter, next, dst) {
+		src_filter = damos_nth_core_filter(i++, src);
 		if (src_filter)
 			damos_commit_filter(dst_filter, src_filter);
 		else
 			damos_destroy_filter(dst_filter);
 	}
 
-	damos_for_each_filter_safe(src_filter, next, src) {
+	damos_for_each_core_filter_safe(src_filter, next, src) {
 		if (j++ < i)
 			continue;
 
@@ -995,41 +990,37 @@ static void damos_set_filters_default_reject(struct damos *s)
 		s->core_filters_default_reject = false;
 	else
 		s->core_filters_default_reject =
-			damos_filters_default_reject(&s->filters);
+			damos_filters_default_reject(&s->core_filters);
 	s->ops_filters_default_reject =
 		damos_filters_default_reject(&s->ops_filters);
 }
 
-static int damos_commit_dests(struct damos *dst, struct damos *src)
+static int damos_commit_dests(struct damos_migrate_dests *dst,
+		struct damos_migrate_dests *src)
 {
-	struct damos_migrate_dests *dst_dests, *src_dests;
+	if (dst->nr_dests != src->nr_dests) {
+		kfree(dst->node_id_arr);
+		kfree(dst->weight_arr);
 
-	dst_dests = &dst->migrate_dests;
-	src_dests = &src->migrate_dests;
-
-	if (dst_dests->nr_dests != src_dests->nr_dests) {
-		kfree(dst_dests->node_id_arr);
-		kfree(dst_dests->weight_arr);
-
-		dst_dests->node_id_arr = kmalloc_array(src_dests->nr_dests,
-			sizeof(*dst_dests->node_id_arr), GFP_KERNEL);
-		if (!dst_dests->node_id_arr) {
-			dst_dests->weight_arr = NULL;
+		dst->node_id_arr = kmalloc_array(src->nr_dests,
+			sizeof(*dst->node_id_arr), GFP_KERNEL);
+		if (!dst->node_id_arr) {
+			dst->weight_arr = NULL;
 			return -ENOMEM;
 		}
 
-		dst_dests->weight_arr = kmalloc_array(src_dests->nr_dests,
-			sizeof(*dst_dests->weight_arr), GFP_KERNEL);
-		if (!dst_dests->weight_arr) {
+		dst->weight_arr = kmalloc_array(src->nr_dests,
+			sizeof(*dst->weight_arr), GFP_KERNEL);
+		if (!dst->weight_arr) {
 			/* ->node_id_arr will be freed by scheme destruction */
 			return -ENOMEM;
 		}
 	}
 
-	dst_dests->nr_dests = src_dests->nr_dests;
-	for (int i = 0; i < src_dests->nr_dests; i++) {
-		dst_dests->node_id_arr[i] = src_dests->node_id_arr[i];
-		dst_dests->weight_arr[i] = src_dests->weight_arr[i];
+	dst->nr_dests = src->nr_dests;
+	for (int i = 0; i < src->nr_dests; i++) {
+		dst->node_id_arr[i] = src->node_id_arr[i];
+		dst->weight_arr[i] = src->weight_arr[i];
 	}
 
 	return 0;
@@ -1076,7 +1067,7 @@ static int damos_commit(struct damos *dst, struct damos *src)
 	dst->wmarks = src->wmarks;
 	dst->target_nid = src->target_nid;
 
-	err = damos_commit_dests(dst, src);
+	err = damos_commit_dests(&dst->migrate_dests, &src->migrate_dests);
 	if (err)
 		return err;
 
@@ -1771,7 +1762,7 @@ static bool damos_filter_out(struct damon_ctx *ctx, struct damon_target *t,
 	struct damos_filter *filter;
 
 	s->core_filters_allowed = false;
-	damos_for_each_filter(filter, s) {
+	damos_for_each_core_filter(filter, s) {
 		if (damos_filter_match(ctx, t, r, filter, ctx->min_sz_region)) {
 			if (filter->allow)
 				s->core_filters_allowed = true;
