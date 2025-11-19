@@ -60,7 +60,6 @@ int __ref page_is_ram(unsigned long pfn)
 	return memblock_is_memory(addr) && !memblock_is_reserved(addr);
 }
 
-#ifndef CONFIG_NUMA
 void __init paging_init(void)
 {
 	unsigned long max_zone_pfns[MAX_NR_ZONES];
@@ -80,7 +79,6 @@ void __init mem_init(void)
 
 	memblock_free_all();
 }
-#endif /* !CONFIG_NUMA */
 
 void __ref free_initmem(void)
 {
