@@ -779,6 +779,20 @@ static struct ccu_div c910_bus_clk = {
 	},
 };
 
+static struct ccu_div c910_bus_clk = {
+	.enable		= BIT(7),
+	.div_en		= BIT(11),
+	.div		= TH_CCU_DIV_FLAGS(8, 3, 0),
+	.common		= {
+		.clkid		= CLK_C910_BUS,
+		.cfg0		= 0x100,
+		.hw.init	= CLK_HW_INIT_HW("c910-bus",
+						 &c910_clk.mux.hw,
+						 &ccu_div_ops,
+						 CLK_IS_CRITICAL),
+	},
+};
+
 static const struct clk_parent_data ahb2_cpusys_parents[] = {
 	{ .hw = &gmac_pll_clk.common.hw },
 	{ .index = 0 }
