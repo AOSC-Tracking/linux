@@ -39,16 +39,16 @@ use kernel::types::ARef;
 pub struct DeviceId(bindings::i2c_device_id);
 
 impl DeviceId {
-    const I2C_NAME_SIZE: usize = 20;
+    // const I2C_NAME_SIZE: usize = 20;
 
     /// Create a new device id from an I2C 'id' string.
     #[inline(always)]
     pub const fn new(id: &'static CStr) -> Self {
-        build_assert!(
-            id.len_with_nul() <= Self::I2C_NAME_SIZE,
-            "ID exceeds 20 bytes"
-        );
-        let src = id.as_bytes_with_nul();
+        // build_assert!(
+        //     id.len_with_nul() <= Self::I2C_NAME_SIZE,
+        //     "ID exceeds 20 bytes"
+        // );
+        let src = id.to_bytes_with_nul();
         let mut i2c: bindings::i2c_device_id = pin_init::zeroed();
         let mut i = 0;
         while i < src.len() {
@@ -430,15 +430,15 @@ unsafe impl crate::types::AlwaysRefCounted for I2cAdapter {
 pub struct I2cBoardInfo(bindings::i2c_board_info);
 
 impl I2cBoardInfo {
-    const I2C_TYPE_SIZE: usize = 20;
+    // const I2C_TYPE_SIZE: usize = 20;
     /// Create a new [`I2cBoardInfo`] for a kernel driver.
     #[inline(always)]
     pub const fn new(type_: &'static CStr, addr: u16) -> Self {
-        build_assert!(
-            type_.len_with_nul() <= Self::I2C_TYPE_SIZE,
-            "Type exceeds 20 bytes"
-        );
-        let src = type_.as_bytes_with_nul();
+        // build_assert!(
+        //     type_.len_with_nul() <= Self::I2C_TYPE_SIZE,
+        //     "Type exceeds 20 bytes"
+        // );
+        let src = type_.to_bytes_with_nul();
         let mut i2c_board_info: bindings::i2c_board_info = pin_init::zeroed();
         let mut i: usize = 0;
         while i < src.len() {
