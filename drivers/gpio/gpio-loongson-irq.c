@@ -116,18 +116,23 @@ static int __map_hwirq_pin(lsirq_gpio_irqpinmap_t* map, int hwirq,
 		lsirq_gpio_priv_t* priv)
 {
 	int pin;
+	u8 irq_val, irqsta_val;
 
-	if (map->hwirq == hwirq)
-	{
-		for (pin = map->pin_start;
-			pin < map->pin_start + map->pin_num;
-			pin++)
-		{
-			// 2k300 must check irq enable
-			if (lsirq_gpio_get_reg_irq(priv, pin) == 1 &&
-				lsirq_gpio_get_reg_irqsta(priv, pin) == 1)
-				return pin;
-		}
+	if (map->hwirq != hwirq)
+		return -1;
+
+	for (pin = map->pin_start; pin < map->pin_start + map->pin_num; pin++) {
+		/* Bounds checking */
+		if (pin < 0 || pin >= priv->gc.ngpio)
+			continue;
+		
+		/* Atomic register read to avoid race condition */
+		irq_val = lsirq_gpio_get_reg_irq(priv, pin);
+		irqsta_val = lsirq_gpio_get_reg_irqsta(priv, pin);
+		
+		/* 2k300 must check irq enable */
+		if (irq_val == 1 && irqsta_val == 1)
+			return pin;
 	}
 
 	return -1;
@@ -135,11 +140,21 @@ static int __map_hwirq_pin(lsirq_gpio_irqpinmap_t* map, int hwirq,
 
 static int __map_vhwirq_pin(lsirq_gpio_priv_t* priv, int vhwirq)
 {
-	return vhwirq - priv->irqd.vhwirq_base;
+	int pin = vhwirq - priv->irqd.vhwirq_base;
+	
+	/* Bounds checking */
+	if (pin < 0 || pin >= priv->gc.ngpio)
+		return -EINVAL;
+	
+	return pin;
 }
 
 static int __map_pin_vhwirq(lsirq_gpio_priv_t* priv, int pin)
 {
+	/* Bounds checking */
+	if (pin < 0 || pin >= priv->gc.ngpio)
+		return -EINVAL;
+	
 	return pin + priv->irqd.vhwirq_base;
 }
 
@@ -225,7 +240,13 @@ static int mthd_lsirq_gpio_to_irq(struct gpio_chip *gc, unsigned pin)
 	int vhwirq, rirq;
 	lsirq_gpio_priv_t *priv = gpiochip_get_data(gc);
 
+	if (pin >= gc->ngpio)
+		return -EINVAL;
+
 	vhwirq = __map_pin_vhwirq(priv, (int)pin);
+	if (vhwirq < 0)
+		return vhwirq;
+	
 	rirq = __map_vhwirq_rirq(priv, vhwirq);
 
 	return rirq;
@@ -237,6 +258,9 @@ static int mthd_lsirq_gpio_irqsettype(struct irq_data *d, u32 type)
 	int vhwirq = d->hwirq;
 	int pin = __map_vhwirq_pin(priv, vhwirq);
 	unsigned long flags;
+
+	if (pin < 0)
+		return pin;
 
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
@@ -283,7 +307,13 @@ static int mthd_lsirq_gpio_irqsettype(struct irq_data *d, u32 type)
 
 static void mthd_lsirq_gpio_irqack(struct irq_data *d)
 {
-
+	lsirq_gpio_priv_t *priv = irq_data_get_irq_chip_data(d);
+	int vhwirq = d->hwirq;
+	int pin = __map_vhwirq_pin(priv, vhwirq);
+	
+	/* Acknowledge interrupt by clearing status */
+	if (pin >= 0)
+		lsirq_gpio_set_reg_irqclr(priv, pin, 1);
 }
 
 static void mthd_lsirq_gpio_irqmask(struct irq_data *d)
@@ -293,7 +323,10 @@ static void mthd_lsirq_gpio_irqmask(struct irq_data *d)
 	int pin = __map_vhwirq_pin(priv, vhwirq);
 	unsigned long flags;
 
-	// interrupt must gpio input
+	if (pin < 0)
+		return;
+
+	/* interrupt must gpio input */
 	spin_lock_irqsave(&priv->lock, flags);
 	lsirq_gpio_set_reg_dir(priv, pin, 1);
 	spin_unlock_irqrestore(&priv->lock, flags);
@@ -307,22 +340,23 @@ static void mthd_lsirq_gpio_irqunmask(struct irq_data *d)
 	int vhwirq = d->hwirq;
 	int pin = __map_vhwirq_pin(priv, vhwirq);
 
+	if (pin < 0)
+		return;
+
 	lsirq_gpio_set_reg_irq(priv, pin, 1);
 }
 
-static int lsirq_gpio_gc_remove(lsirq_gpio_priv_t* priv)
-{
-	struct gpio_chip* gc = &priv->gc;
 
-	gpiochip_remove(gc);
-
-	return 0;
-}
 
 static int lsirq_gpio_gc_setup(lsirq_gpio_priv_t* priv)
 {
 	struct gpio_chip* gc = &priv->gc;
 	struct device_node *np = priv->dev->of_node;
+
+	if (!np) {
+		dev_err(priv->dev, "No device node\n");
+		return -ENODEV;
+	}
 
 	of_property_read_u32(np, "ngpios", (u32 *)&gc->ngpio);
 	of_property_read_u32(np, "gpio_base", (u32 *)&gc->base);
@@ -339,7 +373,7 @@ static int lsirq_gpio_gc_setup(lsirq_gpio_priv_t* priv)
 	if (devm_gpiochip_add_data(priv->dev, gc, priv))
 	{
 		dev_err(priv->dev, "gpiochip setup fail\n");
-		return -1;
+		return -ENODEV;
 	}
 
 	return 0;
@@ -429,6 +463,11 @@ static int lsirqd_setup(lsirq_gpio_priv_t* priv)
 	lsirq_gpio_irqdesc_t* irqd = &priv->irqd;
 	struct device_node *np = priv->dev->of_node;
 
+	if (!np) {
+		dev_err(priv->dev, "No device node\n");
+		return -ENODEV;
+	}
+
 	of_property_read_u32(np, "loongson,vhwirq-base", (u32 *)&irqd->vhwirq_base);
 	snprintf(irqd->name, sizeof(irqd->name), "GPIC-%s", np->name);
 
@@ -439,7 +478,7 @@ static int lsirqd_setup(lsirq_gpio_priv_t* priv)
 	if (irqd->nr_irqs <= 0)
 	{
 		dev_err(priv->dev, "IRQ Pin Map fail\n");
-		goto err;
+		return -ENODEV;
 	}
 	/*
 	 * Setup VIRQ-IRQ-MAP
@@ -450,14 +489,14 @@ static int lsirqd_setup(lsirq_gpio_priv_t* priv)
 			0, irqd->nr_irqs, numa_node_id());
 	if (irqd->rirq_base < 0) {
 		dev_err(priv->dev, "Alloc IRQ fail\n");
-		goto clear_pin_map;
+		goto free_map;
 	}
 	// set ic prop
 	irqd->ic = kzalloc(sizeof(*irqd->ic), GFP_KERNEL);
 	if (!irqd->ic)
 	{
 		dev_err(priv->dev, "IRQ chip alloc fail\n");
-		goto free_irq_desc;
+		goto free_ic;
 	}
 	irqd->ic->name = irqd->name;
 	irqd->ic->irq_ack = mthd_lsirq_gpio_irqack;
@@ -471,20 +510,18 @@ static int lsirqd_setup(lsirq_gpio_priv_t* priv)
 			&domain_ops_gpic, priv);
 	if (!irqd->domain) {
 		dev_err(priv->dev, "IRQ domain add fail\n");
-		goto free_ic;
+		goto free_domain;
 	}
 	dev_info(priv->dev, "register irqnum=%d, vhwirq-base=%d, rirq-base=%d\n",
 			irqd->nr_irqs, irqd->vhwirq_base, irqd->rirq_base);
 	return 0;
-
-free_ic:
+free_domain:
 	kfree(irqd->ic);
-free_irq_desc:
+free_ic:
 	irq_free_descs(irqd->rirq_base, irqd->nr_irqs);
-clear_pin_map:
+free_map:
 	lsirqmap_clear(&irqd->ipm);
-err:
-	return -1;
+	return -ENODEV;
 }
 
 static const struct of_device_id drvids_lsirq_gpio[] = {
@@ -497,8 +534,18 @@ MODULE_DEVICE_TABLE(of, drvids_lsirq_gpio);
 static int drv_lsirq_gpio_probe(struct platform_device *pdev)
 {
 	lsirq_gpio_priv_t* priv;
-	const struct of_device_id *of_id =
-		of_match_device(drvids_lsirq_gpio, &pdev->dev);
+	const struct of_device_id *of_id;
+
+	of_id = of_match_device(drvids_lsirq_gpio, &pdev->dev);
+	if (!of_id) {
+		dev_err(&pdev->dev, "No matching device ID\n");
+		return -ENODEV;
+	}
+
+	if (!of_id->data) {
+		dev_err(&pdev->dev, "No register table data\n");
+		return -ENODEV;
+	}
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -506,28 +553,50 @@ static int drv_lsirq_gpio_probe(struct platform_device *pdev)
 
 	priv->reg = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->reg))
-		goto ioremap_fail;
+		return PTR_ERR(priv->reg);
+		
 	spin_lock_init(&priv->lock);
 	priv->dev = &pdev->dev;
 	priv->regtable = of_id->data;
 
 	if (lsirq_gpio_gc_setup(priv))
-		goto gc_fail;
+		return -ENODEV;
 
 	if (lsirqd_setup(priv))
-		goto irqd_fail;
+		return -ENODEV;
 
 	platform_set_drvdata(pdev, priv);
 
 	return 0;
+}
 
-irqd_fail:
-	lsirq_gpio_gc_remove(priv);
-gc_fail:
-	devm_iounmap(&pdev->dev, priv->reg);
-ioremap_fail:
-	devm_kfree(&pdev->dev, priv);
-	return -1;
+static void drv_lsirq_gpio_remove(struct platform_device *pdev)
+{
+	lsirq_gpio_priv_t *priv = platform_get_drvdata(pdev);
+
+	if (!priv)
+		return;
+
+	/* Clean up IRQ domain and mappings */
+	if (priv->irqd.domain) {
+		irq_domain_remove(priv->irqd.domain);
+		priv->irqd.domain = NULL;
+	}
+
+	/* Free IRQ descriptors */
+	if (priv->irqd.rirq_base >= 0) {
+		irq_free_descs(priv->irqd.rirq_base, priv->irqd.nr_irqs);
+		priv->irqd.rirq_base = -1;
+	}
+
+	/* Free IRQ chip */
+	kfree(priv->irqd.ic);
+	priv->irqd.ic = NULL;
+
+	/* Clear IRQ pin mappings */
+	lsirqmap_clear(&priv->irqd.ipm);
+
+	/* GPIO chip will be automatically cleaned up by devm_* */
 }
 
 static struct platform_driver lsirq_gpio_driver = {
@@ -537,13 +606,21 @@ static struct platform_driver lsirq_gpio_driver = {
 		.of_match_table = drvids_lsirq_gpio,
 	},
 	.probe		= drv_lsirq_gpio_probe,
+	.remove		= drv_lsirq_gpio_remove,
 };
 
 static int __init lsirq_gpio_init(void)
 {
 	return platform_driver_register(&lsirq_gpio_driver);
 }
+
+static void __exit lsirq_gpio_exit(void)
+{
+	platform_driver_unregister(&lsirq_gpio_driver);
+}
+
 subsys_initcall(lsirq_gpio_init);
+module_exit(lsirq_gpio_exit);
 
 MODULE_AUTHOR("Yize Niu <niuyize@loongson.cn>");
 MODULE_DESCRIPTION("Loongson GPIO With IRQ Driver");
