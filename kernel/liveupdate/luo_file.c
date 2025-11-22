@@ -286,6 +286,10 @@ int luo_preserve_file(struct luo_file_set *file_set, u64 token, int fd)
 	if (err)
 		goto err_files_mem;
 
+	err = luo_flb_file_preserve(fh);
+	if (err)
+		goto err_files_mem;
+
 	luo_file = kzalloc(sizeof(*luo_file), GFP_KERNEL);
 	if (!luo_file) {
 		err = -ENOMEM;
@@ -315,6 +319,7 @@ int luo_preserve_file(struct luo_file_set *file_set, u64 token, int fd)
 err_kfree:
 	mutex_destroy(&luo_file->mutex);
 	kfree(luo_file);
+	luo_flb_file_unpreserve(fh);
 err_files_mem:
 	fput(file);
 	luo_free_files_mem(file_set);
@@ -356,6 +361,7 @@ void luo_file_unpreserve_files(struct luo_file_set *file_set)
 		args.serialized_data = luo_file->serialized_data;
 		args.private_data = luo_file->private_data;
 		luo_file->fh->ops->unpreserve(&args);
+		luo_flb_file_unpreserve(luo_file->fh);
 
 		list_del(&luo_file->list);
 		file_set->count--;
@@ -633,6 +639,7 @@ static void luo_file_finish_one(struct luo_file_set *file_set,
 	args.file = luo_file->file;
 	args.serialized_data = luo_file->serialized_data;
 	args.retrieved = luo_file->retrieved;
+	luo_flb_file_finish(luo_file->fh);
 
 	luo_file->fh->ops->finish(&args);
 }
@@ -856,6 +863,7 @@ int liveupdate_register_file_handler(struct liveupdate_file_handler *fh)
 		goto err_resume;
 	}
 
+	INIT_LIST_HEAD(&ACCESS_PRIVATE(fh, flb_list));
 	INIT_LIST_HEAD(&ACCESS_PRIVATE(fh, list));
 	list_add_tail(&ACCESS_PRIVATE(fh, list), &luo_file_handler_list);
 	luo_session_resume();
@@ -876,25 +884,36 @@ err_resume:
  *
  * It ensures safe removal by checking that:
  * No live update session is currently in progress.
+ * No FLB registered with this file handler.
  *
  * If the unregistration fails, the internal test state is reverted.
  *
  * Return: 0 Success. -EOPNOTSUPP when live update is not enabled. -EBUSY A live
- * update is in progress, can't quiesce live update.
+ * update is in progress, can't quiesce live update or FLB is registred with
+ * this file handler.
  */
 int liveupdate_unregister_file_handler(struct liveupdate_file_handler *fh)
 {
+	int err = -EBUSY;
+
 	if (!liveupdate_enabled())
 		return -EOPNOTSUPP;
 
 	if (!luo_session_quiesce())
 		return -EBUSY;
 
+	if (!list_empty(&ACCESS_PRIVATE(fh, flb_list)))
+		goto err_resume;
+
 	list_del(&ACCESS_PRIVATE(fh, list));
 	module_put(fh->ops->owner);
 	luo_session_resume();
 
 	return 0;
+
+err_resume:
+	luo_session_resume();
+	return err;
 }
 
 /**
