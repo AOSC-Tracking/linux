@@ -359,7 +359,7 @@ static bool can_finish_ordered_extent(struct btrfs_ordered_extent *ordered,
 	if (folio) {
 		ASSERT(folio->mapping);
 		ASSERT(folio_pos(folio) <= file_offset);
-		ASSERT(file_offset + len <= folio_end(folio));
+		ASSERT(file_offset + len <= folio_next_pos(folio));
 
 		/*
 		 * Ordered flag indicates whether we still have
@@ -558,7 +558,7 @@ void btrfs_mark_ordered_io_truncated(struct btrfs_inode *inode, struct folio *fo
 	u64 cur = file_offset;
 
 	ASSERT(file_offset >= folio_pos(folio));
-	ASSERT(file_offset + len <= folio_end(folio));
+	ASSERT(file_offset + len <= folio_next_pos(folio));
 
 	while  (cur < file_offset + len) {
 		u32 cur_len = file_offset + len - cur;
