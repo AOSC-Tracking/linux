@@ -295,26 +295,47 @@ static void __init arch_reserve_crashkernel(void)
 }
 
 #ifdef CONFIG_DTB_MATCH_BY_BOARD_NAME
+
+char *board_names[] = {
+	NULL
+};
+
+void *fdts[] = {
+	NULL
+};
+
+
 static void* __init get_fdt_by_board_name(void)
 {
 	void *fdt = NULL;
 	char *board_name = NULL;
-	char temp[128]; // 名字长度限定不超128
+	char temp[128] = {0}; // 名字长度限定不超128
 
 	board_name = strstr(boot_command_line, board_name_desc);
 	if (board_name) {
-		size_t max_len = sizeof(temp);
-		memset(temp, 0, max_len);
-		max_len -= 1;
-
 		board_name += strlen(board_name_desc); // 跳过 = 和前面的字段
 		size_t len = strcspn(board_name, " ");
+		size_t max_len = sizeof(temp) - 1;
 		len = len > max_len ? max_len : len;
 		memcpy(temp, board_name, len);
 		temp[len] = '\0';
+
 		board_name = temp;
 	}
 	if (board_name) {
+		bool is_found = false;
+		for (size_t i = 0; board_names[i]; i++) {
+			if (!strncmp(board_names[i], board_name, strlen(board_names[i]))) {
+				fdt = fdts[i];
+				is_found = true;
+				// pr_info("======>board_name:%s i:%lu\n", board_name, i);
+				break;
+			}
+		}
+
+		if (!is_found) {
+			fdt = board_names[0];
+		}
 	}
 	return fdt;
 }
@@ -809,15 +830,13 @@ static int __init bp_start_match(void)
 	bp_start = 0;
 	bp_start_value = strstr(boot_command_line, bp_start_desc);
 	if (bp_start_value) {
-		size_t max_len = sizeof(temp);
-		memset(temp, 0, max_len);
-		max_len -= 1;
-
 		bp_start_value += strlen(bp_start_desc); // 跳过 = 和前面的字段
 		size_t len = strcspn(bp_start_value, " ");
+		size_t max_len = sizeof(temp) - 1;
 		len  = len > max_len ? max_len : len;
 		memcpy(temp, bp_start_value, len);
 		temp[len] = '\0';
+
 		bp_start_value = temp;
 	} else
 		return 1;
