@@ -278,6 +278,16 @@ static void loongson2_mmc_send_command(struct loongson2_mmc_host *host,
 
 	if (cmd->flags & MMC_RSP_136)
 		cctrl |= LOONGSON2_MMC_CCTL_LONG_RSP;
+	
+#ifdef CONFIG_AIC_WLAN_SUPPORT
+	unsigned int val;
+	if (cmd->opcode == 53){
+		dev_warn(host->dev, "AIC WLAN chicken bit\n");
+		regmap_read(host->regmap, LOONGSON2_MMC_REG_DCTL, &val);
+		val |= (0x3 << 24);
+		regmap_write(host->regmap, LOONGSON2_MMC_REG_DCTL, val);
+	}
+#endif
 
 	regmap_write(host->regmap, LOONGSON2_MMC_REG_CCTL, cctrl);
 }
@@ -569,6 +579,17 @@ static void loongson2_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	host->cmd_is_stop = 0;
 	host->mrq = mrq;
+
+#if 1
+	// 部分 SD 卡会读取 EXT-REG 触发 CMD48(SD_READ_EXTR_SINGLE)
+	// 然而 LS2K300 CMD48 丢失中断，故直接不发送 CMD48 规避该问题
+	if (mrq->cmd->opcode == SD_READ_EXTR_SINGLE) {
+		dev_warn(host->dev, "SD_READ_EXTR_SINGLE\n");
+		mmc_request_done(mmc, mrq);
+		return;
+	}
+#endif
+
 	loongson2_mmc_send_request(mmc);
 }
 
