@@ -1859,15 +1859,30 @@ enum phy intel_port_to_phy(struct intel_display *display, enum port port)
 }
 
 /* Prefer intel_encoder_to_tc() */
+/*
+ * Return TC_PORT_1..I915_MAX_TC_PORTS for any TypeC DDI port. The function
+ * can be also called for TypeC DDI ports not connected to a TypeC PHY such as
+ * the PORT_TC1..4 ports on RKL/ADLS/BMG.
+ */
 enum tc_port intel_port_to_tc(struct intel_display *display, enum port port)
 {
-	if (!intel_phy_is_tc(display, intel_port_to_phy(display, port)))
-		return TC_PORT_NONE;
-
 	if (DISPLAY_VER(display) >= 12)
 		return TC_PORT_1 + port - PORT_TC1;
 	else
 		return TC_PORT_1 + port - PORT_C;
+}
+
+/*
+ * Return TC_PORT_1..I915_MAX_TC_PORTS for TypeC DDI ports connected to a TypeC PHY.
+ * Note that on RKL, ADLS, BMG the PORT_TC1..4 ports are connected to a non-TypeC
+ * PHY, so on those platforms the function returns TC_PORT_NONE.
+ */
+enum tc_port intel_tc_phy_port_to_tc(struct intel_display *display, enum port port)
+{
+	if (!intel_phy_is_tc(display, intel_port_to_phy(display, port)))
+		return TC_PORT_NONE;
+
+	return intel_port_to_tc(display, port);
 }
 
 enum phy intel_encoder_to_phy(struct intel_encoder *encoder)
@@ -1902,7 +1917,7 @@ enum tc_port intel_encoder_to_tc(struct intel_encoder *encoder)
 {
 	struct intel_display *display = to_intel_display(encoder);
 
-	return intel_port_to_tc(display, encoder->port);
+	return intel_tc_phy_port_to_tc(display, encoder->port);
 }
 
 enum intel_display_power_domain
@@ -4977,24 +4992,6 @@ pipe_config_pll_mismatch(struct drm_printer *p, bool fastset,
 	intel_dpll_dump_hw_state(display, p, b);
 }
 
-static void
-pipe_config_cx0pll_mismatch(struct drm_printer *p, bool fastset,
-			    const struct intel_crtc *crtc,
-			    const char *name,
-			    const struct intel_cx0pll_state *a,
-			    const struct intel_cx0pll_state *b)
-{
-	struct intel_display *display = to_intel_display(crtc);
-	char *chipname = a->use_c10 ? "C10" : "C20";
-
-	pipe_config_mismatch(p, fastset, crtc, name, chipname);
-
-	drm_printf(p, "expected:\n");
-	intel_cx0pll_dump_hw_state(display, a);
-	drm_printf(p, "found:\n");
-	intel_cx0pll_dump_hw_state(display, b);
-}
-
 static bool allow_vblank_delay_fastset(const struct intel_crtc_state *old_crtc_state)
 {
 	struct intel_display *display = to_intel_display(old_crtc_state);
@@ -5142,16 +5139,6 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 		pipe_config_pll_mismatch(&p, fastset, crtc, __stringify(name), \
 					 &current_config->name, \
 					 &pipe_config->name); \
-		ret = false; \
-	} \
-} while (0)
-
-#define PIPE_CONF_CHECK_PLL_CX0(name) do { \
-	if (!intel_cx0pll_compare_hw_state(&current_config->name, \
-					   &pipe_config->name)) { \
-		pipe_config_cx0pll_mismatch(&p, fastset, crtc, __stringify(name), \
-					    &current_config->name, \
-					    &pipe_config->name); \
 		ret = false; \
 	} \
 } while (0)
@@ -5395,8 +5382,6 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	/* FIXME convert MTL+ platforms over to dpll_mgr */
 	if (HAS_LT_PHY(display))
 		PIPE_CONF_CHECK_PLL_LT(dpll_hw_state.ltpll);
-	else if (DISPLAY_VER(display) >= 14)
-		PIPE_CONF_CHECK_PLL_CX0(dpll_hw_state.cx0pll);
 
 	PIPE_CONF_CHECK_X(dsi_pll.ctrl);
 	PIPE_CONF_CHECK_X(dsi_pll.div);
@@ -6028,6 +6013,14 @@ static int intel_async_flip_check_uapi(struct intel_atomic_state *state,
 	if (new_crtc_state->joiner_pipes) {
 		drm_dbg_kms(display->drm,
 			    "[CRTC:%d:%s] async flip disallowed with joiner\n",
+			    crtc->base.base.id, crtc->base.name);
+		return -EINVAL;
+	}
+
+	/* FIXME: selective fetch should be disabled for async flips */
+	if (new_crtc_state->enable_psr2_sel_fetch) {
+		drm_dbg_kms(display->drm,
+			    "[CRTC:%d:%s] async flip disallowed with PSR2 selective fetch\n",
 			    crtc->base.base.id, crtc->base.name);
 		return -EINVAL;
 	}

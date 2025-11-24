@@ -28,8 +28,6 @@
 #include <drm/drm_fixed.h>
 #include <drm/drm_print.h>
 
-#include "soc/intel_dram.h"
-
 #include "hsw_ips.h"
 #include "i915_drv.h"
 #include "i915_reg.h"
@@ -42,6 +40,7 @@
 #include "intel_display_regs.h"
 #include "intel_display_types.h"
 #include "intel_display_utils.h"
+#include "intel_dram.h"
 #include "intel_mchbar_regs.h"
 #include "intel_pci_config.h"
 #include "intel_pcode.h"
@@ -3738,10 +3737,8 @@ static int pch_rawclk(struct intel_display *display)
 
 static int i9xx_hrawclk(struct intel_display *display)
 {
-	struct drm_i915_private *i915 = to_i915(display->drm);
-
 	/* hrawclock is 1/4 the FSB frequency */
-	return DIV_ROUND_CLOSEST(intel_fsb_freq(i915), 4);
+	return DIV_ROUND_CLOSEST(intel_fsb_freq(display), 4);
 }
 
 /**

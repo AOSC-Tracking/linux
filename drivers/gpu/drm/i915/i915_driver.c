@@ -59,6 +59,7 @@
 #include "display/intel_dmc.h"
 #include "display/intel_dp.h"
 #include "display/intel_dpt.h"
+#include "display/intel_dram.h"
 #include "display/intel_encoder.h"
 #include "display/intel_fbdev.h"
 #include "display/intel_gmbus.h"
@@ -81,20 +82,20 @@
 #include "gt/intel_gt_pm.h"
 #include "gt/intel_gt_print.h"
 #include "gt/intel_rc6.h"
+#include "gt/intel_rps.h"
 
 #include "pxp/intel_pxp.h"
 #include "pxp/intel_pxp_debugfs.h"
 #include "pxp/intel_pxp_pm.h"
 
-#include "soc/intel_dram.h"
-#include "soc/intel_gmch.h"
-
 #include "i915_debugfs.h"
 #include "i915_driver.h"
 #include "i915_drm_client.h"
 #include "i915_drv.h"
+#include "i915_edram.h"
 #include "i915_file_private.h"
 #include "i915_getparam.h"
+#include "i915_gmch.h"
 #include "i915_hwmon.h"
 #include "i915_ioc32.h"
 #include "i915_ioctl.h"
@@ -321,7 +322,7 @@ static int i915_driver_mmio_probe(struct drm_i915_private *dev_priv)
 	if (i915_inject_probe_failure(dev_priv))
 		return -ENODEV;
 
-	ret = intel_gmch_bridge_setup(dev_priv);
+	ret = i915_gmch_bridge_setup(dev_priv);
 	if (ret < 0)
 		return ret;
 
@@ -338,7 +339,7 @@ static int i915_driver_mmio_probe(struct drm_i915_private *dev_priv)
 	}
 
 	/* Try to make sure MCHBAR is enabled before poking at it */
-	intel_gmch_bar_setup(dev_priv);
+	i915_gmch_bar_setup(dev_priv);
 	intel_device_info_runtime_init(dev_priv);
 	intel_display_device_info_runtime_init(display);
 
@@ -354,7 +355,7 @@ static int i915_driver_mmio_probe(struct drm_i915_private *dev_priv)
 	return 0;
 
 err_uncore:
-	intel_gmch_bar_teardown(dev_priv);
+	i915_gmch_bar_teardown(dev_priv);
 
 	return ret;
 }
@@ -365,7 +366,7 @@ err_uncore:
  */
 static void i915_driver_mmio_release(struct drm_i915_private *dev_priv)
 {
-	intel_gmch_bar_teardown(dev_priv);
+	i915_gmch_bar_teardown(dev_priv);
 }
 
 /**
@@ -492,7 +493,7 @@ static int i915_driver_hw_probe(struct drm_i915_private *dev_priv)
 	}
 
 	/* needs to be done before ggtt probe */
-	intel_dram_edram_detect(dev_priv);
+	i915_edram_detect(dev_priv);
 
 	ret = i915_set_dma_info(dev_priv);
 	if (ret)
@@ -572,7 +573,7 @@ static int i915_driver_hw_probe(struct drm_i915_private *dev_priv)
 	 * Fill the dram structure to get the system dram info. This will be
 	 * used for memory latency calculation.
 	 */
-	ret = intel_dram_detect(dev_priv);
+	ret = intel_dram_detect(display);
 	if (ret)
 		goto err_opregion;
 
@@ -739,8 +740,29 @@ static void i915_welcome_messages(struct drm_i915_private *dev_priv)
 			 "DRM_I915_DEBUG_RUNTIME_PM enabled\n");
 }
 
+static bool vgpu_active(struct drm_device *drm)
+{
+	return intel_vgpu_active(to_i915(drm));
+}
+
+static bool has_fenced_regions(struct drm_device *drm)
+{
+	return intel_gt_support_legacy_fencing(to_gt(to_i915(drm)));
+}
+
+static void fence_priority_display(struct dma_fence *fence)
+{
+	if (dma_fence_is_i915(fence))
+		i915_gem_fence_wait_priority_display(fence);
+}
+
 static const struct intel_display_parent_interface parent = {
 	.rpm = &i915_display_rpm_interface,
+	.irq = &i915_display_irq_interface,
+	.rps = &i915_display_rps_interface,
+	.vgpu_active = vgpu_active,
+	.has_fenced_regions = has_fenced_regions,
+	.fence_priority_display = fence_priority_display,
 };
 
 const struct intel_display_parent_interface *i915_driver_parent_interface(void)
