@@ -28,7 +28,7 @@ use crate::bitmap::BitmapVec;
 ///
 /// let mut pool = IdPool::with_capacity(64, GFP_KERNEL)?;
 /// for i in 0..64 {
-///     assert_eq!(i, pool.acquire_next_id(i).ok_or(ENOSPC)?);
+///     assert_eq!(i, pool.find_unused_id(i).ok_or(ENOSPC)?.acquire());
 /// }
 ///
 /// pool.release_id(23);
