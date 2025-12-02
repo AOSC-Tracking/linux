@@ -26,6 +26,7 @@
 #include "device.c"
 #include "dma.c"
 #include "dma-mapping.c"
+#include "dma-resv.c"
 #include "drm.c"
 #include "err.c"
 #include "irq.c"
