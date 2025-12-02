@@ -348,12 +348,6 @@
 			status = "disabled";
 		};
 
-		src_fch: reset-controller@4160000 {
-			compatible = "cix,sky1-rst-fch", "syscon";
-			reg = <0x0 0x04160000 0x0 0x90>;
-			#reset-cells = <1>;
-		};
-
 		iomuxc: pinctrl@4170000 {
 			compatible = "cix,sky1-pinctrl";
 			reg = <0x0 0x04170000 0x0 0x1000>;
@@ -572,12 +566,6 @@
 					affinity = <&cpu4 &cpu5 &cpu6 &cpu7 &cpu8 &cpu9 &cpu10 &cpu11>;
 				};
 			};
-		};
-
-		src: reset-controller@16000000 {
-			compatible = "cix,sky1-rst", "syscon";
-			reg = <0x0 0x16000000 0x0 0x1000>;
-			#reset-cells = <1>;
 		};
 
 		iomuxc_s5: pinctrl@16007000 {
