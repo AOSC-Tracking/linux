@@ -1,6 +1,7 @@
 menuconfig CAN_LSCANFD
 	tristate "Support LSCAN devices"
 	depends on HAS_IOMEM
+	depends on LOONGARCH || COMPILE_TEST
 
 if CAN_LSCANFD
 
