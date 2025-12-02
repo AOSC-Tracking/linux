@@ -143,6 +143,41 @@
 						 <PINMUX(49, 0x3)>;
 				};
 			};
+
+			func-can {
+				can0_mux_m0: can0-mux-m0 {
+					pinmux = <PINMUX(68, 0x3)>,
+						<PINMUX(69, 0x3)>;
+				};
+				can0_mux_m0_as_gpio: can0-mux-m0-as-gpio {
+					pinmux = <PINMUX(68, 0x0)>,
+						<PINMUX(69, 0x0)>;
+				};
+				can1_mux_m0: can1-mux-m0 {
+					pinmux = <PINMUX(70, 0x3)>,
+						<PINMUX(71, 0x3)>;
+				};
+				can1_mux_m0_as_gpio: can1-mux-m0-as-gpio {
+					pinmux = <PINMUX(70, 0x0)>,
+						<PINMUX(71, 0x0)>;
+				};
+				can2_mux_m0: can2-mux-m0 {
+					pinmux = <PINMUX(72, 0x3)>,
+						<PINMUX(73, 0x3)>;
+				};
+				can2_mux_m0_as_gpio: can2-mux-m0-as-gpio {
+					pinmux = <PINMUX(72, 0x0)>,
+						<PINMUX(73, 0x0)>;
+				};
+				can3_mux_m0: can3-mux-m0 {
+					pinmux = <PINMUX(74, 0x3)>,
+						<PINMUX(75, 0x3)>;
+				};
+				can3_mux_m0_as_gpio: can3-mux-m0-as-gpio {
+					pinmux = <PINMUX(74, 0x0)>,
+						<PINMUX(75, 0x0)>;
+				};
+			};
 		};
 
 		liointc0: interrupt-controller@16001400 {
@@ -370,6 +405,78 @@
 			resets = <&rst RST_GPIO>;
 		};
 
+		can0: can@0x16110000 {
+			compatible = "loongson,ls-canfd";
+			reg = <0 0x16110000 0 0x400>;
+			clocks = <&clk LS2K0300_CLK_APB_GATE>;
+			ls,clock-frequency = <200000000>;
+			ls,canfd-dmarx;
+			interrupt-parent = <&liointc0>;
+			interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-0 = <&can0_mux_m0>;
+			pinctrl-1 = <&can0_mux_m0_as_gpio>;
+			pinctrl-names = "default", "isolate";
+			ls,canfd-tx-gpio = <&gpio 69 GPIO_ACTIVE_HIGH>;
+			dmas = <&dma 0 0xaae>;
+			dma-names = "rx";
+			resets = <&rst RST_CAN0>;
+			status = "disabled";
+		};
+
+		can1: can@0x16111000 {
+			compatible = "loongson,ls-canfd";
+			reg = <0 0x16110400 0 0x400>;
+			clocks = <&clk LS2K0300_CLK_APB_GATE>;
+			ls,clock-frequency = <200000000>;
+			ls,canfd-dmarx;
+			interrupt-parent = <&liointc0>;
+			interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-0 = <&can1_mux_m0>;
+			pinctrl-1 = <&can1_mux_m0_as_gpio>;
+			pinctrl-names = "default", "isolate";
+			ls,canfd-tx-gpio = <&gpio 71 GPIO_ACTIVE_HIGH>;
+			dmas = <&dma 1 0xaae>;
+			dma-names = "rx";
+			resets = <&rst RST_CAN1>;
+			status = "disabled";
+		};
+
+		can2: can@0x16112000 {
+			compatible = "loongson,ls-canfd";
+			reg = <0 0x16110800 0 0x400>;
+			clocks = <&clk LS2K0300_CLK_APB_GATE>;
+			ls,clock-frequency = <200000000>;
+			ls,canfd-dmarx;
+			interrupt-parent = <&liointc0>;
+			interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-0 = <&can2_mux_m0>;
+			pinctrl-1 = <&can2_mux_m0_as_gpio>;
+			pinctrl-names = "default", "isolate";
+			ls,canfd-tx-gpio = <&gpio 73 GPIO_ACTIVE_HIGH>;
+			dmas = <&dma 2 0xaae>;
+			dma-names = "rx";
+			resets = <&rst RST_CAN2>;
+			status = "disabled";
+		};
+
+		can3: can@0x16113000 {
+			compatible = "loongson,ls-canfd";
+			reg = <0 0x16110c00 0 0x400>;
+			clocks = <&clk LS2K0300_CLK_APB_GATE>;
+			ls,clock-frequency = <200000000>;
+			ls,canfd-dmarx;
+			interrupt-parent = <&liointc0>;
+			interrupts = <11 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-0 = <&can3_mux_m0>;
+			pinctrl-1 = <&can3_mux_m0_as_gpio>;
+			pinctrl-names = "default", "isolate";
+			ls,canfd-tx-gpio = <&gpio 75 GPIO_ACTIVE_HIGH>;
+			dmas = <&dma 3 0xaae>;
+			dma-names = "rx";
+			resets = <&rst RST_CAN3>;
+			status = "disabled";
+		};
+
 		i2c0: i2c0@16108000 {
 			compatible = "loongson,ls2k0300-i2c";
 			reg = <0 0x16108000 0 0x1000>;
@@ -385,7 +492,7 @@
 		};
 
 		dma: dma@1612c000{
-			compatible = "loongson,lsia-dma";
+			compatible = "loongson,ls2k0300-dma";
 			reg = <0 0x1612c000 0 0x100>;
 			#config-nr = <2>;
 			interrupt-parent = <&liointc0>;
@@ -395,6 +502,7 @@
 			<29 IRQ_TYPE_LEVEL_HIGH>, <30 IRQ_TYPE_LEVEL_HIGH>;
 			#dma-cells = <2>;
 			dma-channels = <8>;
+			resets = <&rst RST_DMA>;
 		};
 
 		emmc: sdio@16140000 {

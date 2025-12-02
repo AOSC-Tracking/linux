@@ -104,6 +104,11 @@
 	};
 };
 
+&can0 {
+	ls,canfd-stb-gpio = <&gpio 62 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
 &sdio1 {
 	pinctrl-0 = <&sdio1_pins>;
 	pinctrl-names = "default";

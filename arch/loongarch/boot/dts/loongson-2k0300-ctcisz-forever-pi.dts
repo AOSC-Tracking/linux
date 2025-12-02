@@ -88,6 +88,14 @@
 	};
 };
 
+&can2 {
+	status = "okay";
+};
+
+&can3 {
+	status = "okay";
+};
+
 &sdio1 {
 	status = "okay";
 };
