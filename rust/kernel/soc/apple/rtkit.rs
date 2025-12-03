@@ -8,6 +8,7 @@ use crate::{
     alloc::flags::*,
     bindings, device,
     error::{code::*, from_err_ptr, from_result, to_result, Result},
+    iosys_map::IoSysMapRef,
     prelude::KBox,
     str::CStr,
     types::{ForeignOwnable, ScopeGuard},
@@ -27,7 +28,7 @@ pub trait Buffer {
 
     /// Returns a mutable byte slice of the buffer contents, or an
     /// error if unavailable.
-    fn buf(&mut self) -> Result<&mut [u8]>;
+    fn buf(&mut self) -> Result<IoSysMapRef<'_, u8>>;
 }
 
 /// Callback operations for an RTKit client.
@@ -148,14 +149,14 @@ unsafe extern "C" fn shmem_setup_callback<T: Operations>(
         };
 
         let iova = buf.iova()?;
-        let slice = buf.buf()?;
+        let iosys_map = buf.buf()?;
 
-        if slice.len() < bfr_mut.size {
+        if iosys_map.size() < bfr_mut.size {
             return Err(ENOMEM);
         }
 
         bfr_mut.iova = iova as u64;
-        bfr_mut.buffer = slice.as_mut_ptr() as *mut _;
+        bfr_mut.buffer = iosys_map.as_mut_ptr() as *mut _;
 
         // Now box the returned buffer type and stash it in the private pointer of the
         // `apple_rtkit_shmem` struct for safekeeping.
