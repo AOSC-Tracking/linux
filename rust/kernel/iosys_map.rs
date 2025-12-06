@@ -186,6 +186,39 @@ impl<'a, T: AsBytes + FromBytes> IoSysMapRef<'a, T> {
         Ok(())
     }
 
+    /// Memset the region starting from `offset`.
+    ///
+    /// `offset` and `len` are in units of `T`, not the number of bytes.
+    ///
+    /// This function can return the following errors:
+    ///
+    /// * [`EOVERFLOW`] if calculating the length of the slice results in an overflow.
+    /// * [`EINVAL`] if the slice would go out of bounds of the memory region.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kernel::iosys_map::*;
+    ///
+    /// # fn test() -> Result {
+    /// # let mut map = tests::VecIoSysMap::new(&[0u8; 3])?;
+    /// # {
+    /// # let mut map = map.get();
+    /// map.memset(7)?; // (now [7, 7, 7])
+    /// # }
+    /// #
+    /// # map.assert_eq(&[7, 7, 7]);
+    /// #
+    /// # Ok::<(), Error>(()) }
+    /// # assert!(test().is_ok());
+    /// ```
+    pub fn memset(&mut self, value: i32) {
+        // SAFETY:
+        // - The address pointed to by this iosys_map is guaranteed to be valid via IoSysMapRef's
+        //   type invariants.
+        unsafe { bindings::iosys_map_memset(self.as_raw_mut(), 0, value, self.size()) };
+    }
+
     /// Attempt to compute the offset of an item within the iosys map using its index.
     ///
     /// Returns an error if an overflow occurs.
