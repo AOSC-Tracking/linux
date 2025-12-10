@@ -1357,37 +1357,6 @@ typedef struct smb_com_transaction_change_notify_rsp {
 	__u16 ByteCount;
 	/* __u8 Pad[3]; */
 } __packed TRANSACT_CHANGE_NOTIFY_RSP;
-/* Completion Filter flags for Notify */
-#define FILE_NOTIFY_CHANGE_FILE_NAME    0x00000001
-#define FILE_NOTIFY_CHANGE_DIR_NAME     0x00000002
-#define FILE_NOTIFY_CHANGE_NAME         0x00000003
-#define FILE_NOTIFY_CHANGE_ATTRIBUTES   0x00000004
-#define FILE_NOTIFY_CHANGE_SIZE         0x00000008
-#define FILE_NOTIFY_CHANGE_LAST_WRITE   0x00000010
-#define FILE_NOTIFY_CHANGE_LAST_ACCESS  0x00000020
-#define FILE_NOTIFY_CHANGE_CREATION     0x00000040
-#define FILE_NOTIFY_CHANGE_EA           0x00000080
-#define FILE_NOTIFY_CHANGE_SECURITY     0x00000100
-#define FILE_NOTIFY_CHANGE_STREAM_NAME  0x00000200
-#define FILE_NOTIFY_CHANGE_STREAM_SIZE  0x00000400
-#define FILE_NOTIFY_CHANGE_STREAM_WRITE 0x00000800
-
-#define FILE_ACTION_ADDED		0x00000001
-#define FILE_ACTION_REMOVED		0x00000002
-#define FILE_ACTION_MODIFIED		0x00000003
-#define FILE_ACTION_RENAMED_OLD_NAME	0x00000004
-#define FILE_ACTION_RENAMED_NEW_NAME	0x00000005
-#define FILE_ACTION_ADDED_STREAM	0x00000006
-#define FILE_ACTION_REMOVED_STREAM	0x00000007
-#define FILE_ACTION_MODIFIED_STREAM	0x00000008
-
-/* response contains array of the following structures */
-struct file_notify_information {
-	__le32 NextEntryOffset;
-	__le32 Action;
-	__le32 FileNameLength;
-	__u8  FileName[];
-} __packed;
 
 struct cifs_quota_data {
 	__u32	rsrvd1;  /* 0 */
