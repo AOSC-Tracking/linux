@@ -278,11 +278,28 @@ static inline void clear_user_highpage(struct page *page, unsigned long vaddr)
 static inline void clear_user_highpages(struct page *page, unsigned long vaddr,
 					unsigned int npages)
 {
+
+#if defined(clear_user_highpage) || defined(CONFIG_HIGHMEM)
+	/*
+	 * An architecture defined clear_user_highpage() implies special
+	 * handling is needed.
+	 *
+	 * So we use that or, the generic variant if CONFIG_HIGHMEM is
+	 * enabled.
+	 */
 	do {
 		clear_user_highpage(page, vaddr);
 		vaddr += PAGE_SIZE;
 		page++;
 	} while (--npages);
+#else
+
+	/*
+	 * Prefer clear_user_pages() to allow for architectural optimizations
+	 * when operating on contiguous page ranges.
+	 */
+	clear_user_pages(page_address(page), vaddr, page, npages);
+#endif
 }
 
 #ifndef vma_alloc_zeroed_movable_folio
