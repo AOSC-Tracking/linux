@@ -4194,7 +4194,6 @@ static inline void clear_page_guard(struct zone *zone, struct page *page,
 				unsigned int order) {}
 #endif	/* CONFIG_DEBUG_PAGEALLOC */
 
-#ifndef clear_pages
 /**
  * clear_pages() - clear a page range for kernel-internal use.
  * @addr: start address
@@ -4204,7 +4203,18 @@ static inline void clear_page_guard(struct zone *zone, struct page *page,
  * mapped to user space.
  *
  * Does absolutely no exception handling.
+ *
+ * Note that even though the clearing operation is preemptible, clear_pages()
+ * does not (and on architectures where it reduces to a few long-running
+ * instructions, might not be able to) call cond_resched() to check if
+ * rescheduling is required.
+ *
+ * When running under preemptible models this is fine, since clear_pages(),
+ * even when reduced to long-running instructions, is preemptible.
+ * Under cooperatively scheduled models, however, the caller is expected to
+ * limit @npages to no more than PROCESS_PAGES_NON_PREEMPT_BATCH.
  */
+#ifndef clear_pages
 static inline void clear_pages(void *addr, unsigned int npages)
 {
 	do {
@@ -4212,6 +4222,32 @@ static inline void clear_pages(void *addr, unsigned int npages)
 		addr += PAGE_SIZE;
 	} while (--npages);
 }
+#endif
+
+#ifndef PROCESS_PAGES_NON_PREEMPT_BATCH
+#ifdef clear_pages
+/*
+ * The architecture defines clear_pages(), and we assume that it is
+ * generally "fast". So choose a batch size large enough to allow the processor
+ * headroom for optimizing the operation and yet small enough that we see
+ * reasonable preemption latency for when this optimization is not possible
+ * (ex. slow microarchitectures, memory bandwidth saturation.)
+ *
+ * With a value of 8MB and assuming a memory bandwidth of ~10GBps, this should
+ * result in worst case preemption latency of around 1ms when clearing pages.
+ *
+ * (See comment above clear_pages() for why preemption latency is a concern
+ * here.)
+ */
+#define PROCESS_PAGES_NON_PREEMPT_BATCH		(8 << (20 - PAGE_SHIFT))
+#else /* !clear_pages */
+/*
+ * The architecture does not provide a clear_pages() implementation. Assume
+ * that clear_page() -- which clear_pages() will fallback to -- is relatively
+ * slow and choose a small value for PROCESS_PAGES_NON_PREEMPT_BATCH.
+ */
+#define PROCESS_PAGES_NON_PREEMPT_BATCH		1
+#endif
 #endif
 
 #ifdef __HAVE_ARCH_GATE_AREA
