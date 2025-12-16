@@ -225,9 +225,41 @@ static __always_inline u64 __arch_get_hw_counter(s32 clock_mode,
 static inline bool mips_vdso_hres_capable(void)
 {
 	return IS_ENABLED(CONFIG_CSRC_R4K) ||
-	       IS_ENABLED(CONFIG_CLKSRC_MIPS_GIC);
+	       IS_ENABLED(CONFIG_CLKSRC_MIPS_GIC) ||
+	       IS_ENABLED(CONFIG_CPU_LOONGSON64);
 }
 #define __arch_vdso_hres_capable mips_vdso_hres_capable
+
+/*
+ * HWR $30 (Loongson64 constant timer) is 64 bits wide. However, some hardware
+ * doesn't properly sign-extend its value before copying it into a GPR in o32
+ * mode (Status.UX==1). This "shadow" on the higher half breaks most subsequent
+ * instructions relying on the GPR.
+ *
+ * Aside from the HW bug, it is never possible to retrieve the higher half of
+ * the constant timer in o32 mode, which implies that the masks of timer cycles
+ * differentiate in o32 versus n32/n64 modes. Considering that a clocksource can
+ * only have a single mask, we are unable to make the o32 vDSO parse the timer
+ * delta properly anyway.
+ *
+ * Moreover, the timer frequency is simply too high that 32-bit timer cycles
+ * wrap crazily -- it's fundamentally unreliable without the higher half.
+ *
+ * Let's prevent o32 vDSO from using the constant timer.
+ *
+ * Note: the likely() here is to prevent GCC from emitting calls to libgcc.
+ * Despite that, the hint itself also tells the truth.
+ */
+#if defined(CONFIG_CPU_LOONGSON64) && _MIPS_SIM == _MIPS_SIM_ABI32
+
+static inline bool mips_vdso_clocksource_ok(const struct vdso_clock *vc)
+{
+	return (likely(vc->clock_mode != VDSO_CLOCKMODE_NONE) &&
+		vc->clock_mode != VDSO_CLOCKMODE_CONST);
+}
+#define vdso_clocksource_ok mips_vdso_clocksource_ok
+
+#endif /* defined(CONFIG_CPU_LOONGSON64) && _MIPS_SIM == _MIPS_SIM_ABI32 */
 
 static __always_inline const struct vdso_time_data *__arch_get_vdso_u_time_data(void)
 {
