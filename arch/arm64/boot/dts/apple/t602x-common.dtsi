@@ -614,17 +614,14 @@
 		};
 
 		uat_handoff: uat-handoff {
-			status = "disabled";
 			reg = <0 0 0 0>;
 		};
 
 		uat_pagetables: uat-pagetables {
-			status = "disabled";
 			reg = <0 0 0 0>;
 		};
 
 		uat_ttbs: uat-ttbs {
-			status = "disabled";
 			reg = <0 0 0 0>;
 		};
 	};
