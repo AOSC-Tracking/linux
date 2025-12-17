@@ -58,10 +58,6 @@ mapped_kernel_page_is_present (unsigned long address)
 	return pte_present(pte);
 }
 
-#	define VM_READ_BIT	0
-#	define VM_WRITE_BIT	1
-#	define VM_EXEC_BIT	2
-
 /* workaround for a warning with -Wmissing-prototypes */
 void __kprobes ia64_do_page_fault (unsigned long address, unsigned long isr, struct pt_regs *regs);
 
@@ -75,8 +71,8 @@ ia64_do_page_fault (unsigned long address, unsigned long isr, struct pt_regs *re
 	vm_fault_t fault;
 	unsigned int flags = FAULT_FLAG_DEFAULT;
 
-	mask = ((((isr >> IA64_ISR_X_BIT) & 1UL) << VM_EXEC_BIT)
-		| (((isr >> IA64_ISR_W_BIT) & 1UL) << VM_WRITE_BIT));
+	mask = ((((isr >> IA64_ISR_X_BIT) & 1UL) << VMA_EXEC_BIT)
+		| (((isr >> IA64_ISR_W_BIT) & 1UL) << VMA_WRITE_BIT));
 
 	/* mmap_lock is performance critical.... */
 	prefetchw(&mm->mmap_lock);
@@ -122,11 +118,6 @@ retry:
 	code = SEGV_ACCERR;
 
 	/* OK, we've got a good vm_area for this memory area.  Check the access permissions: */
-
-#	if (((1 << VM_READ_BIT) != VM_READ || (1 << VM_WRITE_BIT) != VM_WRITE) \
-	    || (1 << VM_EXEC_BIT) != VM_EXEC)
-#		error File is out of sync with <linux/mm.h>.  Please update.
-#	endif
 
 	if (((isr >> IA64_ISR_R_BIT) & 1UL) && (!(vma->vm_flags & (VM_READ | VM_WRITE))))
 		goto bad_area;
