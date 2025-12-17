@@ -184,7 +184,10 @@ impl<T: drm::Driver> Device<T> {
         // SAFETY:
         // - When `release` runs it is guaranteed that there is no further access to `this`.
         // - `this` is valid for dropping.
-        unsafe { core::ptr::drop_in_place(this) };
+        // unsafe { core::ptr::drop_in_place(this) };
+        // HACK: data might be uninitialized so leak the DRM device instead. The expected number
+        //       of times the asahi device gets released is once at poweroff or reboot.
+        let _ = core::mem::ManuallyDrop::new(this);
     }
 }
 
