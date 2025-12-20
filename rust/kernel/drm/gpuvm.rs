@@ -486,6 +486,7 @@ impl<T: DriverGpuVm> GpuVm<T> {
         sm_step_map: Some(step_map_callback::<T>),
         sm_step_remap: Some(step_remap_callback::<T>),
         sm_step_unmap: Some(step_unmap_callback::<T>),
+        sm_can_merge_flags: None,
     };
 
     fn gpuvm(&self) -> *const bindings::drm_gpuvm {
