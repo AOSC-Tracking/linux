@@ -121,6 +121,7 @@ static bool beep_mode[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS-1)] =
 #endif
 static bool dmic_detect = 1;
 static bool ctl_dev_id = IS_ENABLED(CONFIG_SND_HDA_CTL_DEV_ID) ? 1 : 0;
+static bool msi64;
 
 module_param_array(index, int, NULL, 0444);
 MODULE_PARM_DESC(index, "Index value for Intel HD audio interface.");
@@ -161,6 +162,8 @@ MODULE_PARM_DESC(dmic_detect, "Allow DSP driver selection (bypass this driver) "
 		 "deprecated, use snd-intel-dspcfg.dsp_driver option instead");
 module_param(ctl_dev_id, bool, 0444);
 MODULE_PARM_DESC(ctl_dev_id, "Use control device identifier (based on codec address).");
+module_param(msi64, bool, 0444);
+MODULE_PARM_DESC(msi64, "Force use msi 64bit.");
 
 #ifdef CONFIG_PM
 static int param_set_xint(const char *val, const struct kernel_param *kp);
@@ -1903,7 +1906,7 @@ static int azx_first_init(struct azx *chip)
 		chip->gts_present = true;
 #endif
 
-	if (chip->msi && chip->driver_caps & AZX_DCAPS_NO_MSI64) {
+	if (chip->msi && chip->driver_caps & AZX_DCAPS_NO_MSI64 && !msi64) {
 		dev_dbg(card->dev, "Disabling 64bit MSI\n");
 		pci->no_64bit_msi = true;
 	}
