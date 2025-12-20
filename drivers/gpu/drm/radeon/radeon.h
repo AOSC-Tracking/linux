@@ -121,6 +121,7 @@ extern int radeon_uvd;
 extern int radeon_vce;
 extern int radeon_si_support;
 extern int radeon_cik_support;
+extern int radeon_msi64;
 
 /*
  * Copy from radeon_drv.h so we don't have to include both and have conflicting

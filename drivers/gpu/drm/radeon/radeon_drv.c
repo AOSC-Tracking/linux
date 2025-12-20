@@ -249,6 +249,10 @@ int radeon_cik_support = 0;
 MODULE_PARM_DESC(cik_support, "CIK support (1 = enabled, 0 = disabled (default))");
 module_param_named(cik_support, radeon_cik_support, int, 0444);
 
+int radeon_msi64;
+MODULE_PARM_DESC(msi64, "MSI64 support (1 = enabled, 0 = disabled)");
+module_param_named(msi64, radeon_msi64, int, 0444);
+
 static const struct pci_device_id pciidlist[] = {
 	radeon_PCI_IDS
 };

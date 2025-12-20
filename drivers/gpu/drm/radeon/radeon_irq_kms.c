@@ -251,7 +251,7 @@ static bool radeon_msi_ok(struct radeon_device *rdev)
 	 * of address for "64-bit" MSIs which breaks on some platforms, notably
 	 * IBM POWER servers, so we limit them
 	 */
-	if (rdev->family < CHIP_BONAIRE) {
+	if (rdev->family < CHIP_BONAIRE && !radeon_msi64) {
 		dev_info(rdev->dev, "radeon: MSI limited to 32-bit\n");
 		rdev->pdev->no_64bit_msi = 1;
 	}
