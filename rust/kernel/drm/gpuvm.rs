@@ -723,6 +723,7 @@ impl<T: DriverGpuVm> LockedGpuVm<'_, '_, T> {
         req_addr: u64,
         req_range: u64,
         req_offset: u64,
+        req_gem_range: u32,
         flags: GpuVaFlags,
     ) -> Result {
         let obj = self.obj.ok_or(EINVAL)?;
@@ -730,16 +731,28 @@ impl<T: DriverGpuVm> LockedGpuVm<'_, '_, T> {
             ctx,
             gpuvm: self.gpuvm,
         };
+
+        let req = bindings::drm_gpuvm_map_req {
+            map: bindings::drm_gpuva_op_map {
+                va: bindings::drm_gpuva_op_map__bindgen_ty_1 {
+                    addr: req_addr,
+                    range: req_range,
+                },
+                gem: bindings::drm_gpuva_op_map__bindgen_ty_2 {
+                    offset: req_offset,
+                    range: req_gem_range,
+                    obj: obj.as_raw(),
+                },
+                flags: flags.as_raw(),
+            }
+        };
+
         // SAFETY: LockedGpuVm implies the right locks are held.
         to_result(unsafe {
             bindings::drm_gpuvm_sm_map(
                 self.gpuvm.gpuvm() as *mut _,
                 &mut ctx as *mut _ as *mut _,
-                req_addr,
-                req_range,
-                obj.as_raw() as *const _ as *mut _,
-                req_offset,
-                flags.as_raw(),
+                &raw const req,
             )
         })
     }
