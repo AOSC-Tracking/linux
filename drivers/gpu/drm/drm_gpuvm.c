@@ -2134,6 +2134,7 @@ op_map_cb(const struct drm_gpuvm_ops *fn, void *priv,
 	op.map.va.range = req->map.va.range;
 	op.map.gem.obj = req->map.gem.obj;
 	op.map.gem.offset = req->map.gem.offset;
+	op.map.flags = req->map.flags;
 
 	return fn->sm_step_map(&op, priv);
 }
