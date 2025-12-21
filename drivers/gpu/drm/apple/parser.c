@@ -499,6 +499,18 @@ static int parse_mode(struct dcp_parse_ctx *handle,
 	if (is_virtual)
 		return -EINVAL;
 
+	/*
+	* HACK:
+	* Mark the 120 Hz mode on j314/j316 (identified by resolution) as vrr.
+	* We still do not know how to drive VRR but at least seetinng timestamps
+	* in the the swap_surface message to non-zero values drives the display
+	* at 120 fps.
+	*/
+	if (vert.precise_sync_rate >> 16 == 120 &&
+	    ((horiz.active == 3024 && vert.active == 1964) ||
+	     (horiz.active == 3456 && vert.active == 2234)))
+		out->vrr = true;
+
 	vert.active -= notch_height;
 	vert.sync_width += notch_height;
 
@@ -526,7 +538,6 @@ static int parse_mode(struct dcp_parse_ctx *handle,
 
 	out->timing_mode_id = id;
 	out->color_mode_id = best_color_mode;
-	out->precise_sync_rate = vert.precise_sync_rate;
 
 	trace_iomfb_timing_mode(handle->dcp, id, *score, horiz.active,
 				vert.active, vert.precise_sync_rate,
