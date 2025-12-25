@@ -2632,6 +2632,8 @@
 
 #define PCI_VENDOR_ID_CXL		0x1e98
 
+#define PCI_VENDOR_ID_SOPHGO            0x1f1c
+
 #define PCI_VENDOR_ID_CIX		0x1f6c
 #define PCI_DEVICE_ID_CIX_SKY1		0x0001
 
