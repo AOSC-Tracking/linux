@@ -1023,7 +1023,6 @@ static bool acpi_wakeup_gpe_init(struct acpi_device *device)
 		    wakeup->sleep_state == ACPI_STATE_S5)
 			wakeup->sleep_state = ACPI_STATE_S4;
 		acpi_mark_gpe_for_wake(wakeup->gpe_device, wakeup->gpe_number);
-		device_set_wakeup_capable(&device->dev, true);
 		return true;
 	}
 
@@ -1470,6 +1469,7 @@ static void acpi_set_pnp_ids(acpi_handle handle, struct acpi_device_pnp *pnp,
 		break;
 	case ACPI_BUS_TYPE_THERMAL:
 		acpi_add_id(pnp, ACPI_THERMAL_HID);
+		pnp->type.platform_id = 1;
 		break;
 	case ACPI_BUS_TYPE_POWER_BUTTON:
 		acpi_add_id(pnp, ACPI_BUTTON_HID_POWERF);
@@ -2754,38 +2754,27 @@ int acpi_bus_register_early_device(int type)
 	if (result)
 		return result;
 
-	device->flags.match_driver = true;
-	return device_attach(&device->dev);
+	acpi_default_enumeration(device);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(acpi_bus_register_early_device);
 
+static void acpi_bus_add_fixed_device_object(enum acpi_bus_device_type type)
+{
+	struct acpi_device *adev = NULL;
+
+	acpi_add_single_object(&adev, NULL, type, false);
+	if (adev)
+		acpi_default_enumeration(adev);
+}
+
 static void acpi_bus_scan_fixed(void)
 {
-	if (!(acpi_gbl_FADT.flags & ACPI_FADT_POWER_BUTTON)) {
-		struct acpi_device *adev = NULL;
+	if (!(acpi_gbl_FADT.flags & ACPI_FADT_POWER_BUTTON))
+		acpi_bus_add_fixed_device_object(ACPI_BUS_TYPE_POWER_BUTTON);
 
-		acpi_add_single_object(&adev, NULL, ACPI_BUS_TYPE_POWER_BUTTON,
-				       false);
-		if (adev) {
-			adev->flags.match_driver = true;
-			if (device_attach(&adev->dev) >= 0)
-				device_init_wakeup(&adev->dev, true);
-			else
-				dev_dbg(&adev->dev, "No driver\n");
-		}
-	}
-
-	if (!(acpi_gbl_FADT.flags & ACPI_FADT_SLEEP_BUTTON)) {
-		struct acpi_device *adev = NULL;
-
-		acpi_add_single_object(&adev, NULL, ACPI_BUS_TYPE_SLEEP_BUTTON,
-				       false);
-		if (adev) {
-			adev->flags.match_driver = true;
-			if (device_attach(&adev->dev) < 0)
-				dev_dbg(&adev->dev, "No driver\n");
-		}
-	}
+	if (!(acpi_gbl_FADT.flags & ACPI_FADT_SLEEP_BUTTON))
+		acpi_bus_add_fixed_device_object(ACPI_BUS_TYPE_SLEEP_BUTTON);
 }
 
 static void __init acpi_get_spcr_uart_addr(void)
