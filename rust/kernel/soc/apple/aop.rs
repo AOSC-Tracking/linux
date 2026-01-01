@@ -24,6 +24,15 @@ pub trait FakehidListener {
 pub trait AOP: Send + Sync {
     /// Calls a method on a specified service
     fn epic_call(&self, svc: &EPICService, subtype: u16, msg_bytes: &[u8]) -> Result<u32>;
+    /// Just like epic_call, but also returns a value
+    fn epic_call_ret(
+        &self,
+        svc: &EPICService,
+        subtype: u16,
+        msg_bytes: &[u8],
+        ret_len: usize,
+    ) -> Result<(u32, KVec<u8>)>;
+
     /// Adds the listener for the specified service
     fn add_fakehid_listener(
         &self,

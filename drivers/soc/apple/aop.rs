@@ -5,7 +5,7 @@
 //!
 //! Copyright (C) The Asahi Linux Contributors
 
-use core::{arch::asm, mem, ptr, slice};
+use core::{arch::asm, cmp, mem, ptr, slice};
 
 use kernel::{
     bindings, c_str, device,
@@ -23,6 +23,7 @@ use kernel::{
     workqueue::{self, impl_has_work, new_work, Work, WorkItem},
 };
 
+const AOP_MAX_CALLS: usize = 8;
 const AOP_MMIO_SIZE: usize = 0x1e0000;
 const ASC_MMIO_SIZE: usize = 0x4000;
 const BOOTARGS_OFFSET: usize = 0x22c;
@@ -54,6 +55,7 @@ const EPIC_SUBTYPE_STD_SERVICE: u16 = 0xc0;
 const EPIC_SUBTYPE_FAKEHID_REPORT: u16 = 0xc4;
 const EPIC_SUBTYPE_RETCODE: u16 = 0x84;
 const EPIC_SUBTYPE_RETCODE_PAYLOAD: u16 = 0xa0;
+const EPIC_SUBTYPE_STRING: u16 = 0x8a;
 const QE_MAGIC1: u32 = from_fourcc(b" POI");
 const QE_MAGIC2: u32 = from_fourcc(b" POA");
 
@@ -115,7 +117,7 @@ struct FutureValue<T> {
     completion: CondVar,
 }
 
-impl<T: Clone> FutureValue<T> {
+impl<T> FutureValue<T> {
     fn pin_init() -> impl PinInit<FutureValue<T>> {
         pin_init!(
             FutureValue {
@@ -133,7 +135,7 @@ impl<T: Clone> FutureValue<T> {
         while ret_guard.is_none() {
             self.completion.wait(&mut ret_guard);
         }
-        ret_guard.as_ref().unwrap().clone()
+        ret_guard.take().unwrap()
     }
     fn reset(&self) {
         *self.val.lock() = None;
@@ -146,13 +148,19 @@ struct AFKRingBuffer {
     buf_size: usize,
 }
 
+struct CallResult {
+    retcode: u32,
+    extra_data: Option<KVec<u8>>,
+}
+
 struct AFKEndpoint {
     index: u8,
     iomem: Option<CoherentAllocation<u8>>,
     txbuf: Option<AFKRingBuffer>,
     rxbuf: Option<AFKRingBuffer>,
     seq: u16,
-    calls: [Option<Arc<FutureValue<u32>>>; 8],
+    calls: [Option<Arc<FutureValue<CallResult>>>; AOP_MAX_CALLS],
+    call_returns: [Option<KVec<u8>>; AOP_MAX_CALLS],
 }
 
 unsafe impl Send for AFKEndpoint {}
@@ -165,7 +173,8 @@ impl AFKEndpoint {
             txbuf: None,
             rxbuf: None,
             seq: 0,
-            calls: [const { None }; 8],
+            calls: [const { None }; AOP_MAX_CALLS],
+            call_returns: [const { None }; AOP_MAX_CALLS],
         }
     }
 
@@ -409,7 +418,10 @@ impl AFKEndpoint {
                 return Err(EIO);
             }
         } else if ehdr.category == EPIC_CATEGORY_REPLY {
-            if subtype == EPIC_SUBTYPE_RETCODE_PAYLOAD || subtype == EPIC_SUBTYPE_RETCODE {
+            if subtype == EPIC_SUBTYPE_RETCODE_PAYLOAD
+                || subtype == EPIC_SUBTYPE_RETCODE
+                || subtype == EPIC_SUBTYPE_STRING
+            {
                 if data.len() < mem::size_of::<u32>() {
                     dev_err!(
                         client.dev,
@@ -429,7 +441,20 @@ impl AFKEndpoint {
                     );
                     return Err(EIO);
                 }
-                self.calls[tag - 1].take().unwrap().complete(retcode);
+                let future = self.calls[tag - 1].take().unwrap();
+                let extra_data = if let Some(mut ret) = self.call_returns[tag - 1].take() {
+                    let len = cmp::min(data.len() - 4, ret.len());
+                    ret[..len].copy_from_slice(&data[4..(len + 4)]);
+                    ret.truncate(len);
+                    Some(ret)
+                } else {
+                    None
+                };
+                future.complete(CallResult {
+                    retcode,
+                    extra_data,
+                });
+
                 return Ok(());
             } else {
                 dev_err!(
@@ -510,7 +535,8 @@ impl AFKEndpoint {
         channel: u32,
         subtype: u16,
         data: &[u8],
-    ) -> Result<Arc<FutureValue<u32>>> {
+        ret: Option<KVec<u8>>,
+    ) -> Result<Arc<FutureValue<CallResult>>> {
         let mut tag = 0;
         for i in 0..self.calls.len() {
             if self.calls[i].is_none() {
@@ -537,6 +563,7 @@ impl AFKEndpoint {
             tag: tag as u16,
             ..EPICHeader::default()
         };
+        self.call_returns[tag - 1] = ret;
         self.send_rb(
             client,
             rtkit,
@@ -785,9 +812,28 @@ impl AOP for AopData {
             let mut rtk_guard = self.rtkit.lock();
             let rtk = rtk_guard.as_mut().unwrap();
             let mut ep_guard = self.endpoints[ep_idx as usize].lock();
-            ep_guard.epic_notify(self, rtk, svc.channel, subtype, msg_bytes)?
+            ep_guard.epic_notify(self, rtk, svc.channel, subtype, msg_bytes, None)?
         };
-        Ok(call.wait())
+        Ok(call.wait().retcode)
+    }
+    fn epic_call_ret(
+        &self,
+        svc: &EPICService,
+        subtype: u16,
+        msg_bytes: &[u8],
+        ret_len: usize,
+    ) -> Result<(u32, KVec<u8>)> {
+        let ep_idx = svc.endpoint - AFK_ENDPOINT_START;
+        let call = {
+            let mut rtk_guard = self.rtkit.lock();
+            let rtk = rtk_guard.as_mut().unwrap();
+            let mut ep_guard = self.endpoints[ep_idx as usize].lock();
+            let mut ret_buf = KVec::new();
+            ret_buf.resize(ret_len, 0, GFP_KERNEL)?;
+            ep_guard.epic_notify(self, rtk, svc.channel, subtype, msg_bytes, Some(ret_buf))?
+        };
+        let res = call.wait();
+        Ok((res.retcode, res.extra_data.unwrap()))
     }
     fn add_fakehid_listener(
         &self,
