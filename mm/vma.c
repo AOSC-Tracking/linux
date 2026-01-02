@@ -1130,26 +1130,50 @@ int vma_expand(struct vma_merge_struct *vmg)
 	mmap_assert_write_locked(vmg->mm);
 
 	vma_start_write(target);
-	if (next && (target != next) && (vmg->end == next->vm_end)) {
+	if (next && vmg->end == next->vm_end) {
+		struct vm_area_struct *copied_from = vmg->copied_from;
 		int ret;
 
-		sticky_flags |= next->vm_flags & VM_STICKY;
-		remove_next = true;
-		/* This should already have been checked by this point. */
-		VM_WARN_ON_VMG(!can_merge_remove_vma(next), vmg);
-		vma_start_write(next);
-		/*
-		 * In this case we don't report OOM, so vmg->give_up_on_mm is
-		 * safe.
-		 */
-		ret = dup_anon_vma(target, next, &anon_dup);
-		if (ret)
-			return ret;
+		if (target != next) {
+			sticky_flags |= next->vm_flags & VM_STICKY;
+			remove_next = true;
+			/* This should already have been checked by this point. */
+			VM_WARN_ON_VMG(!can_merge_remove_vma(next), vmg);
+			vma_start_write(next);
+			/*
+			 * In this case we don't report OOM, so vmg->give_up_on_mm is
+			 * safe.
+			 */
+			ret = dup_anon_vma(target, next, &anon_dup);
+			if (ret)
+				return ret;
+		} else if (copied_from) {
+			vma_start_write(next);
+
+			/*
+			 * We are copying from a VMA (i.e. mremap()'ing) to
+			 * next, and thus must ensure that either anon_vma's are
+			 * already compatible (in which case this call is a nop)
+			 * or all anon_vma state is propagated to next
+			 */
+			ret = dup_anon_vma(next, copied_from, &anon_dup);
+			if (ret)
+				return ret;
+		} else {
+			/* In no other case may the anon_vma differ. */
+			VM_WARN_ON_VMG(target->anon_vma != next->anon_vma, vmg);
+		}
 	}
 
 	/* Not merging but overwriting any part of next is not handled. */
 	VM_WARN_ON_VMG(next && !remove_next &&
 		       next != target && vmg->end > next->vm_start, vmg);
+	/*
+	 * We should only see a copy with next as the target on a new merge
+	 * which sets the end to the next of next.
+	 */
+	VM_WARN_ON_VMG(target == next && vmg->copied_from &&
+		       vmg->end != next->vm_end, vmg);
 	/* Only handles expanding */
 	VM_WARN_ON_VMG(target->vm_start < vmg->start ||
 		       target->vm_end > vmg->end, vmg);
@@ -1808,6 +1832,13 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	VMG_VMA_STATE(vmg, &vmi, NULL, vma, addr, addr + len);
 
 	/*
+	 * VMG_VMA_STATE() installs vma in middle, but this is a new VMA, inform
+	 * merging logic correctly.
+	 */
+	vmg.copied_from = vma;
+	vmg.middle = NULL;
+
+	/*
 	 * If anonymous vma has not yet been faulted, update new pgoff
 	 * to match new location, to increase its chance of merging.
 	 */
@@ -1828,7 +1859,6 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	if (new_vma && new_vma->vm_start < addr + len)
 		return NULL;	/* should never get here */
 
-	vmg.middle = NULL; /* New VMA range. */
 	vmg.pgoff = pgoff;
 	vmg.next = vma_iter_next_rewind(&vmi, NULL);
 	new_vma = vma_merge_new_range(&vmg);
