@@ -337,9 +337,7 @@ unsafe impl<T: DriverGpuVm> AlwaysRefCounted for GpuVmBo<T> {
         unsafe {
             let resv = (*obj.as_mut().bo.obj).resv;
             bindings::dma_resv_lock(resv, core::ptr::null_mut());
-            obj.as_ref().lock_gpuva();
             bindings::drm_gpuvm_bo_put(&mut obj.as_mut().bo);
-            obj.as_ref().unlock_gpuva();
             bindings::dma_resv_unlock(resv);
         }
     }
