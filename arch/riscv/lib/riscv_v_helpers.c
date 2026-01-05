@@ -8,6 +8,7 @@
 
 #include <asm/vector.h>
 #include <asm/simd.h>
+#include <asm/uaccess.h>
 
 #ifdef CONFIG_MMU
 #include <asm/asm-prototypes.h>
@@ -26,6 +27,10 @@ asmlinkage int enter_vector_usercopy(void *dst, void *src, size_t n,
 
 	/* skip has_vector() check because it has been done by the asm  */
 	if (!may_use_simd())
+		goto fallback;
+
+	/* HACK */
+	if (!is_cacheable_safe(dst) || !is_cacheable_safe(src))
 		goto fallback;
 
 	kernel_vector_begin();
