@@ -3282,6 +3282,21 @@ int btrfs_finish_one_ordered(struct btrfs_ordered_extent *ordered_extent)
 		goto out;
 	}
 
+	/*
+	 * If we have no data checksum, either the OE is:
+	 * - Fully truncated
+	 *   Those ones won't reach here.
+	 *
+	 * - No data checksum
+	 *
+	 * - Belongs to data reloc inode
+	 *   Which doesn't have csum attached to OE, but cloned
+	 *   from original chunk.
+	 */
+	if (list_empty(&ordered_extent->list))
+		ASSERT(inode->flags & BTRFS_INODE_NODATASUM ||
+		       btrfs_is_data_reloc_root(inode->root));
+
 	ret = add_pending_csums(trans, &ordered_extent->list);
 	if (unlikely(ret)) {
 		btrfs_abort_transaction(trans, ret);
@@ -4214,6 +4229,15 @@ cache_acl:
 
 	return 0;
 out:
+	/*
+	 * We may have a read locked leaf and iget_failed() triggers inode
+	 * eviction which needs to release the delayed inode and that needs
+	 * to lock the delayed inode's mutex. This can cause a ABBA deadlock
+	 * with a task running delayed items, as that require first locking
+	 * the delayed inode's mutex and then modifying its subvolume btree.
+	 * So release the path before iget_failed().
+	 */
+	btrfs_release_path(path);
 	iget_failed(vfs_inode);
 	return ret;
 }
