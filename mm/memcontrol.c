@@ -806,7 +806,7 @@ void mod_lruvec_kmem_state(void *p, enum node_stat_item idx, int val)
 	struct lruvec *lruvec;
 
 	rcu_read_lock();
-	memcg = mem_cgroup_from_slab_obj(p);
+	memcg = mem_cgroup_from_virt(p);
 
 	/*
 	 * Untracked pages have no memcg, no lruvec. Update only the
@@ -1619,11 +1619,6 @@ unsigned long mem_cgroup_get_max(struct mem_cgroup *memcg)
 				   (unsigned long)total_swap_pages);
 	}
 	return max;
-}
-
-unsigned long mem_cgroup_size(struct mem_cgroup *memcg)
-{
-	return page_counter_read(&memcg->memory);
 }
 
 void __memcg_memory_event(struct mem_cgroup *memcg,
@@ -2619,7 +2614,7 @@ struct mem_cgroup *mem_cgroup_from_obj_slab(struct slab *slab, void *p)
  * The caller must ensure the memcg lifetime, e.g. by taking rcu_read_lock(),
  * cgroup_mutex, etc.
  */
-struct mem_cgroup *mem_cgroup_from_slab_obj(void *p)
+struct mem_cgroup *mem_cgroup_from_virt(void *p)
 {
 	struct slab *slab;
 
@@ -5003,7 +4998,7 @@ void mem_cgroup_migrate(struct folio *old, struct folio *new)
 	memcg = folio_memcg(old);
 	/*
 	 * Note that it is normal to see !memcg for a hugetlb folio.
-	 * For e.g, itt could have been allocated when memory_hugetlb_accounting
+	 * For e.g, it could have been allocated when memory_hugetlb_accounting
 	 * was not selected.
 	 */
 	VM_WARN_ON_ONCE_FOLIO(!folio_test_hugetlb(old) && !memcg, old);
