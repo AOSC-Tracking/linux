@@ -361,8 +361,7 @@ static int dockchannel_probe(struct platform_device *pdev)
 	irq_set_handler_data(dcc->irq, dcc);
 	irq_set_chained_handler(dcc->irq, dockchannel_irq);
 
-	for_each_child_of_node(dev->of_node, child)
-		of_platform_device_create(child, NULL, dev);
+	devm_of_platform_populate(dev);
 
 	return 0;
 }
