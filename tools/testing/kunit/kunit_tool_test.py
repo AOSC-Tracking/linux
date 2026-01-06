@@ -165,6 +165,17 @@ class KUnitParserTest(unittest.TestCase):
 		self.assertEqual(kunit_parser.TestStatus.FAILURE, result.status)
 		self.assertEqual(result.counts.errors, 0)
 
+	def test_parse_failed_nested_tests_log(self):
+		nested_log = test_data_path('test_is_test_passed-failure-nested.log')
+		with open(nested_log) as file:
+			result = kunit_parser.parse_run_tests(file.readlines(), stdout)
+		self.assertEqual(kunit_parser.TestStatus.FAILURE, result.status)
+		self.assertEqual(result.counts.failed, 2)
+		self.assertEqual(kunit_parser.TestStatus.FAILURE, result.subtests[0].status)
+		self.assertEqual(kunit_parser.TestStatus.SUCCESS, result.subtests[0].subtests[0].status)
+		self.assertEqual(kunit_parser.TestStatus.FAILURE, result.subtests[1].status)
+		self.assertEqual(kunit_parser.TestStatus.FAILURE, result.subtests[1].subtests[0].status)
+
 	def test_no_header(self):
 		empty_log = test_data_path('test_is_test_passed-no_tests_run_no_header.log')
 		with open(empty_log) as file:
@@ -601,6 +612,7 @@ class KUnitMainTest(unittest.TestCase):
 			all_passed_log = file.readlines()
 
 		self.print_mock = mock.patch('kunit_printer.Printer.print').start()
+		mock.patch.dict(os.environ, clear=True).start()
 		self.addCleanup(mock.patch.stopall)
 
 		self.mock_linux_init = mock.patch.object(kunit_kernel, 'LinuxSourceTree').start()
@@ -716,6 +728,24 @@ class KUnitMainTest(unittest.TestCase):
 		self.print_mock.assert_any_call(StrContains('Testing complete.'))
 
 	def test_run_builddir(self):
+		build_dir = '.kunit'
+		kunit.main(['run', '--build_dir=.kunit'])
+		self.assertEqual(self.linux_source_mock.build_reconfig.call_count, 1)
+		self.linux_source_mock.run_kernel.assert_called_once_with(
+			args=None, build_dir=build_dir, filter_glob='', filter='', filter_action=None, timeout=300)
+		self.print_mock.assert_any_call(StrContains('Testing complete.'))
+
+	@mock.patch.dict(os.environ, {'KBUILD_OUTPUT': '/tmp'})
+	def test_run_builddir_from_env(self):
+		build_dir = '/tmp/.kunit'
+		kunit.main(['run'])
+		self.assertEqual(self.linux_source_mock.build_reconfig.call_count, 1)
+		self.linux_source_mock.run_kernel.assert_called_once_with(
+			args=None, build_dir=build_dir, filter_glob='', filter='', filter_action=None, timeout=300)
+		self.print_mock.assert_any_call(StrContains('Testing complete.'))
+
+	@mock.patch.dict(os.environ, {'KBUILD_OUTPUT': '/tmp'})
+	def test_run_builddir_override(self):
 		build_dir = '.kunit'
 		kunit.main(['run', '--build_dir=.kunit'])
 		self.assertEqual(self.linux_source_mock.build_reconfig.call_count, 1)
