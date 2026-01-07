@@ -269,6 +269,16 @@ struct smu_table {
 	struct smu_table_cache cache;
 };
 
+enum smu_driver_table_id {
+	SMU_DRIVER_TABLE_GPU_METRICS = 0,
+	SMU_DRIVER_TABLE_COUNT,
+};
+
+struct smu_driver_table {
+	enum smu_driver_table_id id;
+	struct smu_table_cache cache;
+};
+
 enum smu_perf_level_designation {
 	PERF_LEVEL_ACTIVITY,
 	PERF_LEVEL_POWER_CONTAINMENT,
@@ -290,6 +300,37 @@ struct smu_clock_info {
 	uint32_t max_eng_clk;
 	uint32_t min_bus_bandwidth;
 	uint32_t max_bus_bandwidth;
+};
+
+#define SMU_MAX_DPM_LEVELS 16
+
+struct smu_dpm_clk_level {
+	bool		enabled;
+	uint32_t	value;
+};
+
+#define SMU_DPM_TABLE_FINE_GRAINED	BIT(0)
+
+struct smu_dpm_table {
+	enum smu_clk_type	clk_type;
+	uint32_t		count;
+	uint32_t		flags;
+	struct smu_dpm_clk_level dpm_levels[SMU_MAX_DPM_LEVELS];
+};
+
+#define SMU_DPM_TABLE_MIN(table) \
+	((table)->count > 0 ? (table)->dpm_levels[0].value : 0)
+
+#define SMU_DPM_TABLE_MAX(table) \
+	((table)->count > 0 ? (table)->dpm_levels[(table)->count - 1].value : 0)
+
+#define SMU_MAX_PCIE_LEVELS 3
+
+struct smu_pcie_table {
+	uint8_t pcie_gen[SMU_MAX_PCIE_LEVELS];
+	uint8_t pcie_lane[SMU_MAX_PCIE_LEVELS];
+	uint16_t lclk_freq[SMU_MAX_PCIE_LEVELS];
+	uint32_t lclk_levels;
 };
 
 struct smu_bios_boot_up_values {
@@ -373,6 +414,8 @@ struct smu_table_context {
 
 	uint32_t			gpu_metrics_table_size;
 	void				*gpu_metrics_table;
+
+	struct smu_driver_table driver_tables[SMU_DRIVER_TABLE_COUNT];
 };
 
 struct smu_context;
@@ -1743,6 +1786,82 @@ static inline void smu_table_cache_fini(struct smu_context *smu,
 		tables[table_id].cache.last_cache_time = 0;
 		tables[table_id].cache.interval = 0;
 	}
+}
+
+static inline int smu_driver_table_init(struct smu_context *smu,
+					enum smu_driver_table_id table_id,
+					size_t size, uint32_t cache_interval)
+{
+	struct smu_table_context *smu_table = &smu->smu_table;
+	struct smu_driver_table *driver_tables = smu_table->driver_tables;
+
+	if (table_id >= SMU_DRIVER_TABLE_COUNT)
+		return -EINVAL;
+
+	driver_tables[table_id].id = table_id;
+	driver_tables[table_id].cache.buffer = kzalloc(size, GFP_KERNEL);
+	if (!driver_tables[table_id].cache.buffer)
+		return -ENOMEM;
+
+	driver_tables[table_id].cache.last_cache_time = 0;
+	driver_tables[table_id].cache.interval = cache_interval;
+	driver_tables[table_id].cache.size = size;
+
+	return 0;
+}
+
+static inline void smu_driver_table_fini(struct smu_context *smu,
+					 enum smu_driver_table_id table_id)
+{
+	struct smu_table_context *smu_table = &smu->smu_table;
+	struct smu_driver_table *driver_tables = smu_table->driver_tables;
+
+	if (table_id >= SMU_DRIVER_TABLE_COUNT)
+		return;
+
+	if (driver_tables[table_id].cache.buffer) {
+		kfree(driver_tables[table_id].cache.buffer);
+		driver_tables[table_id].cache.buffer = NULL;
+		driver_tables[table_id].cache.last_cache_time = 0;
+		driver_tables[table_id].cache.interval = 0;
+	}
+}
+
+static inline bool smu_driver_table_is_valid(struct smu_driver_table *table)
+{
+	if (!table->cache.buffer || !table->cache.last_cache_time ||
+	    !table->cache.interval || !table->cache.size ||
+	    time_after(jiffies,
+		       table->cache.last_cache_time +
+			       msecs_to_jiffies(table->cache.interval)))
+		return false;
+
+	return true;
+}
+
+static inline void *smu_driver_table_ptr(struct smu_context *smu,
+					 enum smu_driver_table_id table_id)
+{
+	struct smu_table_context *smu_table = &smu->smu_table;
+	struct smu_driver_table *driver_tables = smu_table->driver_tables;
+
+	if (table_id >= SMU_DRIVER_TABLE_COUNT)
+		return NULL;
+
+	return driver_tables[table_id].cache.buffer;
+}
+
+static inline void
+smu_driver_table_update_cache_time(struct smu_context *smu,
+				   enum smu_driver_table_id table_id)
+{
+	struct smu_table_context *smu_table = &smu->smu_table;
+	struct smu_driver_table *driver_tables = smu_table->driver_tables;
+
+	if (table_id >= SMU_DRIVER_TABLE_COUNT)
+		return;
+
+	driver_tables[table_id].cache.last_cache_time = jiffies;
 }
 
 #if !defined(SWSMU_CODE_LAYER_L2) && !defined(SWSMU_CODE_LAYER_L3) && !defined(SWSMU_CODE_LAYER_L4)
