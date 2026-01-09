@@ -12,6 +12,8 @@
 #include <dt-bindings/leds/common.h>
 
 / {
+	chassis-type = "laptop";
+
 	aliases {
 		atcphy0 = &atcphy0;
 		atcphy1 = &atcphy1;
