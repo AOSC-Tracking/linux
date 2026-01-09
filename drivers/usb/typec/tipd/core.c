@@ -841,8 +841,7 @@ static void cd321x_update_work(struct work_struct *work)
 	cd321x_typec_update_mode(tps, &st);
 
 	/* Launch the USB role switch */
-	if ((new_role != old_role) || was_disconnected)
-		usb_role_switch_set_role(tps->role_sw, new_role);
+	usb_role_switch_set_role(tps->role_sw, new_role);
 
 	power_supply_changed(tps->psy);
 }
