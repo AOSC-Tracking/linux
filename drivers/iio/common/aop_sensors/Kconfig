@@ -15,6 +15,7 @@ config IIO_AOP_SENSOR_ALS
 	depends on ARCH_APPLE || COMPILE_TEST
 	depends on RUST
 	depends on SYSFS
+	depends on RUST_FW_LOADER_ABSTRACTIONS
 	select APPLE_AOP
 	help
 	  Module to handle the ambient light sensor attached to the AOP
