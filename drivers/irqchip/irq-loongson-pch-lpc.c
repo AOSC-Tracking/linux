@@ -221,6 +221,7 @@ free_priv:
 	return -ENOMEM;
 }
 
+#ifdef CONFIG_ACPI
 int __init pch_lpc_acpi_init(struct irq_domain *parent,
 					struct acpi_madt_lpc_pic *acpi_pchlpc)
 {
@@ -251,3 +252,4 @@ int __init pch_lpc_acpi_init(struct irq_domain *parent,
 
 	return 0;
 }
+#endif /* CONFIG_ACPI */
