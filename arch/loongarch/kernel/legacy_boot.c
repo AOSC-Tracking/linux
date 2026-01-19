@@ -1,4 +1,8 @@
 #include <linux/efi.h>
+#include <linux/dmi.h>
+#include <linux/ioport.h>
+#include <linux/logic_pio.h>
+#include <linux/sizes.h>
 #include <linux/memblock.h>
 #include <linux/acpi.h>
 #include <linux/kmemleak.h>
@@ -718,3 +722,68 @@ void __init acpi_arch_init (){
 int loongarch_have_legacy_bpi (void){
 	return have_bpi;
 }
+
+/* DMI matching table for hardware requiring legacy ISA support */
+static const struct dmi_system_id loongarch_legacy_isa_table[] = {
+    {
+        .ident = "Seewo CB.L3A6.MA01",
+        .matches = {
+            DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "CB.L3A6.MA01"),
+        },
+    },
+    { }
+};
+
+static int __init add_legacy_isa_io(struct fwnode_handle *fwnode,
+				resource_size_t hw_start, resource_size_t size)
+{
+	int ret = 0;
+	unsigned long vaddr;
+	struct logic_pio_hwaddr *range;
+
+	range = kzalloc(sizeof(*range), GFP_ATOMIC);
+	if (!range)
+		return -ENOMEM;
+
+	range->fwnode = fwnode;
+	range->size = size = round_up(size, PAGE_SIZE);
+	range->hw_start = hw_start;
+	range->flags = LOGIC_PIO_CPU_MMIO;
+
+	ret = logic_pio_register_range(range);
+	if (ret) {
+		kfree(range);
+		return ret;
+	}
+
+	/* Legacy ISA must placed at the start of PCI_IOBASE */
+	if (range->io_start != 0) {
+		logic_pio_unregister_range(range);
+		kfree(range);
+		return -EINVAL;
+	}
+
+	vaddr = (unsigned long)(PCI_IOBASE + range->io_start);
+	vmap_page_range(vaddr, vaddr + size, hw_start, pgprot_device(PAGE_KERNEL));
+
+	return 0;
+}
+
+static __init int loongarch_reserve_pio_range(void)
+{
+	struct fwnode_handle *fwnode;
+
+	if (!acpi_disabled && dmi_check_system(loongarch_legacy_isa_table)) {
+		fwnode = acpi_alloc_fwnode_static();
+		pr_info("Legacy ISA: Detected Legacy hardware (%s), setting up legacy ISA I/O\n",
+				dmi_get_system_info(DMI_PRODUCT_NAME));
+		if (add_legacy_isa_io(fwnode, LOONGSON_LIO_BASE, SZ_64K)) {
+			pr_warn("Legacy ISA: Failed to setup legacy ISA I/O, some devices may not work!\n");
+			acpi_free_fwnode_static(fwnode);
+		}
+	}
+
+	return 0;
+}
+
+arch_initcall(loongarch_reserve_pio_range);
