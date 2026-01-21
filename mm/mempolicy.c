@@ -41,6 +41,9 @@
  * preferred many Try a set of nodes first before normal fallback. This is
  *                similar to preferred without the special case.
  *
+ * random         Allocate memory from a random node out of allowed set of
+ *                nodes.
+ *
  * default        Allocate on the local node first, or when on a VMA
  *                use the process policy. This is what Linux always did
  *		  in a NUMA aware kernel and still does by, ahem, default.
@@ -82,6 +85,7 @@
 #include <linux/highmem.h>
 #include <linux/hugetlb.h>
 #include <linux/kernel.h>
+#include <linux/ktime.h>
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/numa_balancing.h>
@@ -137,6 +141,7 @@ static struct mempolicy default_policy = {
 	.refcnt = ATOMIC_INIT(1), /* never free it */
 	.mode = MPOL_LOCAL,
 };
+static bool mempolicy_cmdline_set;
 
 static struct mempolicy preferred_node_policy[MAX_NUMNODES];
 
@@ -589,6 +594,10 @@ static const struct mempolicy_operations mpol_ops[MPOL_MAX] = {
 		.rebind = mpol_rebind_preferred,
 	},
 	[MPOL_WEIGHTED_INTERLEAVE] = {
+		.create = mpol_new_nodemask,
+		.rebind = mpol_rebind_nodemask,
+	},
+	[MPOL_RANDOM] = {
 		.create = mpol_new_nodemask,
 		.rebind = mpol_rebind_nodemask,
 	},
@@ -1045,6 +1054,7 @@ static void get_policy_nodemask(struct mempolicy *pol, nodemask_t *nodes)
 	case MPOL_PREFERRED:
 	case MPOL_PREFERRED_MANY:
 	case MPOL_WEIGHTED_INTERLEAVE:
+	case MPOL_RANDOM:
 		*nodes = pol->nodes;
 		break;
 	case MPOL_LOCAL:
@@ -1760,12 +1770,21 @@ SYSCALL_DEFINE6(mbind, unsigned long, start, unsigned long, len,
 static long kernel_set_mempolicy(int mode, const unsigned long __user *nmask,
 				 unsigned long maxnode)
 {
+	char name[sizeof(current->comm)];
 	unsigned short mode_flags;
 	nodemask_t nodes;
 	int lmode = mode;
 	int err;
 
 	err = sanitize_mpol_flags(&lmode, &mode_flags);
+
+	if (mempolicy_cmdline_set) {
+		// ignore messages during boot which are expected
+		if (ktime_get_boottime_seconds() > 40)
+			pr_info("Request by '%s' to set policy to %d ignored\n", get_task_comm(name, current), mode);
+		return 0;
+	}
+
 	if (err)
 		return err;
 
@@ -2062,6 +2081,27 @@ static unsigned int interleave_nodes(struct mempolicy *policy)
 	return nid;
 }
 
+static unsigned int read_once_policy_nodemask(struct mempolicy *pol, nodemask_t *mask);
+
+static unsigned int random_nodes(struct mempolicy *policy)
+{
+	unsigned int nid = first_node(policy->nodes);
+	unsigned int cpuset_mems_cookie;
+	nodemask_t nodemask;
+	unsigned int r;
+
+	r = get_random_u32_below(read_once_policy_nodemask(policy, &nodemask));
+
+	/* to prevent miscount, use tsk->mems_allowed_seq to detect rebind */
+	do {
+		cpuset_mems_cookie = read_mems_allowed_begin();
+		while (r--)
+			nid = next_node_in(nid, policy->nodes);
+	} while (read_mems_allowed_retry(cpuset_mems_cookie));
+
+	return nid;
+}
+
 /*
  * Depending on the memory policy provide a node from which to allocate the
  * next slab entry.
@@ -2106,6 +2146,9 @@ unsigned int mempolicy_slab_node(void)
 	}
 	case MPOL_LOCAL:
 		return node;
+
+	case MPOL_RANDOM:
+		return random_nodes(policy);
 
 	default:
 		BUG();
@@ -2188,6 +2231,33 @@ static unsigned int interleave_nid(struct mempolicy *pol, pgoff_t ilx)
 	return nid;
 }
 
+static unsigned int random_nid(struct mempolicy *pol,
+			       struct vm_area_struct *vma,
+			       pgoff_t ilx)
+{
+	nodemask_t nodemask;
+	unsigned int r, nnodes;
+	int i, nid;
+
+	nnodes = read_once_policy_nodemask(pol, &nodemask);
+	if (!nnodes)
+		return numa_node_id();
+
+	/*
+	 * QQQ
+	 * Can we say hash of vma+ilx is sufficiently random but still
+	 * stable in case of reliance on stable, as it appears is with
+	 * mpol_misplaced and interleaving?
+	 */
+	r = hash_long((unsigned long)vma + ilx,
+		      ilog2(roundup_pow_of_two(nnodes)));
+
+	nid = first_node(nodemask);
+	for (i = 0; i < r; i++)
+		nid = next_node(nid, nodemask);
+	return nid;
+}
+
 /*
  * Return a nodemask representing a mempolicy for filtering nodes for
  * page allocation, together with preferred node id (or the input node id).
@@ -2231,9 +2301,18 @@ static nodemask_t *policy_nodemask(gfp_t gfp, struct mempolicy *pol,
 			weighted_interleave_nodes(pol) :
 			weighted_interleave_nid(pol, ilx);
 		break;
+	case MPOL_RANDOM:
+		*nid = random_nodes(pol);
+		break;
 	}
 
 	return nodemask;
+}
+
+nodemask_t *numa_policy_nodemask(gfp_t gfp, struct mempolicy *pol, pgoff_t ilx,
+				 int *nid)
+{
+	return policy_nodemask(gfp, pol, ilx, nid);
 }
 
 #ifdef CONFIG_HUGETLBFS
@@ -2293,6 +2372,7 @@ bool init_nodemask_of_mempolicy(nodemask_t *mask)
 	case MPOL_BIND:
 	case MPOL_INTERLEAVE:
 	case MPOL_WEIGHTED_INTERLEAVE:
+	case MPOL_RANDOM:
 		*mask = mempolicy->nodes;
 		break;
 
@@ -2791,6 +2871,7 @@ bool __mpol_equal(struct mempolicy *a, struct mempolicy *b)
 	case MPOL_PREFERRED:
 	case MPOL_PREFERRED_MANY:
 	case MPOL_WEIGHTED_INTERLEAVE:
+	case MPOL_RANDOM:
 		return !!nodes_equal(a->nodes, b->nodes);
 	case MPOL_LOCAL:
 		return true;
@@ -2980,6 +3061,10 @@ int mpol_misplaced(struct folio *folio, struct vm_fault *vmf,
 				gfp_zone(GFP_HIGHUSER),
 				&pol->nodes);
 		polnid = zonelist_node_idx(z);
+		break;
+
+	case MPOL_RANDOM:
+		polnid = random_nid(pol, vma, ilx);
 		break;
 
 	default:
@@ -3310,7 +3395,9 @@ void __init numa_policy_init(void)
 /* Reset policy of current process to default */
 void numa_default_policy(void)
 {
-	do_set_mempolicy(MPOL_DEFAULT, 0, NULL);
+	struct mempolicy *pol = &default_policy;
+
+	do_set_mempolicy(pol->mode, pol->flags, &pol->nodes);
 }
 
 /*
@@ -3325,9 +3412,9 @@ static const char * const policy_modes[] =
 	[MPOL_WEIGHTED_INTERLEAVE] = "weighted interleave",
 	[MPOL_LOCAL]      = "local",
 	[MPOL_PREFERRED_MANY]  = "prefer (many)",
+	[MPOL_RANDOM]  = "random",
 };
 
-#ifdef CONFIG_TMPFS
 /**
  * mpol_parse_str - parse string to mempolicy, for tmpfs mpol mount option.
  * @str:  string containing mempolicy to parse
@@ -3340,12 +3427,17 @@ static const char * const policy_modes[] =
  */
 int mpol_parse_str(char *str, struct mempolicy **mpol)
 {
-	struct mempolicy *new = NULL;
+	struct mempolicy *new;
 	unsigned short mode_flags;
 	nodemask_t nodes;
 	char *nodelist = strchr(str, ':');
 	char *flags = strchr(str, '=');
 	int err = 1, mode;
+
+	if (*mpol)
+		new = *mpol;
+	else
+		new = NULL;
 
 	if (flags)
 		*flags++ = '\0';	/* terminate mode string */
@@ -3383,6 +3475,7 @@ int mpol_parse_str(char *str, struct mempolicy **mpol)
 		break;
 	case MPOL_INTERLEAVE:
 	case MPOL_WEIGHTED_INTERLEAVE:
+	case MPOL_RANDOM:
 		/*
 		 * Default to online nodes with memory if no nodelist
 		 */
@@ -3426,9 +3519,16 @@ int mpol_parse_str(char *str, struct mempolicy **mpol)
 			goto out;
 	}
 
-	new = mpol_new(mode, mode_flags, &nodes);
-	if (IS_ERR(new))
-		goto out;
+	if (!new) {
+		new = mpol_new(mode, mode_flags, &nodes);
+		if (IS_ERR(new))
+			goto out;
+	} else {
+		atomic_set(&new->refcnt, 1);
+		new->mode = mode;
+		new->flags = mode_flags;
+		new->home_node = NUMA_NO_NODE;
+	}
 
 	/*
 	 * Save nodes for mpol_to_str() to show the tmpfs mount options
@@ -3461,7 +3561,30 @@ out:
 		*mpol = new;
 	return err;
 }
-#endif /* CONFIG_TMPFS */
+
+static int __init setup_numapolicy(char *str)
+{
+	struct mempolicy pol = { }, *ppol = &pol;
+	char buf[128];
+	int ret;
+
+	if (str)
+		ret = mpol_parse_str(str, &ppol);
+	else
+		ret = -EINVAL;
+
+	if (!ret) {
+		default_policy = pol;
+		mpol_to_str(buf, sizeof(buf), &pol);
+		pr_info("NUMA default policy overridden to '%s'\n", buf);
+		mempolicy_cmdline_set = pol.mode != MPOL_DEFAULT;
+	} else {
+		pr_warn("Unable to parse numa_policy=\n");
+	}
+
+	return ret == 0;
+}
+__setup("numa_policy=", setup_numapolicy);
 
 /**
  * mpol_to_str - format a mempolicy structure for printing
@@ -3498,6 +3621,7 @@ void mpol_to_str(char *buffer, int maxlen, struct mempolicy *pol)
 	case MPOL_BIND:
 	case MPOL_INTERLEAVE:
 	case MPOL_WEIGHTED_INTERLEAVE:
+	case MPOL_RANDOM:
 		nodes = pol->nodes;
 		break;
 	default:

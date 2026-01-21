@@ -65,6 +65,12 @@
 
 /* Forward declarations */
 static void bcmgenet_set_rx_mode(struct net_device *dev);
+static bool skip_umac_reset = false;
+module_param(skip_umac_reset, bool, 0444);
+MODULE_PARM_DESC(skip_umac_reset, "Skip UMAC reset step");
+static bool eee = true;
+module_param(eee, bool, 0444);
+MODULE_PARM_DESC(eee, "Enable EEE (default Y)");
 
 static inline void bcmgenet_writel(u32 value, void __iomem *offset)
 {
@@ -2566,6 +2572,11 @@ static void reset_umac(struct bcmgenet_priv *priv)
 	bcmgenet_rbuf_ctrl_set(priv, 0);
 	udelay(10);
 
+	if (skip_umac_reset) {
+		pr_warn("Skipping UMAC reset\n");
+		return;
+	}
+
 	/* issue soft reset and disable MAC while updating its registers */
 	spin_lock_bh(&priv->reg_lock);
 	bcmgenet_umac_writel(priv, CMD_SW_RESET, UMAC_CMD);
@@ -2728,7 +2739,7 @@ static void bcmgenet_init_tx_ring(struct bcmgenet_priv *priv,
 
 	bcmgenet_tdma_ring_writel(priv, index, 0, TDMA_PROD_INDEX);
 	bcmgenet_tdma_ring_writel(priv, index, 0, TDMA_CONS_INDEX);
-	bcmgenet_tdma_ring_writel(priv, index, 1, DMA_MBUF_DONE_THRESH);
+	bcmgenet_tdma_ring_writel(priv, index, 10, DMA_MBUF_DONE_THRESH);
 	/* Disable rate control for now */
 	bcmgenet_tdma_ring_writel(priv, index, flow_period_val,
 				  TDMA_FLOW_PERIOD);
@@ -3362,6 +3373,17 @@ static int bcmgenet_open(struct net_device *dev)
 	}
 
 	bcmgenet_phy_pause_set(dev, priv->rx_pause, priv->tx_pause);
+
+	if (!eee) {
+		struct ethtool_keee eee_data;
+
+		ret = bcmgenet_get_eee(dev, &eee_data);
+		if (ret == 0) {
+			eee_data.eee_enabled = 0;
+			bcmgenet_set_eee(dev, &eee_data);
+			netdev_warn(dev, "EEE disabled\n");
+		}
+	}
 
 	bcmgenet_netif_start(dev);
 
@@ -4089,8 +4111,10 @@ static int bcmgenet_probe(struct platform_device *pdev)
 	netif_set_real_num_rx_queues(priv->dev, priv->hw_params->rx_queues + 1);
 
 	/* Set default coalescing parameters */
-	for (i = 0; i <= priv->hw_params->rx_queues; i++)
+	for (i = 0; i <= priv->hw_params->rx_queues; i++) {
 		priv->rx_rings[i].rx_max_coalesced_frames = 1;
+		priv->rx_rings[i].rx_coalesce_usecs = 50;
+	}
 
 	/* Initialize u64 stats seq counter for 32bit machines */
 	for (i = 0; i <= priv->hw_params->rx_queues; i++)

@@ -9,6 +9,7 @@
 #include <linux/etherdevice.h>
 #include <linux/module.h>
 #include <linux/vmalloc.h>
+#include <linux/ctype.h>
 #include <net/cfg80211.h>
 #include <net/netlink.h>
 #include <uapi/linux/if_arp.h>
@@ -2183,6 +2184,11 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 		switch (sme->crypto.akm_suites[0]) {
 		case WLAN_AKM_SUITE_SAE:
 			val = WPA3_AUTH_SAE_PSK;
+			if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_FWSUP) &&
+				brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT)) {
+				brcmf_dbg(INFO, "using EXTSAE with PSK offload\n");
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
+			}
 			break;
 		case WLAN_AKM_SUITE_FT_OVER_SAE:
 			val = WPA3_AUTH_SAE_PSK | WPA2_AUTH_FT;
@@ -2483,43 +2489,52 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 		goto done;
 	}
 
-	if (sme->crypto.psk &&
-	    profile->use_fwsup != BRCMF_PROFILE_FWSUP_SAE) {
-		if (WARN_ON(profile->use_fwsup != BRCMF_PROFILE_FWSUP_NONE)) {
-			err = -EINVAL;
-			goto done;
+	if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_FWSUP)) {
+		if (sme->crypto.psk) {
+			if ((profile->use_fwsup != BRCMF_PROFILE_FWSUP_SAE) &&
+				(profile->use_fwsup != BRCMF_PROFILE_FWSUP_PSK)) {
+				if (WARN_ON(profile->use_fwsup !=
+					BRCMF_PROFILE_FWSUP_NONE)) {
+					err = -EINVAL;
+					goto done;
+				}
+				brcmf_dbg(INFO, "using PSK offload\n");
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
+			}
+		} else if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_1X) {
+			profile->use_fwsup = BRCMF_PROFILE_FWSUP_NONE;
 		}
-		brcmf_dbg(INFO, "using PSK offload\n");
-		profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
-	}
 
-	if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_NONE) {
-		/* enable firmware supplicant for this interface */
-		err = brcmf_fil_iovar_int_set(ifp, "sup_wpa", 1);
-		if (err < 0) {
-			bphy_err(drvr, "failed to enable fw supplicant\n");
-			goto done;
+		if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_NONE) {
+			/* enable firmware supplicant for this interface */
+			err = brcmf_fil_iovar_int_set(ifp, "sup_wpa", 1);
+			if (err < 0) {
+				bphy_err(drvr, "failed to enable fw supplicant\n");
+				goto done;
+			}
+		} else {
+			err = brcmf_fil_iovar_int_set(ifp, "sup_wpa", 0);
 		}
-	}
 
-	if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_PSK)
-		err = brcmf_set_pmk(ifp, sme->crypto.psk,
-				    BRCMF_WSEC_MAX_PSK_LEN);
-	else if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_SAE) {
-		/* clean up user-space RSNE */
-		err = brcmf_fil_iovar_data_set(ifp, "wpaie", NULL, 0);
-		if (err) {
-			bphy_err(drvr, "failed to clean up user-space RSNE\n");
-			goto done;
-		}
-		err = brcmf_fwvid_set_sae_password(ifp, &sme->crypto);
-		if (!err && sme->crypto.psk)
+		if ((profile->use_fwsup == BRCMF_PROFILE_FWSUP_PSK) &&
+			sme->crypto.psk) {
 			err = brcmf_set_pmk(ifp, sme->crypto.psk,
 					    BRCMF_WSEC_MAX_PSK_LEN);
+		} else if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_SAE) {
+			/* clean up user-space RSNE */
+			err = brcmf_fil_iovar_data_set(ifp, "wpaie", NULL, 0);
+			if (err) {
+				bphy_err(drvr, "failed to clean up user-space RSNE\n");
+				goto done;
+			}
+			err = brcmf_fwvid_set_sae_password(ifp, &sme->crypto);
+			if (!err && sme->crypto.psk)
+				err = brcmf_set_pmk(ifp, sme->crypto.psk,
+						    BRCMF_WSEC_MAX_PSK_LEN);
+		}
+		if (err)
+			goto done;
 	}
-	if (err)
-		goto done;
-
 	/* Join with specific BSSID and cached SSID
 	 * If SSID is zero join based on BSSID only
 	 */
@@ -3321,7 +3336,7 @@ brcmf_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *ndev,
 		brcmf_dbg(INFO, "Do not enable power save for P2P clients\n");
 		pm = PM_OFF;
 	}
-	brcmf_dbg(INFO, "power save %s\n", (pm ? "enabled" : "disabled"));
+	brcmf_info("power save %s\n", (pm ? "enabled" : "disabled"));
 
 	err = brcmf_fil_cmd_int_set(ifp, BRCMF_C_SET_PM, pm);
 	if (err) {
@@ -3331,6 +3346,7 @@ brcmf_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *ndev,
 			bphy_err(drvr, "error (%d)\n", err);
 	}
 
+	timeout = 2000; /* 2000ms - the maximum */
 	err = brcmf_fil_iovar_int_set(ifp, "pm2_sleep_ret",
 				min_t(u32, timeout, BRCMF_PS_MAX_TIMEOUT_MS));
 	if (err)
@@ -8242,23 +8258,9 @@ static void brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 	struct brcmf_if *ifp = brcmf_get_ifp(cfg->pub, 0);
 	struct brcmf_pub *drvr = cfg->pub;
 	struct brcmf_fil_country_le ccreq;
+	char *alpha2;
 	s32 err;
 	int i;
-
-	/* The country code gets set to "00" by default at boot, ignore */
-	if (req->alpha2[0] == '0' && req->alpha2[1] == '0')
-		return;
-
-	/* ignore non-ISO3166 country codes */
-	for (i = 0; i < 2; i++)
-		if (req->alpha2[i] < 'A' || req->alpha2[i] > 'Z') {
-			bphy_err(drvr, "not an ISO3166 code (0x%02x 0x%02x)\n",
-				 req->alpha2[0], req->alpha2[1]);
-			return;
-		}
-
-	brcmf_dbg(TRACE, "Enter: initiator=%d, alpha=%c%c\n", req->initiator,
-		  req->alpha2[0], req->alpha2[1]);
 
 	err = brcmf_fil_iovar_data_get(ifp, "country", &ccreq, sizeof(ccreq));
 	if (err) {
@@ -8266,7 +8268,35 @@ static void brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 		return;
 	}
 
-	err = brcmf_translate_country_code(ifp->drvr, req->alpha2, &ccreq);
+	/* The country code gets set to "00" by default at boot - substitute
+	 * any saved ccode from the nvram file unless there is a valid code
+	 * already set.
+	 */
+	alpha2 = req->alpha2;
+	if (alpha2[0] == '0' && alpha2[1] == '0') {
+		extern char saved_ccode[2];
+
+		if ((isupper(ccreq.country_abbrev[0]) &&
+		     isupper(ccreq.country_abbrev[1])) ||
+		    !saved_ccode[0])
+			return;
+		alpha2 = saved_ccode;
+		pr_debug("brcmfmac: substituting saved ccode %c%c\n",
+			 alpha2[0], alpha2[1]);
+	}
+
+	/* ignore non-ISO3166 country codes */
+	for (i = 0; i < 2; i++)
+		if (alpha2[i] < 'A' || alpha2[i] > 'Z') {
+			bphy_err(drvr, "not an ISO3166 code (0x%02x 0x%02x)\n",
+				 alpha2[0], alpha2[1]);
+			return;
+		}
+
+	brcmf_dbg(TRACE, "Enter: initiator=%d, alpha=%c%c\n", req->initiator,
+		  alpha2[0], alpha2[1]);
+
+	err = brcmf_translate_country_code(ifp->drvr, alpha2, &ccreq);
 	if (err)
 		return;
 

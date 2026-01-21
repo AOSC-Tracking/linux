@@ -1292,6 +1292,16 @@ config MFD_SY7636A
 	  To enable support for building sub-devices as modules,
 	  choose M here.
 
+config MFD_RASPBERRYPI_POE_HAT
+	tristate "Raspberry Pi PoE HAT MFD"
+	depends on I2C
+	select MFD_SIMPLE_MFD_I2C
+	help
+	  This module supports the PWM fan controller found on the Raspberry Pi
+	  POE and POE+ HAT boards, and the power supply driver on the POE+ HAT.
+	  (Functionally it relies on MFD_SIMPLE_MFD_I2C to provide the framework
+	  that loads the child drivers).
+
 config MFD_RDC321X
 	tristate "RDC R-321x southbridge"
 	select MFD_CORE
@@ -2516,6 +2526,18 @@ config MFD_QNAP_MCU
 
 	  This driver implements the base serial protocol to talk to the
 	  device and provides functions for the other parts to hook into.
+
+config MFD_RP1
+	tristate "RP1 MFD driver"
+	depends on PCI
+	depends on PCI_MSI
+	select MFD_CORE
+	help
+	  Support for the RP1 peripheral chip.
+
+	  This driver provides support for the Raspberry Pi RP1 peripheral chip.
+	  It is responsible for enabling the Device Tree node once the PCIe endpoint
+	  has been configured, and handling interrupts.
 
 config MFD_RSMU_I2C
 	tristate "Renesas Synchronization Management Unit with I2C"

@@ -40,7 +40,7 @@
 	pr_debug("%s: " DRIVER_NAME ": " f, mmc_hostname(host->mmc), ## x)
 
 #define SDHCI_DUMP(f, x...) \
-	pr_err("%s: " DRIVER_NAME ": " f, mmc_hostname(host->mmc), ## x)
+	pr_debug("%s: " DRIVER_NAME ": " f, mmc_hostname(host->mmc), ## x)
 
 #define MAX_TUNING_LOOP 40
 
@@ -1084,7 +1084,7 @@ void sdhci_initialize_data(struct sdhci_host *host, struct mmc_data *data)
 	WARN_ON(host->data);
 
 	/* Sanity checks */
-	BUG_ON(data->blksz * data->blocks > 524288);
+	BUG_ON(data->blksz * data->blocks > host->mmc->max_req_size);
 	BUG_ON(data->blksz > host->mmc->max_blk_size);
 	BUG_ON(data->blocks > 65535);
 
@@ -1735,6 +1735,12 @@ static bool sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 
 	if (host->use_external_dma)
 		sdhci_external_dma_pre_transfer(host, cmd);
+
+	if (host->quirks2 & SDHCI_QUIRK2_SPURIOUS_INT_RESP) {
+		host->ier |= SDHCI_INT_RESPONSE;
+		sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
+		sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+	}
 
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->opcode, flags), SDHCI_COMMAND);
 
@@ -3076,6 +3082,15 @@ static void sdhci_card_event(struct mmc_host *mmc)
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
+static int sdhci_init_sd_express(struct mmc_host *mmc, struct mmc_ios *ios)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if (!host->ops->init_sd_express)
+		return -EOPNOTSUPP;
+	return host->ops->init_sd_express(host, ios);
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.post_req	= sdhci_post_req,
@@ -3091,6 +3106,7 @@ static const struct mmc_host_ops sdhci_ops = {
 	.execute_tuning			= sdhci_execute_tuning,
 	.card_event			= sdhci_card_event,
 	.card_busy	= sdhci_card_busy,
+	.init_sd_express = sdhci_init_sd_express,
 };
 
 /*****************************************************************************\
@@ -3245,7 +3261,7 @@ static void sdhci_timeout_timer(struct timer_list *t)
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->cmd && !sdhci_data_line_cmd(host->cmd)) {
-		pr_err("%s: Timeout waiting for hardware cmd interrupt.\n",
+		pr_debug("%s: Timeout waiting for hardware cmd interrupt.\n",
 		       mmc_hostname(host->mmc));
 		sdhci_err_stats_inc(host, REQ_TIMEOUT);
 		sdhci_dumpregs(host);
@@ -3268,7 +3284,7 @@ static void sdhci_timeout_data_timer(struct timer_list *t)
 
 	if (host->data || host->data_cmd ||
 	    (host->cmd && sdhci_data_line_cmd(host->cmd))) {
-		pr_err("%s: Timeout waiting for hardware interrupt.\n",
+		pr_debug("%s: Timeout waiting for hardware interrupt.\n",
 		       mmc_hostname(host->mmc));
 		sdhci_err_stats_inc(host, REQ_TIMEOUT);
 		sdhci_dumpregs(host);
@@ -3332,6 +3348,11 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask, u32 *intmask_p)
 		if (intmask & SDHCI_INT_TIMEOUT) {
 			host->cmd->error = -ETIMEDOUT;
 			sdhci_err_stats_inc(host, CMD_TIMEOUT);
+			if (host->quirks2 & SDHCI_QUIRK2_SPURIOUS_INT_RESP) {
+				host->ier &= ~SDHCI_INT_RESPONSE;
+				sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
+				sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+			}
 		} else {
 			host->cmd->error = -EILSEQ;
 			if (!mmc_op_tuning(host->cmd->opcode))
@@ -4618,6 +4639,15 @@ int sdhci_setup_host(struct sdhci_host *host)
 	    !(host->quirks2 & SDHCI_QUIRK2_BROKEN_DDR50))
 		mmc->caps |= MMC_CAP_UHS_DDR50;
 
+	if (host->quirks2 & SDHCI_QUIRK2_NO_SDR25)
+		mmc->caps &= ~MMC_CAP_UHS_SDR25;
+
+	if (host->quirks2 & SDHCI_QUIRK2_NO_SDR50)
+		mmc->caps &= ~MMC_CAP_UHS_SDR50;
+
+	if (host->quirks2 & SDHCI_QUIRK2_NO_SDR104)
+		mmc->caps &= ~MMC_CAP_UHS_SDR104;
+
 	/* Does the host need tuning for SDR50? */
 	if (host->caps1 & SDHCI_USE_SDR50_TUNING)
 		host->flags |= SDHCI_SDR50_NEEDS_TUNING;
@@ -4732,11 +4762,16 @@ int sdhci_setup_host(struct sdhci_host *host)
 	spin_lock_init(&host->lock);
 
 	/*
-	 * Maximum number of sectors in one transfer. Limited by SDMA boundary
-	 * size (512KiB). Note some tuning modes impose a 4MiB limit, but this
-	 * is less anyway.
+	 * Maximum number of sectors in one transfer.
+	 * 4MiB is preferred for multi-descriptor DMA as a) card sequential
+	 * write speeds are only guaranteed with a 4MiB write length and
+	 * b) most tuning modes require a 4MiB limit.
+	 * SDMA has a 512KiB boundary size.
 	 */
-	mmc->max_req_size = 524288;
+	if (host->flags & SDHCI_USE_ADMA)
+		mmc->max_req_size = SZ_4M;
+	else
+		mmc->max_req_size = SZ_512K;
 
 	/*
 	 * Maximum number of segments. Depends on if the hardware

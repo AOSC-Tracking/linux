@@ -41,6 +41,34 @@ static void i2c_dw_configure_fifo_master(struct dw_i2c_dev *dev)
 	regmap_write(dev->map, DW_IC_CON, dev->master_cfg);
 }
 
+static u32 linear_interpolate(u32 x, u32 x1, u32 x2, u32 y1, u32 y2)
+{
+	return ((x - x1) * y2 + (x2 - x) * y1) / (x2 - x1);
+}
+
+static u16 u16_clamp(u32 v)
+{
+	return (u16)min(v, 0xffff);
+}
+
+static void clock_calc(struct dw_i2c_dev *dev, u32 *hcnt, u32 *lcnt)
+{
+	struct i2c_timings *t = &dev->timings;
+	u32 wanted_khz = (dev->wanted_bus_speed ?: t->bus_freq_hz)/1000;
+	u32 clk_khz = i2c_dw_clk_rate(dev);
+	u32 min_high_ns = (wanted_khz <= 100) ? 4000 :
+			  (wanted_khz <= 400) ?
+				linear_interpolate(wanted_khz, 100, 400, 4000, 600) :
+				linear_interpolate(wanted_khz, 400, 1000, 600, 260);
+	u32 high_cycles = (u32)(((u64)clk_khz * min_high_ns + 999999) / 1000000) + 1;
+	u32 extra_high_cycles = (u32)((u64)clk_khz * t->scl_fall_ns / 1000000);
+	u32 extra_low_cycles = (u32)((u64)clk_khz * t->scl_rise_ns / 1000000);
+	u32 period = ((u64)clk_khz + wanted_khz - 1) / wanted_khz;
+
+	*hcnt = u16_clamp(high_cycles - extra_high_cycles);
+	*lcnt = u16_clamp(period - high_cycles - extra_low_cycles);
+}
+
 static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 {
 	unsigned int comp_param1;
@@ -48,6 +76,7 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 	struct i2c_timings *t = &dev->timings;
 	const char *fp_str = "";
 	u32 ic_clk;
+	u32 hcnt, lcnt;
 	int ret;
 
 	ret = i2c_dw_acquire_lock(dev);
@@ -62,6 +91,8 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 	/* Set standard and fast speed dividers for high/low periods */
 	sda_falling_time = t->sda_fall_ns ?: 300; /* ns */
 	scl_falling_time = t->scl_fall_ns ?: 300; /* ns */
+
+	clock_calc(dev, &hcnt, &lcnt);
 
 	/* Calculate SCL timing parameters for standard mode if not set */
 	if (!dev->ss_hcnt || !dev->ss_lcnt) {
@@ -81,6 +112,8 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 					scl_falling_time,
 					0);	/* No offset */
 	}
+	dev->ss_hcnt = hcnt;
+	dev->ss_lcnt = lcnt;
 	dev_dbg(dev->dev, "Standard Mode HCNT:LCNT = %d:%d\n",
 		dev->ss_hcnt, dev->ss_lcnt);
 
@@ -137,6 +170,8 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 					scl_falling_time,
 					0);	/* No offset */
 	}
+	dev->fs_hcnt = hcnt;
+	dev->fs_lcnt = lcnt;
 	dev_dbg(dev->dev, "Fast Mode%s HCNT:LCNT = %d:%d\n",
 		fp_str, dev->fs_hcnt, dev->fs_lcnt);
 
@@ -187,9 +222,14 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 						scl_falling_time,
 						0);	/* No offset */
 		}
+		dev->hs_hcnt = hcnt;
+		dev->hs_lcnt = lcnt;
 		dev_dbg(dev->dev, "High Speed Mode HCNT:LCNT = %d:%d\n",
 			dev->hs_hcnt, dev->hs_lcnt);
 	}
+
+	if (!dev->sda_hold_time)
+		dev->sda_hold_time = lcnt / 2;
 
 	ret = i2c_dw_set_sda_hold(dev);
 	if (ret)
@@ -211,6 +251,7 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
  */
 static int i2c_dw_init_master(struct dw_i2c_dev *dev)
 {
+	unsigned int timeout = 0;
 	int ret;
 
 	ret = i2c_dw_acquire_lock(dev);
@@ -239,6 +280,17 @@ static int i2c_dw_init_master(struct dw_i2c_dev *dev)
 	if (dev->hs_hcnt && dev->hs_lcnt) {
 		regmap_write(dev->map, DW_IC_HS_SCL_HCNT, dev->hs_hcnt);
 		regmap_write(dev->map, DW_IC_HS_SCL_LCNT, dev->hs_lcnt);
+	}
+
+	if (dev->master_cfg & DW_IC_CON_BUS_CLEAR_CTRL) {
+		/* Set a sensible timeout if not already configured */
+		regmap_read(dev->map, DW_IC_SDA_STUCK_AT_LOW_TIMEOUT, &timeout);
+		if (timeout == ~0) {
+			/* Use 10ms as a timeout, which is 1000 cycles at 100kHz */
+			timeout = i2c_dw_clk_rate(dev) * 10; /* clock rate is in kHz */
+			regmap_write(dev->map, DW_IC_SDA_STUCK_AT_LOW_TIMEOUT, timeout);
+			regmap_write(dev->map, DW_IC_SCL_STUCK_AT_LOW_TIMEOUT, timeout);
+		}
 	}
 
 	/* Write SDA hold time if supported */
@@ -271,6 +323,10 @@ static void i2c_dw_xfer_init(struct dw_i2c_dev *dev)
 		 */
 		ic_tar = DW_IC_TAR_10BITADDR_MASTER;
 	}
+
+	/* Convert a zero-length read into an SMBUS quick command */
+	if (!msgs[dev->msg_write_idx].len)
+		ic_tar = DW_IC_TAR_SPECIAL | DW_IC_TAR_SMBUS_QUICK_CMD;
 
 	regmap_update_bits(dev->map, DW_IC_CON, DW_IC_CON_10BITADDR_MASTER,
 			   ic_con);
@@ -481,6 +537,14 @@ i2c_dw_xfer_msg(struct dw_i2c_dev *dev)
 
 		regmap_read(dev->map, DW_IC_RXFLR, &flr);
 		rx_limit = dev->rx_fifo_depth - flr;
+
+		/* Handle SMBUS quick commands */
+		if (!buf_len) {
+			if (msgs[dev->msg_write_idx].flags & I2C_M_RD)
+				regmap_write(dev->map, DW_IC_DATA_CMD, 0x300);
+			else
+				regmap_write(dev->map, DW_IC_DATA_CMD, 0x200);
+		}
 
 		while (buf_len > 0 && tx_limit > 0 && rx_limit > 0) {
 			u32 cmd = 0;
@@ -919,14 +983,15 @@ static const struct i2c_algorithm i2c_dw_algo = {
 };
 
 static const struct i2c_adapter_quirks i2c_dw_quirks = {
-	.flags = I2C_AQ_NO_ZERO_LEN,
+	.flags = 0,
 };
 
 void i2c_dw_configure_master(struct dw_i2c_dev *dev)
 {
 	struct i2c_timings *t = &dev->timings;
 
-	dev->functionality = I2C_FUNC_10BIT_ADDR | DW_IC_DEFAULT_FUNCTIONALITY;
+	dev->functionality = I2C_FUNC_10BIT_ADDR | I2C_FUNC_SMBUS_QUICK |
+			     DW_IC_DEFAULT_FUNCTIONALITY;
 
 	dev->master_cfg = DW_IC_CON_MASTER | DW_IC_CON_SLAVE_DISABLE |
 			  DW_IC_CON_RESTART_EN;
@@ -1008,6 +1073,7 @@ int i2c_dw_probe_master(struct dw_i2c_dev *dev)
 	struct i2c_adapter *adap = &dev->adapter;
 	unsigned long irq_flags;
 	unsigned int ic_con;
+	unsigned int id_ver;
 	int ret;
 
 	init_completion(&dev->cmd_complete);
@@ -1042,7 +1108,11 @@ int i2c_dw_probe_master(struct dw_i2c_dev *dev)
 	if (ret)
 		return ret;
 
-	if (ic_con & DW_IC_CON_BUS_CLEAR_CTRL)
+	ret = regmap_read(dev->map, DW_IC_COMP_VERSION, &id_ver);
+	if (ret)
+		return ret;
+
+	if (ic_con & DW_IC_CON_BUS_CLEAR_CTRL || id_ver >= DW_IC_BUS_CLEAR_MIN_VERS)
 		dev->master_cfg |= DW_IC_CON_BUS_CLEAR_CTRL;
 
 	ret = dev->init(dev);

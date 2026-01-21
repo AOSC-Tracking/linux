@@ -463,6 +463,7 @@ int mmc_cqe_start_req(struct mmc_host *host, struct mmc_request *mrq)
 		goto out_err;
 
 	trace_mmc_request_start(host, mrq);
+	led_trigger_event(host->led, LED_FULL);
 
 	return 0;
 
@@ -550,9 +551,17 @@ int mmc_cqe_recovery(struct mmc_host *host)
 	 * Recovery is expected seldom, if at all, but it reduces performance,
 	 * so make sure it is not completely silent.
 	 */
-	pr_warn("%s: running CQE recovery\n", mmc_hostname(host));
+	pr_warn_ratelimited("%s: running CQE recovery\n", mmc_hostname(host));
 
 	host->cqe_ops->cqe_recovery_start(host);
+
+	err = mmc_detect_card_removed(host);
+	if (err) {
+		host->cqe_ops->cqe_recovery_finish(host);
+		host->cqe_ops->cqe_off(host);
+		mmc_retune_release(host);
+		return err;
+	}
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.opcode       = MMC_STOP_TRANSMISSION;
@@ -563,7 +572,11 @@ int mmc_cqe_recovery(struct mmc_host *host)
 	mmc_poll_for_busy(host->card, MMC_CQE_RECOVERY_TIMEOUT, true, MMC_BUSY_IO);
 
 	memset(&cmd, 0, sizeof(cmd));
-	cmd.opcode       = MMC_CMDQ_TASK_MGMT;
+	if (mmc_card_sd(host->card))
+		cmd.opcode = SD_CMDQ_TASK_MGMT;
+	else
+		cmd.opcode = MMC_CMDQ_TASK_MGMT;
+
 	cmd.arg          = 1; /* Discard entire queue */
 	cmd.flags        = MMC_RSP_R1B_NO_CRC | MMC_CMD_AC; /* Ignore CRC */
 	cmd.busy_timeout = MMC_CQE_RECOVERY_TIMEOUT;
@@ -1861,7 +1874,8 @@ EXPORT_SYMBOL(mmc_erase);
 
 bool mmc_card_can_erase(struct mmc_card *card)
 {
-	return (card->csd.cmdclass & CCC_ERASE && card->erase_size);
+	return (card->csd.cmdclass & CCC_ERASE && card->erase_size) &&
+	    !(card->quirks & MMC_QUIRK_ERASE_BROKEN);
 }
 EXPORT_SYMBOL(mmc_card_can_erase);
 

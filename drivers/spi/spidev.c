@@ -428,7 +428,7 @@ spidev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			}
 
 			if (ctlr->use_gpio_descriptors && spi_get_csgpiod(spi, 0))
-				tmp |= SPI_CS_HIGH;
+				{ /*tmp |= SPI_CS_HIGH;*/ }
 
 			tmp |= spi->mode & ~SPI_MODE_MASK;
 			spi->mode = tmp & SPI_MODE_USER_MASK;
@@ -718,6 +718,7 @@ static const struct spi_device_id spidev_spi_ids[] = {
 	{ .name = /* semtech */ "sx1301" },
 	{ .name = /* silabs */ "em3581" },
 	{ .name = /* silabs */ "si3210" },
+	{ .name = "spidev" },
 	{},
 };
 MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
@@ -728,7 +729,7 @@ MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
  */
 static int spidev_of_check(struct device *dev)
 {
-	if (device_property_match_string(dev, "compatible", "spidev") < 0)
+	if (1 || device_property_match_string(dev, "compatible", "spidev") < 0)
 		return 0;
 
 	dev_err(dev, "spidev listed directly in DT is not supported\n");

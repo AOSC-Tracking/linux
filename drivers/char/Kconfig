@@ -5,6 +5,8 @@
 
 menu "Character devices"
 
+source "drivers/char/broadcom/Kconfig"
+
 source "drivers/tty/Kconfig"
 
 config TTY_PRINTK
@@ -422,5 +424,13 @@ config ADI
 	  This feature is also known as MCD (Memory Corruption Detection)
 	  and SSM (Silicon Secured Memory).  Intended consumers of this
 	  driver include crash and makedumpfile.
+
+config RASPBERRYPI_GPIOMEM
+        tristate "Rootless GPIO access via mmap() on Raspberry Pi boards"
+        default n
+        help
+                Provides users with root-free access to the GPIO registers
+                on the board. Calling mmap(/dev/gpiomem) will map the GPIO
+                register page to the user's pointer.
 
 endmenu

@@ -332,7 +332,9 @@ static int drm_crtc_legacy_gamma_set(struct drm_crtc *crtc,
 	replaced = drm_property_replace_blob(&crtc_state->degamma_lut,
 					     use_gamma_lut ? NULL : blob);
 	replaced |= drm_property_replace_blob(&crtc_state->ctm, NULL);
-	replaced |= drm_property_replace_blob(&crtc_state->gamma_lut,
+	if (!crtc_state->gamma_lut || !crtc_state->gamma_lut->data ||
+	    memcmp(crtc_state->gamma_lut->data, blob_data, blob->length))
+		replaced |= drm_property_replace_blob(&crtc_state->gamma_lut,
 					      use_gamma_lut ? blob : NULL);
 	crtc_state->color_mgmt_changed |= replaced;
 
@@ -591,6 +593,42 @@ int drm_plane_create_color_properties(struct drm_plane *plane,
 	return 0;
 }
 EXPORT_SYMBOL(drm_plane_create_color_properties);
+
+/**
+ * drm_plane_create_chroma_siting_properties - chroma siting related plane properties
+ * @plane: plane object
+ *
+ * Create and attach plane specific CHROMA_SITING
+ * properties to @plane.
+ */
+int drm_plane_create_chroma_siting_properties(struct drm_plane *plane,
+						int32_t default_chroma_siting_h,
+						int32_t default_chroma_siting_v)
+{
+	struct drm_device *dev = plane->dev;
+	struct drm_property *prop;
+
+	prop = drm_property_create_range(dev, 0, "CHROMA_SITING_H",
+					0, 1<<16);
+	if (!prop)
+		return -ENOMEM;
+	plane->chroma_siting_h_property = prop;
+	drm_object_attach_property(&plane->base, prop, default_chroma_siting_h);
+
+	prop = drm_property_create_range(dev, 0, "CHROMA_SITING_V",
+					0, 1<<16);
+	if (!prop)
+		return -ENOMEM;
+	plane->chroma_siting_v_property = prop;
+	drm_object_attach_property(&plane->base, prop, default_chroma_siting_v);
+
+	if (plane->state) {
+		plane->state->chroma_siting_h = default_chroma_siting_h;
+		plane->state->chroma_siting_v = default_chroma_siting_v;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(drm_plane_create_chroma_siting_properties);
 
 /**
  * drm_color_lut_check - check validity of lookup table

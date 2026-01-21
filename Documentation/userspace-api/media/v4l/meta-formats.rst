@@ -12,6 +12,7 @@ These formats are used for the :ref:`metadata` interface only.
 .. toctree::
     :maxdepth: 1
 
+    metafmt-bcm2835-isp-stats
     metafmt-c3-isp
     metafmt-d4xx
     metafmt-generic
@@ -19,6 +20,7 @@ These formats are used for the :ref:`metadata` interface only.
     metafmt-pisp-be
     metafmt-pisp-fe
     metafmt-rkisp1
+    metafmt-sensor-data
     metafmt-uvc
     metafmt-uvc-msxu-1-5
     metafmt-vivid

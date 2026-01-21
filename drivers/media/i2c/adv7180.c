@@ -189,6 +189,20 @@
 /* Initial number of frames to skip to avoid possible garbage */
 #define ADV7180_NUM_OF_SKIP_FRAMES       2
 
+enum adv7180_link_freq_idx {
+	INTERLACED_IDX,
+	I2P_IDX,
+};
+
+static const s64 adv7180_link_freqs[] = {
+	[INTERLACED_IDX] = 108000000,
+	[I2P_IDX] = 216000000,
+};
+
+static int dbg_input;
+module_param(dbg_input, int, 0644);
+MODULE_PARM_DESC(dbg_input, "Input number (0-31)");
+
 struct adv7180_state;
 
 #define ADV7180_FLAG_RESET_POWERED	BIT(0)
@@ -224,6 +238,7 @@ struct adv7180_state {
 	const struct adv7180_chip_info *chip_info;
 	enum v4l2_field		field;
 	bool			force_bt656_4;
+	struct v4l2_ctrl	*link_freq;
 };
 #define to_adv7180_sd(_ctrl) (&container_of(_ctrl->handler,		\
 					    struct adv7180_state,	\
@@ -434,10 +449,24 @@ out:
 	return ret;
 }
 
+static void adv7180_check_input(struct v4l2_subdev *sd)
+{
+	struct adv7180_state *state = to_state(sd);
+
+	if (state->input != dbg_input)
+		if (adv7180_s_routing(sd, dbg_input, 0, 0))
+			/* Failed - reset dbg_input */
+			dbg_input = state->input;
+}
+
 static int adv7180_g_input_status(struct v4l2_subdev *sd, u32 *status)
 {
 	struct adv7180_state *state = to_state(sd);
-	int ret = mutex_lock_interruptible(&state->mutex);
+	int ret;
+
+	adv7180_check_input(sd);
+
+	ret = mutex_lock_interruptible(&state->mutex);
 	if (ret)
 		return ret;
 
@@ -465,6 +494,8 @@ static int adv7180_s_std(struct v4l2_subdev *sd, v4l2_std_id std)
 	struct adv7180_state *state = to_state(sd);
 	int ret;
 
+	adv7180_check_input(sd);
+
 	guard(mutex)(&state->mutex);
 
 	/* Make sure we can support this std */
@@ -480,6 +511,8 @@ static int adv7180_s_std(struct v4l2_subdev *sd, v4l2_std_id std)
 static int adv7180_g_std(struct v4l2_subdev *sd, v4l2_std_id *norm)
 {
 	struct adv7180_state *state = to_state(sd);
+
+	adv7180_check_input(sd);
 
 	*norm = state->curr_norm;
 
@@ -579,6 +612,9 @@ static int adv7180_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	lockdep_assert_held(&state->mutex);
 
+	if (ctrl->flags & V4L2_CTRL_FLAG_READ_ONLY)
+		return 0;
+
 	val = ctrl->val;
 	switch (ctrl->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -639,7 +675,7 @@ static const struct v4l2_ctrl_config adv7180_ctrl_fast_switch = {
 
 static int adv7180_init_controls(struct adv7180_state *state)
 {
-	v4l2_ctrl_handler_init(&state->ctrl_hdl, 4);
+	v4l2_ctrl_handler_init(&state->ctrl_hdl, 5);
 	state->ctrl_hdl.lock = &state->mutex;
 
 	v4l2_ctrl_new_std(&state->ctrl_hdl, &adv7180_ctrl_ops,
@@ -666,6 +702,17 @@ static int adv7180_init_controls(struct adv7180_state *state)
 					     test_pattern_menu);
 	}
 
+	if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2) {
+		state->link_freq =
+			v4l2_ctrl_new_int_menu(&state->ctrl_hdl,
+					       &adv7180_ctrl_ops,
+					       V4L2_CID_LINK_FREQ,
+					       ARRAY_SIZE(adv7180_link_freqs) - 1,
+					       0, adv7180_link_freqs);
+		if (state->link_freq)
+			state->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	}
+
 	state->sd.ctrl_handler = &state->ctrl_hdl;
 	if (state->ctrl_hdl.error) {
 		int err = state->ctrl_hdl.error;
@@ -685,10 +732,15 @@ static int adv7180_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_state *sd_state,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
+	struct adv7180_state *state = to_state(sd);
+
 	if (code->index != 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_UYVY8_2X8;
+	if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2)
+		code->code = MEDIA_BUS_FMT_UYVY8_1X16;
+	else
+		code->code = MEDIA_BUS_FMT_UYVY8_2X8;
 
 	return 0;
 }
@@ -698,7 +750,10 @@ static int adv7180_mbus_fmt(struct v4l2_subdev *sd,
 {
 	struct adv7180_state *state = to_state(sd);
 
-	fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
+	if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2)
+		fmt->code = MEDIA_BUS_FMT_UYVY8_1X16;
+	else
+		fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
 	fmt->colorspace = V4L2_COLORSPACE_SMPTE170M;
 	fmt->width = 720;
 	fmt->height = state->curr_norm & V4L2_STD_525_60 ? 480 : 576;
@@ -785,6 +840,12 @@ static int adv7180_set_pad_format(struct v4l2_subdev *sd,
 
 	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
 		state->field = format->format.field;
+
+		if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2)
+			__v4l2_ctrl_s_ctrl(state->link_freq,
+					   (state->field == V4L2_FIELD_NONE) ?
+						I2P_IDX : INTERLACED_IDX);
+
 	} else {
 		framefmt = v4l2_subdev_state_get_format(sd_state, 0);
 		*framefmt = format->format;
@@ -852,6 +913,9 @@ static int init_device(struct adv7180_state *state)
 		return ret;
 
 	adv7180_set_field_mode(state);
+	ret = state->chip_info->select_input(state, state->input);
+	if (ret)
+		return ret;
 
 	__v4l2_ctrl_handler_setup(&state->ctrl_hdl);
 
@@ -928,6 +992,8 @@ static int adv7180_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct adv7180_state *state = to_state(sd);
 	int ret;
+
+	adv7180_check_input(sd);
 
 	/* Must wait until querystd released the lock */
 	guard(mutex)(&state->mutex);
@@ -1395,6 +1461,7 @@ static const struct adv7180_chip_info adv7282_m_info = {
 		BIT(ADV7182_INPUT_SVIDEO_AIN1_AIN2) |
 		BIT(ADV7182_INPUT_SVIDEO_AIN3_AIN4) |
 		BIT(ADV7182_INPUT_SVIDEO_AIN7_AIN8) |
+		BIT(ADV7182_INPUT_YPRPB_AIN1_AIN2_AIN3) |
 		BIT(ADV7182_INPUT_DIFF_CVBS_AIN1_AIN2) |
 		BIT(ADV7182_INPUT_DIFF_CVBS_AIN3_AIN4) |
 		BIT(ADV7182_INPUT_DIFF_CVBS_AIN7_AIN8),
@@ -1408,6 +1475,7 @@ static int adv7180_probe(struct i2c_client *client)
 	struct device_node *np = client->dev.of_node;
 	struct adv7180_state *state;
 	struct v4l2_subdev *sd;
+	unsigned int i;
 	int ret;
 
 	/* Check if the adapter supports the needed features */
@@ -1463,6 +1531,14 @@ static int adv7180_probe(struct i2c_client *client)
 	state->curr_norm = V4L2_STD_NTSC;
 
 	state->input = 0;
+	/* Select first valid input */
+	for (i = 0; i < 32; i++) {
+		if (BIT(i) & state->chip_info->valid_input_mask) {
+			state->input = i;
+			break;
+		}
+	}
+
 	sd = &state->sd;
 	v4l2_i2c_subdev_init(sd, client, &adv7180_ops);
 	sd->internal_ops = &adv7180_internal_ops;

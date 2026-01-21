@@ -44,6 +44,8 @@
 #include <linux/component.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/pm_runtime.h>
@@ -112,6 +114,10 @@
 #define CEC_CLOCK_FREQ 40000
 
 #define HDMI_14_MAX_TMDS_CLK   (340 * 1000 * 1000)
+
+/* bit field to force hotplug detection. bit0 = HDMI0 */
+static int force_hotplug;
+module_param(force_hotplug, int, 0644);
 
 static bool vc4_hdmi_supports_scrambling(struct vc4_hdmi *vc4_hdmi)
 {
@@ -360,6 +366,12 @@ static void vc4_hdmi_handle_hotplug(struct vc4_hdmi *vc4_hdmi,
 	int ret;
 
 	/*
+	 * Needs to be called for both connects and disconnects for HDMI
+	 * audio hotplug to work correctly.
+	 */
+	drm_atomic_helper_connector_hdmi_hotplug(connector, status);
+
+	/*
 	 * NOTE: This function should really be called with vc4_hdmi->mutex
 	 * held, but doing so results in reentrancy issues since
 	 * cec_s_phys_addr() might call .adap_enable, which leads to that
@@ -423,7 +435,9 @@ static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 		return connector_status_unknown;
 	}
 
-	if (vc4_hdmi->hpd_gpio) {
+	if (force_hotplug & BIT(vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0))
+		status = connector_status_connected;
+	else if (vc4_hdmi->hpd_gpio) {
 		if (gpiod_get_value_cansleep(vc4_hdmi->hpd_gpio))
 			status = connector_status_connected;
 	} else {
@@ -709,6 +723,24 @@ out:
 	return ret;
 }
 
+static int vc4_hdmi_clear_infoframe(struct drm_connector *connector,
+				    enum hdmi_infoframe_type type)
+{
+	struct vc4_hdmi *vc4_hdmi = connector_to_vc4_hdmi(connector);
+	struct drm_device *drm = connector->dev;
+	int ret;
+	int idx;
+
+	if (!drm_dev_enter(drm, &idx))
+		return 0;
+
+	ret = vc4_hdmi_stop_packet(vc4_hdmi, type, true);
+	if (ret)
+		drm_err(drm, "Failed to wait for infoframe to go idle: %d\n", ret);
+
+	drm_dev_exit(idx);
+	return ret;
+}
 #define SCRAMBLING_POLLING_DELAY_MS	1000
 
 static void vc4_hdmi_enable_scrambling(struct drm_encoder *encoder)
@@ -870,6 +902,8 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 	if (vc4_hdmi->variant->phy_disable)
 		vc4_hdmi->variant->phy_disable(vc4_hdmi);
 
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(vc4_hdmi->pixel_bvb_clock, 0);
 	clk_disable_unprepare(vc4_hdmi->pixel_bvb_clock);
 	clk_disable_unprepare(vc4_hdmi->pixel_clock);
 
@@ -1667,6 +1701,7 @@ vc4_hdmi_connector_clock_valid(const struct drm_connector *connector,
 static const struct drm_connector_hdmi_funcs vc4_hdmi_hdmi_connector_funcs = {
 	.tmds_char_rate_valid	= vc4_hdmi_connector_clock_valid,
 	.write_infoframe	= vc4_hdmi_write_infoframe,
+	.clear_infoframe	= vc4_hdmi_clear_infoframe,
 };
 
 #define WIFI_2_4GHz_CH1_MIN_FREQ	2400000000ULL
@@ -1681,7 +1716,9 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 	unsigned long long tmds_char_rate = mode->clock * 1000;
 	unsigned long long tmds_bit_rate;
 
-	if (vc4_hdmi->variant->unsupported_odd_h_timings) {
+	if (vc4_hdmi->variant->unsupported_odd_h_timings ||
+	    (vc4_hdmi->variant->unsupported_int_odd_h_timings &&
+		(mode->flags & DRM_MODE_FLAG_INTERLACE))) {
 		if (mode->flags & DRM_MODE_FLAG_DBLCLK) {
 			/* Only try to fixup DBLCLK modes to get 480i and 576i
 			 * working.
@@ -2199,7 +2236,7 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	struct snd_soc_dai_link *dai_link = &vc4_hdmi->audio.link;
 	struct snd_soc_card *card = &vc4_hdmi->audio.card;
 	struct device *dev = &vc4_hdmi->pdev->dev;
-	const __be32 *addr;
+	struct resource *iomem;
 	int index, len;
 	int ret;
 
@@ -2235,22 +2272,18 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	}
 
 	/*
-	 * Get the physical address of VC4_HD_MAI_DATA. We need to retrieve
-	 * the bus address specified in the DT, because the physical address
-	 * (the one returned by platform_get_resource()) is not appropriate
-	 * for DMA transfers.
-	 * This VC/MMU should probably be exposed to avoid this kind of hacks.
+	 * Get the physical address of VC4_HD_MAI_DATA.
 	 */
 	index = of_property_match_string(dev->of_node, "reg-names", "hd");
 	/* Before BCM2711, we don't have a named register range */
 	if (index < 0)
 		index = 1;
 
-	addr = of_get_address(dev->of_node, index, NULL, NULL);
-	if (!addr)
+	iomem = platform_get_resource(vc4_hdmi->pdev, IORESOURCE_MEM, index);
+	if (!iomem)
 		return -EINVAL;
 
-	vc4_hdmi->audio.dma_data.addr = be32_to_cpup(addr) + mai_data->offset;
+	vc4_hdmi->audio.dma_data.addr = iomem->start + mai_data->offset;
 	vc4_hdmi->audio.dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 	vc4_hdmi->audio.dma_data.maxburst = 2;
 
@@ -2313,6 +2346,8 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	dai_link->platforms->name = dev_name(dev);
 	dai_link->init = vc4_hdmi_codec_init;
 
+	dai_link->init = vc4_hdmi_codec_init;
+
 	card->dai_link = dai_link;
 	card->num_links = 1;
 	card->name = vc4_hdmi->variant->card_name;
@@ -2342,7 +2377,7 @@ static irqreturn_t vc4_hdmi_hpd_irq_thread(int irq, void *priv)
 	struct drm_connector *connector = &vc4_hdmi->connector;
 	struct drm_device *dev = connector->dev;
 
-	if (dev && dev->registered)
+	if (dev && dev->registered && !force_hotplug)
 		drm_connector_helper_hpd_irq_event(connector);
 
 	return IRQ_HANDLED;
@@ -3068,6 +3103,8 @@ static int vc4_hdmi_runtime_suspend(struct device *dev)
 	struct vc4_hdmi *vc4_hdmi = dev_get_drvdata(dev);
 
 	clk_disable_unprepare(vc4_hdmi->audio_clock);
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(vc4_hdmi->hsm_clock, 0);
 	clk_disable_unprepare(vc4_hdmi->hsm_clock);
 
 	return 0;
@@ -3192,7 +3229,7 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	vc4_hdmi->ddc = of_find_i2c_adapter_by_node(ddc_node);
 	of_node_put(ddc_node);
 	if (!vc4_hdmi->ddc) {
-		drm_err(drm, "Failed to get ddc i2c adapter by node\n");
+		drm_dbg(drm, "Failed to get ddc i2c adapter by node\n");
 		return -EPROBE_DEFER;
 	}
 
@@ -3316,6 +3353,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 		PHY_LANE_CK,
 	},
 	.unsupported_odd_h_timings	= true,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3345,6 +3383,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
 		PHY_LANE_2,
 	},
 	.unsupported_odd_h_timings	= true,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3374,6 +3413,7 @@ static const struct vc4_hdmi_variant bcm2712_hdmi0_variant = {
 		PHY_LANE_CK,
 	},
 	.unsupported_odd_h_timings	= false,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3401,6 +3441,7 @@ static const struct vc4_hdmi_variant bcm2712_hdmi1_variant = {
 		PHY_LANE_CK,
 	},
 	.unsupported_odd_h_timings	= false,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,

@@ -138,6 +138,9 @@ vc4_ctm_commit(struct vc4_dev *vc4, struct drm_atomic_state *state)
 	struct vc4_ctm_state *ctm_state = to_vc4_ctm_state(vc4->ctm_manager.state);
 	struct drm_color_ctm *ctm = ctm_state->ctm;
 
+	if (vc4->firmware_kms)
+		return;
+
 	WARN_ON_ONCE(vc4->gen > VC4_GEN_5);
 
 	if (ctm_state->fifo) {
@@ -221,12 +224,11 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
 		u32 dispctrl;
-		u32 dsp3_mux;
 
 		if (!crtc_state->active)
 			continue;
 
-		if (vc4_state->assigned_channel != 2)
+		if (vc4_crtc->data->hvs_output != 2)
 			continue;
 
 		/*
@@ -234,19 +236,28 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		 * FIFO X'.
 		 * SCALER_DISPCTRL_DSP3 = 3 means 'disable DSP 3'.
 		 *
-		 * DSP3 is connected to FIFO2 unless the transposer is
-		 * enabled. In this case, FIFO 2 is directly accessed by the
-		 * TXP IP, and we need to disable the FIFO2 -> pixelvalve1
-		 * route.
+		 * It is more likely that we want the TXP than 3 displays, so
+		 * handle the mapping of DSP3 to any available FIFO.
+		 *
+		 * TXP can also run with a lower panic level than a live display,
+		 * as it doesn't have the same real-time constraint.
 		 */
-		if (vc4_crtc->feeds_txp)
-			dsp3_mux = VC4_SET_FIELD(3, SCALER_DISPCTRL_DSP3_MUX);
-		else
-			dsp3_mux = VC4_SET_FIELD(2, SCALER_DISPCTRL_DSP3_MUX);
-
 		dispctrl = HVS_READ(SCALER_DISPCTRL) &
-			   ~SCALER_DISPCTRL_DSP3_MUX_MASK;
-		HVS_WRITE(SCALER_DISPCTRL, dispctrl | dsp3_mux);
+			     ~SCALER_DISPCTRL_PANIC2_MASK;
+
+		if (vc4_crtc->feeds_txp) {
+			dispctrl |= VC4_SET_FIELD(0, SCALER_DISPCTRL_PANIC2);
+			drm_WARN_ON(&vc4->base,
+				    VC4_GET_FIELD(HVS_READ(SCALER_DISPCTRL),
+						  SCALER_DISPCTRL_DSP3_MUX) == 2);
+		} else {
+			dispctrl &= ~SCALER_DISPCTRL_DSP3_MUX_MASK;
+			dispctrl |= VC4_SET_FIELD(vc4_state->assigned_channel,
+						     SCALER_DISPCTRL_DSP3_MUX);
+			dispctrl |= VC4_SET_FIELD(2, SCALER_DISPCTRL_PANIC2);
+		}
+
+		HVS_WRITE(SCALER_DISPCTRL, dispctrl);
 	}
 }
 
@@ -391,7 +402,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	if (WARN_ON(IS_ERR(new_hvs_state)))
 		return;
 
-	if (vc4->gen < VC4_GEN_6_C) {
+	if (0 && vc4->gen < VC4_GEN_6_C) {
 		struct drm_crtc_state *new_crtc_state;
 		struct drm_crtc *crtc;
 		int i;
@@ -399,8 +410,9 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
 			struct vc4_crtc_state *vc4_crtc_state;
 
-			if (!new_crtc_state->commit)
+			if (!new_crtc_state->commit || vc4->firmware_kms)
 				continue;
+
 
 			vc4_crtc_state = to_vc4_crtc_state(new_crtc_state);
 			vc4_hvs_mask_underrun(hvs, vc4_crtc_state->assigned_channel);
@@ -426,7 +438,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		old_hvs_state->fifo_state[channel].pending_commit = NULL;
 	}
 
-	if (vc4->gen == VC4_GEN_5) {
+	if (vc4->gen == VC4_GEN_5 && !vc4->firmware_kms) {
 		unsigned long state_rate = max(old_hvs_state->core_clock_rate,
 					       new_hvs_state->core_clock_rate);
 		unsigned long core_rate = clamp_t(unsigned long, state_rate,
@@ -447,23 +459,25 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	if (vc4->gen <= VC4_GEN_5)
 		vc4_ctm_commit(vc4, state);
 
-	switch (vc4->gen) {
-	case VC4_GEN_4:
-		vc4_hvs_pv_muxing_commit(vc4, state);
-		break;
+	if (!vc4->firmware_kms) {
+		switch (vc4->gen) {
+		case VC4_GEN_4:
+			vc4_hvs_pv_muxing_commit(vc4, state);
+			break;
 
-	case VC4_GEN_5:
-		vc5_hvs_pv_muxing_commit(vc4, state);
-		break;
+		case VC4_GEN_5:
+			vc5_hvs_pv_muxing_commit(vc4, state);
+			break;
 
-	case VC4_GEN_6_C:
-	case VC4_GEN_6_D:
-		vc6_hvs_pv_muxing_commit(vc4, state);
-		break;
+		case VC4_GEN_6_C:
+		case VC4_GEN_6_D:
+			vc6_hvs_pv_muxing_commit(vc4, state);
+			break;
 
-	default:
-		drm_err(dev, "Unknown VC4 generation: %d", vc4->gen);
-		break;
+		default:
+			drm_err(dev, "Unknown VC4 generation: %d", vc4->gen);
+			break;
+		}
 	}
 
 	drm_atomic_helper_commit_planes(dev, state,
@@ -479,7 +493,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 
 	drm_atomic_helper_cleanup_planes(dev, state);
 
-	if (vc4->gen == VC4_GEN_5) {
+	if (vc4->gen == VC4_GEN_5 && !vc4->firmware_kms) {
 		unsigned long core_rate = min_t(unsigned long,
 						hvs->max_core_rate,
 						new_hvs_state->core_clock_rate);
@@ -500,10 +514,20 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 
 static int vc4_atomic_commit_setup(struct drm_atomic_state *state)
 {
+	struct drm_device *dev = state->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_crtc_state *crtc_state;
 	struct vc4_hvs_state *hvs_state;
 	struct drm_crtc *crtc;
 	unsigned int i;
+
+	/* We know for sure we don't want an async update here. Set
+	 * state->legacy_cursor_update to false to prevent
+	 * drm_atomic_helper_setup_commit() from auto-completing
+	 * commit->flip_done.
+	 */
+	if (!vc4->firmware_kms)
+		state->legacy_cursor_update = false;
 
 	hvs_state = vc4_hvs_get_new_global_state(state);
 	if (WARN_ON(IS_ERR(hvs_state)))
@@ -661,17 +685,26 @@ static int vc4_load_tracker_atomic_check(struct drm_atomic_state *state)
 	for_each_oldnew_plane_in_state(state, plane, old_plane_state,
 				       new_plane_state, i) {
 		struct vc4_plane_state *vc4_plane_state;
+		struct vc4_crtc *vc4_crtc;
 
 		if (old_plane_state->fb && old_plane_state->crtc) {
 			vc4_plane_state = to_vc4_plane_state(old_plane_state);
-			load_state->membus_load -= vc4_plane_state->membus_load;
-			load_state->hvs_load -= vc4_plane_state->hvs_load;
+			vc4_crtc = to_vc4_crtc(old_plane_state->crtc);
+
+			if (!vc4_crtc->feeds_txp) {
+				load_state->membus_load -= vc4_plane_state->membus_load;
+				load_state->hvs_load -= vc4_plane_state->hvs_load;
+			}
 		}
 
 		if (new_plane_state->fb && new_plane_state->crtc) {
 			vc4_plane_state = to_vc4_plane_state(new_plane_state);
-			load_state->membus_load += vc4_plane_state->membus_load;
-			load_state->hvs_load += vc4_plane_state->hvs_load;
+			vc4_crtc = to_vc4_crtc(new_plane_state->crtc);
+
+			if (!vc4_crtc->feeds_txp) {
+				load_state->membus_load += vc4_plane_state->membus_load;
+				load_state->hvs_load += vc4_plane_state->hvs_load;
+			}
 		}
 	}
 
@@ -874,12 +907,16 @@ static int cmp_vc4_crtc_hvs_output(const void *a, const void *b)
 static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 				      struct drm_atomic_state *state)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(state->dev);
 	struct vc4_hvs_state *hvs_new_state;
 	struct drm_crtc **sorted_crtcs;
 	struct drm_crtc *crtc;
 	unsigned int unassigned_channels = 0;
 	unsigned int i;
 	int ret;
+
+	if (vc4->firmware_kms)
+		return 0;
 
 	hvs_new_state = vc4_hvs_get_global_state(state);
 	if (IS_ERR(hvs_new_state))

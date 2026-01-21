@@ -566,6 +566,19 @@ void xhci_ring_ep_doorbell(struct xhci_hcd *xhci,
 
 	trace_xhci_ring_ep_doorbell(slot_id, DB_VALUE(ep_index, stream_id));
 
+	/*
+	 * For non-coherent systems with PCIe DMA (such as Pi 4, Pi 5) there
+	 * is a theoretical race between the TRB write and barrier, which
+	 * is reported complete as soon as the write leaves the CPU domain,
+	 * the doorbell write, which may be reported as complete by the RC
+	 * at some arbitrary point, and the visibility of new TRBs in system
+	 * RAM by the endpoint DMA engine.
+	 *
+	 * This read before the write positively serialises the CPU state
+	 * by incurring a round-trip across the link.
+	 */
+	readl(db_addr);
+
 	writel(DB_VALUE(ep_index, stream_id), db_addr);
 	/* flush the write */
 	readl(db_addr);
@@ -694,8 +707,11 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	struct xhci_ring *ep_ring;
 	struct xhci_command *cmd;
 	struct xhci_segment *new_seg;
+	struct xhci_segment *halted_seg = NULL;
 	union xhci_trb *new_deq;
 	int new_cycle;
+	union xhci_trb *halted_trb;
+	int index = 0;
 	dma_addr_t addr;
 	u64 hw_dequeue;
 	bool hw_dequeue_found = false;
@@ -714,7 +730,25 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	hw_dequeue = xhci_get_hw_deq(xhci, dev, ep_index, stream_id) & TR_DEQ_PTR_MASK;
 	new_seg = ep_ring->deq_seg;
 	new_deq = ep_ring->dequeue;
-	new_cycle = le32_to_cpu(td->end_trb->generic.field[3]) & TRB_CYCLE;
+
+	/*
+	 * Quirk: xHC write-back of the DCS field in the hardware dequeue
+	 * pointer is wrong - use the cycle state of the TRB pointed to by
+	 * the dequeue pointer.
+	 */
+	if (xhci->quirks & XHCI_EP_CTX_BROKEN_DCS &&
+	    !(ep->ep_state & EP_HAS_STREAMS))
+		halted_seg = trb_in_td(td, hw_dequeue & ~0xf);
+	if (halted_seg) {
+		index = ((dma_addr_t)(hw_dequeue & ~0xf) - halted_seg->dma) /
+			 sizeof(*halted_trb);
+		halted_trb = &halted_seg->trbs[index];
+		new_cycle = halted_trb->generic.field[3] & 0x1;
+		xhci_dbg(xhci, "Endpoint DCS = %d TRB index = %d cycle = %d\n",
+			 (u8)(hw_dequeue & 0x1), index, new_cycle);
+	} else {
+		new_cycle = le32_to_cpu(td->end_trb->generic.field[3]) & TRB_CYCLE;
+	}
 
 	/*
 	 * Walk the ring until both the next TRB and hw_dequeue are found (don't
@@ -745,6 +779,16 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 
 	} while (!hw_dequeue_found || !td_last_trb_found);
 
+	/*
+	 * Quirk: the xHC does not correctly parse link TRBs if the HW Dequeue
+	 * pointer is set to one. Advance to the next TRB (and next segment).
+	 */
+	if (xhci->quirks & XHCI_AVOID_DQ_ON_LINK && trb_is_link(new_deq)) {
+		if (link_trb_toggles_cycle(new_deq))
+			new_cycle ^= 0x1;
+		next_trb(&new_seg, &new_deq);
+	}
+
 	/* Don't update the ring cycle state for the producer (us). */
 	addr = xhci_trb_virt_to_dma(new_seg, new_deq);
 	if (addr == 0) {
@@ -754,9 +798,9 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	}
 
 	if ((ep->ep_state & SET_DEQ_PENDING)) {
-		xhci_warn(xhci, "Set TR Deq already pending, don't submit for 0x%pad\n",
-			  &addr);
-		return -EBUSY;
+		xhci_warn(xhci, "WARN A Set TR Deq Ptr command is pending for slot %u ep %u\n",
+			  slot_id, ep_index);
+		ep->ep_state &= ~SET_DEQ_PENDING;
 	}
 
 	/* This function gets called from contexts where it cannot sleep */
@@ -3635,6 +3679,48 @@ static int xhci_align_td(struct xhci_hcd *xhci, struct urb *urb, u32 enqd_len,
 	return 1;
 }
 
+static void xhci_vl805_hub_tt_quirk(struct xhci_hcd *xhci, struct urb *urb,
+				    struct xhci_ring *ring)
+{
+	struct list_head *tmp;
+	struct usb_device *udev = urb->dev;
+	unsigned int timeout = 0;
+	unsigned int single_td = 0;
+
+	/*
+	 * Adding a TD to an Idle ring for a FS nonperiodic endpoint
+	 * that is behind the internal hub's TT will run the risk of causing a
+	 * downstream port babble if submitted late in uFrame 7.
+	 * Wait until we've moved on into at least uFrame 0
+	 * (MFINDEX references the next SOF to be transmitted).
+	 *
+	 * Rings for IN endpoints in the Running state also risk causing
+	 * babble if the returned data is large, but there's not much we can do
+	 * about it here.
+	 */
+	if (udev->route & 0xffff0 || udev->speed != USB_SPEED_FULL)
+		return;
+
+	list_for_each(tmp, &ring->td_list) {
+		single_td++;
+		if (single_td == 2) {
+			single_td = 0;
+			break;
+		}
+	}
+	if (single_td) {
+		while (timeout < 20 &&
+		       (readl(&xhci->run_regs->microframe_index) & 0x7) == 0) {
+			udelay(10);
+			timeout++;
+		}
+		if (timeout >= 20)
+			xhci_warn(xhci, "MFINDEX didn't advance - %u.%u dodged\n",
+				  readl(&xhci->run_regs->microframe_index) >> 3,
+				  readl(&xhci->run_regs->microframe_index) & 7);
+	}
+}
+
 /* This is very similar to what ehci-q.c qtd_fill() does */
 int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		struct urb *urb, int slot_id, unsigned int ep_index)
@@ -3789,6 +3875,8 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	}
 
 	check_trb_math(urb, enqd_len);
+	if (xhci->quirks & XHCI_VLI_HUB_TT_QUIRK)
+		xhci_vl805_hub_tt_quirk(xhci, urb, ring);
 	giveback_first_trb(xhci, slot_id, ep_index, urb->stream_id,
 			start_cycle, start_trb);
 	return 0;
@@ -3937,6 +4025,8 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			/* Event on completion */
 			field | TRB_IOC | TRB_TYPE(TRB_STATUS) | ep_ring->cycle_state);
 
+	if (xhci->quirks & XHCI_VLI_HUB_TT_QUIRK)
+		xhci_vl805_hub_tt_quirk(xhci, urb, ep_ring);
 	giveback_first_trb(xhci, slot_id, ep_index, 0,
 			start_cycle, start_trb);
 	return 0;

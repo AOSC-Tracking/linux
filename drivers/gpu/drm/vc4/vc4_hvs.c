@@ -281,8 +281,8 @@ static int vc4_hvs_debugfs_dlist(struct seq_file *m, void *data)
 
 static int vc6_hvs_debugfs_dlist(struct seq_file *m, void *data)
 {
-	struct drm_info_node *node = m->private;
-	struct drm_device *dev = node->minor->dev;
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_hvs *hvs = vc4->hvs;
 	struct drm_printer p = drm_seq_file_printer(m);
@@ -349,6 +349,57 @@ static int vc6_hvs_debugfs_upm_allocs(struct seq_file *m, void *data)
 	return 0;
 }
 
+static int vc4_hvs_debugfs_dlist_allocs(struct seq_file *m, void *data)
+{
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_printer p = drm_seq_file_printer(m);
+	struct vc4_hvs_dlist_allocation *cur, *next;
+	struct drm_mm_node *mm_node;
+	unsigned long flags;
+
+	spin_lock_irqsave(&hvs->mm_lock, flags);
+
+	drm_printf(&p, "Allocated nodes:\n");
+	list_for_each_entry(mm_node, drm_mm_nodes(&hvs->dlist_mm), node_list) {
+		drm_printf(&p, "node [%08llx + %08llx]\n", mm_node->start, mm_node->size);
+	}
+
+	drm_printf(&p, "Stale nodes:\n");
+	list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
+		drm_printf(&p, "node [%08llx + %08llx] channel %u frcnt %u\n",
+			   cur->mm_node.start, cur->mm_node.size, cur->channel,
+			   cur->target_frame_count);
+	}
+
+	spin_unlock_irqrestore(&hvs->mm_lock, flags);
+
+	return 0;
+}
+
+static int vc4_hvs_debugfs_lbm_allocs(struct seq_file *m, void *data)
+{
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_printer p = drm_seq_file_printer(m);
+	struct vc4_lbm_refcounts *refcount;
+	unsigned int i;
+
+	drm_printf(&p, "LBM Handles:\n");
+	for (i = 0; i < VC4_NUM_LBM_HANDLES; i++) {
+		refcount = &hvs->lbm_refcounts[i];
+		drm_printf(&p, "handle %u: refcount %u, size %zu [%08llx + %08llx]\n",
+			   i, refcount_read(&refcount->refcount), refcount->size,
+			   refcount->lbm.start, refcount->lbm.size);
+	}
+
+	return 0;
+}
+
 /* The filter kernel is composed of dwords each containing 3 9-bit
  * signed integers packed next to each other.
  */
@@ -382,6 +433,9 @@ static int vc6_hvs_debugfs_upm_allocs(struct seq_file *m, void *data)
 static const u32 mitchell_netravali_1_3_1_3_kernel[] =
 	VC4_LINEAR_PHASE_KERNEL(0, -2, -6, -8, -10, -8, -3, 2, 18,
 				50, 82, 119, 155, 187, 213, 227);
+static const u32 nearest_neighbour_kernel[] =
+	VC4_LINEAR_PHASE_KERNEL(0, 0, 0, 0, 0, 0, 0, 0,
+				1, 1, 1, 1, 255, 255, 255, 255);
 
 static int vc4_hvs_upload_linear_kernel(struct vc4_hvs *hvs,
 					struct drm_mm_node *space,
@@ -468,6 +522,273 @@ static void vc4_hvs_update_gamma_lut(struct vc4_hvs *hvs,
 	}
 
 	vc4_hvs_lut_load(hvs, vc4_crtc);
+}
+
+static void vc4_hvs_irq_enable_eof(struct vc4_hvs *hvs,
+				   unsigned int channel)
+{
+	struct vc4_dev *vc4 = hvs->vc4;
+
+	if (hvs->eof_irq[channel].enabled)
+		return;
+
+	switch (vc4->gen) {
+	case VC4_GEN_4:
+		HVS_WRITE(SCALER_DISPCTRL,
+			  HVS_READ(SCALER_DISPCTRL) |
+			  SCALER_DISPCTRL_DSPEIEOF(channel));
+		break;
+
+	case VC4_GEN_5:
+		HVS_WRITE(SCALER_DISPCTRL,
+			  HVS_READ(SCALER_DISPCTRL) |
+			  SCALER5_DISPCTRL_DSPEIEOF(channel));
+		break;
+
+	case VC4_GEN_6_C:
+	case VC4_GEN_6_D:
+		enable_irq(hvs->eof_irq[channel].desc);
+		break;
+
+	default:
+		break;
+	}
+
+	hvs->eof_irq[channel].enabled = true;
+}
+
+static void vc4_hvs_irq_clear_eof(struct vc4_hvs *hvs,
+				  unsigned int channel)
+{
+	struct vc4_dev *vc4 = hvs->vc4;
+
+	if (!hvs->eof_irq[channel].enabled)
+		return;
+
+	switch (vc4->gen) {
+	case VC4_GEN_4:
+		HVS_WRITE(SCALER_DISPCTRL,
+			  HVS_READ(SCALER_DISPCTRL) &
+			  ~SCALER_DISPCTRL_DSPEIEOF(channel));
+		break;
+
+	case VC4_GEN_5:
+		HVS_WRITE(SCALER_DISPCTRL,
+			  HVS_READ(SCALER_DISPCTRL) &
+			  ~SCALER5_DISPCTRL_DSPEIEOF(channel));
+		break;
+
+	case VC4_GEN_6_C:
+	case VC4_GEN_6_D:
+		disable_irq_nosync(hvs->eof_irq[channel].desc);
+		break;
+
+	default:
+		break;
+	}
+
+	hvs->eof_irq[channel].enabled = false;
+}
+
+static void vc4_hvs_free_dlist_entry_locked(struct vc4_hvs *hvs,
+					    struct vc4_hvs_dlist_allocation *alloc);
+
+static struct vc4_hvs_dlist_allocation *
+vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
+			  unsigned int channel,
+			  size_t dlist_count)
+{
+	struct vc4_dev *vc4 = hvs->vc4;
+	struct drm_device *dev = &vc4->base;
+	struct vc4_hvs_dlist_allocation *alloc;
+	struct vc4_hvs_dlist_allocation *cur, *next;
+	unsigned long flags;
+	int ret;
+
+	if (channel == VC4_HVS_CHANNEL_DISABLED)
+		return NULL;
+
+	alloc = kzalloc(sizeof(*alloc), GFP_KERNEL);
+	if (!alloc)
+		return ERR_PTR(-ENOMEM);
+
+	INIT_LIST_HEAD(&alloc->node);
+
+	spin_lock_irqsave(&hvs->mm_lock, flags);
+	ret = drm_mm_insert_node(&hvs->dlist_mm, &alloc->mm_node,
+				 dlist_count);
+	spin_unlock_irqrestore(&hvs->mm_lock, flags);
+
+	if (ret) {
+		drm_err(dev, "Failed to allocate DLIST entry. Requested size=%zu. ret=%d. DISPCTRL is %08x\n",
+			dlist_count, ret, HVS_READ(SCALER_DISPCTRL));
+
+		/* This should never happen as stale entries should get released
+		 * as the frame counter interrupt triggers.
+		 * However we've seen this fail for reasons currently unknown.
+		 * Free all stale entries now so we should be able to complete
+		 * this allocation.
+		 */
+		spin_lock_irqsave(&hvs->mm_lock, flags);
+		list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
+			vc4_hvs_free_dlist_entry_locked(hvs, cur);
+		}
+
+		ret = drm_mm_insert_node(&hvs->dlist_mm, &alloc->mm_node,
+					 dlist_count);
+		spin_unlock_irqrestore(&hvs->mm_lock, flags);
+
+		if (ret)
+			return ERR_PTR(ret);
+	}
+
+	alloc->channel = channel;
+
+	return alloc;
+}
+
+static void vc4_hvs_free_dlist_entry_locked(struct vc4_hvs *hvs,
+					    struct vc4_hvs_dlist_allocation *alloc)
+{
+	lockdep_assert_held(&hvs->mm_lock);
+
+	if (!list_empty(&alloc->node))
+		list_del(&alloc->node);
+
+	drm_mm_remove_node(&alloc->mm_node);
+	kfree(alloc);
+}
+
+void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
+				    struct vc4_hvs_dlist_allocation *alloc)
+{
+	unsigned long flags;
+	u8 frcnt;
+
+	if (!alloc)
+		return;
+
+	if (!drm_mm_node_allocated(&alloc->mm_node))
+		return;
+
+	/*
+	 * Kunit tests run with a mock device and we consider any hardware
+	 * access a test failure. Let's free the dlist allocation right away if
+	 * we're running under kunit, we won't risk a dlist corruption anyway.
+	 *
+	 * Likewise if the allocation was only checked and never programmed, we
+	 * can destroy the allocation immediately.
+	 */
+	if (kunit_get_current_test() || !alloc->dlist_programmed) {
+		spin_lock_irqsave(&hvs->mm_lock, flags);
+		vc4_hvs_free_dlist_entry_locked(hvs, alloc);
+		spin_unlock_irqrestore(&hvs->mm_lock, flags);
+		return;
+	}
+
+	frcnt = vc4_hvs_get_fifo_frame_count(hvs, alloc->channel);
+	alloc->target_frame_count = (frcnt + 1) & ((1 << 6) - 1);
+
+	spin_lock_irqsave(&hvs->mm_lock, flags);
+
+	list_add_tail(&alloc->node, &hvs->stale_dlist_entries);
+
+	HVS_WRITE(SCALER_DISPSTAT, SCALER_DISPSTAT_EOF(alloc->channel));
+	vc4_hvs_irq_enable_eof(hvs, alloc->channel);
+
+	spin_unlock_irqrestore(&hvs->mm_lock, flags);
+}
+
+static void vc4_hvs_schedule_dlist_sweep(struct vc4_hvs *hvs,
+					 unsigned int channel)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&hvs->mm_lock, flags);
+
+	if (!list_empty(&hvs->stale_dlist_entries))
+		queue_work(system_unbound_wq, &hvs->free_dlist_work);
+
+	if (list_empty(&hvs->stale_dlist_entries))
+		vc4_hvs_irq_clear_eof(hvs, channel);
+
+	spin_unlock_irqrestore(&hvs->mm_lock, flags);
+}
+
+/*
+ * Frame counts are essentially sequence numbers over 6 bits, and we
+ * thus can use sequence number arithmetic and follow the RFC1982 to
+ * implement proper comparison between them.
+ */
+static bool vc4_hvs_frcnt_lte(u8 cnt1, u8 cnt2)
+{
+	return (s8)((cnt1 << 2) - (cnt2 << 2)) <= 0;
+}
+
+static bool vc4_hvs_check_channel_active(struct vc4_hvs *hvs, unsigned int fifo)
+{
+	struct vc4_dev *vc4 = hvs->vc4;
+	struct drm_device *drm = &vc4->base;
+	bool enabled = false;
+	int idx;
+
+	if (!drm_dev_enter(drm, &idx))
+		return 0;
+
+	if (vc4->gen >= VC4_GEN_6_C)
+		enabled = HVS_READ(SCALER6_DISPX_CTRL0(fifo)) & SCALER6_DISPX_CTRL0_ENB;
+	else
+		enabled = HVS_READ(SCALER_DISPCTRLX(fifo)) & SCALER_DISPCTRLX_ENABLE;
+
+	drm_dev_exit(idx);
+	return enabled;
+}
+
+/*
+ * Some atomic commits (legacy cursor updates, mostly) will not wait for
+ * the next vblank and will just return once the commit has been pushed
+ * to the hardware.
+ *
+ * On the hardware side, our HVS stores the planes parameters in its
+ * context RAM, and will use part of the RAM to store data during the
+ * frame rendering.
+ *
+ * This interacts badly if we get multiple commits before the next
+ * vblank since we could end up overwriting the DLIST entries used by
+ * previous commits if our dlist allocation reuses that entry. In such a
+ * case, we would overwrite the data currently being used by the
+ * hardware, resulting in a corrupted frame.
+ *
+ * In order to work around this, we'll queue the dlist entries in a list
+ * once the associated CRTC state is destroyed. The HVS only allows us
+ * to know which entry is being active, but not which one are no longer
+ * being used, so in order to avoid freeing entries that are still used
+ * by the hardware we add a guesstimate of the frame count where our
+ * entry will no longer be used, and thus will only free those entries
+ * when we will have reached that frame count.
+ */
+static void vc4_hvs_dlist_free_work(struct work_struct *work)
+{
+	struct vc4_hvs *hvs = container_of(work, struct vc4_hvs, free_dlist_work);
+	struct vc4_hvs_dlist_allocation *cur, *next;
+	unsigned long flags;
+	bool active[3];
+	u8 frcnt[3];
+	int i;
+
+	spin_lock_irqsave(&hvs->mm_lock, flags);
+	for (i = 0; i < 3; i++) {
+		frcnt[i] = vc4_hvs_get_fifo_frame_count(hvs, i);
+		active[i] = vc4_hvs_check_channel_active(hvs, i);
+	}
+	list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
+		if (active[cur->channel] &&
+		    !vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt[cur->channel]))
+			continue;
+
+		vc4_hvs_free_dlist_entry_locked(hvs, cur);
+	}
+	spin_unlock_irqrestore(&hvs->mm_lock, flags);
 }
 
 u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo)
@@ -790,13 +1111,12 @@ int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
+	struct vc4_hvs_dlist_allocation *alloc;
 	struct drm_device *dev = crtc->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_plane *plane;
-	unsigned long flags;
 	const struct drm_plane_state *plane_state;
 	u32 dlist_count = 0;
-	int ret;
 
 	/* The pixelvalve can only feed one encoder (and encoders are
 	 * 1:1 with connectors.)
@@ -819,14 +1139,11 @@ int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 	drm_dbg_driver(dev, "[CRTC:%d:%s] Allocating DLIST block with size: %u\n",
 		       crtc->base.id, crtc->name, dlist_count);
-	spin_lock_irqsave(&vc4->hvs->mm_lock, flags);
-	ret = drm_mm_insert_node(&vc4->hvs->dlist_mm, &vc4_state->mm,
-				 dlist_count);
-	spin_unlock_irqrestore(&vc4->hvs->mm_lock, flags);
-	if (ret) {
-		drm_err(dev, "Failed to allocate DLIST entry: %d\n", ret);
-		return ret;
-	}
+	alloc = vc4_hvs_alloc_dlist_entry(vc4->hvs, vc4_state->assigned_channel, dlist_count);
+	if (IS_ERR(alloc))
+		return PTR_ERR(alloc);
+
+	vc4_state->mm = alloc;
 
 	return 0;
 }
@@ -842,13 +1159,17 @@ static void vc4_hvs_install_dlist(struct drm_crtc *crtc)
 	if (!drm_dev_enter(dev, &idx))
 		return;
 
+	WARN_ON(!vc4_state->mm);
+
+	vc4_state->mm->dlist_programmed = true;
+
 	if (vc4->gen >= VC4_GEN_6_C)
 		HVS_WRITE(SCALER6_DISPX_LPTRS(vc4_state->assigned_channel),
-			  VC4_SET_FIELD(vc4_state->mm.start,
+			  VC4_SET_FIELD(vc4_state->mm->mm_node.start,
 					SCALER6_DISPX_LPTRS_HEADE));
 	else
 		HVS_WRITE(SCALER_DISPLISTX(vc4_state->assigned_channel),
-			  vc4_state->mm.start);
+			  vc4_state->mm->mm_node.start);
 
 	drm_dev_exit(idx);
 }
@@ -875,8 +1196,10 @@ static void vc4_hvs_update_dlist(struct drm_crtc *crtc)
 		spin_unlock_irqrestore(&dev->event_lock, flags);
 	}
 
+	WARN_ON(!vc4_state->mm);
+
 	spin_lock_irqsave(&vc4_crtc->irq_lock, flags);
-	vc4_crtc->current_dlist = vc4_state->mm.start;
+	vc4_crtc->current_dlist = vc4_state->mm->mm_node.start;
 	spin_unlock_irqrestore(&vc4_crtc->irq_lock, flags);
 }
 
@@ -937,8 +1260,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	struct vc4_plane_state *vc4_plane_state;
 	bool debug_dump_regs = false;
 	bool enable_bg_fill = true;
-	u32 __iomem *dlist_start = vc4->hvs->dlist + vc4_state->mm.start;
-	u32 __iomem *dlist_next = dlist_start;
+	u32 __iomem *dlist_start, *dlist_next;
 	unsigned int zpos = 0;
 	bool found = false;
 	int idx;
@@ -957,6 +1279,9 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		DRM_INFO("CRTC %d HVS before:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(hvs);
 	}
+
+	dlist_start = vc4->hvs->dlist + vc4_state->mm->mm_node.start;
+	dlist_next = dlist_start;
 
 	/* Copy all the active planes' dlist contents to the hardware dlist. */
 	do {
@@ -991,20 +1316,14 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	writel(SCALER_CTL0_END, dlist_next);
 	dlist_next++;
 
-	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm.size);
+	WARN_ON(!vc4_state->mm);
+	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm->mm_node.size);
 
 	if (vc4->gen >= VC4_GEN_6_C) {
 		/* This sets a black background color fill, as is the case
 		 * with other DRM drivers.
 		 */
-		if (enable_bg_fill)
-			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
-				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) |
-				  SCALER6_DISPX_CTRL1_BGENB);
-		else
-			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
-				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) &
-				  ~SCALER6_DISPX_CTRL1_BGENB);
+		hvs->bg_fill[channel] = enable_bg_fill;
 	} else {
 		/* we can actually run with a lower core clock when background
 		 * fill is enabled on VC4_GEN_5 so leave it enabled always.
@@ -1147,6 +1466,11 @@ static irqreturn_t vc4_hvs_irq_handler(int irq, void *data)
 
 			irqret = IRQ_HANDLED;
 		}
+
+		if (status & SCALER_DISPSTAT_EOF(channel)) {
+			vc4_hvs_schedule_dlist_sweep(hvs, channel);
+			irqret = IRQ_HANDLED;
+		}
 	}
 
 	/* Clear every per-channel interrupt flag. */
@@ -1155,6 +1479,36 @@ static irqreturn_t vc4_hvs_irq_handler(int irq, void *data)
 				   SCALER_DISPSTAT_IRQMASK(2));
 
 	return irqret;
+}
+
+static irqreturn_t vc6_hvs_eof_irq_handler(int irq, void *data)
+{
+	struct drm_device *dev = data;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	unsigned int i;
+
+	for (i = 0; i < HVS_NUM_CHANNELS; i++) {
+		if (!hvs->eof_irq[i].enabled)
+			continue;
+
+		if (hvs->eof_irq[i].desc != irq)
+			continue;
+
+		if (hvs->bg_fill[i])
+			HVS_WRITE(SCALER6_DISPX_CTRL1(i),
+				  HVS_READ(SCALER6_DISPX_CTRL1(i)) |
+				  SCALER6_DISPX_CTRL1_BGENB);
+		else
+			HVS_WRITE(SCALER6_DISPX_CTRL1(i),
+				  HVS_READ(SCALER6_DISPX_CTRL1(i)) &
+				  ~SCALER6_DISPX_CTRL1_BGENB);
+
+		vc4_hvs_schedule_dlist_sweep(hvs, i);
+		return IRQ_HANDLED;
+	}
+
+	return IRQ_NONE;
 }
 
 int vc4_hvs_debugfs_init(struct drm_minor *minor)
@@ -1178,7 +1532,11 @@ int vc4_hvs_debugfs_init(struct drm_minor *minor)
 		drm_debugfs_add_file(drm, "hvs_dlists", vc4_hvs_debugfs_dlist, NULL);
 	}
 
+	drm_debugfs_add_file(drm, "hvs_lbm", vc4_hvs_debugfs_lbm_allocs, NULL);
+
 	drm_debugfs_add_file(drm, "hvs_underrun", vc4_hvs_debugfs_underrun, NULL);
+
+	drm_debugfs_add_file(drm, "hvs_dlist_allocs", vc4_hvs_debugfs_dlist_allocs, NULL);
 
 	vc4_debugfs_add_regset32(drm, "hvs_regs", &hvs->regset);
 
@@ -1248,6 +1606,18 @@ struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4,
 
 	hvs->dlist_mem_size = dlist_size;
 
+	INIT_LIST_HEAD(&hvs->stale_dlist_entries);
+	INIT_WORK(&hvs->free_dlist_work, vc4_hvs_dlist_free_work);
+
+	/* Set up the HVS display list memory manager.  We never
+	 * overwrite the setup from the bootloader (just 128b out of
+	 * our 16K), since we don't want to scramble the screen when
+	 * transitioning from the firmware's boot setup to runtime.
+	 */
+	drm_mm_init(&hvs->dlist_mm,
+		    HVS_BOOTLOADER_DLIST_END,
+		    (SCALER_DLIST_SIZE >> 2) - HVS_BOOTLOADER_DLIST_END);
+
 	/* Set up the HVS LBM memory manager.  We could have some more
 	 * complicated data structure that allowed reuse of LBM areas
 	 * between planes when they don't overlap on the screen, but
@@ -1280,6 +1650,7 @@ struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4,
 	}
 
 	drm_mm_init(&hvs->lbm_mm, 0, lbm_size);
+	ida_init(&hvs->lbm_handles);
 
 	if (vc4->gen >= VC4_GEN_6_C) {
 		ida_init(&hvs->upm_handles);
@@ -1474,9 +1845,71 @@ static const struct vc6_csc_coeff_entry csc_coeffs[2][3] = {
 	}
 };
 
+/*
+ * GEN_6D has a 3x3 matrix of signed 3p12 fixed point values, signed 13bit
+ * offset, and high and low clamp values. The offset can be applied before or
+ * after the multiply - for use here for YUV to RGB conversion it is easier to
+ * put it before.
+ * Clamp values are always set to max 0xfff and min 0, and the conversion always
+ * has the offset before the multiply.
+ */
+struct vc6_d0_csc_coeff_entry {
+	u32 csc[3][2];
+};
+
+static const struct vc6_d0_csc_coeff_entry vc6_d0_csc_coeffs[2][3] = {
+	[DRM_COLOR_YCBCR_LIMITED_RANGE] = {
+		[DRM_COLOR_YCBCR_BT601] = {
+			.csc = {
+				{ 0x1f002543, 0x00003313 },
+				{ 0x18002543, 0xf377e5fc },
+				{ 0x18002543, 0x408d0000 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT709] = {
+			.csc = {
+				{ 0x1f002543, 0x0000395e },
+				{ 0x18002543, 0xf92deef2 },
+				{ 0x18002543, 0x43990000 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT2020] = {
+			.csc = {
+				{ 0x1f002543, 0x000035a0 },
+				{ 0x18002543, 0xfa00eb20 },
+				{ 0x18002543, 0x44800000 }
+			}
+		}
+	},
+	[DRM_COLOR_YCBCR_FULL_RANGE] = {
+		[DRM_COLOR_YCBCR_BT601] = {
+			.csc = {
+				{ 0x00002000, 0x00002cdd },
+				{ 0x18002000, 0xf4fde926 },
+				{ 0x18002000, 0x38b40000 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT709] = {
+			.csc = {
+				{ 0x00002000, 0x00003265 },
+				{ 0x18002000, 0xfa01f105 },
+				{ 0x18002000, 0x3b610000 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT2020] = {
+			.csc = {
+				{ 0x00002000, 0x00002f30 },
+				{ 0x18002000, 0xfabcedb7 },
+				{ 0x18002000, 0x3c340000 }
+			}
+		}
+	}
+};
+
 static int vc6_hvs_hw_init(struct vc4_hvs *hvs)
 {
 	const struct vc6_csc_coeff_entry *coeffs;
+	const struct vc6_d0_csc_coeff_entry *d0_coeffs;
 	unsigned int i;
 
 	HVS_WRITE(SCALER6_CONTROL,
@@ -1513,16 +1946,17 @@ static int vc6_hvs_hw_init(struct vc4_hvs *hvs)
 			HVS_WRITE(CFC1_N_NL_CSC_CTRL(i), BIT(15));
 		}
 	} else {
-		for (i = 0; i < 8; i++) {
-			HVS_WRITE(SCALER_PI_CMP_CSC_RED0(i), 0x1f002566);
-			HVS_WRITE(SCALER_PI_CMP_CSC_RED1(i), 0x3994);
+		for (i = 0; i < 6; i++) {
+			d0_coeffs = &vc6_d0_csc_coeffs[i / 3][i % 3];
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED0(i), d0_coeffs->csc[0][0]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED1(i), d0_coeffs->csc[0][1]);
 			HVS_WRITE(SCALER_PI_CMP_CSC_RED_CLAMP(i), 0xfff00000);
-			HVS_WRITE(SCALER_PI_CMP_CSC_CFG(i), 0x1);
-			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN0(i), 0x18002566);
-			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN1(i), 0xf927eee2);
+			HVS_WRITE(SCALER_PI_CMP_CSC_CFG(i), 1);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN0(i), d0_coeffs->csc[1][0]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN1(i), d0_coeffs->csc[1][1]);
 			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN_CLAMP(i), 0xfff00000);
-			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE0(i), 0x18002566);
-			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE1(i), 0x43d80000);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE0(i), d0_coeffs->csc[2][0]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE1(i), d0_coeffs->csc[2][1]);
 			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE_CLAMP(i), 0xfff00000);
 		}
 	}
@@ -1725,12 +2159,17 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	/* Upload filter kernels.  We only have the one for now, so we
-	 * keep it around for the lifetime of the driver.
+	/* Upload filter kernels.  We only have the two for now, so we
+	 * keep them around for the lifetime of the driver.
 	 */
 	ret = vc4_hvs_upload_linear_kernel(hvs,
 					   &hvs->mitchell_netravali_filter,
 					   mitchell_netravali_1_3_1_3_kernel);
+	if (ret)
+		return ret;
+	ret = vc4_hvs_upload_linear_kernel(hvs,
+					   &hvs->nearest_neighbour_filter,
+					   nearest_neighbour_kernel);
 	if (ret)
 		return ret;
 
@@ -1743,6 +2182,33 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 				       vc4_hvs_irq_handler, 0, "vc4 hvs", drm);
 		if (ret)
 			return ret;
+	} else {
+		unsigned int i;
+
+		for (i = 0; i < HVS_NUM_CHANNELS; i++) {
+			char irq_name[16];
+			int irq;
+
+			snprintf(irq_name, sizeof(irq_name), "ch%u-eof", i);
+
+			irq = platform_get_irq_byname(pdev, irq_name);
+			if (irq < 0) {
+				dev_err(&pdev->dev,
+					"Couldn't get %s interrupt: %d\n",
+					irq_name, irq);
+
+				return irq;
+			}
+
+			ret = devm_request_irq(&pdev->dev,
+					       irq,
+					       vc6_hvs_eof_irq_handler,
+					       IRQF_NO_AUTOEN,
+					       dev_name(&pdev->dev),
+					       drm);
+
+			hvs->eof_irq[i].desc = irq;
+		}
 	}
 
 	return 0;
@@ -1758,6 +2224,8 @@ static void vc4_hvs_unbind(struct device *dev, struct device *master,
 
 	if (drm_mm_node_allocated(&vc4->hvs->mitchell_netravali_filter))
 		drm_mm_remove_node(&vc4->hvs->mitchell_netravali_filter);
+	if (drm_mm_node_allocated(&vc4->hvs->nearest_neighbour_filter))
+		drm_mm_remove_node(&vc4->hvs->nearest_neighbour_filter);
 
 	drm_mm_for_each_node_safe(node, next, &vc4->hvs->dlist_mm)
 		drm_mm_remove_node(node);
@@ -1768,7 +2236,10 @@ static void vc4_hvs_unbind(struct device *dev, struct device *master,
 		drm_mm_remove_node(node);
 	drm_mm_takedown(&vc4->hvs->lbm_mm);
 
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(hvs->disp_clk, 0);
 	clk_disable_unprepare(hvs->disp_clk);
+	clk_set_min_rate(hvs->core_clk, 0);
 	clk_disable_unprepare(hvs->core_clk);
 
 	vc4->hvs = NULL;

@@ -198,6 +198,9 @@
 #define DWC3_GSBUSCFG0_REQINFO(n)	(((n) & 0xffff) << 16)
 #define DWC3_GSBUSCFG0_REQINFO_UNSPECIFIED	0xffffffff
 
+/* Global SoC Bus Configuration Register 1 */
+#define DWC3_GSBUSCFG1_PIPETRANSLIMIT(n)	(((n) & 0xf) << 8)
+
 /* Global Debug LSP MUX Select */
 #define DWC3_GDBGLSPMUX_ENDBC		BIT(15)	/* Host only */
 #define DWC3_GDBGLSPMUX_HOSTSELECT(n)	((n) & 0x3fff)
@@ -279,8 +282,11 @@
 #define DWC3_GUCTL1_TX_IPGAP_LINECHECK_DIS	BIT(28)
 #define DWC3_GUCTL1_DEV_FORCE_20_CLK_FOR_30_CLK	BIT(26)
 #define DWC3_GUCTL1_DEV_L1_EXIT_BY_HW		BIT(24)
+#define DWC3_GUCTL1_NAK_PER_ENH_FS		BIT(19)
+#define DWC3_GUCTL1_NAK_PER_ENH_HS		BIT(18)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_SS		BIT(17)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_HS		BIT(16)
+#define DWC3_GUCTL1_PARKMODE_DISABLE_FSLS	BIT(15)
 #define DWC3_GUCTL1_RESUME_OPMODE_HS_HOST	BIT(10)
 
 /* Global Status Register */
@@ -1096,6 +1102,7 @@ struct dwc3_glue_ops {
  * @tx_fifo_resize_max_num: max number of fifos allocated during txfifo resize
  * @clear_stall_protocol: endpoint number that requires a delayed status phase
  * @num_hc_interrupters: number of host controller interrupters
+ * @axi_max_pipe: set to override the maximum number of pipelined AXI transfers
  * @hsphy_interface: "utmi" or "ulpi"
  * @connected: true when we're connected to a host, false otherwise
  * @softconnect: true when gadget connect is called, false when disconnect runs
@@ -1147,10 +1154,14 @@ struct dwc3_glue_ops {
  *			generation after resume from suspend.
  * @ulpi_ext_vbus_drv: Set to confiure the upli chip to drives CPEN pin
  *			VBUS with an external supply.
- * @parkmode_disable_ss_quirk: set if we need to disable all SuperSpeed
- *			instances in park mode.
- * @parkmode_disable_hs_quirk: set if we need to disable all HishSpeed
- *			instances in park mode.
+ * @enh_nak_fs_quirk: Set to schedule more handshakes to Async FS endpoints.
+ * @enh_nak_hs_quirk: Set to schedule more handshakes to Async HS endpoints.
+ * @parkmode_disable_ss_quirk: If set, disable park mode feature for all
+ *			Superspeed instances.
+ * @parkmode_disable_hs_quirk: If set, disable park mode feature for all
+ *			Highspeed instances.
+ * @parkmode_disable_fsls_quirk: If set, disable park mode feature for all
+ *			Full/Lowspeed instances.
  * @gfladj_refclk_lpm_sel: set if we need to enable SOF/ITP counter
  *                          running based on ref_clk
  * @tx_de_emphasis_quirk: set if we enable Tx de-emphasis quirk
@@ -1349,6 +1360,7 @@ struct dwc3 {
 	u8			tx_fifo_resize_max_num;
 	u8			clear_stall_protocol;
 	u16			num_hc_interrupters;
+	u8			axi_pipe_limit;
 
 	const char		*hsphy_interface;
 
@@ -1390,8 +1402,11 @@ struct dwc3 {
 	unsigned		dis_tx_ipgap_linecheck_quirk:1;
 	unsigned		resume_hs_terminations:1;
 	unsigned		ulpi_ext_vbus_drv:1;
+	unsigned		enh_nak_fs_quirk:1;
+	unsigned		enh_nak_hs_quirk:1;
 	unsigned		parkmode_disable_ss_quirk:1;
 	unsigned		parkmode_disable_hs_quirk:1;
+	unsigned		parkmode_disable_fsls_quirk:1;
 	unsigned		gfladj_refclk_lpm_sel:1;
 
 	unsigned		tx_de_emphasis_quirk:1;

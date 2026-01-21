@@ -307,7 +307,8 @@ static int drm_connector_init_only(struct drm_device *dev,
 
 	drm_object_attach_property(&connector->base,
 				   config->non_desktop_property,
-				   0);
+				   (connector_type != DRM_MODE_CONNECTOR_VIRTUAL &&
+				   connector_type != DRM_MODE_CONNECTOR_WRITEBACK) ? 0 : 1);
 	drm_object_attach_property(&connector->base,
 				   config->tile_property,
 				   0);
@@ -2838,8 +2839,8 @@ int drm_connector_attach_max_bpc_property(struct drm_connector *connector,
 	}
 
 	drm_object_attach_property(&connector->base, prop, max);
-	connector->state->max_requested_bpc = max;
-	connector->state->max_bpc = max;
+	connector->state->max_requested_bpc = min;
+	connector->state->max_bpc = min;
 
 	return 0;
 }
@@ -3073,10 +3074,15 @@ int drm_connector_set_orientation_from_panel(
 {
 	enum drm_panel_orientation orientation;
 
-	if (panel && panel->funcs && panel->funcs->get_orientation)
+	if (panel && panel->funcs && panel->funcs->get_orientation) {
 		orientation = panel->funcs->get_orientation(panel);
-	else
+	} else {
 		orientation = DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
+		if (panel) {
+			of_drm_get_panel_orientation(panel->dev->of_node,
+						     &orientation);
+		}
+	}
 
 	return drm_connector_set_panel_orientation(connector, orientation);
 }

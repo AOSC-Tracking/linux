@@ -465,6 +465,8 @@ struct xhci_ep_ctx {
 #define CTX_TO_EP_MAXPSTREAMS(p)	(((p) & EP_MAXPSTREAMS_MASK) >> 10)
 /* Endpoint is set up with a Linear Stream Array (vs. Secondary Stream Array) */
 #define	EP_HAS_LSA		(1 << 15)
+/* Host initiated data move disable in info2 */
+#define EP_HID			(1 << 7)
 /* hosts with LEC=1 use bits 31:24 as ESIT high bits. */
 #define CTX_TO_MAX_ESIT_PAYLOAD_HI(p)	(((p) >> 24) & 0xff)
 
@@ -1412,7 +1414,7 @@ struct urb_priv {
 };
 
 /* Number of Event Ring segments to allocate, when amount is not specified. (spec allows 32k) */
-#define	ERST_DEFAULT_SEGS	2
+#define	ERST_DEFAULT_SEGS	8
 /* Poll every 60 seconds */
 #define	POLL_TIMEOUT	60
 /* Stop endpoint command timeout (secs) for URB cancellation watchdog timer */
@@ -1645,6 +1647,11 @@ struct xhci_hcd {
 #define XHCI_CDNS_SCTX_QUIRK	BIT_ULL(48)
 #define XHCI_ETRON_HOST	BIT_ULL(49)
 #define XHCI_LIMIT_ENDPOINT_INTERVAL_9 BIT_ULL(50)
+
+/* Downstream VLI fixes */
+#define XHCI_AVOID_DQ_ON_LINK	BIT_ULL(56)
+#define XHCI_VLI_SS_BULK_OUT_BUG	BIT_ULL(57)
+#define XHCI_VLI_HUB_TT_QUIRK	BIT_ULL(58)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;

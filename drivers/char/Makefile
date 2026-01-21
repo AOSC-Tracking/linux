@@ -44,3 +44,5 @@ obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
 obj-$(CONFIG_XILLYBUS_CLASS)	+= xillybus/
 obj-$(CONFIG_POWERNV_OP_PANEL)	+= powernv-op-panel.o
 obj-$(CONFIG_ADI)		+= adi.o
+obj-$(CONFIG_BRCM_CHAR_DRIVERS) += broadcom/
+obj-$(CONFIG_RASPBERRYPI_GPIOMEM) += raspberrypi-gpiomem.o

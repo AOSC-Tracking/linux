@@ -160,6 +160,8 @@ patternProperties:
     description: Shanghai Novotech Co., Ltd. (Ariaboard)
   "^aries,.*":
     description: Aries Embedded GmbH
+  "^arducam,.*":
+    description: Arducam Technology co., Ltd.
   "^arm,.*":
     description: ARM Ltd.
   "^armadeus,.*":
@@ -235,6 +237,8 @@ patternProperties:
     description: Bitmain Technologies
   "^blaize,.*":
     description: Blaize, Inc.
+  "^blokas(labs)?,.*":
+    description: Vilniaus Blokas UAB
   "^bluegiga,.*":
     description: Bluegiga Technologies Ltd.
   "^blutek,.*":
@@ -610,6 +614,8 @@ patternProperties:
     description: General Electric Company
   "^geekbuying,.*":
     description: GeekBuying
+  "^geekworm,.*":
+    description: Geekworm
   "^gef,.*":
     description: GE Fanuc Intelligent Platforms Embedded Systems, Inc.
   "^GEFanuc,.*":

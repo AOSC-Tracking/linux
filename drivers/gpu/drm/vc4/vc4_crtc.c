@@ -361,7 +361,9 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 	bool is_dsi1 = vc4_encoder->type == VC4_ENCODER_TYPE_DSI1;
 	bool is_vec = vc4_encoder->type == VC4_ENCODER_TYPE_VEC;
 	u32 format = is_dsi1 ? PV_CONTROL_FORMAT_DSIV_24 : PV_CONTROL_FORMAT_24;
-	u8 ppc = pv_data->pixels_per_clock;
+	u8 ppc = (mode->flags & DRM_MODE_FLAG_INTERLACE) ?
+			pv_data->pixels_per_clock_int :
+			pv_data->pixels_per_clock;
 
 	u16 vert_bp = mode->crtc_vtotal - mode->crtc_vsync_end;
 	u16 vert_sync = mode->crtc_vsync_end - mode->crtc_vsync_start;
@@ -426,7 +428,8 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 		 */
 		CRTC_WRITE(PV_V_CONTROL,
 			   PV_VCONTROL_CONTINUOUS |
-			   (vc4->gen >= VC4_GEN_6_C ? PV_VCONTROL_ODD_TIMING : 0) |
+			   (vc4->gen >= VC4_GEN_6_C && ppc == 1 ?
+					PV_VCONTROL_ODD_TIMING : 0) |
 			   (is_dsi ? PV_VCONTROL_DSI : 0) |
 			   PV_VCONTROL_INTERLACE |
 			   (odd_field_first
@@ -438,7 +441,8 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 	} else {
 		CRTC_WRITE(PV_V_CONTROL,
 			   PV_VCONTROL_CONTINUOUS |
-			   (vc4->gen >= VC4_GEN_6_C ? PV_VCONTROL_ODD_TIMING : 0) |
+			   (vc4->gen >= VC4_GEN_6_C && ppc == 1 ?
+					PV_VCONTROL_ODD_TIMING : 0) |
 			   (is_dsi ? PV_VCONTROL_DSI : 0));
 		CRTC_WRITE(PV_VSYNCD_EVEN, 0);
 	}
@@ -640,11 +644,14 @@ static void vc4_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	vc4_crtc_disable(crtc, encoder, state, old_vc4_state->assigned_channel);
 
+	vc4_hvs_atomic_disable(crtc, state);
+
 	/*
 	 * Make sure we issue a vblank event after disabling the CRTC if
 	 * someone was waiting it.
 	 */
 	vc4_crtc_send_vblank(crtc);
+	msleep(20);
 }
 
 static void vc4_crtc_atomic_enable(struct drm_crtc *crtc,
@@ -809,12 +816,15 @@ static void vc4_disable_vblank(struct drm_crtc *crtc)
 {
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
+	struct drm_encoder *encoder = vc4_get_crtc_encoder(crtc, crtc->state);
+	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
 	int idx;
 
 	if (!drm_dev_enter(dev, &idx))
 		return;
 
-	CRTC_WRITE(PV_INTEN, 0);
+	if (!vc4_encoder || vc4_encoder->type != VC4_ENCODER_TYPE_DSI0)
+		CRTC_WRITE(PV_INTEN, 0);
 
 	drm_dev_exit(idx);
 }
@@ -850,7 +860,7 @@ static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
 		 * the CRTC and encoder already reconfigured, leading to
 		 * underruns. This can be seen when reconfiguring the CRTC.
 		 */
-		if (vc4->gen < VC4_GEN_6_C)
+		if (0 && vc4->gen < VC4_GEN_6_C)
 			vc4_hvs_unmask_underrun(hvs, chan);
 	}
 	spin_unlock(&vc4_crtc->irq_lock);
@@ -859,7 +869,14 @@ static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
 
 void vc4_crtc_handle_vblank(struct vc4_crtc *crtc)
 {
+	struct drm_encoder *encoder = vc4_get_crtc_encoder(&crtc->base, crtc->base.state);
+	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
+
 	crtc->t_vblank = ktime_get();
+
+	if (vc4_encoder && vc4_encoder->vblank)
+		vc4_encoder->vblank(encoder);
+
 	drm_crtc_handle_vblank(&crtc->base);
 	vc4_crtc_handle_page_flip(crtc);
 }
@@ -1123,14 +1140,8 @@ void vc4_crtc_destroy_state(struct drm_crtc *crtc,
 	struct vc4_dev *vc4 = to_vc4_dev(crtc->dev);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
 
-	if (drm_mm_node_allocated(&vc4_state->mm)) {
-		unsigned long flags;
-
-		spin_lock_irqsave(&vc4->hvs->mm_lock, flags);
-		drm_mm_remove_node(&vc4_state->mm);
-		spin_unlock_irqrestore(&vc4->hvs->mm_lock, flags);
-
-	}
+	vc4_hvs_mark_dlist_entry_stale(vc4->hvs, vc4_state->mm);
+	vc4_state->mm = NULL;
 
 	drm_atomic_helper_crtc_destroy_state(crtc, state);
 }
@@ -1198,6 +1209,7 @@ const struct vc4_pv_data bcm2835_pv0_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_DSI] = VC4_ENCODER_TYPE_DSI0,
 		[PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI] = VC4_ENCODER_TYPE_DPI,
@@ -1208,11 +1220,12 @@ const struct vc4_pv_data bcm2835_pv1_data = {
 	.base = {
 		.name = "pixelvalve-1",
 		.debugfs_name = "crtc1_regs",
-		.hvs_available_channels = BIT(2),
+		.hvs_available_channels = BIT(0) | BIT(1) | BIT(2),
 		.hvs_output = 2,
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_DSI] = VC4_ENCODER_TYPE_DSI1,
 		[PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI] = VC4_ENCODER_TYPE_SMI,
@@ -1228,6 +1241,7 @@ const struct vc4_pv_data bcm2835_pv2_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI] = VC4_ENCODER_TYPE_HDMI0,
 		[PV_CONTROL_CLK_SELECT_VEC] = VC4_ENCODER_TYPE_VEC,
@@ -1243,6 +1257,7 @@ const struct vc4_pv_data bcm2711_pv0_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_DSI0,
 		[1] = VC4_ENCODER_TYPE_DPI,
@@ -1258,6 +1273,7 @@ const struct vc4_pv_data bcm2711_pv1_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_DSI1,
 		[1] = VC4_ENCODER_TYPE_SMI,
@@ -1273,6 +1289,7 @@ const struct vc4_pv_data bcm2711_pv2_data = {
 	},
 	.fifo_depth = 256,
 	.pixels_per_clock = 2,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI0,
 	},
@@ -1287,6 +1304,7 @@ const struct vc4_pv_data bcm2711_pv3_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_VEC] = VC4_ENCODER_TYPE_VEC,
 	},
@@ -1301,6 +1319,7 @@ const struct vc4_pv_data bcm2711_pv4_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 2,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI1,
 	},
@@ -1314,6 +1333,7 @@ const struct vc4_pv_data bcm2712_pv0_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI0,
 	},
@@ -1327,6 +1347,7 @@ const struct vc4_pv_data bcm2712_pv1_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI1,
 	},

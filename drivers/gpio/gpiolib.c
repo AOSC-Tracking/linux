@@ -51,6 +51,44 @@
  * GPIOs can sometimes cost only an instruction or two per bit.
  */
 
+#define dont_test_bit(b,d) (0)
+
+#define REJECT_HOTPLUG_TAX 1
+
+#if REJECT_HOTPLUG_TAX
+
+#undef srcu_dereference
+#define srcu_dereference(obj, srcu) obj
+
+#undef srcu_dereference_check
+#define srcu_dereference_check(obj, srcu, held) obj
+
+#undef guard
+#define guard(srcu) (void)
+
+#undef scoped_guard
+#define scoped_guard(x, y)
+#undef list_for_each_entry_srcu
+#define list_for_each_entry_srcu(pos, head, member, srcu) \
+	list_for_each_entry(pos, head, member)
+
+#undef CLASS
+#define CLASS(gcg, gd) \
+	struct gcg gd = gcg ## _init
+
+static struct gpio_chip_guard gpio_chip_guard_init(struct gpio_desc *desc)
+{
+	struct gpio_chip_guard _guard;
+
+	_guard.gdev = desc->gdev;
+	_guard.idx = 0;
+	_guard.gc = _guard.gdev->chip;
+
+	return _guard;
+}
+
+#endif
+
 /* Device and char device-related information */
 static DEFINE_IDA(gpio_ida);
 static dev_t gpio_devt;
@@ -116,6 +154,7 @@ static int gpiochip_irqchip_init_valid_mask(struct gpio_chip *gc);
 static void gpiochip_irqchip_free_valid_mask(struct gpio_chip *gc);
 
 static bool gpiolib_initialized;
+static int first_dynamic_gpiochip_num = -1;
 
 const char *gpiod_get_label(struct gpio_desc *desc)
 {
@@ -1036,6 +1075,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	unsigned int desc_index;
 	int base = 0;
 	int ret;
+	int id;
 
 	/*
 	 * First: allocate and populate the internal stat container, and
@@ -1055,7 +1095,16 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 
 	device_set_node(&gdev->dev, gpiochip_choose_fwnode(gc));
 
-	ret = ida_alloc(&gpio_ida, GFP_KERNEL);
+	if (first_dynamic_gpiochip_num < 0) {
+		id = of_alias_get_highest_id("gpiochip");
+		first_dynamic_gpiochip_num = (id >= 0) ? (id + 1) : 0;
+	}
+
+	id = of_alias_get_id(gdev->dev.of_node, "gpiochip");
+	if (id < 0)
+		id = first_dynamic_gpiochip_num;
+
+	ret = ida_alloc_range(&gpio_ida, id, ~0, GFP_KERNEL);
 	if (ret < 0)
 		goto err_free_gdev;
 	gdev->id = ret;
@@ -3021,8 +3070,8 @@ int gpiod_direction_output_nonotify(struct gpio_desc *desc, int value)
 		value = !!value;
 
 	/* GPIOs used for enabled IRQs shall not be set as output */
-	if (test_bit(GPIOD_FLAG_USED_AS_IRQ, &flags) &&
-	    test_bit(GPIOD_FLAG_IRQ_IS_ENABLED, &flags)) {
+	if (dont_test_bit(GPIOD_FLAG_USED_AS_IRQ, &flags) &&
+	    dont_test_bit(GPIOD_FLAG_IRQ_IS_ENABLED, &flags)) {
 		gpiod_err(desc,
 			  "%s: tried to set a GPIO tied to an IRQ as output\n",
 			  __func__);
@@ -4057,8 +4106,8 @@ int gpiochip_lock_as_irq(struct gpio_chip *gc, unsigned int offset)
 	}
 
 	/* To be valid for IRQ the line needs to be input or open drain */
-	if (test_bit(GPIOD_FLAG_IS_OUT, &desc->flags) &&
-	    !test_bit(GPIOD_FLAG_OPEN_DRAIN, &desc->flags)) {
+	if (dont_test_bit(GPIOD_FLAG_IS_OUT, &desc->flags) &&
+	    !dont_test_bit(GPIOD_FLAG_OPEN_DRAIN, &desc->flags)) {
 		gpiochip_err(gc,
 			     "%s: tried to flag a GPIO set as output for IRQ\n",
 			     __func__);

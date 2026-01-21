@@ -44,7 +44,6 @@
 
 #define DSI_CMD_FIFO_DEPTH  16
 #define DSI_PIX_FIFO_DEPTH 256
-#define DSI_PIX_FIFO_WIDTH   4
 
 #define DSI0_CTRL		0x00
 
@@ -170,11 +169,15 @@
 #define DSI1_DISP1_CTRL		0x2c
 /* Format of the data written to TXPKT_PIX_FIFO. */
 # define DSI_DISP1_PFORMAT_MASK		VC4_MASK(2, 1)
-# define DSI_DISP1_PFORMAT_SHIFT	1
-# define DSI_DISP1_PFORMAT_16BIT	0
-# define DSI_DISP1_PFORMAT_24BIT	1
-# define DSI_DISP1_PFORMAT_32BIT_LE	2
-# define DSI_DISP1_PFORMAT_32BIT_BE	3
+# define DSI1_DISP1_PFORMAT_SHIFT	1
+# define DSI0_DISP1_PFORMAT_16BIT	0
+# define DSI0_DISP1_PFORMAT_16BIT_ADJ	1
+# define DSI0_DISP1_PFORMAT_24BIT	2
+# define DSI0_DISP1_PFORMAT_32BIT_LE	3 /* NB Invalid, but required for macros to work */
+# define DSI1_DISP1_PFORMAT_16BIT	0
+# define DSI1_DISP1_PFORMAT_24BIT	1
+# define DSI1_DISP1_PFORMAT_32BIT_LE	2
+# define DSI1_DISP1_PFORMAT_32BIT_BE	3
 
 /* DISP1 is always command mode. */
 # define DSI_DISP1_ENABLE		BIT(0)
@@ -286,6 +289,8 @@
 					 DSI1_INT_PR_TO)
 
 #define DSI0_STAT		0x2c
+# define DSI0_STAT_ERR_CONT_LP1		BIT(6)
+# define DSI0_STAT_ERR_CONT_LP0		BIT(5)
 #define DSI0_HSTX_TO_CNT	0x30
 #define DSI0_LPRX_TO_CNT	0x34
 #define DSI0_TA_TO_CNT		0x38
@@ -358,6 +363,16 @@
 # define DSI_PHY_AFEC0_CTATADJ_MASK		VC4_MASK(3, 0)
 # define DSI_PHY_AFEC0_CTATADJ_SHIFT		0
 
+# define DSI0_AFEC0_PD_ALL_LANES	(DSI0_PHY_AFEC0_PD | \
+					 DSI0_PHY_AFEC0_PD_BG | \
+					 DSI0_PHY_AFEC0_PD_DLANE1)
+
+# define DSI1_AFEC0_PD_ALL_LANES	(DSI1_PHY_AFEC0_PD | \
+					 DSI1_PHY_AFEC0_PD_BG | \
+					 DSI1_PHY_AFEC0_PD_DLANE3 | \
+					 DSI1_PHY_AFEC0_PD_DLANE2 | \
+					 DSI1_PHY_AFEC0_PD_DLANE1)
+
 #define DSI0_PHY_AFEC1		0x68
 # define DSI0_PHY_AFEC1_IDR_DLANE1_MASK		VC4_MASK(10, 8)
 # define DSI0_PHY_AFEC1_IDR_DLANE1_SHIFT	8
@@ -398,7 +413,8 @@
 # define DSI1_CTRL_DISABLE_DISP_ECCC	BIT(1)
 # define DSI0_CTRL_CTRL0		BIT(0)
 # define DSI1_CTRL_EN			BIT(0)
-# define DSI0_CTRL_RESET_FIFOS		(DSI_CTRL_CLR_LDF | \
+# define DSI0_CTRL_RESET_FIFOS		(DSI0_CTRL_CTRL0 | \
+					 DSI_CTRL_CLR_LDF | \
 					 DSI0_CTRL_CLR_PBCF | \
 					 DSI0_CTRL_CLR_CPBCF |	\
 					 DSI0_CTRL_CLR_PDF | \
@@ -540,6 +556,7 @@ struct vc4_dsi_variant {
 	unsigned int port;
 
 	bool broken_axi_workaround;
+	unsigned int cmd_fifo_width;
 
 	const char *debugfs_name;
 	const struct debugfs_reg32 *regs;
@@ -814,6 +831,15 @@ static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
 	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
 	struct device *dev = &dsi->pdev->dev;
 
+	/* Reset the DSI and all its fifos. */
+	DSI_PORT_WRITE(CTRL, DSI_CTRL_SOFT_RESET_CFG |
+		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
+
+	/* Power down the analogue front end. */
+	DSI_PORT_WRITE(PHY_AFEC0, DSI_PORT_BIT(PHY_AFEC0_RESET) |
+		       DSI_PORT_BIT(PHY_AFEC0_PD) |
+		       DSI_PORT_BIT(AFEC0_PD_ALL_LANES));
+
 	clk_disable_unprepare(dsi->pll_phy_clock);
 	clk_disable_unprepare(dsi->escape_clock);
 	clk_disable_unprepare(dsi->pixel_clock);
@@ -844,6 +870,7 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	unsigned long pixel_clock_hz = mode->clock * 1000;
 	unsigned long pll_clock = pixel_clock_hz * dsi->divider;
 	int divider;
+	u16 htotal;
 
 	/* Find what divider gets us a faster clock than the requested
 	 * pixel clock.
@@ -860,12 +887,27 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	pixel_clock_hz = pll_clock / dsi->divider;
 
 	adjusted_mode->clock = pixel_clock_hz / 1000;
+	htotal = mode->htotal;
+
+	if (dsi->variant->port == 0 && mode->clock == 30000 &&
+	    mode->hdisplay == 800 && mode->htotal == (800 + 59 + 2 + 45) &&
+	    mode->vdisplay == 480 && mode->vtotal == (480 + 7 + 2 + 22)) {
+		/*
+		 * Raspberry Pi 7" panel via TC358762 seems to have an issue on
+		 * DSI0 that it doesn't actually follow the vertical timing that
+		 * is otherwise identical to that produced on DSI1.
+		 * Fixup the mode.
+		 */
+		htotal = 800 + 59 + 2 + 47;
+		adjusted_mode->vtotal = 480 + 7 + 2 + 45;
+		adjusted_mode->crtc_vtotal = 480 + 7 + 2 + 45;
+	}
 
 	/* Given the new pixel clock, adjust HFP to keep vrefresh the same. */
-	adjusted_mode->htotal = adjusted_mode->clock * mode->htotal /
+	adjusted_mode->htotal = adjusted_mode->clock * htotal /
 				mode->clock;
-	adjusted_mode->hsync_end += adjusted_mode->htotal - mode->htotal;
-	adjusted_mode->hsync_start += adjusted_mode->htotal - mode->htotal;
+	adjusted_mode->hsync_end += adjusted_mode->htotal - htotal;
+	adjusted_mode->hsync_start += adjusted_mode->htotal - htotal;
 
 	return true;
 }
@@ -924,12 +966,32 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 			"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
 	}
 
-	/* Reset the DSI and all its fifos. */
+	ret = clk_prepare_enable(dsi->escape_clock);
+	if (ret) {
+		drm_err(bridge->dev, "Failed to turn on DSI escape clock: %d\n",
+			ret);
+		return;
+	}
+
+	ret = clk_prepare_enable(dsi->pll_phy_clock);
+	if (ret) {
+		drm_err(bridge->dev, "Failed to turn on DSI PLL: %d\n", ret);
+		return;
+	}
+
+	hs_clock = clk_get_rate(dsi->pll_phy_clock);
+
+	/*
+	 * Reset the DSI and all its fifos. The block must be enabled for the
+	 * FIFO resets to trigger.
+	 */
 	DSI_PORT_WRITE(CTRL,
 		       DSI_CTRL_SOFT_RESET_CFG |
 		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
 
 	DSI_PORT_WRITE(CTRL,
+		       ((dsi->variant->port == 0) ?
+					DSI0_CTRL_CTRL0 : DSI1_CTRL_EN) |
 		       DSI_CTRL_HSDT_EOT_DISABLE |
 		       DSI_CTRL_RX_LPDT_EOT_DISABLE);
 
@@ -981,21 +1043,6 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 		/* AFEC reset hold time */
 		mdelay(1);
 	}
-
-	ret = clk_prepare_enable(dsi->escape_clock);
-	if (ret) {
-		drm_err(bridge->dev, "Failed to turn on DSI escape clock: %d\n",
-			ret);
-		return;
-	}
-
-	ret = clk_prepare_enable(dsi->pll_phy_clock);
-	if (ret) {
-		drm_err(bridge->dev, "Failed to turn on DSI PLL: %d\n", ret);
-		return;
-	}
-
-	hs_clock = clk_get_rate(dsi->pll_phy_clock);
 
 	/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
 	 * not the pixel clock rate.  DSIxP take from the APHY's byte,
@@ -1107,16 +1154,16 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 	/* Set up DISP1 for transferring long command payloads through
 	 * the pixfifo.
 	 */
-	DSI_PORT_WRITE(DISP1_CTRL,
-		       VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
-				     DSI_DISP1_PFORMAT) |
-		       DSI_DISP1_ENABLE);
-
-	/* Ungate the block. */
-	if (dsi->variant->port == 0)
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
+	if (dsi->variant->cmd_fifo_width == 4)
+		DSI_PORT_WRITE(DISP1_CTRL,
+			       VC4_SET_FIELD(DSI_PORT_BIT(DISP1_PFORMAT_32BIT_LE),
+					     DSI_DISP1_PFORMAT) |
+			       DSI_DISP1_ENABLE);
 	else
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
+		DSI_PORT_WRITE(DISP1_CTRL,
+			       VC4_SET_FIELD(DSI_PORT_BIT(DISP1_PFORMAT_24BIT),
+					     DSI_DISP1_PFORMAT) |
+			       DSI_DISP1_ENABLE);
 
 	/* Bring AFE out of reset. */
 	DSI_PORT_WRITE(PHY_AFEC0,
@@ -1168,10 +1215,9 @@ static int vc4_dsi_bridge_attach(struct drm_bridge *bridge,
 				 &dsi->bridge, flags);
 }
 
-static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
-				     const struct mipi_dsi_msg *msg)
+static ssize_t vc4_dsi_transfer(struct vc4_dsi *dsi,
+				const struct mipi_dsi_msg *msg, bool log_error)
 {
-	struct vc4_dsi *dsi = host_to_dsi(host);
 	struct drm_device *drm = dsi->bridge.dev;
 	struct mipi_dsi_packet packet;
 	u32 pkth = 0, pktc = 0;
@@ -1200,9 +1246,9 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 			pix_fifo_len = 0;
 		} else {
 			cmd_fifo_len = (packet.payload_length %
-					DSI_PIX_FIFO_WIDTH);
+					dsi->variant->cmd_fifo_width);
 			pix_fifo_len = ((packet.payload_length - cmd_fifo_len) /
-					DSI_PIX_FIFO_WIDTH);
+					dsi->variant->cmd_fifo_width);
 		}
 
 		WARN_ON_ONCE(pix_fifo_len >= DSI_PIX_FIFO_DEPTH);
@@ -1220,14 +1266,25 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 
 	for (i = 0; i < cmd_fifo_len; i++)
 		DSI_PORT_WRITE(TXPKT_CMD_FIFO, packet.payload[i]);
-	for (i = 0; i < pix_fifo_len; i++) {
-		const u8 *pix = packet.payload + cmd_fifo_len + i * 4;
+	if (dsi->variant->cmd_fifo_width == 4) {
+		for (i = 0; i < pix_fifo_len; i++) {
+			const u8 *pix = packet.payload + cmd_fifo_len + i * 4;
 
-		DSI_PORT_WRITE(TXPKT_PIX_FIFO,
-			       pix[0] |
-			       pix[1] << 8 |
-			       pix[2] << 16 |
-			       pix[3] << 24);
+			DSI_PORT_WRITE(TXPKT_PIX_FIFO,
+				       pix[0] |
+				       pix[1] << 8 |
+				       pix[2] << 16 |
+				       pix[3] << 24);
+		}
+	} else {
+		for (i = 0; i < pix_fifo_len; i++) {
+			const u8 *pix = packet.payload + cmd_fifo_len + i * 3;
+
+			DSI_PORT_WRITE(TXPKT_PIX_FIFO,
+				       pix[2] |
+				       pix[1] << 8 |
+				       pix[0] << 16);
+		}
 	}
 
 	if (msg->flags & MIPI_DSI_MSG_USE_LPM)
@@ -1281,10 +1338,12 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 	DSI_PORT_WRITE(TXPKT1C, pktc);
 
 	if (!wait_for_completion_timeout(&dsi->xfer_completion,
-					 msecs_to_jiffies(1000))) {
-		dev_err(&dsi->pdev->dev, "transfer interrupt wait timeout");
-		dev_err(&dsi->pdev->dev, "instat: 0x%08x\n",
-			DSI_PORT_READ(INT_STAT));
+					 msecs_to_jiffies(500))) {
+		if (log_error) {
+			dev_err(&dsi->pdev->dev, "transfer interrupt wait timeout");
+			dev_err(&dsi->pdev->dev, "instat: 0x%08x, stat: 0x%08x\n",
+				DSI_PORT_READ(INT_STAT), DSI_PORT_READ(INT_STAT));
+		}
 		ret = -ETIMEDOUT;
 	} else {
 		ret = dsi->xfer_result;
@@ -1327,7 +1386,8 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 	return ret;
 
 reset_fifo_and_return:
-	drm_err(drm, "DSI transfer failed, resetting: %d\n", ret);
+	if (log_error)
+		drm_err(drm, "DSI transfer failed, resetting: %d\n", ret);
 
 	DSI_PORT_WRITE(TXPKT1C, DSI_PORT_READ(TXPKT1C) & ~DSI_TXPKT1C_CMD_EN);
 	udelay(1);
@@ -1337,6 +1397,40 @@ reset_fifo_and_return:
 
 	DSI_PORT_WRITE(TXPKT1C, 0);
 	DSI_PORT_WRITE(INT_EN, DSI_PORT_BIT(INTERRUPTS_ALWAYS_ENABLED));
+	return ret;
+}
+
+static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
+				     const struct mipi_dsi_msg *msg)
+{
+	struct vc4_dsi *dsi = host_to_dsi(host);
+	u32 stat, disp0_ctrl;
+	int ret;
+
+	ret = vc4_dsi_transfer(dsi, msg, false);
+
+	if (ret == -ETIMEDOUT) {
+		stat = DSI_PORT_READ(STAT);
+		disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
+
+		DSI_PORT_WRITE(STAT, DSI_PORT_BIT(STAT_ERR_CONT_LP1));
+		if (!(disp0_ctrl & DSI_DISP0_ENABLE)) {
+			/* If video mode not enabled, then try recovering by
+			 * enabling it briefly to clear FIFOs and the state.
+			 */
+			disp0_ctrl |= DSI_DISP0_ENABLE;
+			DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+			msleep(30);
+			disp0_ctrl &= ~DSI_DISP0_ENABLE;
+			DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+			msleep(30);
+
+			ret = vc4_dsi_transfer(dsi, msg, true);
+		} else {
+			DRM_ERROR("DSI transfer failed whilst in HS mode stat: 0x%08x\n",
+				  stat);
+		}
+	}
 	return ret;
 }
 
@@ -1419,6 +1513,15 @@ static const struct drm_bridge_funcs vc4_dsi_bridge_funcs = {
 	.mode_fixup = vc4_dsi_bridge_mode_fixup,
 };
 
+static void vc4_dsi_reset_fifo(struct drm_encoder *encoder)
+{
+	struct vc4_dsi *dsi = to_vc4_dsi(encoder);
+	u32 val;
+
+	val = DSI_PORT_READ(CTRL);
+	DSI_PORT_WRITE(CTRL, val | DSI0_CTRL_CLR_PBCF);
+}
+
 static int vc4_dsi_late_register(struct drm_encoder *encoder)
 {
 	struct drm_device *drm = encoder->dev;
@@ -1435,6 +1538,7 @@ static const struct drm_encoder_funcs vc4_dsi_encoder_funcs = {
 
 static const struct vc4_dsi_variant bcm2711_dsi1_variant = {
 	.port			= 1,
+	.cmd_fifo_width		= 4,
 	.debugfs_name		= "dsi1_regs",
 	.regs			= dsi1_regs,
 	.nregs			= ARRAY_SIZE(dsi1_regs),
@@ -1442,6 +1546,7 @@ static const struct vc4_dsi_variant bcm2711_dsi1_variant = {
 
 static const struct vc4_dsi_variant bcm2835_dsi0_variant = {
 	.port			= 0,
+	.cmd_fifo_width		= 3,
 	.debugfs_name		= "dsi0_regs",
 	.regs			= dsi0_regs,
 	.nregs			= ARRAY_SIZE(dsi0_regs),
@@ -1449,6 +1554,7 @@ static const struct vc4_dsi_variant bcm2835_dsi0_variant = {
 
 static const struct vc4_dsi_variant bcm2835_dsi1_variant = {
 	.port			= 1,
+	.cmd_fifo_width		= 4,
 	.broken_axi_workaround	= true,
 	.debugfs_name		= "dsi1_regs",
 	.regs			= dsi1_regs,
@@ -1645,6 +1751,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 	dsi->encoder.type = dsi->variant->port ?
 		VC4_ENCODER_TYPE_DSI1 : VC4_ENCODER_TYPE_DSI0;
+
+	if (dsi->encoder.type == VC4_ENCODER_TYPE_DSI0)
+		dsi->encoder.vblank = vc4_dsi_reset_fifo;
 
 	dsi->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(dsi->regs))

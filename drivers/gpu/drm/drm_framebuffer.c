@@ -190,7 +190,8 @@ static int framebuffer_check(struct drm_device *dev,
 		if ((uint64_t) height * r->pitches[i] + r->offsets[i] > UINT_MAX)
 			return -ERANGE;
 
-		if (block_size && r->pitches[i] < min_pitch) {
+		if (r->modifier[i] == DRM_FORMAT_MOD_LINEAR && block_size &&
+		    r->pitches[i] < min_pitch) {
 			drm_dbg_kms(dev, "bad pitch %u for plane %d\n", r->pitches[i], i);
 			return -EINVAL;
 		}
@@ -1005,7 +1006,7 @@ static int atomic_remove_fb(struct drm_framebuffer *fb)
 	struct drm_connector *conn __maybe_unused;
 	struct drm_connector_state *conn_state;
 	int i, ret;
-	unsigned plane_mask;
+	u64 plane_mask;
 	bool disable_crtcs = false;
 
 retry_disable:

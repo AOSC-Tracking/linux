@@ -266,6 +266,17 @@ config DRM_PANEL_ILITEK_ILI9806E
 	  Say Y if you want to enable support for panels based on the
 	  Ilitek ILI9806E controller.
 
+config DRM_PANEL_ILITEK_ILI9806E_SPI
+	tristate "Ilitek ILI9806E-based panels on SPI/DPI"
+	depends on OF && SPI
+	select DRM_KMS_HELPER
+	depends on BACKLIGHT_CLASS_DEVICE
+	select DRM_MIPI_DBI
+	help
+	  Say Y if you want to enable support for panels based on the
+	  Ilitek ILI9806e controller using DPI for video and SPI for
+	  configuration.
+
 config DRM_PANEL_ILITEK_ILI9881C
 	tristate "Ilitek ILI9881C-based panels"
 	depends on OF
@@ -1056,6 +1067,17 @@ config DRM_PANEL_TDO_TL070WSH30
 	  24 bit RGB per pixel. It provides a MIPI DSI interface to
 	  the host, a built-in LED backlight and touch controller.
 
+config DRM_PANEL_TPO_Y17P
+	tristate "TDO Y17P-based panels"
+	depends on OF && SPI
+	select DRM_KMS_HELPER
+	depends on DRM_GEM_DMA_HELPER
+	depends on BACKLIGHT_CLASS_DEVICE
+	select DRM_MIPI_DBI
+	help
+	  Say Y if you want to enable support for panels based on the
+	  TDO Y17P controller.
+
 config DRM_PANEL_TPO_TD028TTEC1
 	tristate "Toppoly (TPO) TD028TTEC1 panel driver"
 	depends on OF && SPI
@@ -1136,6 +1158,26 @@ config DRM_PANEL_VISIONOX_VTDR6130
 	help
 	  Say Y here if you want to enable support for Visionox
 	  VTDR6130 1080x2400 AMOLED DSI panel.
+
+config DRM_PANEL_WAVESHARE_TOUCHSCREEN
+	tristate "Waveshare touchscreen panels"
+	depends on DRM_MIPI_DSI
+	depends on I2C
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for the Waveshare
+	  DSI Touchscreens.  To compile this driver as a module,
+	  choose M here.
+
+config DRM_PANEL_WAVESHARE_TOUCHSCREEN_V2
+	tristate "Waveshare touchscreen panels V2"
+	depends on DRM_MIPI_DSI
+	depends on I2C
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for the Waveshare
+	  DSI Touchscreens.  To compile this driver as a module,
+	  choose M here.
 
 config DRM_PANEL_WIDECHIPS_WS2401
 	tristate "Widechips WS2401 DPI panel driver"
