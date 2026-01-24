@@ -183,17 +183,40 @@ static __always_inline u64 read_gic_count(const struct vdso_time_data *data)
 
 #endif
 
+/*
+ * HWR $30 (Loongson64 constant timer) is 64 bits wide. RDHWR never sign-extends
+ * the timer count before copying it into a GPR, as the kernel always sets
+ * Status.UX=1 even in O32 userspace. If it's kept as is, the "shadow" on the
+ * upper half breaks subsequent logical/branch instructions relying on the GPR.
+ *
+ * Thankfully, Status.UX==1 also means that we have the full timer count
+ * available and can use 64-bit instructions to salvage it into a pair of GPR
+ * to comply with O32 ABI.
+ */
 #ifdef CONFIG_CPU_LOONGSON64
 static __always_inline u64 read_const_count(void)
 {
-	unsigned long count;
+	u64 count;
 
+/* N32 ABI stores 64-bit value in a single register. */
+#if _MIPS_SIM == _MIPS_SIM_ABI64 || _MIPS_SIM == _MIPS_SIM_NABI32
 	__asm__ __volatile__(
 	"	.set push\n"
 	"	.set mips32r2\n"
 	"	rdhwr	%0, $30\n"
 	"	.set pop\n"
 	: "=r" (count));
+#else /* _MIPS_SIM == _MIPS_SIM_ABI32 */
+	__asm__ __volatile__(
+	"	.set push\n"
+	"	.set mips64r2\n"	/* Enable 64-bit instructions. */
+	"	.set noreorder\n"
+	"	rdhwr	%0, $30\n"	/* Now %0 holds the full 64-bit count. */
+	"	dsra	%D0, %0, 32\n"	/* Salvage and sign-extend the upper half. */
+	"	sll	%0, %0, 0\n"	/* Sign-extend the lower half. */
+	"	.set pop\n"
+	: "=r" (count));
+#endif
 
 	return count;
 }
