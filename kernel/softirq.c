@@ -1184,5 +1184,5 @@ int __init __weak arch_early_irq_init(void)
 
 unsigned int __weak arch_dynirq_lower_bound(unsigned int from)
 {
-	return from;
+	return MAX(from, NR_IRQS_LEGACY);
 }
