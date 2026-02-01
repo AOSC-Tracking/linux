@@ -11,7 +11,8 @@ is_enabled() {
 
 find_in_scripts() {
 	find scripts \
-		\( -name atomic -o -name dtc -o -name kconfig -o -name package \) -prune -o \
+		\( -name atomic -o -name kconfig -o -name package -o \
+		   \( -path '*/dtc/*' -a ! -path '*/libfdt*' \) \) -prune -o \
 		! -name unifdef -a ! -name mk_elfconfig -a \( -type f -o -type l \) -print
 }
 
