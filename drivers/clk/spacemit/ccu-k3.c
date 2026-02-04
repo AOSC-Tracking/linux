@@ -874,7 +874,7 @@ static const struct clk_parent_data rcpu_clk_parents[] = {
 	CCU_PARENT_HW(pll1_d6_409p6),
 };
 CCU_MUX_DIV_GATE_FC_DEFINE(rcpu_clk, rcpu_clk_parents, APMU_RCPU_CLK_RES_CTRL,
-			   4, 3, BIT(15), 7, 3, BIT(12), 0);
+			   4, 3, BIT(15), 7, 3, BIT(12), CLK_IS_CRITICAL);
 
 static const struct clk_parent_data dsi4ln2_dsi_esc_parents[] = {
 	CCU_PARENT_HW(pll1_d48_51p2_ap),
