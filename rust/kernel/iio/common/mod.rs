@@ -2,10 +2,5 @@
 
 //! IIO common modules
 
-#[cfg(any(
-    CONFIG_IIO_AOP_SENSOR_LAS = "y",
-    CONFIG_IIO_AOP_SENSOR_ALS = "m",
-    CONFIG_IIO_AOP_SENSOR_LAS = "y",
-    CONFIG_IIO_AOP_SENSOR_ALS = "m",
-))]
+#[cfg(any(CONFIG_IIO_AOP_SENSOR_LAS, CONFIG_IIO_AOP_SENSOR_ALS,))]
 pub mod aop_sensors;
