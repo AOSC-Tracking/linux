@@ -177,9 +177,14 @@ static void dpu_hw_intf_setup_timing_engine(struct dpu_hw_intf *intf,
 	 * since the data rate is doubled in this mode. But for the compression
 	 * mode in DP case, the p->width is already adjusted in
 	 * drm_mode_to_intf_timing_params()
+	 *
+	 * Use DIV_ROUND_UP to avoid truncating an odd width (e.g. 267 for
+	 * DSC compressed output), which would shorten the data window by
+	 * one pclk and cause a FIFO underflow (267>>1 = 133 pclks * 6 = 798
+	 * bytes, but DSC needs 800 bytes per line).
 	 */
 	if (p->wide_bus_en && !dp_intf)
-		data_width = p->width >> 1;
+		data_width = DIV_ROUND_UP(p->width, 2);
 
 	/* TODO: handle DSC+DP case, we only handle DSC+DSI case so far */
 	if (p->compression_en && !dp_intf &&
