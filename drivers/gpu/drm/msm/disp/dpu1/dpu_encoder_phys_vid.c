@@ -130,11 +130,12 @@ static void drm_mode_to_intf_timing_params(
 		struct drm_dsc_config *dsc =
 		       dpu_encoder_get_dsc_config(phys_enc->parent);
 		/*
-		 * TODO: replace drm_dsc_get_bpp_int with logic to handle
-		 * fractional part if there is fraction
+		 * Compute the number of pclk cycles needed to transfer one
+		 * line of compressed data. Use DIV_ROUND_UP to match the
+		 * DSI host's timing calculation in dsi_timing_setup().
 		 */
-		timing->width = timing->width * drm_dsc_get_bpp_int(dsc) /
-				(dsc->bits_per_component * 3);
+		timing->width = DIV_ROUND_UP(timing->width * drm_dsc_get_bpp_int(dsc),
+					     dsc->bits_per_component * 3);
 		timing->xres = timing->width;
 	}
 }
