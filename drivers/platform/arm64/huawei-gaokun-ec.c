@@ -807,7 +807,7 @@ static const struct of_device_id gaokun_ec_of_match[] = {
 MODULE_DEVICE_TABLE(of, gaokun_ec_of_match);
 
 static const struct dev_pm_ops gaokun_ec_pm_ops = {
-	NOIRQ_SYSTEM_SLEEP_PM_OPS(gaokun_ec_suspend, gaokun_ec_resume)
+	SYSTEM_SLEEP_PM_OPS(gaokun_ec_suspend, gaokun_ec_resume)
 };
 
 static struct i2c_driver gaokun_ec_driver = {
