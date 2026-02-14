@@ -43,9 +43,6 @@ extern void ia64_tlb_init (void);
 
 unsigned long MAX_DMA_ADDRESS = PAGE_OFFSET + 0x100000000UL;
 
-struct page *zero_page_memmap_ptr;	/* map entry for zero page */
-EXPORT_SYMBOL(zero_page_memmap_ptr);
-
 void
 __ia64_sync_icache_dcache (pte_t pte)
 {

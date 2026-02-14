@@ -594,14 +594,6 @@ void __init arch_zone_limits_init(unsigned long *max_zone_pfns)
 	max_zone_pfns[ZONE_NORMAL] = max_low_pfn;
 }
 
-/*
- * Initialize the kernel's zero page.
- */
-void __init paging_init(void)
-{
-	zero_page_memmap_ptr = virt_to_page(ia64_imva(empty_zero_page));
-}
-
 /* workaround for a warning with -Wmissing-prototypes */
 pg_data_t * __init arch_alloc_nodedata(int nid);
 void arch_refresh_nodedata(int update_node, pg_data_t *update_pgdat);
