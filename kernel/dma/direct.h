@@ -83,6 +83,9 @@ static inline void dma_direct_sync_single_for_cpu(struct device *dev,
 	}
 
 	swiotlb_sync_single_for_cpu(dev, paddr, size, dir);
+
+	if (dir == DMA_FROM_DEVICE)
+		arch_dma_mark_clean(paddr, size);
 }
 
 static inline void dma_direct_unmap_phys(struct device *dev, dma_addr_t addr,
