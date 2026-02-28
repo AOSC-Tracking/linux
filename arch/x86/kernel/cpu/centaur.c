@@ -108,6 +108,29 @@ static void early_init_centaur(struct cpuinfo_x86 *c)
 	}
 }
 
+/*
+ * Zhaoxin C4600 (family 6, model 15) names itself as CentaurHauls, it claims
+ * X86_FEATURE_FSGSBASE support in CPUID, while executing any fsgsbase-related
+ * instructions on it results in #UD.
+ */
+static void fixup_zhaoxin_fsgsbase(struct cpuinfo_x86 *c)
+{
+	const char *name, *model_names[] = {
+		"C-QuadCore C4600"
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(model_names); i++) {
+		name = model_names[i];
+
+		if (!strncmp(c->x86_model_id, name, strlen(name))) {
+			pr_warn_once("CPU has broken FSGSBASE support\n");
+			setup_clear_cpu_cap(X86_FEATURE_FSGSBASE);
+			return;
+		}
+	}
+}
+
 static void init_centaur(struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_X86_32
@@ -200,6 +223,8 @@ static void init_centaur(struct cpuinfo_x86 *c)
 #ifdef CONFIG_X86_64
 	set_cpu_cap(c, X86_FEATURE_LFENCE_RDTSC);
 #endif
+
+	fixup_zhaoxin_fsgsbase(c);
 
 	init_ia32_feat_ctl(c);
 }
