@@ -116,6 +116,8 @@ pub mod firmware;
 pub mod fmt;
 pub mod fs;
 pub mod id_pool;
+#[cfg(CONFIG_IIO)]
+pub mod iio;
 pub mod init;
 pub mod io;
 pub mod ioctl;
