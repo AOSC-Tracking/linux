@@ -132,6 +132,34 @@ static void set_isa(struct cpuinfo_loongarch *c, unsigned int isa)
 	}
 }
 
+/*
+ * Some platform has broken sc.q which incorrectly handles the higher word
+ * when the lower word is zero. It may be possible for firmware to
+ * workaround this issue. Disable sc.q as the last resort.
+ */
+static bool sc_q_is_sane(void)
+{
+	struct {
+		long word[2];
+	} __aligned(16) mem;
+	register long tmp;
+
+	asm (
+		"1:ll.d\t$r0, %[mem]\n\t"
+		"move\t%[tmp], $r0\n\t"
+		"sc.q\t%[tmp], %[one], %[mem]\n\t"
+		"beqz\t%[tmp],1b"
+		: [mem] "=ZB" (mem), [tmp] "=&r" (tmp)
+		: [one] "r" (1));
+
+	if (mem.word[1] != 1) {
+		pr_warn("Warning: sc.q is erratic; will neither use it in kernel nor announce it via HWCAP. Please try a firmware update.");
+		return false;
+	}
+
+	return true;
+}
+
 static void cpu_probe_common(struct cpuinfo_loongarch *c)
 {
 	unsigned int config;
@@ -177,7 +205,7 @@ static void cpu_probe_common(struct cpuinfo_loongarch *c)
 		c->options |= LOONGARCH_CPU_LAM;
 		elf_hwcap |= HWCAP_LOONGARCH_LAM;
 	}
-	if (config & CPUCFG2_SCQ) {
+	if ((config & CPUCFG2_SCQ) && sc_q_is_sane()) {
 		c->options |= LOONGARCH_CPU_SCQ;
 		elf_hwcap |= HWCAP_LOONGARCH_SCQ;
 	}
