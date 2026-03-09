@@ -217,6 +217,7 @@ SECTIONS {
 
 	STABS_DEBUG
 	DWARF_DEBUG
+	MODINFO
 	ELF_DETAILS
 
 	/* Default discards */
