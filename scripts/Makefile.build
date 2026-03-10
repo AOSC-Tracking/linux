@@ -319,6 +319,9 @@ $(obj)/%.lst: $(obj)/%.c FORCE
 # the unstable features in use.
 rust_allowed_features := asm_const,asm_goto,arbitrary_self_types,lint_reasons,offset_of_nested,raw_ref_op,used_with_arg
 
+# additional rust features used by the downstream asahi kernel
+rust_allowed_features := $(rust_allowed_features),ptr_sub_ptr
+
 # `--out-dir` is required to avoid temporaries being created by `rustc` in the
 # current working directory, which may be not accessible in the out-of-tree
 # modules case.

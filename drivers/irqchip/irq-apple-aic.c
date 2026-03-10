@@ -54,6 +54,7 @@
 #include <linux/irqdomain.h>
 #include <linux/jump_label.h>
 #include <linux/limits.h>
+#include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <asm/apple_m1_pmu.h>
@@ -135,7 +136,14 @@
 #define AIC2_IRQ_CFG		0x2000
 
 /*
+ * AIC v3 registers (MMIO)
+ */
+
+#define AIC3_IRQ_CFG		0x10000
+
+/*
  * AIC2 registers are laid out like this, starting at AIC2_IRQ_CFG:
+ * AIC3 registers use the same layout but start at AIC3_IRQ_CFG:
  *
  * Repeat for each die:
  *   IRQ_CFG: u32 * MAX_IRQS
@@ -293,6 +301,15 @@ static const struct aic_info aic2_info __initconst = {
 	.local_fast_ipi = true,
 };
 
+static const struct aic_info aic3_info __initconst = {
+	.version	= 3,
+
+	.irq_cfg	= AIC3_IRQ_CFG,
+
+	.fast_ipi	= true,
+	.local_fast_ipi = true,
+};
+
 static const struct of_device_id aic_info_match[] = {
 	{
 		.compatible = "apple,t8103-aic",
@@ -309,6 +326,10 @@ static const struct of_device_id aic_info_match[] = {
 	{
 		.compatible = "apple,aic2",
 		.data = &aic2_info,
+	},
+	{
+		.compatible = "apple,t8122-aic3",
+		.data = &aic3_info,
 	},
 	{}
 };
@@ -624,7 +645,7 @@ static int aic_irq_domain_map(struct irq_domain *id, unsigned int irq,
 	u32 type = FIELD_GET(AIC_EVENT_TYPE, hw);
 	struct irq_chip *chip = &aic_chip;
 
-	if (ic->info.version == 2)
+	if (ic->info.version == 2 || ic->info.version == 3)
 		chip = &aic2_chip;
 
 	if (type == AIC_EVENT_TYPE_IRQ) {
@@ -974,6 +995,7 @@ static int __init aic_of_ic_init(struct device_node *node, struct device_node *p
 
 		break;
 	}
+	case 3:
 	case 2: {
 		u32 info1, info3;
 
@@ -1048,7 +1070,7 @@ static int __init aic_of_ic_init(struct device_node *node, struct device_node *p
 		off += irqc->info.die_stride;
 	}
 
-	if (irqc->info.version == 2) {
+	if (irqc->info.version == 2 || irqc->info.version == 3) {
 		u32 config = aic_ic_read(irqc, AIC2_CONFIG);
 
 		config |= AIC2_CONFIG_ENABLE;
@@ -1099,3 +1121,4 @@ err_unmap:
 
 IRQCHIP_DECLARE(apple_aic, "apple,aic", aic_of_ic_init);
 IRQCHIP_DECLARE(apple_aic2, "apple,aic2", aic_of_ic_init);
+IRQCHIP_DECLARE(apple_aic3, "apple,t8122-aic3", aic_of_ic_init);
