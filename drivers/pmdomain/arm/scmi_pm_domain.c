@@ -24,9 +24,35 @@ struct scmi_pm_domain {
 
 static int scmi_pd_power(struct generic_pm_domain *domain, u32 state)
 {
+	int ret;
+	u32 ret_state;
 	struct scmi_pm_domain *pd = to_scmi_pd(domain);
 
-	return power_ops->state_set(pd->ph, pd->domain, state);
+	pr_debug("scmi_pd_power: domain %s (%d) -> state 0x%x\n",
+		 pd->name, pd->domain, state);
+
+	ret = power_ops->state_set(pd->ph, pd->domain, state);
+	if (ret) {
+		pr_err("scmi_pd_power: state_set failed: %d\n", ret);
+		return ret;
+	}
+
+	/* Verify state was actually set (like vendor kernel does) */
+	ret = power_ops->state_get(pd->ph, pd->domain, &ret_state);
+	if (ret) {
+		pr_err("scmi_pd_power: state_get failed: %d\n", ret);
+		return ret;
+	}
+
+	if (state != ret_state) {
+		pr_err("scmi_pd_power: state mismatch! requested 0x%x, got 0x%x\n",
+		       state, ret_state);
+		return -EIO;
+	}
+
+	pr_debug("scmi_pd_power: domain %s state verified: 0x%x\n",
+		 pd->name, ret_state);
+	return 0;
 }
 
 static int scmi_pd_power_on(struct generic_pm_domain *domain)
@@ -108,16 +134,26 @@ static int scmi_pm_domain_probe(struct scmi_device *sdev)
 	scmi_pd_data->domains = domains;
 	scmi_pd_data->num_domains = num_domains;
 
-	ret = of_genpd_add_provider_onecell(np, scmi_pd_data);
-	if (ret)
-		goto err_rm_genpds;
+	/* Register DT provider if a device tree node is available.
+	 * Under ACPI, domains are still globally registered by
+	 * pm_genpd_init() and consumers attach by name.
+	 */
+	if (np) {
+		ret = of_genpd_add_provider_onecell(np, scmi_pd_data);
+		if (ret)
+			goto err_rm_genpds;
+	}
 
 	dev_set_drvdata(dev, scmi_pd_data);
+	dev_info(dev, "SCMI power domains registered (%d domains)\n",
+		 num_domains);
 
 	return 0;
 err_rm_genpds:
-	for (i = num_domains - 1; i >= 0; i--)
-		pm_genpd_remove(domains[i]);
+	for (i = num_domains - 1; i >= 0; i--) {
+		if (domains[i])
+			pm_genpd_remove(domains[i]);
+	}
 
 	return ret;
 }
@@ -129,7 +165,8 @@ static void scmi_pm_domain_remove(struct scmi_device *sdev)
 	struct device *dev = &sdev->dev;
 	struct device_node *np = dev->of_node;
 
-	of_genpd_del_provider(np);
+	if (np)
+		of_genpd_del_provider(np);
 
 	scmi_pd_data = dev_get_drvdata(dev);
 	for (i = 0; i < scmi_pd_data->num_domains; i++) {
@@ -151,7 +188,20 @@ static struct scmi_driver scmi_power_domain_driver = {
 	.remove = scmi_pm_domain_remove,
 	.id_table = scmi_id_table,
 };
+
+/* CIX Sky1 needs early SCMI power domain init so GPU access permissions
+ * are configured before other drivers probe. Vendor kernel uses
+ * subsys_initcall_sync for this purpose.
+ */
+#ifdef CONFIG_ARCH_CIX
+static int __init scmi_power_domain_init(void)
+{
+	return scmi_register(&scmi_power_domain_driver);
+}
+subsys_initcall_sync(scmi_power_domain_init);
+#else
 module_scmi_driver(scmi_power_domain_driver);
+#endif
 
 MODULE_AUTHOR("Sudeep Holla <sudeep.holla@arm.com>");
 MODULE_DESCRIPTION("ARM SCMI power domain driver");

@@ -5,12 +5,15 @@
  * Copyright (C) 2023 Linaro Ltd.
  */
 
+#include <linux/acpi.h>
 #include <linux/err.h>
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_opp.h>
+#include <linux/property.h>
 #include <linux/scmi_protocol.h>
+#include <linux/scmi_perf_domain.h>
 #include <linux/slab.h>
 
 struct scmi_perf_domain {
@@ -74,6 +77,57 @@ scmi_pd_detach_dev(struct generic_pm_domain *genpd, struct device *dev)
 	dev_pm_opp_remove_all_dynamic(dev);
 }
 
+struct proto_fwnode_match {
+	u8 protocol_id;
+	struct fwnode_handle *result;
+};
+
+static int match_proto_reg(struct acpi_device *adev, void *data)
+{
+	struct proto_fwnode_match *match = data;
+	u32 reg;
+
+	if (fwnode_property_read_u32(acpi_fwnode_handle(adev), "reg", &reg) == 0 &&
+	    reg == match->protocol_id) {
+		match->result = acpi_fwnode_handle(adev);
+		return 1;
+	}
+	return 0;
+}
+
+/**
+ * scmi_perf_find_proto_fwnode() - Find the protocol-specific ACPI fwnode
+ * @sdev: SCMI device (inherits parent fwnode under ACPI)
+ *
+ * Under ACPI, the SCMI device's fwnode points to the parent controller
+ * (e.g. \_SB_.SCMI).  Consumers reference protocol-specific children
+ * (e.g. \_SB_.SCMI.DVFS) which have a "reg" property matching the
+ * protocol_id.  These children may have _STA=0 (namespace-only stubs),
+ * so we must use acpi_dev_for_each_child() which iterates all children
+ * including non-present ones, rather than fwnode_for_each_child_node()
+ * which skips them.
+ *
+ * Returns the protocol fwnode, or NULL if not found.
+ */
+static struct fwnode_handle *scmi_perf_find_proto_fwnode(struct scmi_device *sdev)
+{
+	struct acpi_device *parent_adev;
+	struct proto_fwnode_match match = {
+		.protocol_id = sdev->protocol_id,
+		.result = NULL,
+	};
+
+	if (sdev->dev.of_node)
+		return NULL;
+
+	parent_adev = to_acpi_device_node(dev_fwnode(&sdev->dev));
+	if (!parent_adev)
+		return NULL;
+
+	acpi_dev_for_each_child(parent_adev, match_proto_reg, &match);
+	return match.result;
+}
+
 static int scmi_perf_domain_probe(struct scmi_device *sdev)
 {
 	struct device *dev = &sdev->dev;
@@ -88,8 +142,13 @@ static int scmi_perf_domain_probe(struct scmi_device *sdev)
 	if (!handle)
 		return -ENODEV;
 
-	/* The OF node must specify us as a power-domain provider. */
-	if (!of_find_property(dev->of_node, "#power-domain-cells", NULL))
+	/*
+	 * Under DT, the OF node must specify us as a power-domain provider.
+	 * Under ACPI, there's no of_node — proceed unconditionally and
+	 * register genpds globally for lookup by name.
+	 */
+	if (dev->of_node &&
+	    !of_find_property(dev->of_node, "#power-domain-cells", NULL))
 		return 0;
 
 	perf_ops = handle->devm_protocol_get(sdev, SCMI_PROTOCOL_PERF, &ph);
@@ -141,12 +200,30 @@ static int scmi_perf_domain_probe(struct scmi_device *sdev)
 	scmi_pd_data->domains = domains;
 	scmi_pd_data->num_domains = num_domains;
 
-	ret = of_genpd_add_provider_onecell(dev->of_node, scmi_pd_data);
-	if (ret)
-		goto err;
+	if (dev->of_node) {
+		ret = of_genpd_add_provider_onecell(dev->of_node, scmi_pd_data);
+		if (ret)
+			goto err;
+	} else {
+		/*
+		 * Under ACPI, register a fwnode-based provider so consumers
+		 * can resolve power-domains _DSD references.  The provider
+		 * fwnode is the protocol-specific ACPI child (e.g. DVFS)
+		 * that consumers reference, not the parent SCMI device.
+		 */
+		struct fwnode_handle *proto_fw;
+
+		proto_fw = scmi_perf_find_proto_fwnode(sdev);
+		if (proto_fw) {
+			ret = genpd_add_fwnode_provider_onecell(proto_fw,
+								scmi_pd_data);
+			if (ret)
+				goto err;
+		}
+	}
 
 	dev_set_drvdata(dev, scmi_pd_data);
-	dev_info(dev, "Initialized %d performance domains", num_domains);
+	dev_info(dev, "SCMI perf domains registered (%d domains)\n", num_domains);
 	return 0;
 err:
 	for (i--; i >= 0; i--)
@@ -163,7 +240,16 @@ static void scmi_perf_domain_remove(struct scmi_device *sdev)
 	if (!scmi_pd_data)
 		return;
 
-	of_genpd_del_provider(dev->of_node);
+	if (dev->of_node) {
+		of_genpd_del_provider(dev->of_node);
+	} else {
+		struct scmi_device *sdev = to_scmi_dev(dev);
+		struct fwnode_handle *proto_fw;
+
+		proto_fw = scmi_perf_find_proto_fwnode(sdev);
+		if (proto_fw)
+			genpd_del_fwnode_provider(proto_fw);
+	}
 
 	for (i = 0; i < scmi_pd_data->num_domains; i++)
 		pm_genpd_remove(scmi_pd_data->domains[i]);
@@ -181,6 +267,57 @@ static struct scmi_driver scmi_perf_domain_driver = {
 	.remove		= scmi_perf_domain_remove,
 	.id_table	= scmi_id_table,
 };
+/**
+ * scmi_perf_domain_est_power() - Get estimated power for a rate via SCMI
+ * @dev:   Device attached to an SCMI perf domain genpd
+ * @rate:  [in/out] Frequency in Hz (may be adjusted by firmware)
+ * @power: [out] Estimated power in firmware-native units
+ *
+ * Returns 0 on success, or negative error.
+ */
+int scmi_perf_domain_est_power(struct device *dev,
+			       unsigned long *rate, unsigned long *power)
+{
+	struct generic_pm_domain *genpd;
+	struct scmi_perf_domain *pd;
+
+	if (!dev || !dev->pm_domain)
+		return -ENODEV;
+
+	genpd = pd_to_genpd(dev->pm_domain);
+	if (IS_ERR(genpd) ||
+	    genpd->set_performance_state != scmi_pd_set_perf_state)
+		return -ENODEV;
+
+	pd = to_scmi_pd(genpd);
+	return pd->perf_ops->est_power_get(pd->ph, pd->domain_id, rate, power);
+}
+EXPORT_SYMBOL_GPL(scmi_perf_domain_est_power);
+
+/**
+ * scmi_perf_domain_power_scale() - Get power scale used by SCMI firmware
+ * @dev: Device attached to an SCMI perf domain genpd
+ *
+ * Returns the power scale enum, or SCMI_POWER_BOGOWATTS on error.
+ */
+enum scmi_power_scale scmi_perf_domain_power_scale(struct device *dev)
+{
+	struct generic_pm_domain *genpd;
+	struct scmi_perf_domain *pd;
+
+	if (!dev || !dev->pm_domain)
+		return SCMI_POWER_BOGOWATTS;
+
+	genpd = pd_to_genpd(dev->pm_domain);
+	if (IS_ERR(genpd) ||
+	    genpd->set_performance_state != scmi_pd_set_perf_state)
+		return SCMI_POWER_BOGOWATTS;
+
+	pd = to_scmi_pd(genpd);
+	return pd->perf_ops->power_scale_get(pd->ph);
+}
+EXPORT_SYMBOL_GPL(scmi_perf_domain_power_scale);
+
 module_scmi_driver(scmi_perf_domain_driver);
 
 MODULE_AUTHOR("Ulf Hansson <ulf.hansson@linaro.org>");
