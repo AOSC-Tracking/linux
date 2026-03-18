@@ -182,6 +182,9 @@ struct fwnode_operations {
 	void __iomem *(*iomap)(struct fwnode_handle *fwnode, int index);
 	int (*irq_get)(const struct fwnode_handle *fwnode, unsigned int index);
 	int (*add_links)(struct fwnode_handle *fwnode);
+	int (*property_count_reference_with_args)(
+		const struct fwnode_handle *fwnode, const char *list_name,
+		const char *cells_name);
 };
 
 #define fwnode_has_op(fwnode, op)					\
