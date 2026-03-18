@@ -100,6 +100,33 @@ irqreturn_t rproc_vq_interrupt(struct rproc *rproc, int notifyid)
 }
 EXPORT_SYMBOL(rproc_vq_interrupt);
 
+/**
+ * rproc_vq_force_callback() - force virtqueue callback to be invoked
+ * @rproc: handle to the remote processor
+ * @notifyid: index of the virtqueue (unique per this @rproc)
+ *
+ * This function forces the virtqueue callback to be invoked without
+ * checking if there's work in the used ring. This is needed for
+ * rpmsg-lite compatibility where the remote puts messages in the
+ * avail ring instead of the used ring.
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int rproc_vq_force_callback(struct rproc *rproc, int notifyid)
+{
+	struct rproc_vring *rvring;
+
+	rvring = idr_find(&rproc->notifyids, notifyid);
+	if (!rvring || !rvring->vq)
+		return -EINVAL;
+
+	if (rvring->vq->callback)
+		rvring->vq->callback(rvring->vq);
+
+	return 0;
+}
+EXPORT_SYMBOL(rproc_vq_force_callback);
+
 static struct virtqueue *rp_find_vq(struct virtio_device *vdev,
 				    unsigned int id,
 				    void (*callback)(struct virtqueue *vq),
@@ -132,9 +159,15 @@ static struct virtqueue *rp_find_vq(struct virtio_device *vdev,
 	addr = mem->va;
 	num = rvring->num;
 
-	/* zero vring */
+	/*
+	 * NOTE: We intentionally do NOT zero the vring here.
+	 * For rpmsg-lite firmware like CIX DSP, the firmware boots
+	 * and initializes the vrings before the kernel creates the
+	 * virtio device. Zeroing the vring would wipe out any
+	 * messages the firmware has already queued (e.g., namespace
+	 * announcements).
+	 */
 	size = vring_size(num, rvring->align);
-	memset(addr, 0, size);
 
 	dev_dbg(dev, "vring%d: va %p qsz %d notifyid %d\n",
 		id, addr, num, rvring->notifyid);

@@ -61,6 +61,7 @@ int rproc_of_parse_firmware(struct device *dev, int index,
 
 /* from remoteproc_virtio.c */
 irqreturn_t rproc_vq_interrupt(struct rproc *rproc, int vq_id);
+int rproc_vq_force_callback(struct rproc *rproc, int vq_id);
 
 /* from remoteproc_debugfs.c */
 void rproc_remove_trace_file(struct dentry *tfile);
