@@ -45,7 +45,14 @@ static struct dma_coherent_mem *dma_init_coherent_memory(phys_addr_t phys_addr,
 	if (!size)
 		return ERR_PTR(-EINVAL);
 
-	mem_base = memremap(phys_addr, size, MEMREMAP_WC);
+	/*
+	 * Try write-combining first for non-cacheable DMA access.
+	 * Fall back to write-back if the region is System RAM (e.g.
+	 * firmware-reserved memory not removed from the linear map).
+	 * On architectures with hardware cache coherency (e.g. ARM64),
+	 * write-back is safe for DMA-coherent allocations.
+	 */
+	mem_base = memremap(phys_addr, size, MEMREMAP_WC | MEMREMAP_WB);
 	if (!mem_base)
 		return ERR_PTR(-EINVAL);
 
@@ -129,6 +136,7 @@ int dma_declare_coherent_memory(struct device *dev, phys_addr_t phys_addr,
 		_dma_release_coherent_memory(mem);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(dma_declare_coherent_memory);
 
 void dma_release_coherent_memory(struct device *dev)
 {
