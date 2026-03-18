@@ -47,6 +47,17 @@ config IMX_DSP_REMOTEPROC
 
 	  It's safe to say N here.
 
+config CIX_DSP_RPROC
+	tristate "Cix DSP remoteproc support"
+	depends on ARCH_CIX
+	select MAILBOX
+	select CIX_MBOX
+	help
+	  Say y here to support Cix's DSP remote processors via the remote
+	  processor framework.
+
+	  It's safe to say N here.
+
 config INGENIC_VPU_RPROC
 	tristate "Ingenic JZ47xx VPU remoteproc support"
 	depends on MIPS || COMPILE_TEST
