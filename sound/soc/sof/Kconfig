@@ -298,6 +298,7 @@ config SND_SOC_SOF_IPC4
 	bool
 
 source "sound/soc/sof/amd/Kconfig"
+source "sound/soc/sof/cix/Kconfig"
 source "sound/soc/sof/imx/Kconfig"
 source "sound/soc/sof/intel/Kconfig"
 source "sound/soc/sof/mediatek/Kconfig"
