@@ -9,6 +9,8 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/processor.h>
 #include <linux/types.h>
 
@@ -204,23 +206,82 @@ static void __iomem *shmem_setup_iomap(struct scmi_chan_info *cinfo,
 	void __iomem *addr;
 	u32 reg_io_width;
 
-	struct device_node *shmem __free(device_node) = of_parse_phandle(cdev->of_node,
-		"shmem", idx);
-
-	if (!shmem)
-		return IOMEM_ERR_PTR(-ENODEV);
-
-	if (!of_device_is_compatible(shmem, "arm,scmi-shmem"))
-		return IOMEM_ERR_PTR(-ENXIO);
-
 	/* Use a local on-stack as a working area when not provided */
 	if (!res)
 		res = &lres;
 
-	ret = of_address_to_resource(shmem, 0, res);
-	if (ret) {
-		dev_err(cdev, "failed to get SCMI %s shared memory\n", desc);
-		return IOMEM_ERR_PTR(ret);
+	/*
+	 * DT path (legacy): shmem is a phandle to a DT node with "reg".
+	 * ACPI/_DSD path: shmem is a fwnode reference to a platform device
+	 * exposing an _CRS IORESOURCE_MEM.
+	 */
+	if (cdev->of_node) {
+		struct device_node *shmem_np __free(device_node);
+
+		shmem_np = of_parse_phandle(cdev->of_node, "shmem", idx);
+		if (!shmem_np)
+			return IOMEM_ERR_PTR(-ENODEV);
+
+		if (!of_device_is_compatible(shmem_np, "arm,scmi-shmem"))
+			return IOMEM_ERR_PTR(-ENXIO);
+
+		ret = of_address_to_resource(shmem_np, 0, res);
+		if (ret) {
+			dev_err(cdev, "failed to get SCMI %s shared memory\n", desc);
+			return IOMEM_ERR_PTR(ret);
+		}
+
+		of_property_read_u32(shmem_np, "reg-io-width", &reg_io_width);
+	} else {
+		struct fwnode_reference_args args;
+		struct device *shmdev;
+		struct platform_device *shmpdev;
+		struct resource *r;
+
+		if (!cdev->fwnode)
+			return IOMEM_ERR_PTR(-ENODEV);
+
+		ret = fwnode_property_get_reference_args(cdev->fwnode,
+							 "shmem",
+							 NULL, 0, idx, &args);
+		if (ret) {
+			dev_err(cdev, "no SCMI %s shmem reference (idx=%d): %d\n",
+				desc, idx, ret);
+			return IOMEM_ERR_PTR(-ENODEV);
+		}
+
+		/* SHM0/SHM1 are ACPI devices -> platform devices */
+		shmdev = bus_find_device_by_fwnode(&platform_bus_type, args.fwnode);
+		if (!shmdev) {
+			dev_err(cdev, "SCMI %s shmem device not found for %pfw\n",
+				desc, args.fwnode);
+			return IOMEM_ERR_PTR(-ENODEV);
+		}
+
+		/* Optional sanity check: ACPI provides "compatible"="arm,scmi-shmem" */
+		if (device_property_match_string(shmdev, "compatible",
+						 "arm,scmi-shmem") < 0) {
+			dev_err(cdev, "SCMI %s shmem device %s not compatible\n",
+				desc, dev_name(shmdev));
+			put_device(shmdev);
+			return IOMEM_ERR_PTR(-ENXIO);
+		}
+
+		/* Optional: reg-io-width */
+		reg_io_width = 0;
+		device_property_read_u32(shmdev, "reg-io-width", &reg_io_width);
+
+		shmpdev = to_platform_device(shmdev);
+		r = platform_get_resource(shmpdev, IORESOURCE_MEM, 0);
+		if (!r) {
+			dev_err(cdev, "SCMI %s shmem device %s has no MEM resource\n",
+				desc, dev_name(shmdev));
+			put_device(shmdev);
+			return IOMEM_ERR_PTR(-ENODEV);
+		}
+		*res = *r;
+
+		put_device(shmdev);
 	}
 
 	size = resource_size(res);
@@ -235,7 +296,6 @@ static void __iomem *shmem_setup_iomap(struct scmi_chan_info *cinfo,
 		return IOMEM_ERR_PTR(-EADDRNOTAVAIL);
 	}
 
-	of_property_read_u32(shmem, "reg-io-width", &reg_io_width);
 	switch (reg_io_width) {
 	case 4:
 		*ops = &shmem_io_ops32;

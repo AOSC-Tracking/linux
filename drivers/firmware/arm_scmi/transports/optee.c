@@ -312,12 +312,19 @@ static int invoke_process_msg_channel(struct scmi_optee_channel *channel, size_t
 	return 0;
 }
 
-static bool scmi_optee_chan_available(struct device_node *of_node, int idx)
+static bool scmi_optee_chan_available(struct fwnode_handle *fwnode, int idx)
 {
-	u32 channel_id;
+	int n;
 
-	return !of_property_read_u32_index(of_node, "linaro,optee-channel-id",
-					   idx, &channel_id);
+	if (!fwnode || idx < 0)
+		return false;
+
+	n = fwnode_property_count_u32(fwnode, "linaro,optee-channel-id");
+
+	if (n <= idx)
+		return false;
+
+	return true;
 }
 
 static void scmi_optee_clear_channel(struct scmi_chan_info *cinfo)
@@ -527,7 +534,7 @@ static const struct of_device_id scmi_of_match[] = {
 };
 
 DEFINE_SCMI_TRANSPORT_DRIVER(scmi_optee, scmi_optee_driver, scmi_optee_desc,
-			     scmi_of_match, core);
+			     scmi_of_match, NULL, core);
 
 static int scmi_optee_service_probe(struct tee_client_device *scmi_pta)
 {

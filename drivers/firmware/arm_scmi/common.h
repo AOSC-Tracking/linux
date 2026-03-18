@@ -149,7 +149,7 @@ extern const struct bus_type scmi_bus_type;
 #define SCMI_BUS_NOTIFY_DEVICE_UNREQUEST	1
 extern struct blocking_notifier_head scmi_requested_devices_nh;
 
-struct scmi_device *scmi_device_create(struct device_node *np,
+struct scmi_device *scmi_device_create(struct fwnode_handle *np,
 				       struct device *parent, int protocol,
 				       const char *name);
 void scmi_device_destroy(struct device *parent, int protocol, const char *name);
@@ -203,7 +203,7 @@ struct scmi_chan_info {
  * @poll_done: Callback to poll transfer status
  */
 struct scmi_transport_ops {
-	bool (*chan_available)(struct device_node *of_node, int idx);
+	bool (*chan_available)(struct fwnode_handle *fwnode, int idx);
 	int (*chan_setup)(struct scmi_chan_info *cinfo, struct device *dev,
 			  bool tx);
 	int (*chan_free)(int id, void *p, void *data);
@@ -473,7 +473,8 @@ struct scmi_transport {
 	struct scmi_transport_core_operations **core_ops;
 };
 
-#define DEFINE_SCMI_TRANSPORT_DRIVER(__tag, __drv, __desc, __match, __core_ops)\
+#define DEFINE_SCMI_TRANSPORT_DRIVER(__tag, __drv, __desc, __of_match,	       \
+				     __acpi_match, __core_ops)		       \
 static void __tag##_dev_free(void *data)				       \
 {									       \
 	struct platform_device *spdev = data;				       \
@@ -492,7 +493,7 @@ static int __tag##_probe(struct platform_device *pdev)			       \
 	if (!spdev)							       \
 		return -ENOMEM;						       \
 									       \
-	device_set_of_node_from_dev(&spdev->dev, dev);			       \
+	device_set_node(&spdev->dev, dev->fwnode);			       \
 									       \
 	strans.supplier = dev;						       \
 	memcpy(&strans.desc, &(__desc), sizeof(strans.desc));		       \
@@ -517,7 +518,8 @@ err:									       \
 static struct platform_driver __drv = {					       \
 	.driver = {							       \
 		   .name = #__tag "_transport",				       \
-		   .of_match_table = __match,				       \
+		   .of_match_table = __of_match,			       \
+		   .acpi_match_table = __acpi_match,			       \
 		   },							       \
 	.probe = __tag##_probe,						       \
 }

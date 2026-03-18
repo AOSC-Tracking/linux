@@ -373,7 +373,7 @@ static unsigned int virtio_get_max_msg(struct scmi_chan_info *base_cinfo)
 	return vioch->max_msg;
 }
 
-static bool virtio_chan_available(struct device_node *of_node, int idx)
+static bool virtio_chan_available(struct fwnode_handle *fwnode, int idx)
 {
 	struct scmi_vio_channel *channels, *vioch = NULL;
 
@@ -806,7 +806,7 @@ static const struct of_device_id scmi_of_match[] = {
 };
 
 DEFINE_SCMI_TRANSPORT_DRIVER(scmi_virtio, scmi_virtio_driver, scmi_virtio_desc,
-			     scmi_of_match, core);
+			     scmi_of_match, NULL, core);
 
 static int scmi_vio_probe(struct virtio_device *vdev)
 {
