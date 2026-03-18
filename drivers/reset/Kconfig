@@ -403,4 +403,21 @@ source "drivers/reset/starfive/Kconfig"
 source "drivers/reset/sti/Kconfig"
 source "drivers/reset/tegra/Kconfig"
 
+config RESET_SKY1
+	bool "CIX Sky1 Reset Controller"
+	depends on ARCH_CIX || COMPILE_TEST
+	default ARCH_CIX
+	help
+	  This enables the reset controller driver for CIX Sky1 SoCs.
+
+config RESET_SKY1_AUDSS
+	tristate "CIX Sky1 Audio Subsystem Reset Controller"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on MFD_SYSCON
+	default ARCH_CIX
+	help
+	  This enables the audio subsystem reset controller for CIX Sky1
+	  SoCs. This is required for the audio subsystem including I2S
+	  controllers and DSP.
+
 endif

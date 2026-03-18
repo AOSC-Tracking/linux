@@ -7,6 +7,23 @@
 struct reset_controller_dev;
 
 /**
+ * struct reset_control_lookup - represents a single lookup entry
+ *
+ * @list: internal list of all reset lookup entries
+ * @provider: name of the reset controller device controlling this reset line
+ * @index: ID of the reset controller in the reset controller device
+ * @dev_id: name of the device associated with this reset line
+ * @con_id: name of the reset line (can be NULL)
+ */
+struct reset_control_lookup {
+	struct list_head list;
+	const char *provider;
+	unsigned int index;
+	const char *dev_id;
+	const char *con_id;
+};
+
+/**
  * struct reset_control_ops - reset controller driver callbacks
  *
  * @reset: for self-deasserting resets, does all necessary
@@ -65,6 +82,9 @@ void reset_controller_unregister(struct reset_controller_dev *rcdev);
 struct device;
 int devm_reset_controller_register(struct device *dev,
 				   struct reset_controller_dev *rcdev);
+
+void reset_controller_add_lookup(struct reset_control_lookup *lookup,
+				 unsigned int num_entries);
 #else
 static inline int reset_controller_register(struct reset_controller_dev *rcdev)
 {
@@ -79,6 +99,11 @@ static inline int devm_reset_controller_register(struct device *dev,
 						 struct reset_controller_dev *rcdev)
 {
 	return 0;
+}
+
+static inline void reset_controller_add_lookup(struct reset_control_lookup *lookup,
+					       unsigned int num_entries)
+{
 }
 #endif
 
