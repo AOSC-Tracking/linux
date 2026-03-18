@@ -6,6 +6,7 @@
 #include <linux/bitfield.h>
 #include <linux/bitmap.h>
 #include <linux/delay.h>
+#include <linux/of.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -50,8 +51,16 @@ struct panthor_gpu {
 
 static void panthor_gpu_coherency_set(struct panthor_device *ptdev)
 {
-	gpu_write(ptdev, GPU_COHERENCY_PROTOCOL,
-		  ptdev->gpu_info.selected_coherency);
+	u32 val = ptdev->coherency_mode;
+
+	if (val != PANTHOR_COHERENCY_NONE) {
+		u32 features = gpu_read(ptdev, GPU_COHERENCY_FEATURES);
+
+		if (features & GPU_COHERENCY_SHAREABLE_CACHE)
+			val |= GPU_COHERENCY_SHAREABLE_CACHE;
+	}
+
+	gpu_write(ptdev, GPU_COHERENCY_PROTOCOL, val);
 }
 
 static void panthor_gpu_l2_config_set(struct panthor_device *ptdev)
@@ -146,7 +155,15 @@ int panthor_gpu_init(struct panthor_device *ptdev)
 	if (ret)
 		return ret;
 
-	irq = platform_get_irq_byname(to_platform_device(ptdev->base.dev), "gpu");
+	if (has_acpi_companion(ptdev->base.dev)) {
+		irq = platform_get_irq(to_platform_device(ptdev->base.dev), 2);
+	} else {
+		irq = platform_get_irq_byname(to_platform_device(ptdev->base.dev), "GPU");
+		if (irq < 0) {
+			/* Try lowercase for non-Sky1 platforms */
+			irq = platform_get_irq_byname(to_platform_device(ptdev->base.dev), "gpu");
+		}
+	}
 	if (irq < 0)
 		return irq;
 
@@ -273,6 +290,26 @@ int panthor_gpu_l2_power_on(struct panthor_device *ptdev)
 	/* Set the desired coherency mode and L2 config before the power up of L2 */
 	panthor_gpu_coherency_set(ptdev);
 	panthor_gpu_l2_config_set(ptdev);
+
+	/* CIX Sky1 needs special PHBA setup before L2 activation */
+	if (of_device_is_compatible(ptdev->base.dev->of_node, "arm,mali-valhall")) {
+		gpu_write(ptdev, GPU_SYSC_PBHA_OVERRIDE(3), 0x22000000);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(0), 0x00230000);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(1), 0x00000023);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(2), 0x00000000);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(3), 0x00000000);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(4), 0x00523222);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(5), 0x00523200);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(6), 0x00000022);
+		gpu_write(ptdev, GPU_SYSC_ALLOC(7), 0x00000032);
+
+		/* Required for LS_MEM_* related counters */
+		gpu_write(ptdev, 0x306C, 0xFFFFFFFF);
+		gpu_write(ptdev, 0x3070, 0xFFFFFFFF);
+		gpu_write(ptdev, 0x307C, 0xFFFFFFFF);
+		gpu_write(ptdev, 0x3074, 0xFFFFFFFF);
+		gpu_write(ptdev, 0x3068, 0x1);
+	}
 
 	return panthor_gpu_power_on(ptdev, L2, 1, 20000);
 }

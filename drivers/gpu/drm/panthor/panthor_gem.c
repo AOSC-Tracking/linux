@@ -99,8 +99,12 @@ should_map_wc(struct panthor_gem_object *bo, struct panthor_vm *exclusive_vm)
 	 * CPU cache maintenance regardless of whether the device is coherent
 	 * or not.
 	 */
-	if (ptdev->coherent)
-		return false;
+	if (bo->base.base.dev) {
+		struct panthor_device *ptdev =
+			container_of(bo->base.base.dev, struct panthor_device, base);
+		if (ptdev->coherency_mode == PANTHOR_COHERENCY_ACE)
+			return false;
+	}
 
 	/* Cached mappings are explicitly requested, so no write-combine. */
 	if (bo->flags & DRM_PANTHOR_BO_WB_MMAP)
@@ -404,6 +408,7 @@ struct drm_gem_object *panthor_gem_create_object(struct drm_device *ddev, size_t
 		return ERR_PTR(-ENOMEM);
 
 	obj->base.base.funcs = &panthor_gem_funcs;
+	/* map_wc is set later via should_map_wc() in panthor_gem_create_with_handle() */
 	mutex_init(&obj->label.lock);
 
 	panthor_gem_debugfs_bo_init(obj);

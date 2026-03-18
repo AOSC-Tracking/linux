@@ -2,6 +2,8 @@
 /* Copyright 2025 ARM Limited. All rights reserved. */
 
 #include <linux/nvmem-consumer.h>
+#include <linux/of.h>
+
 #include <drm/drm_print.h>
 
 #include "panthor_device.h"
@@ -131,7 +133,9 @@ static int overload_shader_present(struct panthor_device *ptdev)
 static int panthor_gpu_info_init(struct panthor_device *ptdev)
 {
 	unsigned int i;
+	int ret;
 
+	ptdev->gpu_info.gpu_id = gpu_read(ptdev, GPU_ID);
 	ptdev->gpu_info.csf_id = gpu_read(ptdev, GPU_CSF_ID);
 	ptdev->gpu_info.gpu_rev = gpu_read(ptdev, GPU_REVID);
 	ptdev->gpu_info.core_features = gpu_read(ptdev, GPU_CORE_FEATURES);
@@ -163,7 +167,24 @@ static int panthor_gpu_info_init(struct panthor_device *ptdev)
 		ptdev->gpu_info.l2_present = gpu_read64(ptdev, GPU_L2_PRESENT);
 	}
 
-	return overload_shader_present(ptdev);
+	ret = overload_shader_present(ptdev);
+	if (ret)
+		return ret;
+
+	/* On CIX Sky1 SoC some shader cores can be disabled via RCSU */
+	if (of_device_is_compatible(ptdev->base.dev->of_node, "arm,mali-valhall") &&
+	    ptdev->sky1_rcsu_reg) {
+		u32 sky1_harvesting_reg_val = readl(ptdev->sky1_rcsu_reg + 0x304);
+		u64 sky1_harvesting_core_mask = ~((sky1_harvesting_reg_val & 0xFFFFFF0) >> 4) & 0x550555;
+
+		ptdev->gpu_info.shader_present &= sky1_harvesting_core_mask;
+
+		drm_info(&ptdev->base,
+			 "sky1 harvesting: reg=0x%x core_mask=0x%llx",
+			 sky1_harvesting_reg_val, sky1_harvesting_core_mask);
+	}
+
+	return 0;
 }
 
 static int panthor_hw_info_init(struct panthor_device *ptdev)

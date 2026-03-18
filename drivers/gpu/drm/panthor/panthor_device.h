@@ -6,6 +6,7 @@
 #ifndef __PANTHOR_DEVICE_H__
 #define __PANTHOR_DEVICE_H__
 
+#include <linux/acpi.h>
 #include <linux/atomic.h>
 #include <linux/io-pgtable.h>
 #include <linux/regulator/consumer.h>
@@ -17,6 +18,27 @@
 #include <drm/drm_mm.h>
 #include <drm/gpu_scheduler.h>
 #include <drm/panthor_drm.h>
+
+/**
+ * enum panthor_coherency_mode - GPU bus coherency protocol
+ *
+ * Determines how the GPU participates in the system coherency fabric.
+ * Values match the GPU_COHERENCY_PROTOCOL register encoding.
+ */
+enum panthor_coherency_mode {
+	/** @PANTHOR_COHERENCY_ACE_LITE: GPU is RN-I on CHI fabric.
+	 * L2 evictions route through HN-F/SLC, making WB data visible
+	 * to non-snooping masters. No NC memattr needed. */
+	PANTHOR_COHERENCY_ACE_LITE = 0,
+
+	/** @PANTHOR_COHERENCY_ACE: Full CPU-GPU coherency via snooping.
+	 * Page table walks use outer-shareable, GEM uses cached mappings. */
+	PANTHOR_COHERENCY_ACE = 1,
+
+	/** @PANTHOR_COHERENCY_NONE: GPU outside coherency domain.
+	 * Requires NC memattr when no IOMMU is present. */
+	PANTHOR_COHERENCY_NONE = 31,
+};
 
 struct panthor_csf;
 struct panthor_csf_ctx;
@@ -115,6 +137,18 @@ struct panthor_device {
 	/** @iomem: CPU mapping of the IOMEM region. */
 	void __iomem *iomem;
 
+	/** @sky1_rcsu_reg: Sky1 RCSU register mapping (optional). */
+	void __iomem *sky1_rcsu_reg;
+
+	/** @pm_domain_devs: PM domain device instances for devices with more than one PM domain. */
+	struct device *pm_domain_devs[2];
+
+	/** @pm_domain_links: PM domain device links for devices with more than one PM domain. */
+	struct device_link *pm_domain_links[2];
+
+	/** @gpu_reset: Reset control for GPU (optional, Sky1). */
+	struct reset_control *gpu_reset;
+
 	/** @clks: GPU clocks. */
 	struct {
 		/** @core: Core clock. */
@@ -125,10 +159,13 @@ struct panthor_device {
 
 		/** @coregroup: Core group clock. This clock is optional. */
 		struct clk *coregroup;
+
+		/** @backup: Sky1 backup clocks. These clocks are optional. */
+		struct clk *backup[2];
 	} clks;
 
-	/** @coherent: True if the CPU/GPU are memory coherent. */
-	bool coherent;
+	/** @coherency_mode: GPU bus coherency protocol. */
+	enum panthor_coherency_mode coherency_mode;
 
 	/** @gpu_info: GPU information. */
 	struct drm_panthor_gpu_info gpu_info;
