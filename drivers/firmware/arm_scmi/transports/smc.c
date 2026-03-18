@@ -84,10 +84,10 @@ static irqreturn_t smc_msg_done_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static bool smc_chan_available(struct device_node *of_node, int idx)
+static bool smc_chan_available(struct fwnode_handle *fwnode, int idx)
 {
-	struct device_node *np __free(device_node) =
-					of_parse_phandle(of_node, "shmem", 0);
+	struct fwnode_handle *np __free(fwnode_handle) =
+					fwnode_find_reference(fwnode, "shmem", 0);
 	if (!np)
 		return false;
 
@@ -304,7 +304,7 @@ static const struct of_device_id scmi_of_match[] = {
 MODULE_DEVICE_TABLE(of, scmi_of_match);
 
 DEFINE_SCMI_TRANSPORT_DRIVER(scmi_smc, scmi_smc_driver, scmi_smc_desc,
-			     scmi_of_match, core);
+			     scmi_of_match, NULL, core);
 module_platform_driver(scmi_smc_driver);
 
 MODULE_AUTHOR("Peng Fan <peng.fan@nxp.com>");

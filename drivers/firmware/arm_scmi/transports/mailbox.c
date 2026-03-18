@@ -6,12 +6,14 @@
  * Copyright (C) 2019-2024 ARM Ltd.
  */
 
+#include <linux/acpi.h>
 #include <linux/err.h>
 #include <linux/device.h>
 #include <linux/mailbox_client.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/slab.h>
 
 #include "../common.h"
@@ -77,21 +79,22 @@ static void rx_callback(struct mbox_client *cl, void *m)
 		      core->shmem->read_header(smbox->shmem), NULL);
 }
 
-static bool mailbox_chan_available(struct device_node *of_node, int idx)
+static bool mailbox_chan_available(struct fwnode_handle *fwnode, int idx)
 {
 	int num_mb;
+	struct fwnode_reference_args fwnode_args;
 
 	/*
 	 * Just check if bidirrectional channels are involved, and check the
 	 * index accordingly; proper full validation will be made later
 	 * in mailbox_chan_setup().
 	 */
-	num_mb = of_count_phandle_with_args(of_node, "mboxes", "#mbox-cells");
+	num_mb = fwnode_count_reference_with_args(fwnode, "mboxes", "#mbox-cells");
 	if (num_mb == 3 && idx == 1)
 		idx = 2;
 
-	return !of_parse_phandle_with_args(of_node, "mboxes",
-					   "#mbox-cells", idx, NULL);
+	return !fwnode_property_get_reference_args(fwnode, "mboxes",
+					   "#mbox-cells", 1, idx, &fwnode_args);
 }
 
 /**
@@ -116,10 +119,10 @@ static int mailbox_chan_validate(struct device *cdev, int *a2p_rx_chan,
 				 int *p2a_chan, int *p2a_rx_chan)
 {
 	int num_mb, num_sh, ret = 0;
-	struct device_node *np = cdev->of_node;
+	struct fwnode_handle *fwnode = cdev->fwnode;
 
-	num_mb = of_count_phandle_with_args(np, "mboxes", "#mbox-cells");
-	num_sh = of_count_phandle_with_args(np, "shmem", NULL);
+	num_mb = fwnode_count_reference_with_args(fwnode, "mboxes", "#mbox-cells");
+	num_sh = fwnode_count_reference_with_args(fwnode, "shmem", NULL);
 	dev_dbg(cdev, "Found %d mboxes and %d shmems !\n", num_mb, num_sh);
 
 	/* Bail out if mboxes and shmem descriptors are inconsistent */
@@ -127,20 +130,20 @@ static int mailbox_chan_validate(struct device *cdev, int *a2p_rx_chan,
 	    (num_mb == 1 && num_sh != 1) || (num_mb == 3 && num_sh != 2) ||
 	    (num_mb == 4 && num_sh != 2)) {
 		dev_warn(cdev,
-			 "Invalid channel descriptor for '%pOF' - mbs:%d  shm:%d\n",
-			 np, num_mb, num_sh);
+			 "Invalid channel descriptor for '%s' - mbs:%d  shm:%d\n",
+			 fwnode_get_name(fwnode), num_mb, num_sh);
 		return -EINVAL;
 	}
 
 	/* Bail out if provided shmem descriptors do not refer distinct areas  */
 	if (num_sh > 1) {
-		struct device_node *np_tx __free(device_node) =
-					of_parse_phandle(np, "shmem", 0);
-		struct device_node *np_rx __free(device_node) =
-					of_parse_phandle(np, "shmem", 1);
+		struct fwnode_handle *np_tx __free(fwnode_handle) =
+					fwnode_find_reference(fwnode, "shmem", 0);
+		struct fwnode_handle *np_rx __free(fwnode_handle) =
+					fwnode_find_reference(fwnode, "shmem", 1);
 
 		if (!np_tx || !np_rx || np_tx == np_rx) {
-			dev_warn(cdev, "Invalid shmem descriptor for '%pOF'\n", np);
+			dev_warn(cdev, "Invalid shmem descriptor for '%s'\n", fwnode_get_name(fwnode));
 			ret = -EINVAL;
 		}
 	}
@@ -379,8 +382,15 @@ static const struct of_device_id scmi_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, scmi_of_match);
 
+static const struct acpi_device_id scmi_acpi_match[] = {
+	{ .id = "CIXHA006", .driver_data = (kernel_ulong_t)&scmi_mailbox_desc },
+	{ /* Sentinel */ },
+};
+
+MODULE_DEVICE_TABLE(acpi, scmi_acpi_match);
+
 DEFINE_SCMI_TRANSPORT_DRIVER(scmi_mailbox, scmi_mailbox_driver,
-			     scmi_mailbox_desc, scmi_of_match, core);
+			     scmi_mailbox_desc, scmi_of_match, scmi_acpi_match, core);
 module_platform_driver(scmi_mailbox_driver);
 
 MODULE_AUTHOR("Sudeep Holla <sudeep.holla@arm.com>");
