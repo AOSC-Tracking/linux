@@ -57,5 +57,6 @@ obj-$(CONFIG_SND_SOC_SOF_DEBUG_PROBES) += snd-sof-probes.o
 obj-$(CONFIG_SND_SOC_SOF_INTEL_TOPLEVEL) += intel/
 obj-$(CONFIG_SND_SOC_SOF_IMX_TOPLEVEL) += imx/
 obj-$(CONFIG_SND_SOC_SOF_AMD_TOPLEVEL) += amd/
+obj-$(CONFIG_SND_SOC_SOF_CIX_TOPLEVEL) += cix/
 obj-$(CONFIG_SND_SOC_SOF_XTENSA) += xtensa/
 obj-$(CONFIG_SND_SOC_SOF_MTK_TOPLEVEL) += mediatek/
