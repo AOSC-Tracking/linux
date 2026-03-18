@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config CIX_ACPI_RESOURCE_LOOKUP
+	bool "CIX ACPI resource lookup driver"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on ACPI
+	depends on RESET_CONTROLLER
+	default ARCH_CIX
+	help
+	  Processes custom CIX DSDT tables (RSTL, RSNL, DLKL) to register
+	  reset control lookups, assign names to platform resources, and
+	  create device link dependencies. This bridges CIX's ACPI firmware
+	  with the Linux kernel's standard resource lookup mechanisms.
+
+	  Required for CIX Sky1 ACPI boot with drivers that use
+	  platform_get_resource_byname() or devm_reset_control_get().
+
