@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config SND_SOC_CIX
+	tristate "ASoC support for CIX SoCs"
+	depends on ARCH_CIX || COMPILE_TEST
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the CIX SoC audio interfaces. You will also need to select the
+	  audio interfaces to support below.
+
+config SND_SOC_CDNS_I2S_MC
+	tristate "Cadence I2S Multi-Channel Controller"
+	depends on SND_SOC_CIX
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	  Say Y or M if you want to add support for the Cadence I2S
+	  Multi-Channel controller used in CIX Sky1 SoCs. This controller
+	  supports up to 16 audio channels.
+
+config SND_SOC_CDNS_I2S_SC
+	tristate "Cadence I2S Single-Channel Controller"
+	depends on SND_SOC_CIX
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	  Say Y or M if you want to add support for the Cadence I2S
+	  Single-Channel controller used in CIX Sky1 SoCs. This controller
+	  supports stereo (2-channel) audio.
+
+config SND_SOC_SKY1_SOUND_CARD
+	tristate "CIX Sky1 Sound Card"
+	depends on SND_SOC_CIX
+	select MFD_SYSCON
+	help
+	  Say Y or M if you want to add support for the CIX Sky1 ASoC
+	  machine driver. This driver provides DAI link configuration,
+	  jack detection, and MCLK setup for audio codecs connected
+	  to the Sky1 SoC.
