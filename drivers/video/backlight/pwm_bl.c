@@ -5,12 +5,14 @@
  * 2) platform_data being correctly configured
  */
 
+#include <linux/acpi.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/backlight.h>
 #include <linux/err.h>
 #include <linux/pwm.h>
@@ -221,13 +223,11 @@ static int pwm_backlight_parse_dt(struct device *dev,
 	struct device_node *node = dev->of_node;
 	unsigned int num_levels;
 	unsigned int num_steps = 0;
-	struct property *prop;
 	unsigned int *table;
-	int length;
 	u32 value;
 	int ret;
 
-	if (!node)
+	if (!node && !dev->fwnode)
 		return -ENODEV;
 
 	memset(data, 0, sizeof(*data));
@@ -236,35 +236,39 @@ static int pwm_backlight_parse_dt(struct device *dev,
 	 * These values are optional and set as 0 by default, the out values
 	 * are modified only if a valid u32 value can be decoded.
 	 */
-	of_property_read_u32(node, "post-pwm-on-delay-ms",
-			     &data->post_pwm_on_delay);
-	of_property_read_u32(node, "pwm-off-delay-ms", &data->pwm_off_delay);
+	device_property_read_u32(dev, "post-pwm-on-delay-ms",
+				 &data->post_pwm_on_delay);
+	device_property_read_u32(dev, "pwm-off-delay-ms",
+				 &data->pwm_off_delay);
 
 	/*
 	 * Determine the number of brightness levels, if this property is not
 	 * set a default table of brightness levels will be used.
 	 */
-	prop = of_find_property(node, "brightness-levels", &length);
-	if (!prop)
+	if (!device_property_present(dev, "brightness-levels"))
 		return 0;
 
-	num_levels = length / sizeof(u32);
+	ret = device_property_count_u32(dev, "brightness-levels");
+	if (ret < 0)
+		return ret;
+	num_levels = ret;
 
-	/* read brightness levels from DT property */
+	/* read brightness levels from DT/ACPI property */
 	if (num_levels > 0) {
 		data->levels = devm_kcalloc(dev, num_levels,
 					    sizeof(*data->levels), GFP_KERNEL);
 		if (!data->levels)
 			return -ENOMEM;
 
-		ret = of_property_read_u32_array(node, "brightness-levels",
-						 data->levels,
-						 num_levels);
+		ret = device_property_read_u32_array(dev, "brightness-levels",
+						     data->levels,
+						     num_levels);
 		if (ret < 0)
 			return ret;
 
-		ret = of_property_read_u32(node, "default-brightness-level",
-					   &value);
+		ret = device_property_read_u32(dev,
+					       "default-brightness-level",
+					       &value);
 		if (ret < 0)
 			return ret;
 
@@ -275,8 +279,8 @@ static int pwm_backlight_parse_dt(struct device *dev,
 		 * interpolation between each of the values of brightness levels
 		 * and creates a new pre-computed table.
 		 */
-		of_property_read_u32(node, "num-interpolated-steps",
-				     &num_steps);
+		device_property_read_u32(dev, "num-interpolated-steps",
+					 &num_steps);
 
 		/*
 		 * Make sure that there is at least two entries in the
@@ -351,8 +355,15 @@ static const struct of_device_id pwm_backlight_of_match[] = {
 	{ .compatible = "pwm-backlight" },
 	{ }
 };
-
 MODULE_DEVICE_TABLE(of, pwm_backlight_of_match);
+
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id pwm_backlight_acpi_match[] = {
+	{ "CIXH5041", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, pwm_backlight_acpi_match);
+#endif
 #else
 static int pwm_backlight_parse_dt(struct device *dev,
 				  struct platform_pwm_backlight_data *data)
@@ -695,6 +706,7 @@ static struct platform_driver pwm_backlight_driver = {
 		.name		= "pwm-backlight",
 		.pm		= &pwm_backlight_pm_ops,
 		.of_match_table	= of_match_ptr(pwm_backlight_of_match),
+		.acpi_match_table = ACPI_PTR(pwm_backlight_acpi_match),
 	},
 	.probe		= pwm_backlight_probe,
 	.remove		= pwm_backlight_remove,

@@ -273,9 +273,7 @@ config DRM_LIB_RANDOM
 	bool
 	default n
 
-config DRM_PRIVACY_SCREEN
-	bool
-	default n
+source "drivers/gpu/drm/cix/Kconfig"
 
 # DRM driver Kconfig files, sorted
 source "drivers/gpu/drm/adp/Kconfig"
