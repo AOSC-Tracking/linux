@@ -737,7 +737,7 @@ out_enable_as:
 		   AS_TRANSCFG_PTW_RA |
 		   AS_TRANSCFG_ADRMODE_AARCH64_4K |
 		   AS_TRANSCFG_INA_BITS(55 - va_bits);
-	if (ptdev->coherent)
+	if (ptdev->coherency_mode == PANTHOR_COHERENCY_ACE)
 		transcfg |= AS_TRANSCFG_PTW_SH_OS;
 
 	/* If the VM is re-activated, we clear the fault. */
@@ -2003,7 +2003,8 @@ void panthor_vm_heaps_sizes(struct panthor_file *pfile, struct drm_memory_stats 
 	xa_unlock(&pfile->vms->xa);
 }
 
-static u64 mair_to_memattr(u64 mair, bool coherent)
+static u64 mair_to_memattr(u64 mair, enum panthor_coherency_mode mode,
+			   bool has_iommu)
 {
 	u64 memattr = 0;
 	u32 i;
@@ -2021,19 +2022,27 @@ static u64 mair_to_memattr(u64 mair, bool coherent)
 			out_attr = AS_MEMATTR_AARCH64_INNER_OUTER_NC |
 				   AS_MEMATTR_AARCH64_SH_MIDGARD_INNER |
 				   AS_MEMATTR_AARCH64_INNER_ALLOC_EXPL(false, false);
+		} else if (mode != PANTHOR_COHERENCY_ACE && !has_iommu) {
+			/* GPU not fully coherent and no IOMMU to override
+			 * memory attributes at the bus level. Even with
+			 * ACE-Lite, GPU L2 may not evict to SLC in time
+			 * for non-snooping masters like the DPU.
+			 * Force NC to guarantee DRAM visibility.
+			 */
+			out_attr = AS_MEMATTR_AARCH64_INNER_OUTER_NC |
+				   AS_MEMATTR_AARCH64_SH_MIDGARD_INNER |
+				   AS_MEMATTR_AARCH64_INNER_ALLOC_EXPL(false, false);
 		} else {
 			out_attr = AS_MEMATTR_AARCH64_INNER_OUTER_WB |
 				   AS_MEMATTR_AARCH64_INNER_ALLOC_EXPL(inner & 1, inner & 2);
-			/* Use SH_MIDGARD_INNER mode when device isn't coherent,
-			 * so SH_IS, which is used when IOMMU_CACHE is set, maps
-			 * to Mali's internal-shareable mode. As per the Mali
-			 * Spec, inner and outer-shareable modes aren't allowed
-			 * for WB memory when coherency is disabled.
+			/* Use SH_MIDGARD_INNER mode when device isn't fully
+			 * coherent, so SH_IS, which is used when IOMMU_CACHE
+			 * is set, maps to Mali's internal-shareable mode.
 			 * Use SH_CPU_INNER mode when coherency is enabled, so
-			 * that SH_IS actually maps to the standard definition of
-			 * inner-shareable.
+			 * that SH_IS actually maps to the standard definition
+			 * of inner-shareable.
 			 */
-			if (!coherent)
+			if (mode != PANTHOR_COHERENCY_ACE)
 				out_attr |= AS_MEMATTR_AARCH64_SH_MIDGARD_INNER;
 			else
 				out_attr |= AS_MEMATTR_AARCH64_SH_CPU_INNER;
@@ -2463,7 +2472,7 @@ panthor_vm_create(struct panthor_device *ptdev, bool for_mcu,
 		.pgsize_bitmap	= SZ_4K | SZ_2M,
 		.ias		= va_bits,
 		.oas		= pa_bits,
-		.coherent_walk	= ptdev->coherent,
+		.coherent_walk	= ptdev->coherency_mode == PANTHOR_COHERENCY_ACE,
 		.tlb		= &mmu_tlb_ops,
 		.iommu_dev	= ptdev->base.dev,
 		.alloc		= alloc_pt,
@@ -2486,7 +2495,8 @@ panthor_vm_create(struct panthor_device *ptdev, bool for_mcu,
 		goto err_sched_fini;
 
 	mair = io_pgtable_ops_to_pgtable(vm->pgtbl_ops)->cfg.arm_lpae_s1_cfg.mair;
-	vm->memattr = mair_to_memattr(mair, ptdev->coherent);
+	vm->memattr = mair_to_memattr(mair, ptdev->coherency_mode,
+				      device_iommu_mapped(ptdev->base.dev));
 
 	mutex_lock(&ptdev->mmu->vm.lock);
 	list_add_tail(&vm->node, &ptdev->mmu->vm.list);
@@ -2863,7 +2873,15 @@ int panthor_mmu_init(struct panthor_device *ptdev)
 
 	ptdev->mmu = mmu;
 
-	irq = platform_get_irq_byname(to_platform_device(ptdev->base.dev), "mmu");
+	if (has_acpi_companion(ptdev->base.dev)) {
+		irq = platform_get_irq(to_platform_device(ptdev->base.dev), 1);
+	} else {
+		irq = platform_get_irq_byname(to_platform_device(ptdev->base.dev), "MMU");
+		if (irq <= 0) {
+			/* Try lowercase for non-Sky1 platforms */
+			irq = platform_get_irq_byname(to_platform_device(ptdev->base.dev), "mmu");
+		}
+	}
 	if (irq <= 0)
 		return -ENODEV;
 
