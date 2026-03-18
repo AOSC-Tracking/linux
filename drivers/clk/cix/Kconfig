@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config CLK_SKY1_ACPI
+	tristate "CIX Sky1 ACPI clock lookup table support"
+	depends on ACPI && COMMON_CLK_SCMI
+	depends on ARM64
+	default ARCH_CIX
+	help
+	  Parses CLKT tables in the CIX Sky1 DSDT to connect ACPI
+	  consumer devices with SCMI-provided clocks. Required for
+	  ACPI boot on Sky1 SoCs.
+
+config CLK_SKY1_AUDSS
+	bool "CIX Sky1 Audio Subsystem Clock Controller"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on MFD_SYSCON
+	depends on COMMON_CLK
+	default ARCH_CIX
+	help
+	  This enables the audio subsystem clock controller for CIX Sky1
+	  SoCs. This is required for the audio subsystem including I2S
+	  controllers and DSP.
