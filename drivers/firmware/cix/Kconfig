@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config CIX_DSP
+	tristate "CIX DSP IPC driver"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on MAILBOX
+	help
+	  This driver provides IPC communication helpers for the CIX DSP.
+	  It is used by the Sound Open Firmware (SOF) driver to communicate
+	  with the audio DSP on CIX Sky1 SoCs.
+
+	  If unsure, say N.
