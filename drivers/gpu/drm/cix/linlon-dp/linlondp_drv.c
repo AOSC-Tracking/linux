@@ -4,6 +4,7 @@
  * ALL RIGHTS RESERVED
  *
  */
+#include <linux/aperture.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
@@ -58,6 +59,15 @@ static int linlondp_bind(struct device *dev)
 {
 	struct linlondp_drv *mdrv;
 	int err;
+
+	/* Remove existing drivers that may own the framebuffer memory. */
+	err = aperture_remove_all_conflicting_devices("linlondp");
+	if (err) {
+		DRM_DEV_ERROR(dev,
+			      "Failed to remove existing framebuffers - %d.\n",
+			      err);
+		return err;
+	}
 
 	mdrv = devm_kzalloc(dev, sizeof(*mdrv), GFP_KERNEL);
 	if (!mdrv)
