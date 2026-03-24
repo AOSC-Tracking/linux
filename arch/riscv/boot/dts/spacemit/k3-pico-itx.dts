@@ -43,6 +43,14 @@
 		regulator-max-microvolt = <5000000>;
 		regulator-always-on;
 	};
+
+	pcie_vcc_3v3: regulator-pcie-vcc3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "PCIE_VCC3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
 };
 
 &i2c2 {
@@ -298,6 +306,68 @@
 				reg = <0x210000 0x5f0000>;
 			};
 		};
+	};
+};
+
+&pcie0_rc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie0_0_cfg>;
+	num-lanes = <4>;
+	vpcie3v3-supply = <&pcie_vcc_3v3>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		compatible = "pciclass,0604";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		bus-range = <0x01 0xff>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+		phys = <&combophy 0 PHY_TYPE_PCIE>,
+		       <&combophy 1 PHY_TYPE_PCIE>;
+		vpcie3v3-supply = <&pcie_vcc_3v3>;
+	};
+};
+
+&pcie2_rc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie2_0_cfg>;
+	num-lanes = <2>;
+	vpcie3v3-supply = <&pcie_vcc_3v3>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		compatible = "pciclass,0604";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		bus-range = <0x01 0xff>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+		phys = <&combophy 2 PHY_TYPE_PCIE>,
+		       <&combophy 3 PHY_TYPE_PCIE>;
+		vpcie3v3-supply = <&pcie_vcc_3v3>;
+	};
+};
+
+&pcie4_rc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie4_0_cfg>;
+	num-lanes = <1>;
+	vpcie3v3-supply = <&pcie_vcc_3v3>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		compatible = "pciclass,0604";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		bus-range = <0x01 0xff>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+		phys = <&combophy 5 PHY_TYPE_PCIE>;
+		vpcie3v3-supply = <&pcie_vcc_3v3>;
 	};
 };
 
