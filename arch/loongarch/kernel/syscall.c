@@ -8,6 +8,7 @@
 #include <linux/capability.h>
 #include <linux/entry-common.h>
 #include <linux/errno.h>
+#include <linux/nospec.h>
 #include <linux/linkage.h>
 #include <linux/objtool.h>
 #include <linux/randomize_kstack.h>
@@ -74,6 +75,7 @@ void noinstr __no_stack_protector do_syscall(struct pt_regs *regs)
 	add_random_kstack_offset();
 
 	if (nr < NR_syscalls) {
+		nr = array_index_nospec(nr, NR_syscalls);
 		syscall_fn = sys_call_table[nr];
 		regs->regs[4] = syscall_fn(regs->orig_a0, regs->regs[5], regs->regs[6],
 					   regs->regs[7], regs->regs[8], regs->regs[9]);
