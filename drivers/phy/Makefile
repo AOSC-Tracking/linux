@@ -22,6 +22,7 @@ obj-$(CONFIG_GENERIC_PHY)		+= allwinner/	\
 					   apple/	\
 					   broadcom/	\
 					   cadence/	\
+					   cix/		\
 					   freescale/	\
 					   hisilicon/	\
 					   ingenic/	\
