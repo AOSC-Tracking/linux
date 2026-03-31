@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PHY_CIX_PCIE
+	bool "CIX Sky1 PCIe PHY driver"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on OF
+	select GENERIC_PHY
+	help
+	  Enable this to support the PCIe PHY on CIX Sky1 SoCs.
+	  This driver provides PHY support for the Cadence PCIe controller
+	  on CIX Sky1 platforms.
+
+config PHY_CIX_USB2
+	bool "CIX Sky1 USB2 PHY driver"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on OF
+	select GENERIC_PHY
+	help
+	  Enable this to support the USB2 PHY on CIX Sky1 SoCs.
+
+config PHY_CIX_USB3
+	bool "CIX Sky1 USB3 PHY driver"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on OF
+	select GENERIC_PHY
+	help
+	  Enable this to support the USB3 PHY on CIX Sky1 SoCs.
+
+config PHY_CIX_USBDP
+	tristate "CIX Sky1 USB-DP combo PHY driver"
+	depends on ARCH_CIX || COMPILE_TEST
+	depends on OF
+	depends on TYPEC
+	select GENERIC_PHY
+	help
+	  Enable this to support the USB-DP combo PHY on CIX Sky1 SoCs.
+	  This PHY supports both USB3 and DisplayPort alternate mode.
