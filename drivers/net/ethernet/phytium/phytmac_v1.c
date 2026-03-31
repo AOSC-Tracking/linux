@@ -16,7 +16,6 @@
 #include <linux/spinlock.h>
 #include <linux/ptp_clock_kernel.h>
 #include <linux/acpi.h>
-#include <linux/arm-smccc.h>
 #include "phytmac.h"
 #include "phytmac_v1.h"
 
