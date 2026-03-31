@@ -110,6 +110,19 @@ config TYPEC_WUSB3801
 	  If you choose to build this driver as a dynamically linked module, the
 	  module will be called wusb3801.ko.
 
+config TYPEC_RTS5453
+	tristate "Realtek RTS5453 Type-C PD controller driver"
+	depends on I2C
+	depends on TYPEC
+	select REGMAP_I2C
+	help
+	  Say Y or M here if your system has a Realtek RTS5453H USB Type-C
+	  Power Delivery controller. This controller handles USB PD negotiation,
+	  USB role switching, and DisplayPort alternate mode for Type-C ports.
+
+	  If you choose to build this driver as a dynamically linked module, the
+	  module will be called rts5453.ko.
+
 source "drivers/usb/typec/mux/Kconfig"
 
 source "drivers/usb/typec/altmodes/Kconfig"
