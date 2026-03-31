@@ -93,22 +93,34 @@ endif
 
 if USB_CDNS_SUPPORT
 
-config USB_CDNSP_PCI
-	tristate "Cadence CDNSP Dual-Role Controller"
-	depends on USB_CDNS_SUPPORT && USB_PCI && ACPI
+config USB_CDNSP
+	tristate "Cadence USBSSP DRD Platform Driver"
 	help
-	  Say Y here if your system has a Cadence CDNSP dual-role controller.
-	  It supports: dual-role switch Host-only, and Peripheral-only.
+	  Say Y here if your system has a Cadence USBSSP dual-role controller
+	  on a platform bus (not PCI).
 
-	  If you choose to build this driver is a dynamically linked
-	  module, the module will be called cdnsp.ko.
+	  This is required for SoCs with integrated CDNSP controllers.
+
+	  If you choose to build this driver as a module, the module will
+	  be called cdnsp.ko.
+
+config USB_CDNSP_PCI
+	tristate "Cadence USBSSP DRD PCI Driver"
+	depends on USB_PCI && ACPI
+	help
+	  Say Y here if your system has a Cadence CDNSP dual-role controller
+	  on a PCI bus.
+
+	  If you choose to build this driver as a module, the module will
+	  be called cdnsp-udc-pci.ko.
+
 endif
 
-if USB_CDNSP_PCI
+if USB_CDNSP || USB_CDNSP_PCI
 
 config USB_CDNSP_GADGET
 	bool "Cadence CDNSP device controller"
-	depends on USB_GADGET=y || USB_GADGET=USB_CDNSP_PCI
+	depends on USB_GADGET=y || USB_GADGET=USB_CDNSP || USB_GADGET=USB_CDNSP_PCI
 	help
 	  Say Y here to enable device controller functionality of the
 	  Cadence CDNSP-DEV driver.
@@ -121,7 +133,7 @@ config USB_CDNSP_GADGET
 
 config USB_CDNSP_HOST
 	bool "Cadence CDNSP host controller"
-	depends on USB=y || USB=USB_CDNSP_PCI
+	depends on USB=y || USB=USB_CDNSP || USB=USB_CDNSP_PCI
 	select USB_CDNS_HOST
 	help
 	  Say Y here to enable host controller functionality of the
@@ -129,5 +141,22 @@ config USB_CDNSP_HOST
 
 	  Host controller is compliant with XHCI so it uses
 	  standard XHCI driver.
+
+endif
+
+if USB_CDNSP
+
+config USB_CDNSP_SKY1
+	tristate "Cadence USBSSP support on CIX Sky1 SoC platforms"
+	depends on ARCH_CIX || COMPILE_TEST
+	default USB_CDNSP
+	help
+	  Say 'Y' or 'M' here if you are building for CIX Sky1 SoCs
+	  platforms that contain Cadence USBSSP controller core.
+
+	  e.g. Sky1 (Orion O6).
+
+	  If you choose to build this driver as module it will
+	  be dynamically linked and module will be called cdnsp-sky1.ko
 
 endif
