@@ -26,13 +26,35 @@ obj-$(CONFIG_USB_CDNS3_TI)			+= cdns3-ti.o
 obj-$(CONFIG_USB_CDNS3_IMX)			+= cdns3-imx.o
 obj-$(CONFIG_USB_CDNS3_STARFIVE)		+= cdns3-starfive.o
 
+# CDNSP platform driver (for SoCs with integrated USBSSP)
+cdnsp-y						:= cdnsp-plat.o
+
+ifdef CONFIG_USB_CDNSP
+ifeq ($(CONFIG_USB),m)
+obj-m						+= cdnsp.o
+else
+obj-$(CONFIG_USB_CDNSP)				+= cdnsp.o
+endif
+endif
+
+cdnsp-$(CONFIG_USB_CDNSP_GADGET)		+= cdnsp-ring.o cdnsp-gadget.o \
+						   cdnsp-mem.o cdnsp-ep0.o
+
+ifneq ($(CONFIG_USB_CDNSP_GADGET),)
+cdnsp-$(CONFIG_TRACING)				+= cdnsp-trace.o
+endif
+
+# CDNSP Sky1 glue layer
+obj-$(CONFIG_USB_CDNSP_SKY1)			+= cdnsp-sky1.o
+
+# CDNSP PCI driver
 cdnsp-udc-pci-y					:= cdnsp-pci.o
 
 ifdef CONFIG_USB_CDNSP_PCI
 ifeq ($(CONFIG_USB),m)
 obj-m						+= cdnsp-udc-pci.o
 else
-obj-$(CONFIG_USB_CDNSP_PCI) 			+= cdnsp-udc-pci.o
+obj-$(CONFIG_USB_CDNSP_PCI)			+= cdnsp-udc-pci.o
 endif
 endif
 
