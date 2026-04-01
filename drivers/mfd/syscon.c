@@ -22,6 +22,8 @@
 #include <linux/reset.h>
 #include <linux/mfd/syscon.h>
 #include <linux/slab.h>
+#include <linux/acpi.h>
+#include <linux/property.h>
 
 static DEFINE_MUTEX(syscon_list_lock);
 static LIST_HEAD(syscon_list);
@@ -362,6 +364,28 @@ struct regmap *syscon_regmap_lookup_by_phandle_optional(struct device_node *np,
 	return regmap;
 }
 EXPORT_SYMBOL_GPL(syscon_regmap_lookup_by_phandle_optional);
+
+struct regmap *device_syscon_regmap_lookup_by_property(struct device *dev,
+						       const char *property)
+{
+	struct fwnode_handle *fwnode;
+	struct platform_device *pdev;
+	struct syscon *syscon;
+
+	fwnode = fwnode_find_reference(dev_fwnode(dev), property, 0);
+	if (IS_ERR_OR_NULL(fwnode))
+		return ERR_PTR(-ENODEV);
+
+	pdev = to_platform_device(fwnode->dev);
+	if (!pdev->dev.driver_data)
+		return ERR_PTR(-ENOENT);
+	syscon = platform_get_drvdata(pdev);
+	if (!syscon)
+		return ERR_PTR(-ENODEV);
+
+	return syscon->regmap;
+}
+EXPORT_SYMBOL_GPL(device_syscon_regmap_lookup_by_property);
 
 #ifdef CONFIG_ACPI
 struct syscon_platform_data {
