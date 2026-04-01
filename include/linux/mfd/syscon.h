@@ -15,6 +15,7 @@
 #include <linux/errno.h>
 
 struct device_node;
+struct device;
 
 #ifdef CONFIG_MFD_SYSCON
 struct regmap *device_node_to_regmap(struct device_node *np);
@@ -30,6 +31,8 @@ struct regmap *syscon_regmap_lookup_by_phandle_optional(struct device_node *np,
 							const char *property);
 int of_syscon_register_regmap(struct device_node *np,
 			      struct regmap *regmap);
+struct regmap *device_syscon_regmap_lookup_by_property(struct device *dev,
+					 const char *property);
 #else
 static inline struct regmap *device_node_to_regmap(struct device_node *np)
 {
@@ -73,6 +76,12 @@ static inline int of_syscon_register_regmap(struct device_node *np,
 					struct regmap *regmap)
 {
 	return -EOPNOTSUPP;
+}
+
+struct regmap *device_syscon_regmap_lookup_by_property(struct device *dev,
+					const char *property)
+{
+	return ERR_PTR(-ENOTSUPP);
 }
 
 #endif
