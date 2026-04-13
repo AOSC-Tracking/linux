@@ -128,9 +128,8 @@ static inline __init unsigned long get_random_boot(void)
 
 static int __init nokaslr(char *p)
 {
-	pr_info("KASLR is disabled.\n");
-
-	return 0; /* Print a notice and silence the boot warning */
+	/* The real check is handled in kaslr_disabled() below. */
+	return 0;
 }
 early_param("nokaslr", nokaslr);
 
@@ -138,14 +137,19 @@ static inline __init bool kaslr_disabled(void)
 {
 	char *str;
 	const char *builtin_cmdline = CONFIG_CMDLINE;
+#define LOONGARCH_KASLR_DISABLED_MESSAGE "KASLR is disabled by %s in %s cmdline.\n"
 
 	str = strstr(builtin_cmdline, "nokaslr");
-	if (str == builtin_cmdline || (str > builtin_cmdline && *(str - 1) == ' '))
+	if (str == builtin_cmdline || (str > builtin_cmdline && *(str - 1) == ' ')) {
+		pr_info(LOONGARCH_KASLR_DISABLED_MESSAGE, "nokaslr", "built-in");
 		return true;
+	}
 
 	str = strstr(boot_command_line, "nokaslr");
-	if (str == boot_command_line || (str > boot_command_line && *(str - 1) == ' '))
+	if (str == boot_command_line || (str > boot_command_line && *(str - 1) == ' ')) {
+		pr_info(LOONGARCH_KASLR_DISABLED_MESSAGE, "nokaslr", "boot");
 		return true;
+	}
 
 #ifdef CONFIG_HIBERNATION
 	str = strstr(builtin_cmdline, "nohibernate");
@@ -165,19 +169,26 @@ static inline __init bool kaslr_disabled(void)
 		return false;
 
 	str = strstr(builtin_cmdline, "resume=");
-	if (str == builtin_cmdline || (str > builtin_cmdline && *(str - 1) == ' '))
+	if (str == builtin_cmdline || (str > builtin_cmdline && *(str - 1) == ' ')) {
+		pr_info(LOONGARCH_KASLR_DISABLED_MESSAGE, "resume=", "built-in");
 		return true;
+	}
 
 	str = strstr(boot_command_line, "resume=");
-	if (str == boot_command_line || (str > boot_command_line && *(str - 1) == ' '))
+	if (str == boot_command_line || (str > boot_command_line && *(str - 1) == ' ')) {
+		pr_info(LOONGARCH_KASLR_DISABLED_MESSAGE, "resume=", "boot");
 		return true;
+	}
 #endif
 
 	str = strstr(boot_command_line, "kexec_file");
-	if (str == boot_command_line || (str > boot_command_line && *(str - 1) == ' '))
+	if (str == boot_command_line || (str > boot_command_line && *(str - 1) == ' ')) {
+		pr_info(LOONGARCH_KASLR_DISABLED_MESSAGE, "kexec_file", "boot");
 		return true;
+	}
 
 	return false;
+#undef LOONGARCH_KASLR_DISABLED_MESSAGE
 }
 
 /* Choose a new address for the kernel */
