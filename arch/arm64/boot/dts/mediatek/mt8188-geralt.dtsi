@@ -568,6 +568,11 @@
 	mediatek,mic-type-2 = <2>; /* DMIC */
 };
 
+&mt6359_vcn18_ldo_reg {
+	/* Used by WLAN */
+	regulator-always-on;
+};
+
 &mt6359_vcore_buck_reg {
 	regulator-always-on;
 };
@@ -1169,6 +1174,12 @@
 			pinmux = <PINMUX_GPIO12__FUNC_B_GPIO12>;
 			output-low;
 		};
+	};
+
+	wlan-reset-hog {
+		gpio-hog;
+		gpios = <145 GPIO_ACTIVE_HIGH>;
+		output-high;
 	};
 };
 
