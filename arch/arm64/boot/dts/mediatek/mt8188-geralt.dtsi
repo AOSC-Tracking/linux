@@ -460,6 +460,18 @@
 	pinctrl-0 = <&i2c4_pins>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	/* The touchpad HID device is emulated by EC so it's always present */
+	touchpad: touchpad@56 {
+		compatible = "hid-over-i2c";
+		reg = <0x56>;
+		hid-descr-addr = <0x0001>;
+		interrupt-parent = <&pio>;
+		interrupts = <148 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchpad_int>;
+		wakeup-source;
+	};
 };
 
 &i2c5 {
@@ -1132,6 +1144,14 @@
 				 <PINMUX_GPIO80__FUNC_O_SPIM2_CLK>,
 				 <PINMUX_GPIO81__FUNC_B0_SPIM2_MOSI>,
 				 <PINMUX_GPIO82__FUNC_B0_SPIM2_MISO>;
+			bias-disable;
+		};
+	};
+
+	touchpad_int: touchpad-int-pins {
+		pins-ec-ap-touchpad-int-odl {
+			pinmux = <PINMUX_GPIO148__FUNC_B_GPIO148>;
+			input-enable;
 			bias-disable;
 		};
 	};
