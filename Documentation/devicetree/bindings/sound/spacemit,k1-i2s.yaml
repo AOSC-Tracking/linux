@@ -84,6 +84,14 @@ properties:
   "#sound-dai-cells":
     const: 0
 
+  spacemit,fixed-sample-rate:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      Fixed sample rate in Hz. When multiple I2S controllers share a
+      common bclk, this property constrains all controllers to the same
+      sample rate. Only needed when two or more I2S controllers are
+      active simultaneously.
+
 required:
   - compatible
   - reg
