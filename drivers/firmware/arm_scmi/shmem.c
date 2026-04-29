@@ -7,6 +7,9 @@
 
 #include <linux/ktime.h>
 #include <linux/io.h>
+#if IS_ENABLED(CONFIG_ACPI)
+#include <linux/acpi.h>
+#endif
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
@@ -270,6 +273,18 @@ static void __iomem *shmem_setup_iomap(struct scmi_chan_info *cinfo,
 		/* Optional: reg-io-width */
 		reg_io_width = 0;
 		device_property_read_u32(shmdev, "reg-io-width", &reg_io_width);
+#if IS_ENABLED(CONFIG_ACPI)
+		/*
+		 * CIX ACPI shmem may omit effective _DSD property wiring; use
+		 * 32-bit memcpy_{from,to}io when the HID matches.
+		 */
+		if (!reg_io_width) {
+			struct acpi_device *adev = ACPI_COMPANION(shmdev);
+
+			if (adev && (!strcmp(acpi_device_hid(adev), "CIXHA004") || !strcmp(acpi_device_hid(adev), "CIXHA005")))
+				reg_io_width = 4;
+		}
+#endif
 
 		shmpdev = to_platform_device(shmdev);
 		r = platform_get_resource(shmpdev, IORESOURCE_MEM, 0);
