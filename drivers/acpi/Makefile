@@ -39,7 +39,7 @@ acpi-$(CONFIG_ACPI_SLEEP)	+= proc.o
 #
 # ACPI Bus and Device Drivers
 #
-acpi-y				+= bus.o glue.o
+acpi-y				+= bus.o glue.o sta_quirk.o
 acpi-y				+= scan.o mipi-disco-img.o
 acpi-y				+= resource.o
 acpi-y				+= acpi_processor.o

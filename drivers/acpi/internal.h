@@ -128,6 +128,8 @@ bool acpi_device_is_battery(struct acpi_device *adev);
 bool acpi_device_is_first_physical_node(struct acpi_device *adev,
 					const struct device *dev);
 int acpi_bus_register_early_device(int type);
+bool acpi_sta_override_firmware_quirk(struct acpi_device *adev,
+				       unsigned long long *status);
 
 /* --------------------------------------------------------------------------
                      Device Matching and Notification

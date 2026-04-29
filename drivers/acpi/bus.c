@@ -102,6 +102,11 @@ int acpi_bus_get_status(struct acpi_device *device)
 		return 0;
 	}
 
+	if (acpi_sta_override_firmware_quirk(device, &sta)) {
+		acpi_set_device_status(device, sta);
+		return 0;
+	}
+
 	/* Battery devices must have their deps met before calling _STA */
 	if (acpi_device_is_battery(device) && device->dep_unmet) {
 		acpi_set_device_status(device, 0);
