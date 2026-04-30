@@ -842,6 +842,15 @@ config PWM_XILINX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-xilinx.
 
+ config PWM_SKY1
+	tristate "CIX Sky1 PWM support"
+	depends on ARCH_CIX || COMPILE_TEST
+	help
+	  PWM driver support for CIX Sky1 SoCs.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-sky1.
+
  config RUST_PWM_ABSTRACTIONS
 	bool
 	depends on RUST
