@@ -208,5 +208,15 @@ config USB_DWC3_THEAD
 	  Support T-HEAD platform with DesignWare Core USB3 IP.
 	  Only the host mode is currently supported.
 	  Say 'Y' or 'M' here if you have one such device.
+config USB_DWC3_APPLE
+	tristate "Apple Silicon DWC3 Platform Driver"
+	depends on OF && ARCH_APPLE
+	default USB_DWC3
+	select USB_ROLE_SWITCH
+	help
+	  Support Apple Silicon SoCs with DesignWare Core USB3 IP.
+	  The DesignWare Core USB3 IP has to be used in dual-role
+	  mode on these machines.
+	  Say 'Y' or 'M' if you have such device.
 
 endif

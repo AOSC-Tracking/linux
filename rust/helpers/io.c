@@ -18,6 +18,16 @@ void rust_helper_iounmap(void __iomem *addr)
 	iounmap(addr);
 }
 
+void rust_helper_memcpy_fromio(void *to, const void __iomem *from, long count)
+{
+	memcpy_fromio(to, from, count);
+}
+
+void rust_helper_memcpy_toio(void __iomem *to, const void *from, size_t count)
+{
+	memcpy_toio(to, from, count);
+}
+
 u8 rust_helper_readb(const void __iomem *addr)
 {
 	return readb(addr);

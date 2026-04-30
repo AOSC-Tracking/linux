@@ -43,7 +43,10 @@ properties:
               - apple,t6000-pmgr-pwrstate
           - const: apple,pmgr-pwrstate
       - items:
-          - const: apple,t6020-pmgr-pwrstate
+          - enum:
+              - apple,t6020-pmgr-pwrstate
+              - apple,t6030-pmgr-pwrstate
+              - apple,t8122-pmgr-pwrstate
           - const: apple,t8103-pmgr-pwrstate
 
   reg:
@@ -79,6 +82,18 @@ properties:
     $ref: /schemas/types.yaml#/definitions/uint32
     minimum: 0
     maximum: 15
+
+  apple,force-disable:
+    description:
+      Forces this device to be disabled (bus access blocked) when the power
+      domain is powered down.
+    type: boolean
+
+  apple,force-reset:
+    description:
+      Forces a reset/error recovery of the power control logic when the power
+      domain is powered down.
+    type: boolean
 
 required:
   - compatible

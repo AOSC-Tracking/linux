@@ -27,6 +27,7 @@
 
 #include <linux/dma-resv.h>
 #include <linux/list.h>
+#include <linux/llist.h>
 #include <linux/rbtree.h>
 #include <linux/types.h>
 
@@ -57,9 +58,18 @@ enum drm_gpuva_flags {
 	DRM_GPUVA_SPARSE = (1 << 1),
 
 	/**
+	 * @DRM_GPUVA_REPEAT:
+	 *
+	 * Flag indicating that the &drm_gpuva is a mapping of a GEM
+	 * object with a certain range that is repeated multiple times to
+	 * fill the virtual address range.
+	 */
+	DRM_GPUVA_REPEAT = (1 << 2),
+
+	/**
 	 * @DRM_GPUVA_USERBITS: user defined bits
 	 */
-	DRM_GPUVA_USERBITS = (1 << 2),
+	DRM_GPUVA_USERBITS = (1 << 3),
 };
 
 /**
@@ -111,6 +121,18 @@ struct drm_gpuva {
 		 */
 		u64 offset;
 
+		/*
+		 * @gem.range: the range of the GEM that is mapped
+		 *
+		 * When dealing with normal mappings, this must be zero.
+		 * When flags has DRM_GPUVA_REPEAT set, this field must be
+		 * smaller than va.range and va.range must be a multiple of
+		 * gem.range.
+		 * This is a u32 not a u64 because we expect repeated mappings
+		 * to be pointing to relatively small portions of a GEM object.
+		 */
+		u32 range;
+
 		/**
 		 * @gem.obj: the mapped &drm_gem_object
 		 */
@@ -152,6 +174,7 @@ void drm_gpuva_remove(struct drm_gpuva *va);
 
 void drm_gpuva_link(struct drm_gpuva *va, struct drm_gpuvm_bo *vm_bo);
 void drm_gpuva_unlink(struct drm_gpuva *va);
+void drm_gpuva_unlink_defer(struct drm_gpuva *va);
 
 struct drm_gpuva *drm_gpuva_find(struct drm_gpuvm *gpuvm,
 				 u64 addr, u64 range);
@@ -331,6 +354,11 @@ struct drm_gpuvm {
 		 */
 		spinlock_t lock;
 	} evict;
+
+	/**
+	 * @bo_defer: structure holding vm_bos that need to be destroyed
+	 */
+	struct llist_head bo_defer;
 };
 
 void drm_gpuvm_init(struct drm_gpuvm *gpuvm, const char *name,
@@ -714,6 +742,12 @@ struct drm_gpuvm_bo {
 			 * &drm_gpuvms evict list.
 			 */
 			struct list_head evict;
+
+			/**
+			 * @list.entry.bo_defer: List entry to attach to
+			 * the &drm_gpuvms bo_defer list.
+			 */
+			struct llist_node bo_defer;
 		} entry;
 	} list;
 };
@@ -745,6 +779,9 @@ drm_gpuvm_bo_get(struct drm_gpuvm_bo *vm_bo)
 }
 
 bool drm_gpuvm_bo_put(struct drm_gpuvm_bo *vm_bo);
+
+bool drm_gpuvm_bo_put_deferred(struct drm_gpuvm_bo *vm_bo);
+void drm_gpuvm_bo_deferred_cleanup(struct drm_gpuvm *gpuvm);
 
 struct drm_gpuvm_bo *
 drm_gpuvm_bo_find(struct drm_gpuvm *gpuvm,
@@ -866,11 +903,27 @@ struct drm_gpuva_op_map {
 		 */
 		u64 offset;
 
+		/*
+		 * @gem.range: the range of the GEM that is mapped
+		 *
+		 * When dealing with normal mappings, this must be zero.
+		 * When flags has DRM_GPUVA_REPEAT set, it must be a multiple
+		 * of va.range. This is a u32 not a u64 because we expect
+		 * repeated mappings to be pointing to a relatively small
+		 * portion of a GEM object.
+		 */
+		u32 range;
+
 		/**
 		 * @gem.obj: the &drm_gem_object to map
 		 */
 		struct drm_gem_object *obj;
 	} gem;
+
+	/**
+	 * @flags: requested flags for the &drm_gpuva for this mapping
+	 */
+	enum drm_gpuva_flags flags;
 };
 
 /**
@@ -1107,6 +1160,7 @@ void drm_gpuva_ops_free(struct drm_gpuvm *gpuvm,
 static inline void drm_gpuva_init_from_op(struct drm_gpuva *va,
 					  struct drm_gpuva_op_map *op)
 {
+	va->flags = op->flags;
 	va->va.addr = op->va.addr;
 	va->va.range = op->va.range;
 	va->gem.obj = op->gem.obj;
@@ -1232,6 +1286,16 @@ struct drm_gpuvm_ops {
 	 * used.
 	 */
 	int (*sm_step_unmap)(struct drm_gpuva_op *op, void *priv);
+
+	/**
+	 * @sm_can_merge_flags: called during &drm_gpuvm_sm_map
+	 *
+	 * This callback is called to determine whether two va ranges can be merged,
+	 * based on their flags.
+	 *
+	 * If NULL, va ranges can only be merged if their flags are equal.
+	 */
+	bool (*sm_can_merge_flags)(enum drm_gpuva_flags a, enum drm_gpuva_flags b);
 };
 
 int drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm, void *priv,
@@ -1239,6 +1303,7 @@ int drm_gpuvm_sm_map(struct drm_gpuvm *gpuvm, void *priv,
 
 int drm_gpuvm_sm_unmap(struct drm_gpuvm *gpuvm, void *priv,
 		       u64 addr, u64 range);
+int drm_gpuvm_bo_unmap(struct drm_gpuvm_bo *bo, void *priv);
 
 int drm_gpuvm_sm_map_exec_lock(struct drm_gpuvm *gpuvm,
 			  struct drm_exec *exec, unsigned int num_fences,

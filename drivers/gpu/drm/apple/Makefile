@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-2.0-only OR MIT
+
+CFLAGS_trace.o = -I$(src)
+
+appledrm-y := apple_drv.o
+appledrm-y += afk.o dcp.o dcp_backlight.o dptxep.o iomfb.o parser.o systemep.o
+appledrm-$(CONFIG_DRM_APPLE_AUDIO) += audio.o
+appledrm-$(CONFIG_DRM_APPLE_AUDIO) += av.o
+appledrm-y += connector.o
+appledrm-y += ibootep.o
+appledrm-y += iomfb_v12_3.o
+appledrm-y += iomfb_v13_3.o
+appledrm-y += epic/dpavservep.o
+appledrm-y += plane.o
+
+
+appledrm-$(CONFIG_TRACING) += trace.o
+
+obj-$(CONFIG_DRM_APPLE) += appledrm.o
+
+# header test
+
+# exclude some broken headers from the test coverage
+no-header-test := \
+	hdmi-codec-chmap.h
+
+always-y += \
+	$(patsubst %.h,%.hdrtest, $(filter-out $(no-header-test), \
+		$(shell cd $(src) && find * -name '*.h')))
+
+quiet_cmd_hdrtest = HDRTEST $(patsubst %.hdrtest,%.h,$@)
+      cmd_hdrtest = $(CC) $(filter-out $(CFLAGS_GCOV), $(c_flags)) -S -o /dev/null -x c /dev/null -include $<; touch $@
+
+$(obj)/%.hdrtest: $(src)/%.h FORCE
+	$(call if_changed_dep,hdrtest)

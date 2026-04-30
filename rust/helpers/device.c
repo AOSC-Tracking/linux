@@ -25,3 +25,13 @@ void rust_helper_dev_set_drvdata(struct device *dev, void *data)
 {
 	dev_set_drvdata(dev, data);
 }
+
+void rust_helper_device_lock(struct device *dev)
+{
+	device_lock(dev);
+}
+
+void rust_helper_device_unlock(struct device *dev)
+{
+	device_unlock(dev);
+}
