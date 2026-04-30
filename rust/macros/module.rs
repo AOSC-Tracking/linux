@@ -351,9 +351,9 @@ pub(crate) fn module(ts: TokenStream) -> TokenStream {
             modinfo.emit("firmware", fw);
         }
     }
-    if let Some(imports) = info.imports_ns {
+    if let Some(imports) = &info.imports_ns {
         for ns in imports {
-            modinfo.emit("import_ns", &ns);
+            modinfo.emit("import_ns", ns);
         }
     }
 
