@@ -66,7 +66,8 @@ const struct raspberrypi_clk_data *clk_hw_to_data(const struct clk_hw *hw)
 struct raspberrypi_clk_variant {
 	bool		export;
 	char		*clkdev;
-	unsigned long	min_rate;
+	u32		min_rate;
+	u32		max_rate;
 	bool		minimize;
 	bool		maximize;
 	u32		flags;
@@ -151,6 +152,7 @@ raspberrypi_clk_variants[RPI_FIRMWARE_NUM_CLK_ID] = {
 	[RPI_FIRMWARE_ISP_CLK_ID] = {
 		.export = true,
 		.minimize = true,
+		.flags = CLK_IS_CRITICAL,
 	},
 	[RPI_FIRMWARE_PIXEL_BVB_CLK_ID] = {
 		.export = true,
@@ -160,6 +162,7 @@ raspberrypi_clk_variants[RPI_FIRMWARE_NUM_CLK_ID] = {
 	[RPI_FIRMWARE_VEC_CLK_ID] = {
 		.export = true,
 		.minimize = true,
+		.flags = CLK_IS_CRITICAL,
 	},
 	[RPI_FIRMWARE_DISP_CLK_ID] = {
 		.export = true,
@@ -289,16 +292,22 @@ static int raspberrypi_fw_dumb_determine_rate(struct clk_hw *hw,
 static int raspberrypi_fw_prepare(struct clk_hw *hw)
 {
 	const struct raspberrypi_clk_data *data = clk_hw_to_data(hw);
+	struct raspberrypi_clk_variant *variant = data->variant;
 	struct raspberrypi_clk *rpi = data->rpi;
 	u32 state = RPI_FIRMWARE_STATE_ENABLE_BIT;
 	int ret;
 
 	ret = raspberrypi_clock_property(rpi->firmware, data,
 					 RPI_FIRMWARE_SET_CLOCK_STATE, &state);
-	if (ret)
+	if (ret) {
 		dev_err_ratelimited(rpi->dev,
 				    "Failed to set clock %s state to on: %d\n",
 				    clk_hw_get_name(hw), ret);
+		return ret;
+	}
+
+	if (variant->maximize)
+		ret = raspberrypi_fw_set_rate(hw, variant->max_rate, 0);
 
 	return ret;
 }
@@ -306,9 +315,18 @@ static int raspberrypi_fw_prepare(struct clk_hw *hw)
 static void raspberrypi_fw_unprepare(struct clk_hw *hw)
 {
 	const struct raspberrypi_clk_data *data = clk_hw_to_data(hw);
+	struct raspberrypi_clk_variant *variant = data->variant;
 	struct raspberrypi_clk *rpi = data->rpi;
 	u32 state = 0;
 	int ret;
+
+	/*
+	 * On current firmware versions, RPI_FIRMWARE_SET_CLOCK_STATE doesn't
+	 * actually power off the clock. To achieve meaningful power consumption
+	 * reduction, the driver needs to set the clock rate to minimum before
+	 * disabling it.
+	 */
+	raspberrypi_fw_set_rate(hw, variant->min_rate, 0);
 
 	ret = raspberrypi_clock_property(rpi->firmware, data,
 					 RPI_FIRMWARE_SET_CLOCK_STATE, &state);
@@ -334,7 +352,7 @@ static struct clk_hw *raspberrypi_clk_register(struct raspberrypi_clk *rpi,
 {
 	struct raspberrypi_clk_data *data;
 	struct clk_init_data init = {};
-	u32 min_rate, max_rate;
+	unsigned long rate;
 	int ret;
 
 	data = devm_kzalloc(rpi->dev, sizeof(*data), GFP_KERNEL);
@@ -354,18 +372,20 @@ static struct clk_hw *raspberrypi_clk_register(struct raspberrypi_clk *rpi,
 
 	data->hw.init = &init;
 
-	ret = raspberrypi_clock_property(rpi->firmware, data,
-					 RPI_FIRMWARE_GET_MIN_CLOCK_RATE,
-					 &min_rate);
-	if (ret) {
-		dev_err(rpi->dev, "Failed to get clock %d min freq: %d\n",
-			id, ret);
-		return ERR_PTR(ret);
+	if (!variant->min_rate) {
+		ret = raspberrypi_clock_property(rpi->firmware, data,
+						 RPI_FIRMWARE_GET_MIN_CLOCK_RATE,
+						 &variant->min_rate);
+		if (ret) {
+			dev_err(rpi->dev, "Failed to get clock %d min freq: %d\n",
+				id, ret);
+			return ERR_PTR(ret);
+		}
 	}
 
 	ret = raspberrypi_clock_property(rpi->firmware, data,
 					 RPI_FIRMWARE_GET_MAX_CLOCK_RATE,
-					 &max_rate);
+					 &variant->max_rate);
 	if (ret) {
 		dev_err(rpi->dev, "Failed to get clock %d max freq: %d\n",
 			id, ret);
@@ -376,7 +396,7 @@ static struct clk_hw *raspberrypi_clk_register(struct raspberrypi_clk *rpi,
 	if (ret)
 		return ERR_PTR(ret);
 
-	clk_hw_set_rate_range(&data->hw, min_rate, max_rate);
+	clk_hw_set_rate_range(&data->hw, variant->min_rate, variant->max_rate);
 
 	if (variant->clkdev) {
 		ret = devm_clk_hw_register_clkdev(rpi->dev, &data->hw,
@@ -387,20 +407,11 @@ static struct clk_hw *raspberrypi_clk_register(struct raspberrypi_clk *rpi,
 		}
 	}
 
-	if (variant->maximize)
-		variant->min_rate = max_rate;
-
-	if (variant->min_rate) {
-		unsigned long rate;
-
-		clk_hw_set_rate_range(&data->hw, variant->min_rate, max_rate);
-
-		rate = raspberrypi_fw_get_rate(&data->hw, 0);
-		if (rate < variant->min_rate) {
-			ret = raspberrypi_fw_set_rate(&data->hw, variant->min_rate, 0);
-			if (ret)
-				return ERR_PTR(ret);
-		}
+	rate = raspberrypi_fw_get_rate(&data->hw, 0);
+	if (rate < variant->min_rate) {
+		ret = raspberrypi_fw_set_rate(&data->hw, variant->min_rate, 0);
+		if (ret)
+			return ERR_PTR(ret);
 	}
 
 	return &data->hw;

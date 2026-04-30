@@ -738,6 +738,14 @@ void xhci_setup_streams_ep_input_ctx(struct xhci_hcd *xhci,
 	ep_ctx->ep_info &= cpu_to_le32(~EP_MAXPSTREAMS_MASK);
 	ep_ctx->ep_info |= cpu_to_le32(EP_MAXPSTREAMS(max_primary_streams)
 				       | EP_HAS_LSA);
+
+	/*
+	 * Set Host Initiated Data Move Disable to always defer stream
+	 * selection to the device. xHC implementations may treat this
+	 * field as "don't care, forced to 1" anyway - xHCI 1.2 s4.12.1.
+	 */
+	ep_ctx->ep_info2 |= EP_HID;
+
 	ep_ctx->deq  = cpu_to_le64(stream_info->ctx_array_dma);
 }
 
@@ -1413,6 +1421,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int ep_index;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_ring *ep_ring;
+	struct usb_interface_cache *intfc;
 	unsigned int max_packet;
 	enum xhci_ring_type ring_type;
 	u32 max_esit_payload;
@@ -1422,6 +1431,8 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int mult;
 	unsigned int avg_trb_len;
 	unsigned int err_count = 0;
+	unsigned int is_ums_dev = 0;
+	unsigned int i;
 
 	ep_index = xhci_get_endpoint_index(&ep->desc);
 	ep_ctx = xhci_get_ep_ctx(xhci, virt_dev->in_ctx, ep_index);
@@ -1464,8 +1475,34 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 
 	mult = xhci_get_endpoint_mult(xhci, udev, ep);
 	max_packet = xhci_usb_endpoint_maxp(udev, ep);
-	max_burst = xhci_get_endpoint_max_burst(udev, ep);
 	avg_trb_len = max_esit_payload;
+
+	/*
+	 * VL805 errata - Bulk OUT bursts to superspeed mass-storage
+	 * devices behind hub ports can cause data corruption with
+	 * non-wMaxPacket-multiple transfers.
+	 */
+	for (i = 0; i < udev->config->desc.bNumInterfaces; i++) {
+		intfc = udev->config->intf_cache[i];
+		/*
+		 * Slight hack - look at interface altsetting 0, which
+		 * should be the UMS bulk-only interface. If the class
+		 * matches, then we disable out bursts for all OUT
+		 * endpoints because endpoint assignments may change
+		 * between alternate settings.
+		 */
+		if (intfc->altsetting[0].desc.bInterfaceClass ==
+		    USB_CLASS_MASS_STORAGE) {
+			is_ums_dev = 1;
+			break;
+		}
+	}
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    usb_endpoint_is_bulk_out(&ep->desc) && is_ums_dev &&
+	    udev->route)
+		max_burst = 0;
+	else
+		max_burst = xhci_get_endpoint_max_burst(udev, ep);
 
 	/* FIXME dig Mult and streams info out of ep companion desc */
 

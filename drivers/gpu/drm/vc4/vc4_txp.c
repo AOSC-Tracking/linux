@@ -15,6 +15,7 @@
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_blend.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_fb_dma_helper.h>
@@ -259,10 +260,22 @@ static int vc4_txp_connector_atomic_check(struct drm_connector *conn,
 	crtc_state = drm_atomic_get_new_crtc_state(state, conn_state->crtc);
 
 	fb = conn_state->writeback_job->fb;
-	if (fb->width != crtc_state->mode.hdisplay ||
-	    fb->height != crtc_state->mode.vdisplay) {
-		DRM_DEBUG_KMS("Invalid framebuffer size %ux%u\n",
-			      fb->width, fb->height);
+	if ((conn_state->rotation == DRM_MODE_ROTATE_0 &&
+	    (fb->width != crtc_state->mode.hdisplay ||
+	     fb->height != crtc_state->mode.vdisplay)) ||
+	    (conn_state->rotation == (DRM_MODE_ROTATE_0 | DRM_MODE_TRANSPOSE) &&
+	    (fb->width != crtc_state->mode.vdisplay ||
+	     fb->height != crtc_state->mode.hdisplay))) {
+		DRM_DEBUG_KMS("Invalid framebuffer size %ux%u vs mode %ux%u\n",
+			      fb->width, fb->height,
+			      crtc_state->mode.hdisplay, crtc_state->mode.vdisplay);
+		return -EINVAL;
+	}
+
+	if (conn_state->rotation & DRM_MODE_TRANSPOSE &&
+	    (fb->format->format == DRM_FORMAT_RGB888 ||
+	     fb->format->format == DRM_FORMAT_BGR888)) {
+		DRM_DEBUG_KMS("24bpp formats not supported when transposing\n");
 		return -EINVAL;
 	}
 
@@ -330,6 +343,9 @@ static void vc4_txp_connector_atomic_commit(struct drm_connector *conn,
 		 */
 		ctrl |= TXP_ALPHA_INVERT;
 
+	if (conn_state->rotation & DRM_MODE_TRANSPOSE)
+		ctrl |= TXP_TRANSPOSE;
+
 	if (!drm_dev_enter(drm, &idx))
 		return;
 
@@ -374,11 +390,27 @@ vc4_txp_connector_detect(struct drm_connector *connector, bool force)
 	return connector_status_connected;
 }
 
+void vc4_txp_connector_reset(struct drm_connector *connector)
+{
+	uint64_t rotation = DRM_MODE_ROTATE_0;
+
+	drm_atomic_helper_connector_reset(connector);
+
+	if (connector->state) {
+		if (connector->rotation_property)
+			drm_object_property_get_default_value(&connector->base,
+							      connector->rotation_property,
+							      &rotation);
+
+		connector->state->rotation = rotation;
+	}
+}
+
 static const struct drm_connector_funcs vc4_txp_connector_funcs = {
 	.detect = vc4_txp_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = drm_connector_cleanup,
-	.reset = drm_atomic_helper_connector_reset,
+	.reset = vc4_txp_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
@@ -510,7 +542,7 @@ static irqreturn_t vc4_txp_interrupt(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static const struct vc4_txp_data bcm2712_mop_data = {
+const struct vc4_txp_data bcm2712_mop_data = {
 	.base = {
 		.name = "mop",
 		.debugfs_name = "mop_regs",
@@ -524,7 +556,7 @@ static const struct vc4_txp_data bcm2712_mop_data = {
 	.supports_40bit_addresses = true,
 };
 
-static const struct vc4_txp_data bcm2712_moplet_data = {
+const struct vc4_txp_data bcm2712_moplet_data = {
 	.base = {
 		.name = "moplet",
 		.debugfs_name = "moplet_regs",
@@ -607,6 +639,10 @@ static int vc4_txp_bind(struct device *dev, struct device *master, void *data)
 							drm_fmts, ARRAY_SIZE(drm_fmts));
 	if (ret)
 		return ret;
+
+	drm_connector_create_rotation_property(&txp->connector.base, DRM_MODE_ROTATE_0,
+					       DRM_MODE_ROTATE_0 |
+					       DRM_MODE_TRANSPOSE);
 
 	ret = devm_request_irq(dev, irq, vc4_txp_interrupt, 0,
 			       dev_name(dev), txp);

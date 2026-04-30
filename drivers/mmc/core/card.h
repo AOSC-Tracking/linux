@@ -88,11 +88,13 @@ struct mmc_fixup {
 #define CID_MANFID_GIGASTONE    0x12
 #define CID_MANFID_MICRON       0x13
 #define CID_MANFID_SAMSUNG      0x15
+#define CID_MANFID_SAMSUNG_SD	0x1b
 #define CID_MANFID_APACER       0x27
 #define CID_MANFID_SWISSBIT     0x5D
 #define CID_MANFID_KINGSTON     0x70
 #define CID_MANFID_HYNIX	0x90
 #define CID_MANFID_KINGSTON_SD	0x9F
+#define CID_MANFID_LONGSYS_SD	0xAD
 #define CID_MANFID_NUMONYX	0xFE
 
 #define END_FIXUP { NULL }
@@ -303,6 +305,11 @@ static inline int mmc_card_broken_sd_poweroff_notify(const struct mmc_card *c)
 static inline int mmc_card_no_uhs_ddr50_tuning(const struct mmc_card *c)
 {
 	return c->quirks & MMC_QUIRK_NO_UHS_DDR50_TUNING;
+}
+
+static inline int mmc_card_working_sd_cq(const struct mmc_card *c)
+{
+	return c->quirks & MMC_QUIRK_WORKING_SD_CQ;
 }
 
 #endif

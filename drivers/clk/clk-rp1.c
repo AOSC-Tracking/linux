@@ -234,7 +234,8 @@
 #define PLL_SEC_DIV_MASK		GENMASK(12, 8)
 
 #define PLL_CS_LOCK			BIT(31)
-#define PLL_CS_REFDIV_MASK		BIT(1)
+#define PLL_CS_REFDIV_MASK		GENMASK(5, 0)
+#define PLL_CS_REFDIV_UNITY		FIELD_PREP(PLL_CS_REFDIV_MASK, 1)
 
 #define PLL_PWR_PD			BIT(0)
 #define PLL_PWR_DACPD			BIT(1)
@@ -413,7 +414,7 @@ static int rp1_pll_core_on(struct clk_hw *hw)
 		clockman_write(clockman, data->pwr_reg, PLL_PWR_MASK);
 		clockman_write(clockman, data->fbdiv_int_reg, 20);
 		clockman_write(clockman, data->fbdiv_frac_reg, 0);
-		clockman_write(clockman, data->cs_reg, PLL_CS_REFDIV_MASK);
+		clockman_write(clockman, data->cs_reg, PLL_CS_REFDIV_UNITY);
 	}
 
 	/* Come out of reset. */
@@ -505,7 +506,7 @@ static int rp1_pll_core_set_rate(struct clk_hw *hw,
 	/* Don't need to divide ref unless parent_rate > (output freq / 16) */
 	clockman_write(clockman, data->cs_reg,
 		       clockman_read(clockman, data->cs_reg) |
-				     PLL_CS_REFDIV_MASK);
+				     PLL_CS_REFDIV_UNITY);
 	spin_unlock(&clockman->regs_lock);
 
 	return 0;
@@ -770,9 +771,7 @@ static unsigned long rp1_pll_divider_recalc_rate(struct clk_hw *hw,
 static int rp1_pll_divider_determine_rate(struct clk_hw *hw,
 					  struct clk_rate_request *req)
 {
-	req->rate = clk_divider_ops.determine_rate(hw, req);
-
-	return 0;
+	return clk_divider_ops.determine_rate(hw, req);
 }
 
 static int rp1_clock_is_on(struct clk_hw *hw)
@@ -1083,9 +1082,11 @@ static void rp1_clock_choose_div_and_prate(struct clk_hw *hw,
 	/*
 	 * Prevent overclocks - if all parent choices result in
 	 * a downstream clock in excess of the maximum, then the
-	 * call to set the clock will fail.
+	 * call to set the clock will fail. But due to round-to-
+	 * nearest in the PLL core (which has 24 fractional bits),
+	 * it's expedient to tolerate a tiny error (1Hz/33MHz).
 	 */
-	if (tmp > data->max_freq)
+	if (tmp > data->max_freq + (data->max_freq >> 25))
 		*calc_rate = 0;
 	else
 		*calc_rate = tmp;
@@ -1427,7 +1428,7 @@ static struct rp1_clk_desc pll_video_sec_desc = REGISTER_PLL_DIV(
 
 static const struct clk_parent_data clk_eth_tsu_parents[] = {
 	{ .index = 0 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .index = -1 },
 	{ .index = -1 },
 	{ .index = -1 },
@@ -1458,7 +1459,7 @@ static struct rp1_clk_desc clk_eth_tsu_desc = REGISTER_CLK(
 static const struct clk_parent_data clk_eth_parents[] = {
 	{ .hw = &pll_sys_sec_desc.div.hw },
 	{ .hw = &pll_sys_desc.hw },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 };
 
 static struct rp1_clk_desc clk_eth_desc = REGISTER_CLK(
@@ -1659,7 +1660,7 @@ static struct rp1_clk_desc clk_uart_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_pwm0_parents[] = {
 	{ .index = -1 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .index = 0 },
 };
 
@@ -1685,7 +1686,7 @@ static struct rp1_clk_desc clk_pwm0_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_pwm1_parents[] = {
 	{ .index = -1 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .index = 0 },
 };
 
@@ -1713,7 +1714,7 @@ static const struct clk_parent_data clk_audio_in_parents[] = {
 	{ .index = -1 },
 	{ .index = -1 },
 	{ .index = -1 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .index = 0 },
 };
 
@@ -1738,8 +1739,8 @@ static struct rp1_clk_desc clk_audio_in_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_audio_out_parents[] = {
 	{ .index = -1 },
-	{ .index = -1 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_audio_sec_desc.div.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .index = 0 },
 };
 
@@ -1765,7 +1766,7 @@ static struct rp1_clk_desc clk_audio_out_desc = REGISTER_CLK(
 static const struct clk_parent_data clk_i2s_parents[] = {
 	{ .index = 0 },
 	{ .hw = &pll_audio_desc.hw },
-	{ .hw = &pll_audio_sec_desc.hw },
+	{ .hw = &pll_audio_sec_desc.div.hw },
 };
 
 static struct rp1_clk_desc clk_i2s_desc = REGISTER_CLK(
@@ -1887,7 +1888,7 @@ static struct rp1_clk_desc clk_sdio_alt_src_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_dpi_parents[] = {
 	{ .hw = &pll_sys_desc.hw },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .hw = &pll_video_desc.hw },
 	{ .index = -1 },
 	{ .index = -1 },
@@ -2023,7 +2024,7 @@ static struct rp1_clk_desc clksrc_mipi1_dsi_byteclk_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_mipi0_dpi_parents[] = {
 	{ .hw = &pll_sys_desc.hw },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .hw = &pll_video_desc.hw },
 	{ .hw = &clksrc_mipi0_dsi_byteclk_desc.hw },
 	{ .index = -1 },
@@ -2054,7 +2055,7 @@ static struct rp1_clk_desc clk_mipi0_dpi_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_mipi1_dpi_parents[] = {
 	{ .hw = &pll_sys_desc.hw },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .hw = &pll_video_desc.hw },
 	{ .hw = &clksrc_mipi1_dsi_byteclk_desc.hw },
 	{ .index = -1 },
@@ -2090,7 +2091,7 @@ static const struct clk_parent_data clk_gp2_parents[] = {
 	{ .index = -1 },
 	{ .index = -1 },
 	{ .index = -1 },
-	{ .hw = &pll_sys_sec_desc.hw },
+	{ .hw = &pll_sys_sec_desc.div.hw },
 	{ .index = -1 },
 	{ .hw = &pll_video_desc.hw },
 	{ .hw = &clk_audio_in_desc.hw },
@@ -2171,7 +2172,7 @@ static const struct clk_parent_data clk_gp4_parents[] = {
 	{ .index = -1 },
 	{ .index = -1 },
 	{ .index = -1 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .index = -1 },
 	{ .index = -1 },
 	{ .index = -1 },
@@ -2205,7 +2206,7 @@ static struct rp1_clk_desc clk_gp4_desc = REGISTER_CLK(
 
 static const struct clk_parent_data clk_vec_parents[] = {
 	{ .hw = &pll_sys_pri_ph_desc.hw },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .hw = &pll_video_desc.hw },
 	{ .index = -1 },
 	{ .index = -1 },
@@ -2241,7 +2242,7 @@ static const struct clk_parent_data clk_gp5_parents[] = {
 	{ .index = -1 },
 	{ .index = -1 },
 	{ .index = -1 },
-	{ .hw = &pll_video_sec_desc.hw },
+	{ .hw = &pll_video_sec_desc.div.hw },
 	{ .hw = &clk_eth_tsu_desc.hw },
 	{ .index = -1 },
 	{ .hw = &clk_vec_desc.hw },

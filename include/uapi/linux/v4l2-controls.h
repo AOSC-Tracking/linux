@@ -228,6 +228,16 @@ enum v4l2_colorfx {
  */
 #define V4L2_CID_USER_RKISP1_BASE		(V4L2_CID_USER_BASE + 0x1220)
 
+/* The base for the bcm2835-isp driver controls.
+ * We reserve 16 controls for this driver. */
+#define V4L2_CID_USER_BCM2835_ISP_BASE		(V4L2_CID_USER_BASE + 0x10e0)
+
+/*
+ * The base for IMX500 driver controls.
+ * We reserve 16 controls for this driver.
+ */
+#define V4L2_CID_USER_IMX500_BASE		(V4L2_CID_USER_BASE + 0x2000)
+
 /* MPEG-class control IDs */
 /* The MPEG controls are applicable to all codec controls
  * and the 'MPEG' part of the define is historical */
@@ -1031,6 +1041,7 @@ enum v4l2_auto_n_preset_white_balance {
 	V4L2_WHITE_BALANCE_FLASH		= 7,
 	V4L2_WHITE_BALANCE_CLOUDY		= 8,
 	V4L2_WHITE_BALANCE_SHADE		= 9,
+	V4L2_WHITE_BALANCE_GREYWORLD		= 10,
 };
 
 #define V4L2_CID_WIDE_DYNAMIC_RANGE		(V4L2_CID_CAMERA_CLASS_BASE+21)

@@ -75,6 +75,7 @@ __drm_atomic_helper_crtc_state_reset(struct drm_crtc_state *crtc_state,
 				     struct drm_crtc *crtc)
 {
 	crtc_state->crtc = crtc;
+	crtc_state->background_color = DRM_ARGB64_PREP(0xffff, 0, 0, 0);
 }
 EXPORT_SYMBOL(__drm_atomic_helper_crtc_state_reset);
 
@@ -266,6 +267,20 @@ void __drm_atomic_helper_plane_state_reset(struct drm_plane_state *plane_state,
 							   plane->color_range_property,
 							   &val))
 			plane_state->color_range = val;
+	}
+
+	if (plane->chroma_siting_h_property) {
+		if (!drm_object_property_get_default_value(&plane->base,
+							   plane->chroma_siting_h_property,
+							   &val))
+			plane_state->chroma_siting_h = val;
+	}
+
+	if (plane->chroma_siting_v_property) {
+		if (!drm_object_property_get_default_value(&plane->base,
+							   plane->chroma_siting_v_property,
+							   &val))
+			plane_state->chroma_siting_v = val;
 	}
 
 	if (plane->zpos_property) {

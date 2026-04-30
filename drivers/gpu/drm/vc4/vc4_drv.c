@@ -30,6 +30,7 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/dma-direct.h>
 
 #include <drm/clients/drm_client_setup.h>
 #include <drm/drm_atomic_helper.h>
@@ -176,6 +177,19 @@ static void vc4_close(struct drm_device *dev, struct drm_file *file)
 	kfree(vc4file);
 }
 
+static struct drm_gem_object *
+vc4_prime_import_sg_table(struct drm_device *dev,
+			  struct dma_buf_attachment *attach,
+			  struct sg_table *sgt)
+{
+	phys_addr_t phys = dma_to_phys(dev->dev, sg_dma_address(sgt->sgl));
+
+	if (swiotlb_find_pool(dev->dev, phys))
+		return ERR_PTR(-EINVAL);
+
+	return drm_gem_dma_prime_import_sg_table(dev, attach, sgt);
+}
+
 DEFINE_DRM_GEM_FOPS(vc4_drm_fops);
 
 static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
@@ -212,8 +226,9 @@ const struct drm_driver vc4_drm_driver = {
 
 	.gem_create_object = vc4_create_object,
 
-	DRM_GEM_DMA_DRIVER_OPS_WITH_DUMB_CREATE(vc4_bo_dumb_create),
 	DRM_FBDEV_DMA_DRIVER_OPS,
+	.dumb_create		= vc4_bo_dumb_create,
+	.gem_prime_import_sg_table = vc4_prime_import_sg_table,
 
 	.ioctls = vc4_drm_ioctls,
 	.num_ioctls = ARRAY_SIZE(vc4_drm_ioctls),
@@ -235,8 +250,9 @@ const struct drm_driver vc5_drm_driver = {
 	.debugfs_init = vc4_debugfs_init,
 #endif
 
-	DRM_GEM_DMA_DRIVER_OPS_WITH_DUMB_CREATE(vc5_dumb_create),
 	DRM_FBDEV_DMA_DRIVER_OPS,
+	.dumb_create		= vc5_dumb_create,
+	.gem_prime_import_sg_table = vc4_prime_import_sg_table,
 
 	.fops = &vc4_drm_fops,
 
@@ -283,6 +299,18 @@ static const struct of_device_id vc4_dma_range_matches[] = {
 	{ .compatible = "brcm,vc4-v3d" },
 	{}
 };
+
+/*
+ * we need this helper function for determining presence of fkms
+ * before it's been bound
+ */
+static bool firmware_kms(void)
+{
+	return of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2711"));
+}
 
 static int vc4_drm_bind(struct device *dev)
 {
@@ -364,7 +392,7 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		goto err;
 
-	if (firmware) {
+	if (firmware && !firmware_kms()) {
 		ret = rpi_firmware_property(firmware,
 					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
 					    NULL, 0);
@@ -382,16 +410,20 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		goto err;
 
-	ret = vc4_plane_create_additional_planes(drm);
-	if (ret)
-		goto err;
+	if (!vc4->firmware_kms) {
+		ret = vc4_plane_create_additional_planes(drm);
+		if (ret)
+			goto err;
+	}
 
 	ret = vc4_kms_load(drm);
 	if (ret < 0)
 		goto err;
 
-	drm_for_each_crtc(crtc, drm)
-		vc4_crtc_disable_at_boot(crtc);
+	if (!vc4->firmware_kms) {
+		drm_for_each_crtc(crtc, drm)
+			vc4_crtc_disable_at_boot(crtc);
+	}
 
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
@@ -437,6 +469,7 @@ static struct platform_driver *const component_drivers[] = {
 	&vc4_dsi_driver,
 	&vc4_txp_driver,
 	&vc4_crtc_driver,
+	&vc4_firmware_kms_driver,
 	&vc4_v3d_driver,
 };
 

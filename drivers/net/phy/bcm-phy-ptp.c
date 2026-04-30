@@ -780,6 +780,18 @@ out:
 	kfree_skb(skb);
 }
 
+static int bcm_ptp_hwtstamp_get(struct mii_timestamper *mii_ts,
+				struct kernel_hwtstamp_config *cfg)
+{
+	struct bcm_ptp_private *priv = mii2priv(mii_ts);
+
+	cfg->rx_filter = priv->hwts_rx ? HWTSTAMP_FILTER_PTP_V2_EVENT
+				       : HWTSTAMP_FILTER_NONE;
+	cfg->tx_type = priv->tx_type;
+
+	return 0;
+}
+
 static int bcm_ptp_hwtstamp(struct mii_timestamper *mii_ts,
 			    struct kernel_hwtstamp_config *cfg,
 			    struct netlink_ext_ack *extack)
@@ -899,6 +911,7 @@ static void bcm_ptp_init(struct bcm_ptp_private *priv)
 	priv->mii_ts.rxtstamp = bcm_ptp_rxtstamp;
 	priv->mii_ts.txtstamp = bcm_ptp_txtstamp;
 	priv->mii_ts.hwtstamp = bcm_ptp_hwtstamp;
+	priv->mii_ts.hwtstamp_get = bcm_ptp_hwtstamp_get;
 	priv->mii_ts.ts_info = bcm_ptp_ts_info;
 
 	priv->phydev->mii_ts = &priv->mii_ts;
@@ -912,6 +925,18 @@ struct bcm_ptp_private *bcm_ptp_probe(struct phy_device *phydev)
 	switch (BRCM_PHY_MODEL(phydev)) {
 	case PHY_ID_BCM54210E:
 		break;
+#ifdef PHY_ID_BCM54213PE
+	case PHY_ID_BCM54213PE:
+		switch (phydev->mdio.addr) {
+		case 0: // CM4 - this is a BCM54210PE which supports PTP
+			break;
+		case 1: //  4B - this is a BCM54213PE which doesn't
+			return NULL;
+		default: // Unknown - assume it's BCM54210PE
+			break;
+		}
+		break;
+#endif
 	default:
 		return NULL;
 	}

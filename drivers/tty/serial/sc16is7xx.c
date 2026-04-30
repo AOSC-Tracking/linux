@@ -817,6 +817,8 @@ static bool sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 
 		if (rxlen)
 			sc16is7xx_handle_rx(port, rxlen, iir);
+		else
+			rc = false;
 		break;
 		/* CTSRTS interrupt comes only when CTS goes inactive */
 	case SC16IS7XX_IIR_CTSRTS_SRC:
@@ -1204,6 +1206,9 @@ static int sc16is7xx_startup(struct uart_port *port)
 	val = SC16IS7XX_IER_RDI_BIT | SC16IS7XX_IER_CTSI_BIT |
 	      SC16IS7XX_IER_MSI_BIT;
 	sc16is7xx_port_write(port, SC16IS7XX_IER_REG, val);
+
+	/* Initialize the Modem Control signals to current status */
+	one->old_mctrl = sc16is7xx_get_hwmctrl(port);
 
 	/* Enable modem status polling */
 	uart_port_lock_irqsave(port, &flags);

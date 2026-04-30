@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/list.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/compat.h>
 #include <linux/dma-mapping.h>
@@ -63,6 +64,9 @@
  */
 static struct vchiq_device *bcm2835_audio;
 static struct vchiq_device *bcm2835_camera;
+static struct vchiq_device *bcm2835_codec;
+static struct vchiq_device *bcm2835_isp;
+static struct vchiq_device *vcsm_cma;
 
 static const struct vchiq_platform_info bcm2835_info = {
 	.cache_line_size = 32,
@@ -70,6 +74,11 @@ static const struct vchiq_platform_info bcm2835_info = {
 
 static const struct vchiq_platform_info bcm2836_info = {
 	.cache_line_size = 64,
+};
+
+static const struct vchiq_platform_info bcm2711_info = {
+	.cache_line_size = 64,
+	.use_36bit_addrs = true,
 };
 
 struct vchiq_arm_state {
@@ -184,6 +193,7 @@ EXPORT_SYMBOL(vchiq_add_connected_callback);
 static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 {
 	struct device *dev = &pdev->dev;
+	struct device *dma_dev = NULL;
 	struct vchiq_drv_mgmt *drv_mgmt = platform_get_drvdata(pdev);
 	struct rpi_firmware *fw = drv_mgmt->fw;
 	struct vchiq_slot_zero *vchiq_slot_zero;
@@ -203,6 +213,24 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 		return err;
 
 	drv_mgmt->fragments_size = 2 * drv_mgmt->info->cache_line_size;
+
+	if (drv_mgmt->info->use_36bit_addrs) {
+		struct device_node *dma_node =
+			of_find_compatible_node(NULL, NULL, "brcm,bcm2711-dma");
+
+		if (dma_node) {
+			struct platform_device *pdev;
+
+			pdev = of_find_device_by_node(dma_node);
+			if (pdev)
+				dma_dev = &pdev->dev;
+			of_node_put(dma_node);
+			g_use_36bit_addrs = true;
+		} else {
+			dev_err(dev, "40-bit DMA controller not found\n");
+			return -EINVAL;
+		}
+	}
 
 	/* Allocate space for the channels in coherent memory */
 	slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
@@ -269,6 +297,15 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 		dev_err(dev, "failed to set channelbase (response: %x)\n",
 			channelbase);
 		return -ENXIO;
+	}
+
+	g_dma_dev = dma_dev ?: dev;
+	g_dma_pool = dmam_pool_create("vchiq_scatter_pool", dev,
+				      VCHIQ_DMA_POOL_SIZE,
+				      drv_mgmt->info->cache_line_size, 0);
+	if (!g_dma_pool) {
+		dev_err(dev, "failed to create dma pool");
+		return -ENOMEM;
 	}
 
 	dev_dbg(&pdev->dev, "arm: vchiq_init - done (slots %p, phys %pad)\n",
@@ -1361,6 +1398,7 @@ void vchiq_platform_conn_state_changed(struct vchiq_state *state,
 static const struct of_device_id vchiq_of_match[] = {
 	{ .compatible = "brcm,bcm2835-vchiq", .data = &bcm2835_info },
 	{ .compatible = "brcm,bcm2836-vchiq", .data = &bcm2836_info },
+	{ .compatible = "brcm,bcm2711-vchiq", .data = &bcm2711_info },
 	{},
 };
 MODULE_DEVICE_TABLE(of, vchiq_of_match);
@@ -1415,8 +1453,11 @@ static int vchiq_probe(struct platform_device *pdev)
 
 	vchiq_debugfs_init(&mgmt->state);
 
+	vcsm_cma = vchiq_device_register(&pdev->dev, "vcsm-cma");
+	bcm2835_codec = vchiq_device_register(&pdev->dev, "bcm2835-codec");
 	bcm2835_audio = vchiq_device_register(&pdev->dev, "bcm2835-audio");
 	bcm2835_camera = vchiq_device_register(&pdev->dev, "bcm2835-camera");
+	bcm2835_isp = vchiq_device_register(&pdev->dev, "bcm2835-isp");
 
 	return 0;
 }
@@ -1425,8 +1466,11 @@ static void vchiq_remove(struct platform_device *pdev)
 {
 	struct vchiq_drv_mgmt *mgmt = dev_get_drvdata(&pdev->dev);
 
+	vchiq_device_unregister(bcm2835_isp);
 	vchiq_device_unregister(bcm2835_audio);
 	vchiq_device_unregister(bcm2835_camera);
+	vchiq_device_unregister(bcm2835_codec);
+	vchiq_device_unregister(vcsm_cma);
 	vchiq_debugfs_deinit();
 	vchiq_deregister_chrdev();
 	vchiq_platform_uninit(mgmt);

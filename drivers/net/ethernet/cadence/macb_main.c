@@ -10,9 +10,11 @@
 #include <linux/clk-provider.h>
 #include <linux/clk.h>
 #include <linux/crc32.h>
+#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
 #include <linux/firmware/xlnx-zynqmp.h>
+#include <linux/gpio/consumer.h>
 #include <linux/inetdevice.h>
 #include <linux/inetdevice.h>
 #include <linux/init.h>
@@ -40,6 +42,9 @@
 #include <linux/gcd.h>
 #include <net/pkt_sched.h>
 #include "macb.h"
+
+static unsigned int txdelay = 35;
+module_param(txdelay, uint, 0644);
 
 /* This structure is only used for MACB on SiFive FU540 devices */
 struct sifive_fu540_macb_mgmt {
@@ -330,7 +335,7 @@ static int macb_mdio_wait_for_idle(struct macb *bp)
 	u32 val;
 
 	return readx_poll_timeout(MACB_READ_NSR, bp, val, val & MACB_BIT(IDLE),
-				  1, MACB_MDIO_TIMEOUT);
+				  100, MACB_MDIO_TIMEOUT);
 }
 
 static int macb_mdio_read_c22(struct mii_bus *bus, int mii_id, int regnum)
@@ -489,6 +494,19 @@ mdio_pm_exit:
 	return status;
 }
 
+static int macb_mdio_reset(struct mii_bus *bus)
+{
+	struct macb *bp = bus->priv;
+
+	if (bp->phy_reset_gpio) {
+		gpiod_set_value_cansleep(bp->phy_reset_gpio, 1);
+		msleep(bp->phy_reset_ms);
+		gpiod_set_value_cansleep(bp->phy_reset_gpio, 0);
+	}
+
+	return 0;
+}
+
 static void macb_init_buffers(struct macb *bp)
 {
 	struct macb_queue *queue;
@@ -626,6 +644,107 @@ static const struct phylink_pcs_ops macb_phylink_pcs_ops = {
 	.pcs_an_restart = macb_pcs_an_restart,
 	.pcs_config = macb_pcs_config,
 };
+
+static bool macb_tx_lpi_set(struct macb *bp, bool enable)
+{
+	u32 old, ncr;
+
+	lockdep_assert_held(&bp->lock);
+
+	ncr = macb_readl(bp, NCR);
+	old = ncr;
+	if (enable)
+		ncr |= GEM_BIT(TXLPIEN);
+	else
+		ncr &= ~GEM_BIT(TXLPIEN);
+	if (old != ncr)
+		macb_writel(bp, NCR, ncr);
+
+	return old != ncr;
+}
+
+static bool macb_tx_all_queues_idle(struct macb *bp)
+{
+	struct macb_queue *queue;
+	unsigned int q;
+
+	for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue) {
+		if (READ_ONCE(queue->tx_head) != READ_ONCE(queue->tx_tail))
+			return false;
+	}
+	return true;
+}
+
+static void macb_tx_lpi_work_fn(struct work_struct *work)
+{
+	struct macb *bp = container_of(work, struct macb, tx_lpi_work.work);
+	unsigned long flags;
+
+	spin_lock_irqsave(&bp->lock, flags);
+	if (bp->eee_active && macb_tx_all_queues_idle(bp))
+		macb_tx_lpi_set(bp, true);
+	spin_unlock_irqrestore(&bp->lock, flags);
+}
+
+static void macb_tx_lpi_schedule(struct macb *bp)
+{
+	if (bp->eee_active)
+		mod_delayed_work(system_wq, &bp->tx_lpi_work,
+				 usecs_to_jiffies(bp->tx_lpi_timer));
+}
+
+/* Wake from LPI before transmitting. The MAC must deassert TXLPIEN
+ * and wait for the PHY to exit LPI before any frame can be sent.
+ * IEEE 802.3az Tw_sys is ~17us for 1000BASE-T, ~30us for 100BASE-TX;
+ * we use a conservative 50us.
+ */
+static void macb_tx_lpi_wake(struct macb *bp)
+{
+	lockdep_assert_held(&bp->lock);
+
+	if (!bp->eee_active)
+		return;
+
+	if (!macb_tx_lpi_set(bp, false))
+		return;
+
+	cancel_delayed_work(&bp->tx_lpi_work);
+	udelay(50);
+}
+
+static void macb_mac_disable_tx_lpi(struct phylink_config *config)
+{
+	struct net_device *ndev = to_net_dev(config->dev);
+	struct macb *bp = netdev_priv(ndev);
+	unsigned long flags;
+
+	cancel_delayed_work_sync(&bp->tx_lpi_work);
+
+	spin_lock_irqsave(&bp->lock, flags);
+	bp->eee_active = false;
+	macb_tx_lpi_set(bp, false);
+	spin_unlock_irqrestore(&bp->lock, flags);
+}
+
+static int macb_mac_enable_tx_lpi(struct phylink_config *config, u32 timer,
+				  bool tx_clk_stop)
+{
+	struct net_device *ndev = to_net_dev(config->dev);
+	struct macb *bp = netdev_priv(ndev);
+	unsigned long flags;
+
+	spin_lock_irqsave(&bp->lock, flags);
+	bp->tx_lpi_timer = timer;
+	bp->eee_active = true;
+	spin_unlock_irqrestore(&bp->lock, flags);
+
+	/* Defer initial LPI entry by 1 second after link-up per
+	 * IEEE 802.3az section 22.7a.
+	 */
+	mod_delayed_work(system_wq, &bp->tx_lpi_work, msecs_to_jiffies(1000));
+
+	return 0;
+}
 
 static void macb_mac_config(struct phylink_config *config, unsigned int mode,
 			    const struct phylink_link_state *state)
@@ -882,6 +1001,8 @@ static const struct phylink_mac_ops macb_phylink_ops = {
 	.mac_config = macb_mac_config,
 	.mac_link_down = macb_mac_link_down,
 	.mac_link_up = macb_mac_link_up,
+	.mac_disable_tx_lpi = macb_mac_disable_tx_lpi,
+	.mac_enable_tx_lpi = macb_mac_enable_tx_lpi,
 };
 
 static bool macb_phy_handle_exists(struct device_node *dn)
@@ -977,6 +1098,18 @@ static int macb_mii_probe(struct net_device *dev)
 		}
 	}
 
+	/* Configure EEE LPI if supported */
+	if (bp->caps & MACB_CAPS_EEE) {
+		__set_bit(PHY_INTERFACE_MODE_MII,
+			  bp->phylink_config.lpi_interfaces);
+		__set_bit(PHY_INTERFACE_MODE_GMII,
+			  bp->phylink_config.lpi_interfaces);
+		phy_interface_set_rgmii(bp->phylink_config.lpi_interfaces);
+		bp->phylink_config.lpi_capabilities = MAC_100FD | MAC_1000FD;
+		bp->phylink_config.lpi_timer_default = 250000;
+		bp->phylink_config.eee_enabled_default = true;
+	}
+
 	bp->phylink = phylink_create(&bp->phylink_config, bp->pdev->dev.fwnode,
 				     bp->phy_interface, &macb_phylink_ops);
 	if (IS_ERR(bp->phylink)) {
@@ -1043,6 +1176,7 @@ static int macb_mii_init(struct macb *bp)
 	bp->mii_bus->write = &macb_mdio_write_c22;
 	bp->mii_bus->read_c45 = &macb_mdio_read_c45;
 	bp->mii_bus->write_c45 = &macb_mdio_write_c45;
+	bp->mii_bus->reset = &macb_mdio_reset;
 	snprintf(bp->mii_bus->id, MII_BUS_ID_SIZE, "%s-%x",
 		 bp->pdev->name, bp->pdev->id);
 	bp->mii_bus->priv = bp;
@@ -1376,6 +1510,9 @@ static int macb_tx_complete(struct macb_queue *queue, int budget)
 		     bp->tx_ring_size) <= MACB_TX_WAKEUP_THRESH(bp))
 		netif_wake_subqueue(bp->dev, queue_index);
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
+
+	if (packets)
+		macb_tx_lpi_schedule(bp);
 
 	return packets;
 }
@@ -1719,6 +1856,11 @@ static int macb_rx(struct macb_queue *queue, struct napi_struct *napi,
 
 		macb_init_rx_ring(queue);
 		queue_writel(queue, RBQP, queue->rx_ring_dma);
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+		if (bp->hw_dma_cap & HW_DMA_CAP_64B)
+			macb_writel(bp, RBQPH,
+				    upper_32_bits(queue->rx_ring_dma));
+#endif
 
 		macb_writel(bp, NCR, ctrl | MACB_BIT(RE));
 
@@ -2021,8 +2163,9 @@ static irqreturn_t macb_interrupt(int irq, void *dev_id)
 				queue_writel(queue, ISR, MACB_BIT(TCOMP) |
 							 MACB_BIT(TXUBR));
 
-			if (status & MACB_BIT(TXUBR)) {
+			if (status & MACB_BIT(TXUBR) || queue->tx_pending) {
 				queue->txubr_pending = true;
+				queue->tx_pending = 0;
 				wmb(); // ensure softirq can see update
 			}
 
@@ -2480,6 +2623,12 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			     skb->len);
 
 	spin_lock(&bp->lock);
+	macb_tx_lpi_wake(bp);
+
+	/* TSTART write might get dropped, so make the IRQ retrigger a buffer read */
+	if (macb_readl(bp, TSR) & MACB_BIT(TGO))
+		queue->tx_pending = 1;
+
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
 	spin_unlock(&bp->lock);
 
@@ -2908,6 +3057,37 @@ static void macb_configure_dma(struct macb *bp)
 	}
 }
 
+static void gem_init_axi(struct macb *bp)
+{
+	u32 amp;
+
+	/* AXI pipeline setup - don't touch values unless specified in device
+	 * tree. Some hardware could have reset values > 1.
+	 */
+	amp = gem_readl(bp, AMP);
+
+	if (bp->use_aw2b_fill)
+		amp = GEM_BFINS(AW2B_FILL, bp->use_aw2b_fill, amp);
+	if (bp->aw2w_max_pipe)
+		amp = GEM_BFINS(AW2W_MAX_PIPE, bp->aw2w_max_pipe, amp);
+	if (bp->ar2r_max_pipe)
+		amp = GEM_BFINS(AR2R_MAX_PIPE, bp->ar2r_max_pipe, amp);
+
+	gem_writel(bp, AMP, amp);
+}
+
+static void gem_init_intmod(struct macb *bp)
+{
+	unsigned int throttle;
+	u32 intmod = 0;
+
+	/* Use sensible interrupt moderation thresholds (50us rx and tx) */
+	throttle = (1000 * 50) / 800;
+	intmod = GEM_BFINS(TX_MODERATION, throttle, intmod);
+	intmod = GEM_BFINS(RX_MODERATION, throttle, intmod);
+	gem_writel(bp, INTMOD, intmod);
+}
+
 static void macb_init_hw(struct macb *bp)
 {
 	u32 config;
@@ -2935,6 +3115,11 @@ static void macb_init_hw(struct macb *bp)
 	bp->rx_frm_len_mask = MACB_RX_FRMLEN_MASK;
 	if (bp->caps & MACB_CAPS_JUMBO)
 		bp->rx_frm_len_mask = MACB_RX_JFRMLEN_MASK;
+
+	if (macb_is_gem(bp)) {
+		gem_init_axi(bp);
+		gem_init_intmod(bp);
+	}
 
 	macb_configure_dma(bp);
 
@@ -3141,6 +3326,8 @@ static int macb_close(struct net_device *dev)
 		netdev_tx_reset_queue(netdev_get_tx_queue(dev, q));
 	}
 
+	cancel_delayed_work_sync(&bp->tx_lpi_work);
+
 	phylink_stop(bp->phylink);
 	phylink_disconnect_phy(bp->phylink);
 
@@ -3297,6 +3484,52 @@ static void gem_get_ethtool_strings(struct net_device *dev, u32 sset, u8 *p)
 		}
 		break;
 	}
+}
+
+static int gem_set_coalesce(struct net_device *dev,
+			    struct ethtool_coalesce *ec,
+			    struct kernel_ethtool_coalesce *kernel_coal,
+			    struct netlink_ext_ack *extack)
+{
+	struct macb *bp = netdev_priv(dev);
+	unsigned int tx_throttle;
+	unsigned int rx_throttle;
+	u32 intmod = 0;
+
+	/* GEM has simple IRQ throttling support. RX and TX interrupts
+	 * are separately moderated on 800ns quantums, with no support
+	 * for frame coalescing.
+	 */
+
+	/* Max is 255 * 0.8us = 204us. Zero implies no moderation. */
+	if (ec->rx_coalesce_usecs > 204 || ec->tx_coalesce_usecs > 204)
+		return -EINVAL;
+
+	tx_throttle = (1000 * ec->tx_coalesce_usecs) / 800;
+	rx_throttle = (1000 * ec->rx_coalesce_usecs) / 800;
+
+	intmod = GEM_BFINS(TX_MODERATION, tx_throttle, intmod);
+	intmod = GEM_BFINS(RX_MODERATION, rx_throttle, intmod);
+
+	gem_writel(bp, INTMOD, intmod);
+
+	return 0;
+}
+
+static int gem_get_coalesce(struct net_device *dev,
+			    struct ethtool_coalesce *ec,
+			    struct kernel_ethtool_coalesce *kernel_coal,
+			    struct netlink_ext_ack *extack)
+{
+	struct macb *bp = netdev_priv(dev);
+	u32 intmod;
+
+	intmod = gem_readl(bp, INTMOD);
+
+	ec->tx_coalesce_usecs = (GEM_BFEXT(TX_MODERATION, intmod) * 800) / 1000;
+	ec->rx_coalesce_usecs = (GEM_BFEXT(RX_MODERATION, intmod) * 800) / 1000;
+
+	return 0;
 }
 
 static void macb_get_stats(struct net_device *dev,
@@ -4054,7 +4287,23 @@ static const struct ethtool_ops macb_ethtool_ops = {
 	.set_ringparam		= macb_set_ringparam,
 };
 
+static int macb_get_eee(struct net_device *dev, struct ethtool_keee *eee)
+{
+	struct macb *bp = netdev_priv(dev);
+
+	return phylink_ethtool_get_eee(bp->phylink, eee);
+}
+
+static int macb_set_eee(struct net_device *dev, struct ethtool_keee *eee)
+{
+	struct macb *bp = netdev_priv(dev);
+
+	return phylink_ethtool_set_eee(bp->phylink, eee);
+}
+
 static const struct ethtool_ops gem_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_RX_USECS |
+				     ETHTOOL_COALESCE_TX_USECS,
 	.get_regs_len		= macb_get_regs_len,
 	.get_regs		= macb_get_regs,
 	.get_wol		= macb_get_wol,
@@ -4068,12 +4317,16 @@ static const struct ethtool_ops gem_ethtool_ops = {
 	.get_eth_mac_stats	= gem_get_eth_mac_stats,
 	.get_eth_phy_stats	= gem_get_eth_phy_stats,
 	.get_rmon_stats		= gem_get_rmon_stats,
+	.get_coalesce		= gem_get_coalesce,
+	.set_coalesce		= gem_set_coalesce,
 	.get_link_ksettings     = macb_get_link_ksettings,
 	.set_link_ksettings     = macb_set_link_ksettings,
 	.get_ringparam		= macb_get_ringparam,
 	.set_ringparam		= macb_set_ringparam,
 	.get_rxnfc			= gem_get_rxnfc,
 	.set_rxnfc			= gem_set_rxnfc,
+	.get_eee		= macb_get_eee,
+	.set_eee		= macb_set_eee,
 };
 
 static int macb_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
@@ -5474,7 +5727,8 @@ static const struct macb_config versal_config = {
 static const struct macb_config raspberrypi_rp1_config = {
 	.caps = MACB_CAPS_GIGABIT_MODE_AVAILABLE | MACB_CAPS_CLK_HW_CHG |
 		MACB_CAPS_JUMBO |
-		MACB_CAPS_GEM_HAS_PTP,
+		MACB_CAPS_GEM_HAS_PTP |
+		MACB_CAPS_EEE,
 	.dma_burst_length = 16,
 	.clk_init = macb_clk_init,
 	.init = macb_init,
@@ -5634,6 +5888,11 @@ static int macb_probe(struct platform_device *pdev)
 			}
 		}
 	}
+
+	device_property_read_u8(&pdev->dev, "cdns,aw2w-max-pipe", &bp->aw2w_max_pipe);
+	device_property_read_u8(&pdev->dev, "cdns,ar2r-max-pipe", &bp->ar2r_max_pipe);
+	bp->use_aw2b_fill = device_property_read_bool(&pdev->dev, "cdns,use-aw2b-fill");
+
 	spin_lock_init(&bp->lock);
 	spin_lock_init(&bp->stats_lock);
 
@@ -5694,6 +5953,21 @@ static int macb_probe(struct platform_device *pdev)
 	else
 		bp->phy_interface = interface;
 
+	/* optional PHY reset-related properties */
+	bp->phy_reset_gpio = devm_gpiod_get_optional(&pdev->dev, "phy-reset",
+						     GPIOD_OUT_LOW);
+	if (IS_ERR(bp->phy_reset_gpio)) {
+		dev_err(&pdev->dev, "Failed to obtain phy-reset gpio\n");
+		err = PTR_ERR(bp->phy_reset_gpio);
+		goto err_out_free_netdev;
+	}
+
+	bp->phy_reset_ms = 10;
+	of_property_read_u32(np, "phy-reset-duration", &bp->phy_reset_ms);
+	/* A sane reset duration should not be longer than 1s */
+	if (bp->phy_reset_ms > 1000)
+		bp->phy_reset_ms = 1000;
+
 	/* IP specific init */
 	err = init(pdev);
 	if (err)
@@ -5712,6 +5986,7 @@ static int macb_probe(struct platform_device *pdev)
 	}
 
 	INIT_WORK(&bp->hresp_err_bh_work, macb_hresp_error_task);
+	INIT_DELAYED_WORK(&bp->tx_lpi_work, macb_tx_lpi_work_fn);
 
 	netdev_info(dev, "Cadence %s rev 0x%08x at 0x%08lx irq %d (%pM)\n",
 		    macb_is_gem(bp) ? "GEM" : "MACB", macb_readl(bp, MID),
@@ -5756,6 +6031,7 @@ static void macb_remove(struct platform_device *pdev)
 		mdiobus_free(bp->mii_bus);
 
 		device_set_wakeup_enable(&bp->pdev->dev, 0);
+		cancel_delayed_work_sync(&bp->tx_lpi_work);
 		cancel_work_sync(&bp->hresp_err_bh_work);
 		pm_runtime_disable(&pdev->dev);
 		pm_runtime_dont_use_autosuspend(&pdev->dev);

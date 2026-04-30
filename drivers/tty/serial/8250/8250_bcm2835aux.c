@@ -101,6 +101,7 @@ static int bcm2835aux_serial_probe(struct platform_device *pdev)
 	up.port.flags = UPF_FIXED_PORT | UPF_FIXED_TYPE | UPF_SKIP_TEST | UPF_IOREMAP;
 	up.port.rs485_config = serial8250_em485_config;
 	up.port.rs485_supported = serial8250_em485_supported;
+	up.bugs |= UART_BUG_NOMSI;
 	up.rs485_start_tx = bcm2835aux_rs485_start_tx;
 	up.rs485_stop_tx = bcm2835aux_rs485_stop_tx;
 
@@ -155,6 +156,13 @@ static int bcm2835aux_serial_probe(struct platform_device *pdev)
 	 * to get identical baudrates.
 	 */
 	up.port.uartclk *= 2;
+
+	/* The clock is only queried at probe time, which means we get one shot
+	 * at this. A zero clock is never going to work and is almost certainly
+	 * due to a parent not being ready, so prefer to defer.
+	 */
+	if (!up.port.uartclk)
+	    return -EPROBE_DEFER;
 
 	/* register the port */
 	ret = serial8250_register_8250_port(&up);

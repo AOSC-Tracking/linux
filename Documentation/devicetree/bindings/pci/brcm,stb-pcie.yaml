@@ -84,6 +84,14 @@ properties:
     $ref: /schemas/types.yaml#/definitions/string
     enum: [ safe, no-l1ss, default ]
 
+  brcm,fifo-qos-map:
+    description: Array of u8 elements which assigns every per-TC FIFOs
+      an AXI priority based on fullness quartile (backpressure signalling).
+      Mutually exclusive with vdm-qos-map.
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+    minItems: 4
+    maxItems: 4
+
   brcm,scb-sizes:
     description: u64 giving the 64bit PCIe memory
       viewport size of a memory controller.  There may be up to
@@ -95,6 +103,21 @@ properties:
     $ref: /schemas/types.yaml#/definitions/uint64-array
     minItems: 1
     maxItems: 3
+
+  brcm,tperst-clk-ms:
+    description: u32 giving the number of milliseconds to extend
+      the time between internal release of fundamental reset and
+      the deassertion of the external PERST# pin. This has the
+      effect of increasing the Tperst_clk phase of link init.
+
+  brcm,vdm-qos-map:
+    description: Array of u8 elements which assigns each per-TC FIFO
+      a base AXI priority with automatic elevation depending on
+      Vendor Messages from the EP - specifically, RP1.
+      Mutually exclusive with fifo-qos-map.
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+    minItems: 8
+    maxItems: 8
 
   resets:
     minItems: 1
@@ -110,6 +133,14 @@ properties:
   num-lanes:
     default: 1
     maximum: 4
+
+  brcm,tperst-clk-ms:
+    category: optional
+    type: int
+    description: u32 giving the number of milliseconds to extend
+      the time between internal release of fundamental reset and
+      the deassertion of the external PERST# pin. This has the
+      effect of increasing the Tperst_clk phase of link init.
 
 required:
   - compatible
@@ -181,6 +212,17 @@ allOf:
       required:
         - resets
         - reset-names
+
+  - if:
+      not:
+        properties:
+          compatible:
+            contains:
+              const: brcm,bcm2712-pcie
+    then:
+      properties:
+        brcm,fifo-qos-map: false
+        brcm,vdm-qos-map: false
 
 unevaluatedProperties: false
 

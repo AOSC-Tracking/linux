@@ -197,6 +197,7 @@ v3d_hub_irq(int irq, void *arg)
 			{0x7F, 0x80, "GMP"},
 		};
 		const char *client = "?";
+		static bool logged_error;
 
 		V3D_WRITE(V3D_MMU_CTL, V3D_READ(V3D_MMU_CTL));
 
@@ -224,14 +225,18 @@ v3d_hub_irq(int irq, void *arg)
 			}
 		}
 
-		dev_err(v3d->drm.dev, "MMU error from client %s (0x%x) at 0x%llx%s%s%s\n",
-			client, axi_id, (long long)vio_addr,
-			((intsts & V3D_HUB_INT_MMU_WRV) ?
-			 ", write violation" : ""),
-			((intsts & V3D_HUB_INT_MMU_PTI) ?
-			 ", pte invalid" : ""),
-			((intsts & V3D_HUB_INT_MMU_CAP) ?
-			 ", cap exceeded" : ""));
+		if (!logged_error || debug_mmu) {
+			dev_err(v3d->drm.dev, "MMU error from client %s (%d) at 0x%llx%s%s%s\n",
+				client, axi_id, (long long)vio_addr,
+				((intsts & V3D_HUB_INT_MMU_WRV) ?
+				 ", write violation" : ""),
+				((intsts & V3D_HUB_INT_MMU_PTI) ?
+				 ", pte invalid" : ""),
+				((intsts & V3D_HUB_INT_MMU_CAP) ?
+				 ", cap exceeded" : ""));
+		}
+		logged_error = true;
+
 		status = IRQ_HANDLED;
 	}
 
@@ -246,16 +251,9 @@ v3d_hub_irq(int irq, void *arg)
 int
 v3d_irq_init(struct v3d_dev *v3d)
 {
-	int irq, ret, core;
+	int irq, ret;
 
 	INIT_WORK(&v3d->overflow_mem_work, v3d_overflow_mem_work);
-
-	/* Clear any pending interrupts someone might have left around
-	 * for us.
-	 */
-	for (core = 0; core < v3d->cores; core++)
-		V3D_CORE_WRITE(core, V3D_CTL_INT_CLR, V3D_CORE_IRQS(v3d->ver));
-	V3D_WRITE(V3D_HUB_INT_CLR, V3D_HUB_IRQS(v3d->ver));
 
 	irq = platform_get_irq_optional(v3d_to_pdev(v3d), 1);
 	if (irq == -EPROBE_DEFER)
@@ -294,7 +292,6 @@ v3d_irq_init(struct v3d_dev *v3d)
 			goto fail;
 	}
 
-	v3d_irq_enable(v3d);
 	return 0;
 
 fail:
@@ -307,6 +304,11 @@ void
 v3d_irq_enable(struct v3d_dev *v3d)
 {
 	int core;
+
+	/* Clear any pending interrupts someone might have left around for us. */
+	for (core = 0; core < v3d->cores; core++)
+		V3D_CORE_WRITE(core, V3D_CTL_INT_CLR, V3D_CORE_IRQS(v3d->ver));
+	V3D_WRITE(V3D_HUB_INT_CLR, V3D_HUB_IRQS(v3d->ver));
 
 	/* Enable our set of interrupts, masking out any others. */
 	for (core = 0; core < v3d->cores; core++) {

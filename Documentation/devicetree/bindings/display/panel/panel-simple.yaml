@@ -146,6 +146,8 @@ properties:
       - frida,frd350h54004
         # FriendlyELEC HD702E 800x1280 LCD panel
       - friendlyarm,hd702e
+        # Geekworm MZP280 2.8" 480x640 LCD panel with capacitive touch
+      - geekworm,mzp280
         # GiantPlus GPG48273QS5 4.3" (480x272) WQVGA TFT LCD panel
       - giantplus,gpg48273qs5
         # GiantPlus GPM940B0 3.0" QVGA TFT LCD panel
@@ -158,6 +160,8 @@ properties:
       - hit,tx23d38vm0caa
         # Innolux AT043TN24 4.3" WQVGA TFT LCD panel
       - innolux,at043tn24
+        # Innolux AT056tN53V1 5.6" VGA (640x480) TFT LCD panel
+      - innolux,at056tn53v1
         # Innolux AT070TN92 7.0" WQVGA TFT LCD panel
       - innolux,at070tn92
         # Innolux G070ACE-L01 7" WVGA (800x480) TFT LCD panel

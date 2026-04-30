@@ -63,6 +63,8 @@ static const char *const abort_sources[] = {
 		"slave lost the bus while transmitting data to a remote master",
 	[ABRT_SLAVE_RD_INTX] =
 		"incorrect slave-transmitter mode configuration",
+	[ABRT_SLAVE_SDA_STUCK_AT_LOW] =
+		"SDA stuck at low",
 };
 
 static int dw_reg_read(void *context, unsigned int reg, unsigned int *val)
@@ -362,6 +364,9 @@ static void i2c_dw_adjust_bus_speed(struct dw_i2c_dev *dev)
 {
 	u32 acpi_speed = i2c_dw_acpi_round_bus_speed(dev->dev);
 	struct i2c_timings *t = &dev->timings;
+	u32 wanted_speed;
+	u32 legal_speed = 0;
+	int i;
 
 	/*
 	 * Find bus speed from the "clock-frequency" device property, ACPI
@@ -373,6 +378,30 @@ static void i2c_dw_adjust_bus_speed(struct dw_i2c_dev *dev)
 		t->bus_freq_hz = max(t->bus_freq_hz, acpi_speed);
 	else
 		t->bus_freq_hz = I2C_MAX_FAST_MODE_FREQ;
+
+	wanted_speed = t->bus_freq_hz;
+
+	/* For unsupported speeds, scale down the lowest speed which is faster. */
+	for (i = 0; i < ARRAY_SIZE(supported_speeds); i++) {
+		/* supported speeds is in decreasing order */
+		if (wanted_speed == supported_speeds[i]) {
+			legal_speed = 0;
+			break;
+		}
+		if (wanted_speed > supported_speeds[i])
+			break;
+
+		legal_speed = supported_speeds[i];
+	}
+
+	if (legal_speed) {
+		/*
+		 * Pretend this was the requested speed, but preserve the preferred
+		 * speed so the clock counts can be scaled.
+		 */
+		t->bus_freq_hz = legal_speed;
+		dev->wanted_bus_speed = wanted_speed;
+	}
 }
 
 int i2c_dw_fw_parse_and_configure(struct dw_i2c_dev *dev)
@@ -652,8 +681,16 @@ int i2c_dw_wait_bus_not_busy(struct dw_i2c_dev *dev)
 int i2c_dw_handle_tx_abort(struct dw_i2c_dev *dev)
 {
 	unsigned long abort_source = dev->abort_source;
+	unsigned int reg;
 	int i;
 
+	if (abort_source & DW_IC_TX_ABRT_SLAVE_SDA_STUCK_AT_LOW) {
+		regmap_write(dev->map, DW_IC_ENABLE,
+			     DW_IC_ENABLE_ENABLE | DW_IC_ENABLE_BUS_RECOVERY);
+		regmap_read_poll_timeout(dev->map, DW_IC_ENABLE, reg,
+					 !(reg & DW_IC_ENABLE_BUS_RECOVERY),
+					 1100, 200000);
+	}
 	if (abort_source & DW_IC_TX_ABRT_NOACK) {
 		for_each_set_bit(i, &abort_source, ARRAY_SIZE(abort_sources))
 			dev_dbg(dev->dev,
@@ -668,6 +705,8 @@ int i2c_dw_handle_tx_abort(struct dw_i2c_dev *dev)
 		return -EAGAIN;
 	if (abort_source & DW_IC_TX_ABRT_GCALL_READ)
 		return -EINVAL; /* wrong msgs[] data */
+	if (abort_source & DW_IC_TX_ABRT_SLAVE_SDA_STUCK_AT_LOW)
+		return -EREMOTEIO;
 
 	return -EIO;
 }
