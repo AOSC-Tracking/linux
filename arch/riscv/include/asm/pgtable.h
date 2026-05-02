@@ -747,15 +747,6 @@ static inline pgprot_t pgprot_writecombine(pgprot_t _prot)
 #define pgprot_dmacoherent pgprot_writecombine
 
 /*
- * DMA allocations for non-coherent devices use what the RISC-V architecture
- * call "Non-Cacheable" memory attribute, which permits idempotent, weakly-ordered
- * (RVWMO), main memory. This is different from "I/O" memory attribute which is
- * intended for MMIO access with Non-cacheable, non-idempotent, strongly-ordered
- * (I/O ordering), I/O attributes.
- */
-#define pgprot_dmacoherent pgprot_writecombine
-
-/*
  * Both Svade and Svadu control the hardware behavior when the PTE A/D bits need to be set. By
  * default the M-mode firmware enables the hardware updating scheme when only Svadu is present in
  * DT.
