@@ -43,6 +43,7 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
+		vin-supply = <&reg_vcc5v0_sys>;
 	};
 
 	reg_dc_in: regulator-dc-in-12v {
