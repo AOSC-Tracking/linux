@@ -864,7 +864,8 @@ module_param_named(dcfeaturemask, amdgpu_dc_feature_mask, uint, 0444);
  * DOC: dcdebugmask (uint)
  * Display debug options. See enum DC_DEBUG_MASK in drivers/gpu/drm/amd/include/amd_shared.h.
  */
-MODULE_PARM_DESC(dcdebugmask, "all debug options disabled (default))");
+uint dcdebugmask = 0x610;
+MODULE_PARM_DESC(dcdebugmask, "Disable debug options (default: disable Panel Self Refresh v1 and PSR-SU, or v2, as well as Panel Replay)");
 module_param_named(dcdebugmask, amdgpu_dc_debug_mask, uint, 0444);
 
 MODULE_PARM_DESC(visualconfirm, "Visual confirm (0 = off (default), 1 = MPO, 5 = PSR)");
