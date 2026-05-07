@@ -323,6 +323,8 @@ static int spacemit_i2s_dai_probe(struct snd_soc_dai *dai)
 
 	spacemit_i2s_init(i2s);
 
+	snd_soc_dai_set_bclk_clk(dai, i2s->c_bclk);
+
 	return 0;
 }
 
