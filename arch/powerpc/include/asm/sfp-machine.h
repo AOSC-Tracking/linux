@@ -319,10 +319,12 @@
 #define abort()								\
 	return 0
 
-#ifdef __BIG_ENDIAN
+#ifdef __BIG_ENDIAN__
 #define __BYTE_ORDER __BIG_ENDIAN
+#define __LITTLE_ENDIAN 0
 #else
 #define __BYTE_ORDER __LITTLE_ENDIAN
+#define __BIG_ENDIAN 0
 #endif
 
 /* Exception flags. */
