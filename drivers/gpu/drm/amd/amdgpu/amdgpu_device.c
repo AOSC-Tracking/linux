@@ -1272,6 +1272,13 @@ bool amdgpu_device_seamless_boot_supported(struct amdgpu_device *adev)
 	return amdgpu_ip_version(adev, DCE_HWIP, 0) >= IP_VERSION(3, 0, 0);
 }
 
+static const struct pci_device_id amdgpu_pcie_dynamic_switching_broken_devids[] = {
+	/* SpacemiT K3 */
+	{ PCI_DEVICE(PCI_VENDOR_ID_SPACEMIT,
+		     PCI_DEVICE_ID_SPACEMIT_K3) },
+	{}
+};
+
 #if IS_ENABLED(CONFIG_X86)
 static const struct x86_cpu_id amdgpu_pcie_dynamic_switching_quirks[] = {
 	/*
@@ -1291,25 +1298,35 @@ static const struct x86_cpu_id amdgpu_pcie_dynamic_switching_quirks[] = {
 	X86_MATCH_VENDOR_FAM_MODEL(AMD, 0x17, 0x08, NULL),
 	{}
 };
+#endif
 
 static bool amdgpu_device_pcie_dynamic_switching_supported(struct amdgpu_device *adev)
 {
+	struct pci_dev *parent = adev->pdev;
+
 	/* eGPU change speeds based on USB4 fabric conditions */
 	if (dev_is_removable(adev->dev))
 		return true;
 
+#if IS_ENABLED(CONFIG_X86)
 	/* Hosts have problems with dynamic speed switching */
 	if (x86_match_cpu(amdgpu_pcie_dynamic_switching_quirks))
+		return false;
+#endif
+
+	/* skip upstream/downstream switches internal to dGPU */
+	while (parent && parent->vendor == PCI_VENDOR_ID_ATI) {
+		parent = pci_upstream_bridge(parent);
+	}
+
+	if (!parent)
+		return true;
+
+	if (pci_match_id(amdgpu_pcie_dynamic_switching_broken_devids, parent))
 		return false;
 
 	return true;
 }
-#else
-static inline bool amdgpu_device_pcie_dynamic_switching_supported(struct amdgpu_device *adev)
-{
-	return true;
-}
-#endif
 
 static bool amdgpu_device_aspm_support_quirk(struct amdgpu_device *adev)
 {
