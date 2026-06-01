@@ -458,6 +458,7 @@ That is, the recovery API only requires that:
    - drivers/next/e100.c
    - drivers/net/e1000
    - drivers/net/e1000e
+   - drivers/net/ixgb
    - drivers/net/ixgbe
    - drivers/net/cxgb3
 
