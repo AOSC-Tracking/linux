@@ -261,7 +261,7 @@ ixgb_down(struct ixgb_adapter *adapter, bool kill_watchdog)
 		pci_disable_msi(adapter->pdev);
 
 	if (kill_watchdog)
-		del_timer_sync(&adapter->watchdog_timer);
+		timer_delete_sync(&adapter->watchdog_timer);
 
 	adapter->link_speed = 0;
 	adapter->link_duplex = 0;
@@ -1108,7 +1108,7 @@ alloc_failed:
 static void
 ixgb_watchdog(struct timer_list *t)
 {
-	struct ixgb_adapter *adapter = from_timer(adapter, t, watchdog_timer);
+	struct ixgb_adapter *adapter = timer_container_of(adapter, t, watchdog_timer);
 	struct net_device *netdev = adapter->netdev;
 	struct ixgb_desc_ring *txdr = &adapter->tx_ring;
 
