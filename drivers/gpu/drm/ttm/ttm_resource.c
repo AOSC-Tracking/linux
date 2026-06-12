@@ -867,14 +867,16 @@ ttm_kmap_iter_linear_io_init(struct ttm_kmap_iter_linear_io *iter_io,
 			     struct ttm_device *bdev,
 			     struct ttm_resource *mem)
 {
-	enum ttm_caching caching = mem->bus.caching;
+	enum ttm_caching caching;
 	int ret;
+
+	ret = ttm_mem_io_reserve(bdev, mem);
+	caching = mem->bus.caching;
 
 	/* Downgrade cached mapping for non-snooping devices */
 	if (!bdev->dma_coherent && caching == ttm_cached)
 		caching = ttm_write_combined;
 
-	ret = ttm_mem_io_reserve(bdev, mem);
 	if (ret)
 		goto out_err;
 	if (!mem->bus.is_iomem) {
