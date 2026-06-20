@@ -625,7 +625,7 @@ ia64_rotr (__u64 w, __u64 n)
  * in the region 7 identity mapped virtual area.
  */
 static inline void *
-ia64_imva (void *addr)
+ia64_imva (const void *addr)
 {
 	void *result;
 	result = (void *) ia64_tpa(addr);
