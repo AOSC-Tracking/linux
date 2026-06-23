@@ -213,6 +213,19 @@ static void loongson_pci_bridge_speed_quirk(struct pci_dev *pdev)
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, 0x3c19, loongson_pci_bridge_speed_quirk);
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, 0x3c29, loongson_pci_bridge_speed_quirk);
 
+/*
+ * Some devices, for example Intel 750 Series SSD, experiences data loss
+ * (read timeout) on LS7A1000 PCIe x8 Root Port when ASPM L0s is enabled.
+ * This seems only affecting the revision 2.
+ */
+static void loongson_port2_aspm_quirk(struct pci_dev *pdev)
+{
+	if (pdev->revision == 2)
+		pcie_aspm_remove_cap(pdev, PCI_EXP_LNKCAP_ASPM_L0S);
+}
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_LOONGSON, DEV_LS7A_PCIE_PORT2,
+			 loongson_port2_aspm_quirk);
+
 static struct loongson_pci *pci_bus_to_loongson_pci(struct pci_bus *bus)
 {
 	struct pci_config_window *cfg;
