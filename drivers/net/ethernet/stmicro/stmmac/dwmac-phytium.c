@@ -91,10 +91,8 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 		plat->phy_interface = plat->phy_interface;
 
 	/* Configure PHY if using device-tree */
-	if (pdev->dev.of_node) {
+	if (pdev->dev.of_node)
 		plat->phy_node = of_parse_phandle(np, "phy-handle", 0);
-		plat->port_node = of_fwnode_handle(np);
-	}
 
 	if (pdev->dev.of_node) {
 		plat->bus_id = of_alias_get_id(np, "ethernet");
