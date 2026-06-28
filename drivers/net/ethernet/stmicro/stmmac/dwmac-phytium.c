@@ -176,7 +176,9 @@ static int phytium_dwmac_probe(struct platform_device *pdev)
 	 * show kernel error 'DMA descriptors allocation failed'
 	 */
 	if (acpi_match_device_ids(to_acpi_device(&pdev->dev), phytium_old_acpi_id)) {
+#ifdef CONFIG_ARCH_HAS_DMA_OPS
 		pdev->dev.dma_ops = NULL; // solved set DMA mask Failed
+#endif
 		plat->host_dma_width = 32;
 	}
 #endif
