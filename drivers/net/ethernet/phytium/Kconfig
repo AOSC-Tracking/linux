@@ -5,7 +5,7 @@
 
 config NET_VENDOR_PHYTIUM
 	bool "Phytium devices"
-	depends on ARCH_PHYTIUM
+	depends on ARCH_PHYTIUM || COMPILE_TEST
 	depends on HAS_IOMEM
 	default y
 	help
@@ -21,7 +21,7 @@ if NET_VENDOR_PHYTIUM
 config PHYTMAC
 	tristate "Phytium GMAC support"
 	depends on ACPI
-	depends on ARCH_PHYTIUM
+	depends on ARCH_PHYTIUM || COMPILE_TEST
 	depends on HAS_DMA
 	select PHYLINK
 	select CRC32
