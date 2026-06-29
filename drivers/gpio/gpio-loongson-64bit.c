@@ -46,6 +46,8 @@ struct loongson_gpio_chip {
 	spinlock_t		lock;
 	void __iomem		*reg_base;
 	const struct loongson_gpio_chip_data *chip_data;
+	u16			*gsi_idx_map;
+	int			mapsize;
 };
 
 static inline struct loongson_gpio_chip *to_loongson_gpio_chip(struct gpio_chip *chip)
@@ -143,6 +145,12 @@ static int loongson_gpio_to_irq(struct gpio_chip *chip, unsigned int offset)
 		writel(u, lgpio->reg_base + lgpio->chip_data->inten_offset + (offset / 32) * 4);
 	} else {
 		writeb(1, lgpio->reg_base + lgpio->chip_data->inten_offset + offset);
+	}
+
+	if (lgpio->gsi_idx_map != NULL) {
+		if (offset >= lgpio->mapsize)
+			return -EINVAL;
+		offset = lgpio->gsi_idx_map[offset];
 	}
 
 	return platform_get_irq(pdev, offset);
@@ -324,6 +332,23 @@ static int loongson_gpio_init(struct platform_device *pdev, struct loongson_gpio
 			return dev_err_probe(&pdev->dev, ret, "failed to initialize irqchip\n");
 	} else if (lgpio->chip_data->inten_offset) {
 		lgpio->chip.gc.to_irq = loongson_gpio_to_irq;
+	}
+
+	lgpio->mapsize = device_property_read_u16_array(&pdev->dev, "gsi_idx_map", NULL, 0);
+	if (lgpio->mapsize > 0) {
+		lgpio->gsi_idx_map = devm_kcalloc(&pdev->dev, lgpio->mapsize,
+						  sizeof(*lgpio->gsi_idx_map), GFP_KERNEL);
+		if (!lgpio->gsi_idx_map)
+			return -ENOMEM;
+
+		ret = device_property_read_u16_array(&pdev->dev, "gsi_idx_map",
+						     lgpio->gsi_idx_map, lgpio->mapsize);
+		if (ret != 0)
+			return dev_err_probe(&pdev->dev, ret, "failed to read gsi_idx_map\n");
+		dev_warn(&pdev->dev, "gsi_idx_map property is deprecated, consider upgrading your firmware\n");
+	} else {
+		lgpio->gsi_idx_map = NULL;
+		lgpio->mapsize = 0;
 	}
 
 	return devm_gpiochip_add_data(&pdev->dev, &lgpio->chip.gc, lgpio);
