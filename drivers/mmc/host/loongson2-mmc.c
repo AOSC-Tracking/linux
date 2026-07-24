@@ -1014,6 +1014,12 @@ static const struct of_device_id loongson2_mmc_of_ids[] = {
 	{ .compatible = "loongson,ls2k0500-mmc", .data = &ls2k0500_mmc_pdata },
 	{ .compatible = "loongson,ls2k1000-mmc", .data = &ls2k1000_mmc_pdata },
 	{ .compatible = "loongson,ls2k2000-mmc", .data = &ls2k2000_mmc_pdata },
+	/*
+	 * Older Loongson 2K3000/3B6000M firmware uses the following so-called
+	 * "ABI 1.0" compatible name. Add this back for compatibility's sake...
+	 * Update your firmware and care for your customer's right! Ugh.
+	 */
+	{ .compatible = "loongson,ls2k_sdio_1.2", .data = &ls2k2000_mmc_pdata },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, loongson2_mmc_of_ids);
