@@ -27,6 +27,7 @@
 #include <boot_param.h>
 #include <builtin_dtbs.h>
 #include <workarounds.h>
+#include <linux/string.h>
 
 #define HOST_BRIDGE_CONFIG_ADDR	((void __iomem *)TO_UNCAC(0x1a000000))
 
