@@ -1184,10 +1184,7 @@ static void identify_cpu_without_cpuid(struct cpuinfo_x86 *c)
 
 static const __initconst struct x86_cpu_id cpu_vuln_whitelist[] = {
 	VULNWL(ANY,	4, X86_MODEL_ANY,	NO_SPECULATION),
-	VULNWL(CENTAUR,	5, X86_MODEL_ANY,	NO_SPECULATION),
-	VULNWL(INTEL,	5, X86_MODEL_ANY,	NO_SPECULATION),
-	VULNWL(NSC,	5, X86_MODEL_ANY,	NO_SPECULATION),
-	VULNWL(VORTEX,	5, X86_MODEL_ANY,	NO_SPECULATION),
+	VULNWL(ANY,	5, X86_MODEL_ANY,	NO_SPECULATION),
 	VULNWL(VORTEX,	6, X86_MODEL_ANY,	NO_SPECULATION),
 
 	/* Intel Family 6 */
