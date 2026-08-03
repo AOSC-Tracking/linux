@@ -16,16 +16,16 @@ config IA64
 	select ARCH_HAS_STRNLEN_USER
 	select ARCH_MIGHT_HAVE_PC_PARPORT
 	select ARCH_MIGHT_HAVE_PC_SERIO
-	select ACPI
+	select ACPI if (!IA64_HP_SIM)
 	select ACPI_NUMA if NUMA
 	select ARCH_ENABLE_MEMORY_HOTPLUG
 	select ARCH_ENABLE_MEMORY_HOTREMOVE
-	select ARCH_SUPPORTS_ACPI
+	select ARCH_SUPPORTS_ACPI if (!IA64_HP_SIM)
 	select ACPI_SYSTEM_POWER_STATES_SUPPORT if ACPI
 	select ARCH_MIGHT_HAVE_ACPI_PDC if ACPI
-	select FORCE_PCI
+	select FORCE_PCI if (!IA64_HP_SIM)
 	select PCI_DOMAINS if PCI
-	select PCI_MSI
+	select PCI_MSI if PCI
 	select PCI_SYSCALL if PCI
 	select HAS_IOPORT
 	select HAVE_ASM_MODVERSIONS
@@ -60,7 +60,7 @@ config IA64
 	select HAVE_GENERIC_VDSO
 	select GENERIC_GETTIMEOFDAY
 	select LEGACY_TIMER_TICK
-	select SWIOTLB
+	select SWIOTLB if (!IA64_HP_SIM)
 	select SYSCTL_ARCH_UNALIGN_NO_WARN
 	select HAVE_MOD_ARCH_SPECIFIC
 	select MODULES_USE_ELF_RELA
@@ -124,6 +124,33 @@ config AUDIT_ARCH
 	default y
 
 choice
+	prompt "System type"
+	default IA64_GENERIC
+
+config IA64_GENERIC
+	bool "generic"
+	select NUMA
+	select ACPI_NUMA
+	select SWIOTLB
+	select PCI_MSI
+	help
+	  This selects the system type of your hardware.  A "generic" kernel
+	  will run on any supported IA-64 system.  However, if you configure
+	  a kernel for your specific system, it will be faster and smaller.
+
+	  generic		For any supported IA-64 system, except Ski
+	  Ski-simulator		For the HP simulator <http://www.hpl.hp.com/research/linux/ski/>
+
+	  If you don't know what to do, choose "generic".
+
+config IA64_HP_SIM
+	bool "Ski-simulator"
+	select FLATMEM
+	#depends on !PM
+
+endchoice
+
+choice
 	prompt "Processor type"
 	default ITANIUM
 
@@ -179,7 +206,14 @@ config IA64_PAGE_SIZE_64KB
 
 endchoice
 
+if IA64_HP_SIM
+config HZ
+	default 32
+endif
+
+if !IA64_HP_SIM
 source "kernel/Kconfig.hz"
+endif
 
 config IA64_BRL_EMU
 	bool
@@ -211,6 +245,11 @@ config IA64_CYCLONE
 	help
 	  Say Y here to enable support for IBM EXA Cyclone time source.
 	  If you're unsure, answer N.
+
+config IOSAPIC
+	bool
+	depends on !IA64_HP_SIM
+	default y
 
 config ARCH_FORCE_MAX_ORDER
 	int
@@ -290,6 +329,7 @@ config ARCH_FLATMEM_ENABLE
 	def_bool y
 
 config ARCH_SPARSEMEM_ENABLE
+	depends on !IA64_HP_SIM
 	def_bool y
 	select SPARSEMEM_VMEMMAP_ENABLE
 
@@ -373,10 +413,10 @@ config IA64_HP_AML_NFW
 endmenu
 
 config ARCH_SUPPORTS_KEXEC
-	def_bool !SMP || HOTPLUG_CPU
+	def_bool !IA64_HP_SIM && (!SMP || HOTPLUG_CPU)
 
 config ARCH_SUPPORTS_CRASH_DUMP
-	def_bool IA64_MCA_RECOVERY && (!SMP || HOTPLUG_CPU)
+	def_bool IA64_MCA_RECOVERY && !IA64_HP_SIM && (!SMP || HOTPLUG_CPU)
 
 menu "Power management and ACPI options"
 
@@ -391,6 +431,8 @@ endmenu
 endif
 
 endmenu
+
+source "arch/ia64/hp/sim/Kconfig"
 
 config MSPEC
 	tristate "Memory special operations driver"

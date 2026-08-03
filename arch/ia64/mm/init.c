@@ -388,6 +388,10 @@ void ia64_mmu_init(void *my_cpu_data)
 #endif
 }
 
+/* workaround for a warning with -Wmissing-prototypes */
+int __init register_active_ranges(u64 start, u64 len, int nid);
+int find_max_min_low_pfn (u64 start, u64 end, void *arg);
+
 int __init register_active_ranges(u64 start, u64 len, int nid)
 {
 	u64 end = start + len;
