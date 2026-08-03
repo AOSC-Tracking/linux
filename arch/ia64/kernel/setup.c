@@ -68,6 +68,8 @@
 #include <asm/uv/uv.h>
 #include <asm/xtp.h>
 
+#include <asm/hpsim.h>
+
 #if defined(CONFIG_SMP) && (IA64_CPU_SIZE > PAGE_SIZE)
 # error "struct cpuinfo_ia64 too big!"
 #endif
@@ -492,11 +494,15 @@ io_port_init (void)
 static inline int __init
 early_console_setup (char *cmdline)
 {
+	int earlycons = 0;
 #ifdef CONFIG_EFI_PCDP
 	if (!efi_setup_pcdp_console(cmdline))
-		return 0;
+		earlycons++;
 #endif
-	return -1;
+	if (!simcons_register())
+		earlycons++;
+
+	return (earlycons) ? 0 : -1;
 }
 
 static void __init
@@ -567,20 +573,21 @@ setup_arch (char **cmdline_p)
 
 	if (early_console_setup(*cmdline_p) == 0)
 		mark_bsp_online();
-
+#ifdef CONFIG_ACPI
 	/* Initialize the ACPI boot-time table parser */
 	acpi_table_init();
 	early_acpi_boot_init();
-#ifdef CONFIG_ACPI_NUMA
+# ifdef CONFIG_ACPI_NUMA
 	acpi_numa_init();
 	acpi_numa_fixup();
-#ifdef CONFIG_ACPI_HOTPLUG_CPU
+#  ifdef CONFIG_ACPI_HOTPLUG_CPU
 	prefill_possible_map();
-#endif
+#  endif
 	per_cpu_scan_finalize((cpumask_empty(&early_cpu_possible_map) ?
 		32 : cpumask_weight(&early_cpu_possible_map)),
 		additional_cpus > 0 ? additional_cpus : 0);
-#endif /* CONFIG_ACPI_NUMA */
+# endif /* CONFIG_ACPI_NUMA */
+#endif /* CONFIG_APCI */
 
 #ifdef CONFIG_SMP
 	smp_build_cpu_map();

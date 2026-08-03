@@ -47,7 +47,8 @@ KBUILD_CFLAGS += $(cflags-y)
 
 libs-y				+= arch/ia64/lib/
 
-drivers-y			+= arch/ia64/pci/ arch/ia64/hp/common/
+drivers-$(CONFIG_IA64_HP_SIM)	+= arch/ia64/hp/sim/
+drivers-$(CONFIG_IA64_GENERIC)	+= arch/ia64/pci/ arch/ia64/hp/common/
 
 PHONY += compressed check
 

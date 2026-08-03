@@ -40,6 +40,10 @@
 #include <asm/hw_irq.h>
 #include <asm/tlbflush.h>
 
+#ifdef CONFIG_IA64_HP_SIM
+#include <asm/hpsim.h>
+#endif
+
 #define IRQ_DEBUG	0
 
 #define IRQ_VECTOR_UNASSIGNED	(0)
@@ -244,7 +248,7 @@ void __setup_vector_irq(int cpu)
 	}
 }
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && defined(CONFIG_IA64_GENERIC)
 
 static enum vector_domain_type {
 	VECTOR_DOMAIN_NONE,
@@ -358,12 +362,12 @@ static int __init parse_vector_domain(char *arg)
 	return 0;
 }
 early_param("vector", parse_vector_domain);
-#else
+#else /* defined(CONFIG_SMP) && defined(CONFIG_IA64_GENERIC) */
 static cpumask_t vector_allocation_domain(int cpu)
 {
 	return CPU_MASK_ALL;
 }
-#endif
+#endif /* defined(CONFIG_SMP) && defined(CONFIG_IA64_GENERIC) */
 
 
 void destroy_and_reserve_irq(unsigned int irq)
@@ -624,15 +628,22 @@ ia64_native_register_ipi(void)
 void __init
 init_IRQ (void)
 {
+#ifdef CONFIG_ACPI
 	acpi_boot_init();
+#endif
 	ia64_register_ipi();
 	register_percpu_irq(IA64_SPURIOUS_INT_VECTOR, NULL, 0, NULL);
 #ifdef CONFIG_SMP
+# if defined(CONFIG_IA64_GENERIC)
 	if (vector_domain_type != VECTOR_DOMAIN_NONE) {
 		register_percpu_irq(IA64_IRQ_MOVE_VECTOR,
 				    smp_irq_move_cleanup_interrupt, 0,
 				    "irq_move");
 	}
+# endif
+#endif
+#ifdef CONFIG_IA64_HP_SIM
+	hpsim_irq_init();
 #endif
 }
 
