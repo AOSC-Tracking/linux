@@ -15332,6 +15332,13 @@ F:	Documentation/devicetree/bindings/sound/loongson,ls2k1000-i2s.yaml
 F:	sound/soc/loongson/loongson_*.c
 F:	sound/soc/loongson/loongson_*.h
 
+LOONGSON CAN FD DRIVER
+M:	Bingxiong Li <libingxiong@loongson.cn>
+M:	Binbin Zhou <zhoubinbin@loongson.cn>
+L:	linux-can@vger.kernel.org
+S:	Maintained
+F:	drivers/net/can/loongson_canfd/
+
 LOONGSON GPIO DRIVER
 M:	Yinbo Zhu <zhuyinbo@loongson.cn>
 L:	linux-gpio@vger.kernel.org
