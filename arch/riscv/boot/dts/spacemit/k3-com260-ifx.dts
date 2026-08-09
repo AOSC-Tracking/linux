@@ -6,6 +6,7 @@
 #include <dt-bindings/phy/phy.h>
 
 #include "k3-com260.dtsi"
+#include "k3-display.dtsi"
 
 / {
 	model = "SpacemiT K3 CoM260 IFX";
@@ -53,6 +54,32 @@
 		radio-type = "bluetooth";
 		shutdown-gpios = <&gpio K3_GPIO(57) GPIO_ACTIVE_LOW>;
 	};
+
+	connector {
+		compatible = "dp-connector";
+		label = "DP1";
+		type = "full-size";
+
+		port {
+			dp1_connector_in: endpoint {
+				remote-endpoint = <&dp1_out>;
+			};
+		};
+	};
+};
+
+&dpu1_crtc0 {
+	status = "okay";
+};
+
+&dp1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&dp1_3_cfg>;
+	status = "okay";
+};
+
+&dp1_out {
+	remote-endpoint = <&dp1_connector_in>;
 };
 
 &combophy {
