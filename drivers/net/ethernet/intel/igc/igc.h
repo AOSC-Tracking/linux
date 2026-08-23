@@ -567,6 +567,7 @@ enum igc_tx_flags {
 
 enum igc_boards {
 	board_base,
+	board_dock,
 };
 
 /* The largest size we can write to the descriptor is 65535.  In order to

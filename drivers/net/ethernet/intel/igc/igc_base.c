@@ -474,4 +474,12 @@ const struct igc_info igc_base_info = {
 	.get_invariants		= igc_get_invariants_base,
 	.mac_ops		= &igc_mac_ops_base,
 	.phy_ops		= &igc_phy_ops_base,
+	.is_dock		= false,
+};
+
+const struct igc_info igc_dock_info = {
+	.get_invariants		= igc_get_invariants_base,
+	.mac_ops		= &igc_mac_ops_base,
+	.phy_ops		= &igc_phy_ops_base,
+	.is_dock		= true,
 };
