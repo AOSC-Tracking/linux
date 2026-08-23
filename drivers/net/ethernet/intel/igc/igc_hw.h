@@ -69,9 +69,11 @@ struct igc_info {
 	struct igc_mac_operations *mac_ops;
 	const struct igc_phy_operations *phy_ops;
 	struct igc_nvm_operations *nvm_ops;
+	bool is_dock;
 };
 
 extern const struct igc_info igc_base_info;
+extern const struct igc_info igc_dock_info;
 
 enum igc_forced_speed_duplex {
 	IGC_FORCED_10H,
