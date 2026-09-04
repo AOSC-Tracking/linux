@@ -924,13 +924,13 @@ static void phytmac_v2_interface_config(struct phytmac *pdata, unsigned int mode
 }
 
 static int phytmac_v2_interface_linkup(struct phytmac *pdata, phy_interface_t interface,
-				    int speed, int duplex)
+				       int speed, int duplex, unsigned int mode)
 {
 	struct phytmac_interface_info para;
 	u16 cmd_id, cmd_subid;
 
 	if (interface == PHY_INTERFACE_MODE_SGMII) {
-		if (speed == SPEED_2500)
+		if ((speed == SPEED_2500 || mode == MLO_AN_FIXED))
 			pdata->autoneg = 0;
 		else
 			pdata->autoneg = 1;
