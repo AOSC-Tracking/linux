@@ -84,6 +84,17 @@ union phy_configure_opts {
 };
 
 /**
+ * struct phy_bulk_data - Data used for bulk phy operations.
+ *
+ * @id: phy consumer ID
+ * @phy: struct phy * to store the associated phy
+ */
+struct phy_bulk_data {
+	const char	*id;
+	struct phy	*phy;
+};
+
+/**
  * struct phy_ops - set of function pointers for performing phy operations
  * @init: operation to be performed for initializing phy
  * @exit: operation to be performed while exiting
@@ -313,6 +324,26 @@ void devm_of_phy_provider_unregister(struct device *dev,
 	struct phy_provider *phy_provider);
 int phy_create_lookup(struct phy *phy, const char *con_id, const char *dev_id);
 void phy_remove_lookup(struct phy *phy, const char *con_id, const char *dev_id);
+
+int phy_bulk_get(struct device *dev, unsigned int num_phys,
+		 struct phy_bulk_data *phys);
+int phy_bulk_get_optional(struct device *dev, unsigned int num_phys,
+			  struct phy_bulk_data *phys);
+int of_phy_bulk_get(struct device_node *np, unsigned int num_phys,
+		    struct phy_bulk_data *phys);
+int phy_bulk_get_all(struct device *dev, struct phy_bulk_data **phys);
+int of_phy_bulk_get_all(struct device_node *np, struct phy_bulk_data **phys);
+void phy_bulk_put(struct device *dev, unsigned int num_phys,
+		  struct phy_bulk_data *phys);
+void of_phy_bulk_put(unsigned int num_phys, struct phy_bulk_data *phys);
+void phy_bulk_put_all(struct device *dev, unsigned int num_phys,
+		      struct phy_bulk_data *phys);
+void of_phy_bulk_put_all(unsigned int num_phys, struct phy_bulk_data *phys);
+int phy_bulk_init(unsigned int num_phys, struct phy_bulk_data *phys);
+int phy_bulk_exit(unsigned int num_phys, struct phy_bulk_data *phys);
+int phy_bulk_power_on(unsigned int num_phys, struct phy_bulk_data *phys);
+int phy_bulk_power_off(unsigned int num_phys, struct phy_bulk_data *phys);
+
 #else
 static inline int phy_pm_runtime_get(struct phy *phy)
 {
@@ -506,6 +537,118 @@ static inline struct phy *devm_phy_get_by_of_node(struct device *dev,
 						  struct device_node *np)
 {
 	return ERR_PTR(-ENOSYS);
+}
+
+static inline int phy_bulk_get(struct device *dev, unsigned int num_phys,
+			       struct phy_bulk_data *phys)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int phy_bulk_get_optional(struct device *dev,
+					unsigned int num_phys,
+					struct phy_bulk_data *phys)
+{
+	if (!phys)
+		return 0;
+
+	for (unsigned int i = 0; i < num_phys; i++)
+		phys[i].phy = NULL;
+
+	return 0;
+}
+
+static inline int of_phy_bulk_get(struct device_node *np, unsigned int num_phys,
+				  struct phy_bulk_data *phys)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int phy_bulk_get_all(struct device *dev,
+				   struct phy_bulk_data **phys)
+{
+	if (phys)
+		*phys = NULL;
+
+	return -EOPNOTSUPP;
+}
+
+static inline int of_phy_bulk_get_all(struct device_node *np,
+				      struct phy_bulk_data **phys)
+{
+	if (phys)
+		*phys = NULL;
+
+	return -EOPNOTSUPP;
+}
+
+static inline void phy_bulk_put(struct device *dev, unsigned int num_phys,
+				struct phy_bulk_data *phys)
+{
+	if (!phys)
+		return;
+
+	while (num_phys--)
+		phys[num_phys].phy = NULL;
+}
+
+static inline void of_phy_bulk_put(unsigned int num_phys,
+				   struct phy_bulk_data *phys)
+{
+	if (!phys)
+		return;
+
+	while (num_phys--)
+		phys[num_phys].phy = NULL;
+}
+
+static inline void phy_bulk_put_all(struct device *dev, unsigned int num_phys,
+				    struct phy_bulk_data *phys)
+{
+	phy_bulk_put(dev, num_phys, phys);
+}
+
+static inline void of_phy_bulk_put_all(unsigned int num_phys,
+				       struct phy_bulk_data *phys)
+{
+	of_phy_bulk_put(num_phys, phys);
+}
+
+static inline int phy_bulk_check_disabled(unsigned int num_phys,
+					  struct phy_bulk_data *phys)
+{
+	if (!phys)
+		return 0;
+
+	for (unsigned int i = 0; i < num_phys; i++)
+		if (phys[i].phy)
+			return -EOPNOTSUPP;
+
+	return 0;
+}
+
+static inline int phy_bulk_init(unsigned int num_phys,
+				struct phy_bulk_data *phys)
+{
+	return phy_bulk_check_disabled(num_phys, phys);
+}
+
+static inline int phy_bulk_exit(unsigned int num_phys,
+				struct phy_bulk_data *phys)
+{
+	return phy_bulk_check_disabled(num_phys, phys);
+}
+
+static inline int phy_bulk_power_on(unsigned int num_phys,
+				    struct phy_bulk_data *phys)
+{
+	return phy_bulk_check_disabled(num_phys, phys);
+}
+
+static inline int phy_bulk_power_off(unsigned int num_phys,
+				     struct phy_bulk_data *phys)
+{
+	return phy_bulk_check_disabled(num_phys, phys);
 }
 
 static inline void of_phy_put(struct phy *phy)
