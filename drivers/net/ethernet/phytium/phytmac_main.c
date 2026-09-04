@@ -2020,7 +2020,7 @@ static void phytmac_mac_link_up(struct phylink_config *config,
 	if (phy)
 		phytmac_sgmii_speed_switch(pdata, speed);
 
-	hw_if->mac_linkup(pdata, pdata->phy_interface, speed, duplex);
+	hw_if->mac_linkup(pdata, pdata->phy_interface, speed, duplex, mode);
 
 	if (rx_pause != pdata->pause) {
 		hw_if->enable_pause(pdata, rx_pause);
