@@ -572,7 +572,7 @@ struct phytmac_hw_if {
 	void (*mac_config)(struct phytmac *pdata, u32 mode,
 			   const struct phylink_link_state *state);
 	int (*mac_linkup)(struct phytmac *pdata, phy_interface_t interface,
-			  int speed, int duplex);
+			  int speed, int duplex, unsigned int mode);
 	int (*mac_linkdown)(struct phytmac *pdata);
 	int (*pcs_linkup)(struct phytmac *pdata, phy_interface_t interface,
 			  int speed, int duplex);

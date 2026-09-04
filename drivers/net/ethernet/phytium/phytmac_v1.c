@@ -225,7 +225,7 @@ out:
 }
 
 static int phytmac_mac_linkup(struct phytmac *pdata, phy_interface_t interface,
-			      int speed, int duplex)
+			      int speed, int duplex, unsigned int mode)
 {
 	u32 ctrl, config;
 
@@ -261,7 +261,7 @@ static int phytmac_mac_linkup(struct phytmac *pdata, phy_interface_t interface,
 		PHYTMAC_WRITE(pdata, PHYTMAC_HCONFIG, PHYTMAC_SPEED_100M);
 
 	if (interface == PHY_INTERFACE_MODE_SGMII) {
-		if (speed == SPEED_2500)
+		if ((speed == SPEED_2500 || mode == MLO_AN_FIXED))
 			phytmac_enable_autoneg(pdata, 0);
 		else
 			phytmac_enable_autoneg(pdata, 1);
