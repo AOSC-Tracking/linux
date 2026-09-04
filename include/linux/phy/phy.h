@@ -331,8 +331,17 @@ int phy_bulk_get_optional(struct device *dev, unsigned int num_phys,
 			  struct phy_bulk_data *phys);
 int of_phy_bulk_get(struct device_node *np, unsigned int num_phys,
 		    struct phy_bulk_data *phys);
+int devm_phy_bulk_get(struct device *dev, unsigned int num_phys,
+		      struct phy_bulk_data *phys);
+int devm_phy_bulk_get_optional(struct device *dev, unsigned int num_phys,
+			       struct phy_bulk_data *phys);
+int devm_of_phy_bulk_get(struct device *dev, struct device_node *np,
+			 unsigned int num_phys, struct phy_bulk_data *phys);
 int phy_bulk_get_all(struct device *dev, struct phy_bulk_data **phys);
 int of_phy_bulk_get_all(struct device_node *np, struct phy_bulk_data **phys);
+int devm_phy_bulk_get_all(struct device *dev, struct phy_bulk_data **phys);
+int devm_of_phy_bulk_get_all(struct device *dev, struct device_node *np,
+			     struct phy_bulk_data **phys);
 void phy_bulk_put(struct device *dev, unsigned int num_phys,
 		  struct phy_bulk_data *phys);
 void of_phy_bulk_put(unsigned int num_phys, struct phy_bulk_data *phys);
@@ -564,6 +573,27 @@ static inline int of_phy_bulk_get(struct device_node *np, unsigned int num_phys,
 	return -EOPNOTSUPP;
 }
 
+static inline int devm_phy_bulk_get(struct device *dev, unsigned int num_phys,
+				    struct phy_bulk_data *phys)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int devm_phy_bulk_get_optional(struct device *dev,
+					     unsigned int num_phys,
+					     struct phy_bulk_data *phys)
+{
+	return phy_bulk_get_optional(dev, num_phys, phys);
+}
+
+static inline int devm_of_phy_bulk_get(struct device *dev,
+				       struct device_node *np,
+				       unsigned int num_phys,
+				       struct phy_bulk_data *phys)
+{
+	return -EOPNOTSUPP;
+}
+
 static inline int phy_bulk_get_all(struct device *dev,
 				   struct phy_bulk_data **phys)
 {
@@ -580,6 +610,19 @@ static inline int of_phy_bulk_get_all(struct device_node *np,
 		*phys = NULL;
 
 	return -EOPNOTSUPP;
+}
+
+static inline int devm_phy_bulk_get_all(struct device *dev,
+					struct phy_bulk_data **phys)
+{
+	return phy_bulk_get_all(dev, phys);
+}
+
+static inline int devm_of_phy_bulk_get_all(struct device *dev,
+					   struct device_node *np,
+					   struct phy_bulk_data **phys)
+{
+	return of_phy_bulk_get_all(np, phys);
 }
 
 static inline void phy_bulk_put(struct device *dev, unsigned int num_phys,
