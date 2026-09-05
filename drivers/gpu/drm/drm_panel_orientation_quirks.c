@@ -397,7 +397,7 @@ static const struct dmi_system_id orientation_data[] = {
 	}, {	/* GPD Pocket 4 */
 		.matches = {
 		  DMI_EXACT_MATCH(DMI_SYS_VENDOR, "GPD"),
-		  DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "G1628-04"),
+		  DMI_MATCH(DMI_PRODUCT_NAME, "G1628-04"),
 		},
 		.driver_data = (void *)&lcd1600x2560_rightside_up,
 	}, {	/* I.T.Works TW891 */
