@@ -453,6 +453,7 @@ static int ufs_spacemit_init(struct ufs_hba *hba)
 	ufs_spacemit_advertise_quirks(hba);
 
 	hba->caps |= UFSHCD_CAP_RPM_AUTOSUSPEND;
+	hba->caps |= UFSHCD_CAP_WB_EN;
 
 	return 0;
 }
