@@ -18,8 +18,14 @@
 		atcphy2 = &atcphy2;
 		atcphy3 = &atcphy3;
 		bluetooth0 = &bluetooth0;
+		#ifndef NO_DCP
+		dcp = &dcp;
+		disp0 = &display;
+		disp0_piodma = &disp0_piodma;
+		#endif
 		ethernet0 = &ethernet0;
 		serial0 = &serial0;
+		sio = &sio;
 		wifi0 = &wifi0;
 	};
 
@@ -35,6 +41,7 @@
 			reg = <0 0 0 0>; /* To be filled by loader */
 			/* Format properties will be added by loader */
 			status = "disabled";
+			power-domains = <&ps_disp0_cpu0>;
 		};
 	};
 
@@ -45,6 +52,15 @@
 };
 
 &serial0 {
+	status = "okay";
+};
+
+&dcp {
+	apple,connector-type = "HDMI-A";
+};
+
+/* remove once m1n1 enables sio nodes after setup */
+&sio {
 	status = "okay";
 };
 
@@ -349,14 +365,71 @@
 	};
 };
 
+/* Audio */
+&i2c1 {
+	status = "okay";
+
+	speaker: codec@38 {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x38>;
+		shutdown-gpios = <&pinctrl_ap 178 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+		interrupts-extended = <&pinctrl_ap 179 IRQ_TYPE_LEVEL_LOW>;
+		ti,imon-slot-no = <0>;
+		ti,vmon-slot-no = <2>;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+
+	jack_codec: codec@4b {
+		compatible = "cirrus,cs42l84";
+		reg = <0x4b>;
+		reset-gpios = <&pinctrl_nub 4 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <0>;
+		interrupts-extended = <&pinctrl_ap 180 IRQ_TYPE_LEVEL_LOW>;
+		sound-name-prefix = "Jack";
+	};
+};
+
 &nco_clkref {
 	clock-frequency = <1068000000>;
+};
+
+/ {
+	sound: sound {
+		/* compatible is set per machine */
+
+		dai-link@0 {
+			link-name = "Speaker";
+
+			cpu {
+				sound-dai = <&mca 0>;
+			};
+			codec {
+				sound-dai = <&speaker>;
+			};
+		};
+
+		dai-link@1 {
+			link-name = "Headphone Jack";
+
+			cpu {
+				sound-dai = <&mca 2>;
+			};
+			codec {
+				sound-dai = <&jack_codec>;
+			};
+		};
+	};
 };
 
 /* PCIe devices */
 &port00 {
 	/* WLAN */
 	bus-range = <1 1>;
+	pwren-gpios = <&smc_gpio 13 GPIO_ACTIVE_HIGH>;
 	wifi0: wifi@0,0 {
 		compatible = "pci14e4,4433";
 		reg = <0x10000 0x0 0x0 0x0 0x0>;
@@ -376,6 +449,7 @@
 &port01 {
 	/* SD card reader */
 	bus-range = <2 2>;
+	pwren-gpios = <&smc_gpio 26 GPIO_ACTIVE_HIGH>;
 	sdhci0: mmc@0,0 {
 		compatible = "pci17a0,9755";
 		reg = <0x20000 0x0 0x0 0x0 0x0>;
@@ -398,6 +472,7 @@
 &port03 {
 	/* USB xHCI */
 	bus-range = <4 4>;
+	pwren-gpios = <&smc_gpio 20 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
@@ -411,3 +486,5 @@
 };
 
 #include "spi1-nvram.dtsi"
+
+#include "hwmon-common.dtsi"

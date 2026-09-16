@@ -13,6 +13,9 @@
 	aliases {
 		atcphy0 = &atcphy0;
 		atcphy1 = &atcphy1;
+		dcp = &dcp;
+		disp0 = &display;
+		disp0_piodma = &disp0_piodma;
 		serial0 = &serial0;
 		serial2 = &serial2;
 	};
@@ -27,6 +30,7 @@
 		framebuffer0: framebuffer@0 {
 			compatible = "apple,simple-framebuffer", "simple-framebuffer";
 			reg = <0 0 0 0>; /* To be filled by loader */
+			power-domains = <&ps_disp0_cpu0>;
 			/* Format properties will be added by loader */
 			status = "disabled";
 		};
@@ -213,5 +217,7 @@
 &nco_clkref {
 	clock-frequency = <900000000>;
 };
+
+#include "hwmon-common.dtsi"
 
 #include "spi1-nvram.dtsi"

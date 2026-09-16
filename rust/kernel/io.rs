@@ -153,6 +153,17 @@ const fn offset_valid<U>(offset: usize, size: usize) -> bool {
     }
 }
 
+/// Checks whether a memcpy of `length` bytes at the given `offset`
+/// is valid within this region.
+#[inline]
+const fn length_valid(offset: usize, length: usize, size: usize) -> bool {
+    if let Some(end) = offset.checked_add(length) {
+        end <= size
+    } else {
+        false
+    }
+}
+
 /// Trait indicating that an I/O backend supports operations of a certain type and providing an
 /// implementation for these operations.
 ///
@@ -258,6 +269,67 @@ pub trait Io {
         // Probably no need to check, since the safety requirements of `Self::new` guarantee that
         // this can't overflow.
         self.addr().checked_add(offset).ok_or(EINVAL)
+    }
+
+    /// Copy memory block from an i/o memory by filling the specified buffer with it.
+    ///
+    /// # Examples
+    /// ```
+    /// use kernel::io::mem::IoMem;
+    /// use kernel::io::mem::Resource;
+    ///
+    /// fn test(device: &Device, res: Resource) -> Result {
+    ///     // Create an i/o memory block of at least 100 bytes.
+    ///     let devres_mem = IoMem::<100>::new(res, device)?;
+    ///     // aquire access to memory block
+    ///     let mem = devres_mem.try_access()?;
+    ///
+    ///     let mut buffer: [u8; 32] = [0; 32];
+    ///
+    ///     // Memcpy 16 bytes from an offset 10 of i/o memory block into the buffer.
+    ///     mem.try_memcpy_fromio(&mut buffer[..16], 10)?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    fn try_memcpy_fromio(&self, buffer: &mut [u8], offset: usize) -> Result {
+        if buffer.len() == 0 || !length_valid(offset, buffer.len(), self.maxsize()) {
+            return Err(EINVAL);
+        }
+        let addr = self.io_addr::<crate::ffi::c_char>(offset)?;
+
+        // SAFETY:
+        //   - The type invariants guarantee that `adr` is a valid pointer.
+        //   - The bounds of `buffer` are checked with a call to `length_valid`.
+        unsafe {
+            bindings::memcpy_fromio(
+                buffer.as_mut_ptr() as *mut _,
+                addr as *const _,
+                buffer.len() as _,
+            )
+        };
+        Ok(())
+    }
+
+    /// Copy memory block to i/o memory from the specified buffer.
+    fn try_memcpy_toio(&self, offset: usize, buffer: &[u8]) -> Result {
+        if buffer.len() == 0 || !length_valid(offset, buffer.len(), self.maxsize()) {
+            return Err(EINVAL);
+        }
+        // no need to check since offset + buffer.len() - 1 is valid
+        let addr = self.io_addr::<crate::ffi::c_char>(offset)?;
+
+        // SAFETY:
+        //   - The type invariants guarantee that `adr` is a valid pointer.
+        //   - The bounds of `buffer` are checked with a call to `length_valid`.
+        unsafe {
+            bindings::memcpy_toio(
+                addr as *mut _,
+                buffer.as_ptr() as *const _,
+                buffer.len() as _,
+            )
+        };
+        Ok(())
     }
 
     /// Fallible 8-bit read with runtime bounds check.

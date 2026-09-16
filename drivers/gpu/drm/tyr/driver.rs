@@ -179,6 +179,8 @@ impl drm::Driver for TyrDrmDriver {
 
     const INFO: drm::DriverInfo = INFO;
 
+    const FEATURES: u32 = drm::driver::FEAT_GEM;
+
     kernel::declare_drm_ioctls! {
         (PANTHOR_DEV_QUERY, drm_panthor_dev_query, ioctl::RENDER_ALLOW, TyrDrmFileData::dev_query),
     }
