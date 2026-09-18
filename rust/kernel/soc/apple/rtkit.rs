@@ -5,7 +5,6 @@
 //! C header: [`include/linux/soc/apple/rtkit.h`](../../../../include/linux/gpio/driver.h)
 
 use crate::{
-    alloc::flags::*,
     bindings,
     device,
     error::{
