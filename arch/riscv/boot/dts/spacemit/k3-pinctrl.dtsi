@@ -778,11 +778,33 @@
 		};
 	};
 
+	pcie0_1_cfg: pcie0-1-cfg {
+		pcie0-0-pins {
+			pinmux = <K3_PADCONF(79, 5)>,   /* pcie0 perst */
+				 <K3_PADCONF(81, 5)>;	/* pcie0 clkreq */
+
+			bias-pull-up = <1>;
+			drive-strength = <38>;
+			power-source = <3300>;
+		};
+	};
+
 	pcie2_0_cfg: pcie2-0-cfg {
 		pcie2-0-pins {
 			pinmux = <K3_PADCONF(25, 4)>,	/* pcie2 perst */
 				 <K3_PADCONF(27, 4)>;	/* pcie2 clkreq */
 
+			drive-strength = <38>;
+			power-source = <3300>;
+		};
+	};
+
+	pcie3_0_cfg: pcie3-0-cfg {
+		pcie3-0-pins {
+			pinmux = <K3_PADCONF(3, 4)>,	/* pcie3 perst */
+				 <K3_PADCONF(5, 4)>;	/* pcie3 clkreq */
+
+			bias-pull-up = <1>;
 			drive-strength = <38>;
 			power-source = <3300>;
 		};
@@ -841,6 +863,17 @@
 			bias-pull-down;
 			drive-strength = <21>;
 			power-source = <1800>;
+		};
+	};
+
+	pcie4_1_cfg: pcie4-1-cfg {
+		pcie4-0-pins {
+			pinmux = <K3_PADCONF(76, 5)>,	/* pcie4 perst */
+				 <K3_PADCONF(78, 5)>;	/* pcie4 clkreq */
+
+			bias-pull-up = <1>;
+			drive-strength = <38>;
+			power-source = <3300>;
 		};
 	};
 };
