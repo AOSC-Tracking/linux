@@ -4,3 +4,4 @@ obj-$(CONFIG_PHY_SPACEMIT_K1_USB2)		+= phy-k1-usb2.o
 obj-$(CONFIG_PHY_SPACEMIT_K3_COMBO_PHY)		+= phy-k3-combo.o
 obj-$(CONFIG_PHY_SPACEMIT_K3_COMMON_OPS)	+= phy-k3-common.o
 obj-$(CONFIG_PHY_SPACEMIT_K3_INNO_DP)		+= phy-k3-inno-dp.o
+obj-$(CONFIG_PHY_SPACEMIT_K3_USB3)		+= phy-k3-usb3.o
