@@ -52,3 +52,12 @@ config PHY_SPACEMIT_K3_INNO_DP
 	  with its parent DP/eDP controller (drivers/gpu/drm/spacemit/) and
 	  exposes lane / rate / vswing / pre-emphasis control through the
 	  generic PHY framework.
+
+config PHY_SPACEMIT_K3_USB3
+	tristate "SpacemiT K3 dedicated USB3 Port A PHY"
+	depends on (ARCH_SPACEMIT || COMPILE_TEST) && OF
+	depends on COMMON_CLK && USB_COMMON
+	select PHY_SPACEMIT_K3_COMMON_OPS
+	help
+	  Support the two orientation-specific PIPE PHYs on K3 USB Port A.
+	  High-speed-only operation explicitly parks both SuperSpeed PHYs.
