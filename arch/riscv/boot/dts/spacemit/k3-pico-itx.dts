@@ -15,6 +15,7 @@
 
 	aliases {
 		ethernet0 = &eth0;
+		ethernet1 = &rtl8127;
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
 		i2c8 = &i2c8;
@@ -110,7 +111,7 @@
 		nvmem-layout {
 			compatible = "onie,tlv-layout";
 
-			mac-address {
+			board_mac_addresses: mac-address {
 				#nvmem-cell-cells = <1>;
 			};
 
@@ -279,6 +280,8 @@
 	pinctrl-0 = <&gmac0_rgmii_0_cfg>, <&gmac0_phy_0_cfg>;
 	phy-mode = "rgmii-id";
 	phy-handle = <&phy0>;
+	nvmem-cells = <&board_mac_addresses 0>;
+	nvmem-cell-names = "mac-address";
 	status = "okay";
 
 	mdio {
@@ -393,6 +396,13 @@
 		vpcie3v3-supply = <&reg_aux_vcc3v3>;
 		phys = <&combophy 2 PHY_TYPE_PCIE>,
 		       <&combophy 3 PHY_TYPE_PCIE>;
+
+		rtl8127: ethernet@0 {
+			compatible = "pci10ec,8127";
+			reg = <0x00010000 0 0 0 0>;
+			nvmem-cells = <&board_mac_addresses 1>;
+			nvmem-cell-names = "mac-address";
+		};
 	};
 };
 
