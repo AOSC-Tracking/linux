@@ -14,6 +14,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regulator/consumer.h>
 #include <linux/usb/otg.h>
+#include <linux/phy/phy.h>
 #include "glue.h"
 
 #define EIC7700_HSP_BUS_FILTER_EN	BIT(0)
@@ -83,6 +84,20 @@ static int dwc3_spacemit_k1_init(struct dwc3_generic *dwc3g)
 	}
 
 	return 0;
+}
+
+static int dwc3_spacemit_k3_init(struct dwc3_generic *dwc3g)
+{
+	struct phy *phy;
+	int ret;
+
+	ret = dwc3_spacemit_k1_init(dwc3g);
+	if (ret)
+		return ret;
+	phy = devm_phy_optional_get(dwc3g->dev, "usb3-phy");
+	if (IS_ERR(phy))
+		return PTR_ERR(phy);
+	return phy_set_speed(phy, usb_get_maximum_speed(dwc3g->dev));
 }
 
 static int dwc3_generic_probe(struct platform_device *pdev)
@@ -222,6 +237,11 @@ static const struct dwc3_generic_config spacemit_k1_dwc3 = {
 	.properties = DWC3_DEFAULT_PROPERTIES,
 };
 
+static const struct dwc3_generic_config spacemit_k3_dwc3 = {
+	.init = dwc3_spacemit_k3_init,
+	.properties = DWC3_DEFAULT_PROPERTIES,
+};
+
 static const struct dwc3_generic_config fsl_ls1028_dwc3 = {
 	.properties.gsbuscfg0_reqinfo = 0x2222,
 };
@@ -233,7 +253,7 @@ static const struct dwc3_generic_config eic7700_dwc3 =  {
 
 static const struct of_device_id dwc3_generic_of_match[] = {
 	{ .compatible = "spacemit,k1-dwc3", &spacemit_k1_dwc3},
-	{ .compatible = "spacemit,k3-dwc3", },
+	{ .compatible = "spacemit,k3-dwc3", &spacemit_k3_dwc3 },
 	{ .compatible = "fsl,ls1028a-dwc3", &fsl_ls1028_dwc3},
 	{ .compatible = "eswin,eic7700-dwc3", &eic7700_dwc3},
 	{ .compatible = "starfive,jhb100-dwc3", },
