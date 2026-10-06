@@ -52,6 +52,16 @@ source "drivers/usb/typec/ucsi/Kconfig"
 
 source "drivers/usb/typec/tipd/Kconfig"
 
+config TYPEC_FUSB301
+	tristate "Fairchild/ON Semiconductor FUSB301 Type-C controller"
+	depends on I2C
+	select REGMAP_I2C
+	select USB_ROLE_SWITCH
+	help
+	  Support autonomous source, sink and dual-role attachment detection
+	  using the FUSB301. The driver publishes Type-C orientation/current
+	  and controls a USB role switch. USB Power Delivery is not supported.
+
 config TYPEC_ANX7411
 	tristate "Analogix ANX7411 Type-C DRP Port controller driver"
 	depends on I2C
