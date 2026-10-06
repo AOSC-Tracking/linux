@@ -22,6 +22,10 @@ properties:
   reg:
     maxItems: 1
 
+  power-domains:
+    maxItems: 1
+    description: LCD power island shared with the downstream display controller.
+
   interrupts:
     items:
       - description: Online (live display) compose path.
