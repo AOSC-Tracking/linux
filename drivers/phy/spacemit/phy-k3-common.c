@@ -135,9 +135,8 @@
 #define PCIE_PLL_TIMEOUT		500000
 #define PCIE_POLL_DELAY			500
 
-static int k3_usb3phy_init_single(struct k3_lane_group *lg, void __iomem *base)
+int k3_usb3phy_init_single(struct phy *phy, void __iomem *base)
 {
-	struct phy *phy = lg->phy;
 	u32 val, tmp;
 	int ret;
 
@@ -221,6 +220,7 @@ static int k3_usb3phy_init_single(struct k3_lane_group *lg, void __iomem *base)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(k3_usb3phy_init_single);
 
 static int k3_usb3phy_init(struct phy *phy)
 {
@@ -228,7 +228,7 @@ static int k3_usb3phy_init(struct phy *phy)
 	int ret, i;
 
 	for (i = 0; i < lg->data->lanes; i++) {
-		ret = k3_usb3phy_init_single(lg, lg->base + lg->data->offsets[i]);
+		ret = k3_usb3phy_init_single(phy, lg->base + lg->data->offsets[i]);
 		if (ret < 0)
 			return ret;
 	}

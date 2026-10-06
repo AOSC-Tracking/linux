@@ -22,6 +22,8 @@ struct k3_lane_group {
 extern const struct phy_ops k3_pcie_phy_ops;
 extern const struct phy_ops k3_usb3_phy_ops;
 
+int k3_usb3phy_init_single(struct phy *phy, void __iomem *base);
+
 int k3_phy_calibrate(struct regmap *apb_spare);
 
 #endif
