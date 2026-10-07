@@ -102,16 +102,21 @@ static void spacemit_crtc_atomic_enable(struct drm_crtc *crtc,
 	if (unlikely(a_crtc->first_modeset)) {
 		ret = reset_control_bulk_assert(ARRAY_SIZE(priv->pipe_resets),
 						priv->pipe_resets);
-		if (ret)
-			dev_warn(a_crtc->dev,
-				 "failed to assert resets: %d\n", ret);
+		if (ret) {
+			dev_err(a_crtc->dev, "failed to assert resets: %d\n", ret);
+			goto out;
+		}
 		usleep_range(10000, 20000);
 		a_crtc->first_modeset = false;
 	}
 
 	if (!a_crtc->clocks_on) {
-		dpu_pm_resume(a_crtc->dev);
-		a_crtc->clocks_on = true;
+		ret = dpu_pm_resume(a_crtc->dev);
+		if (ret) {
+			dev_err(a_crtc->dev, "failed to enable display: %d\n", ret);
+			goto out;
+		}
+		WRITE_ONCE(a_crtc->clocks_on, true);
 
 		/*
 		 * The DPU must settle after reset deassert or CFG_RDY races
@@ -123,7 +128,7 @@ static void spacemit_crtc_atomic_enable(struct drm_crtc *crtc,
 	drm_crtc_vblank_on(&a_crtc->crtc);
 
 	spacemit_crtc_init(a_crtc);
-
+out:
 	drm_dev_exit(idx);
 }
 
@@ -139,6 +144,9 @@ static void spacemit_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	trace_spacemit_crtc_atomic_disable(a_crtc->dev_id);
 
+	if (!a_crtc->clocks_on)
+		goto send_event;
+
 	spacemit_crtc_uninit(a_crtc);
 
 	drm_crtc_vblank_off(&a_crtc->crtc);
@@ -146,8 +154,9 @@ static void spacemit_crtc_atomic_disable(struct drm_crtc *crtc,
 	/*
 	 * MMIO on a clock-gated DPU stalls the bus, so an in-flight handler
 	 * must finish its status reads before dpu_pm_suspend() gates the
-	 * clocks.
+	 * clocks. Block new handlers before waiting for the current one.
 	 */
+	WRITE_ONCE(a_crtc->clocks_on, false);
 	if (a_crtc->irq_online > 0)
 		synchronize_irq(a_crtc->irq_online);
 
@@ -156,10 +165,9 @@ static void spacemit_crtc_atomic_disable(struct drm_crtc *crtc,
 	 */
 	timer_delete_sync(&a_crtc->cfg_rdy_timer);
 
-	/* Close the ISR's MMIO gate before the clocks actually stop. */
-	a_crtc->clocks_on = false;
 	dpu_pm_suspend(a_crtc->dev);
 
+send_event:
 	spin_lock_irq(&drm->event_lock);
 	if (crtc->state->event) {
 		drm_crtc_send_vblank_event(crtc, crtc->state->event);
@@ -218,7 +226,17 @@ static void spacemit_crtc_atomic_flush(struct drm_crtc *crtc,
 
 	trace_spacemit_crtc_atomic_flush(a_crtc->dev_id);
 
-	spacemit_crtc_run(crtc, old_state);
+	if (a_crtc->clocks_on) {
+		spacemit_crtc_run(crtc, old_state);
+	} else {
+		/* No scanout was started, so there will be no flip interrupt. */
+		spin_lock_irq(&crtc->dev->event_lock);
+		if (crtc->state->event) {
+			drm_crtc_send_vblank_event(crtc, crtc->state->event);
+			crtc->state->event = NULL;
+		}
+		spin_unlock_irq(&crtc->dev->event_lock);
+	}
 
 	drm_dev_exit(idx);
 }
@@ -420,7 +438,7 @@ static irqreturn_t spacemit_dpu_isr(int irq, void *data)
 		return IRQ_NONE;
 
 	/* Reading a clock-gated DPU's status registers stalls the bus. */
-	if (unlikely(!a_crtc->clocks_on)) {
+	if (unlikely(!READ_ONCE(a_crtc->clocks_on))) {
 		drm_dev_exit(idx);
 		return IRQ_NONE;
 	}
@@ -753,10 +771,10 @@ static int dpu_pm_resume(struct device *dev)
 	ret = reset_control_bulk_deassert(ARRAY_SIZE(priv->pipe_resets),
 					  priv->pipe_resets);
 	if (ret)
-		dev_warn(dev, "failed to deassert resets: %d\n", ret);
+		return ret;
 
 	if (a_crtc->core && a_crtc->core->enable_clk)
-		a_crtc->core->enable_clk(a_crtc);
+		return a_crtc->core->enable_clk(a_crtc);
 
 	return 0;
 }
