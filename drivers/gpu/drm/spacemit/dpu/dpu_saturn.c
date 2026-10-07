@@ -149,8 +149,8 @@ static int dpu_enable_clocks(struct spacemit_crtc *a_crtc)
 	struct dpu_clk_context *clk_ctx = &a_crtc->clk_ctx;
 	struct drm_crtc *crtc = &a_crtc->crtc;
 	struct drm_display_mode *mode = &crtc->mode;
-	u64 clk_val;
-	u64 set_clk_val;
+	unsigned long clk_val;
+	long set_clk_val;
 	int ret;
 
 	ret = clk_prepare_enable(clk_ctx->pxclk);
@@ -159,10 +159,15 @@ static int dpu_enable_clocks(struct spacemit_crtc *a_crtc)
 	set_clk_val = mode->clock * 1000;
 	if (set_clk_val) {
 		set_clk_val = clk_round_rate(clk_ctx->pxclk, set_clk_val);
+		if (set_clk_val < 0) {
+			ret = set_clk_val;
+			goto err_pxclk;
+		}
 		clk_val = clk_get_rate(clk_ctx->pxclk);
 		if (clk_val != set_clk_val) {
-			clk_set_rate(clk_ctx->pxclk, set_clk_val);
-			drm_dbg(crtc->dev, "pxclk=%lld\n", clk_val);
+			ret = clk_set_rate(clk_ctx->pxclk, set_clk_val);
+			if (ret)
+				goto err_pxclk;
 		}
 	}
 
@@ -171,9 +176,14 @@ static int dpu_enable_clocks(struct spacemit_crtc *a_crtc)
 		goto err_pxclk;
 	clk_val = clk_get_rate(clk_ctx->mclk);
 	if (clk_val != DPU_MCLK_DEFAULT) {
-		clk_val = clk_round_rate(clk_ctx->mclk, DPU_MCLK_DEFAULT);
-		clk_set_rate(clk_ctx->mclk, clk_val);
-		drm_dbg(crtc->dev, "mclk=%lld\n", clk_val);
+		set_clk_val = clk_round_rate(clk_ctx->mclk, DPU_MCLK_DEFAULT);
+		if (set_clk_val < 0) {
+			ret = set_clk_val;
+			goto err_mclk;
+		}
+		ret = clk_set_rate(clk_ctx->mclk, set_clk_val);
+		if (ret)
+			goto err_mclk;
 	}
 
 	/* The escape clock only has to run for the "esc" reset to propagate. */
@@ -187,10 +197,14 @@ static int dpu_enable_clocks(struct spacemit_crtc *a_crtc)
 	clk_val = clk_get_rate(clk_ctx->aclk);
 	if (clk_val != a_crtc->aclk) {
 		set_clk_val = clk_round_rate(clk_ctx->aclk, a_crtc->aclk);
+		if (set_clk_val < 0) {
+			ret = set_clk_val;
+			goto err_aclk;
+		}
 		if (set_clk_val != clk_val) {
-			clk_set_rate(clk_ctx->aclk, set_clk_val);
-			drm_dbg(crtc->dev, "aclk %llu -> %llu\n", clk_val,
-				set_clk_val);
+			ret = clk_set_rate(clk_ctx->aclk, set_clk_val);
+			if (ret)
+				goto err_aclk;
 		}
 	}
 

@@ -164,6 +164,9 @@ static void spacemit_plane_atomic_update(struct drm_plane *plane,
 	if (!drm_dev_enter(plane->dev, &idx))
 		return;
 
+	if (!a_crtc->clocks_on)
+		goto out;
+
 	trace_spacemit_plane_atomic_update(a_crtc->dev_id);
 
 	hwdev->get_cl_rdma_buf(a_crtc);
@@ -189,23 +192,30 @@ static void spacemit_plane_atomic_update(struct drm_plane *plane,
 	cl->cmdlist_ch_y_other = CMDLIST_SENTINEL_POISON;
 	free_cmdlist_regs(a_crtc->cl_rdma);
 
+out:
 	drm_dev_exit(idx);
 }
 
 static void spacemit_plane_atomic_disable(struct drm_plane *plane,
 					  struct drm_atomic_commit *state)
 {
+	struct spacemit_crtc *a_crtc;
 	struct drm_plane_state *old_state =
 			drm_atomic_get_old_plane_state(state, plane);
 	struct spacemit_drm_private *priv = plane->dev->dev_private;
 	struct spacemit_hw_device *hwdev = priv->hwdev;
 	int idx;
 
+	a_crtc = to_spacemit_crtc(old_state->crtc);
 	if (!drm_dev_enter(plane->dev, &idx))
 		return;
 
+	if (!a_crtc->clocks_on)
+		goto out;
+
 	hwdev->plane_disable_hw_channel(plane, old_state);
 
+out:
 	drm_dev_exit(idx);
 }
 
