@@ -61,6 +61,10 @@
 	};
 };
 
+&gpu {
+	status = "okay";
+};
+
 &i2c1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pico_i2c1_cfg>;
