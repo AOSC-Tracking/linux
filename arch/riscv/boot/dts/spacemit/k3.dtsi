@@ -915,14 +915,15 @@
 				 <&syscon_apmu RESET_APMU_USB3_A_VCC>,
 				 <&syscon_apmu RESET_APMU_USB3_A_PHY>;
 			reset-names = "ahb", "vcc", "phy";
-			phys = <&usb3a_u2phy>;
-			phy-names = "usb2-phy";
 			phy_type = "utmi";
+			phys = <&usb3a_u2phy>, <&usb3a_u3phy>;
+			phy-names = "usb2-phy", "usb3-phy";
 			snps,dis_enblslpm_quirk;
 			snps,dis_u2_susphy_quirk;
+			snps,dis_u3_susphy_quirk;
 			snps,dis-del-phy-power-chg-quirk;
 			snps,dis-tx-ipgap-linecheck-quirk;
-			maximum-speed = "high-speed";
+			snps,parkmode-disable-ss-quirk;
 			status = "disabled";
 		};
 
@@ -930,6 +931,16 @@
 			compatible = "spacemit,k3-usb2-phy";
 			reg = <0x0 0xcad20000 0x0 0x200>;
 			clocks = <&syscon_apmu CLK_APMU_USB3_PORTA_BUS>;
+			#phy-cells = <0>;
+			status = "disabled";
+		};
+
+		usb3a_u3phy: phy@cad30000 {
+			compatible = "spacemit,k3-usb3-phy";
+			reg = <0x0 0xcad30000 0x0 0x200>,
+			      <0x0 0xcad40000 0x0 0x200>;
+			clocks = <&syscon_apmu CLK_APMU_USB3_PORTA_BUS>;
+			spacemit,syscon-apb-spare = <&pll>;
 			#phy-cells = <0>;
 			status = "disabled";
 		};
