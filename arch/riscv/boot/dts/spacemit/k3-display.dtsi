@@ -9,6 +9,7 @@
 #include <dt-bindings/clock/spacemit,k3-clocks.h>
 #include <dt-bindings/reset/spacemit,k3-resets.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/power/spacemit,k3-power.h>
 
 &soc {
 	dpu0_crtc0: dpu@c0340000 {
@@ -30,6 +31,7 @@
 			 <&syscon_apmu RESET_APMU_LCD_DSCCLK>;
 		reset-names = "mclk", "lcd", "esc",
 			      "aclk", "dsc";
+		power-domains = <&syscon_apmu K3_PMDOMAIN_LCD0>;
 		status = "disabled";
 
 		ports {
@@ -54,6 +56,7 @@
 		resets = <&syscon_apmu RESET_APMU_EDP0>;
 		phys = <&edp0_phy>;
 		phy-names = "dp";
+		power-domains = <&syscon_apmu K3_PMDOMAIN_LCD0>;
 		status = "disabled";
 
 		edp0_phy: phy {
@@ -101,6 +104,7 @@
 			 <&syscon_apmu RESET_APMU_DSI4LN2_LCD_DSCCLK>;
 		reset-names = "mclk", "lcd", "esc",
 			      "aclk", "dsc";
+		power-domains = <&syscon_apmu K3_PMDOMAIN_LCD1>;
 		status = "disabled";
 
 		ports {
@@ -125,6 +129,7 @@
 		resets = <&syscon_apmu RESET_APMU_EDP1>;
 		phys = <&dp1_phy>;
 		phy-names = "dp";
+		power-domains = <&syscon_apmu K3_PMDOMAIN_LCD1>;
 		status = "disabled";
 
 		dp1_phy: phy {
