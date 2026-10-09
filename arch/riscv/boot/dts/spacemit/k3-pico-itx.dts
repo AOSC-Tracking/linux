@@ -15,6 +15,7 @@
 
 	aliases {
 		ethernet0 = &eth0;
+		i2c1 = &i2c1;
 		i2c2 = &i2c2;
 		i2c8 = &i2c8;
 		serial0 = &uart0;
@@ -57,6 +58,35 @@
 		label = "rfkill-usb-bt";
 		radio-type = "bluetooth";
 		shutdown-gpios = <&gpio 0 30 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pico_i2c1_cfg>;
+	status = "okay";
+
+	typec@25 {
+		compatible = "onsemi,fusb301";
+		reg = <0x25>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pico_fusb301_cfg>;
+		interrupts-extended = <&gpio 2 21 IRQ_TYPE_EDGE_FALLING>;
+
+		connector {
+			compatible = "usb-c-connector";
+			label = "USB-C OTG";
+			data-role = "dual";
+			power-role = "dual";
+			typec-power-opmode = "default";
+			pd-disable;
+
+			port {
+				pico_typec_hs: endpoint {
+					remote-endpoint = <&pico_usb3a_hs>;
+				};
+			};
+		};
 	};
 };
 
@@ -260,6 +290,26 @@
 	};
 };
 
+&pinctrl {
+	pico_i2c1_cfg: pico-i2c1-cfg {
+		pins {
+			pinmux = <K3_PADCONF(102, 6)>, <K3_PADCONF(103, 6)>;
+			bias-pull-up;
+			drive-strength = <25>;
+			power-source = <3300>;
+		};
+	};
+
+	pico_fusb301_cfg: pico-fusb301-cfg {
+		pins {
+			pinmux = <K3_PADCONF(85, 0)>;
+			bias-pull-up;
+			drive-strength = <25>;
+			power-source = <1800>;
+		};
+	};
+};
+
 &qspi_cfg {
 	qspi-pins {
 		power-source = <1800>;
@@ -380,6 +430,29 @@
 	status = "okay";
 };
 
+&usb3a {
+	dr_mode = "otg";
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+	/* Use UTMI while both orientation-specific PIPE PHYs are parked. */
+	maximum-speed = "high-speed";
+	status = "okay";
+
+	port {
+		pico_usb3a_hs: endpoint {
+			remote-endpoint = <&pico_typec_hs>;
+		};
+	};
+};
+
+&usb3a_u2phy {
+	status = "okay";
+};
+
+&usb3a_u3phy {
+	status = "okay";
+};
+
 &usb3b {
 	phys = <&usb3b_u2phy>;
 	phy-names = "usb2-phy";
@@ -399,15 +472,6 @@
 };
 
 &usb3c_u2phy {
-	status = "okay";
-};
-
-&usb3a_u2phy {
-	status = "okay";
-};
-
-&usb3a {
-	dr_mode = "peripheral";
 	status = "okay";
 };
 
