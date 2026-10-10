@@ -150,6 +150,7 @@ static const struct soc_format_info {
  * @regs: Mapped MMIO base of the DP controller register block.
  * @aux: DPCD AUX channel, registered at bind.
  * @dpcd: Raw DPCD capability bytes.
+ * @desc: DP sink or branch descriptor, including sink-count quirks.
  * @lane_count: Lane count chosen by link training (1, 2 or 4).
  * @link_rate: Link rate chosen by link training, in kHz.
  * @link: Sink-advertised link capability snapshot.
@@ -184,6 +185,7 @@ struct spacemit_dp_dev {
 	struct drm_dp_aux aux;
 
 	u8 dpcd[DP_RECEIVER_CAP_SIZE];
+	struct drm_dp_desc desc;
 	int lane_count;
 	u32 link_rate;
 
@@ -506,6 +508,8 @@ static int spacemit_dp_hw_read_sink_caps(struct spacemit_dp_dev *dp)
 	u8 max_bw;
 	int retry;
 
+	memset(&dp->link, 0, sizeof(dp->link));
+
 	for (retry = 0; retry < SPACEMIT_DP_SINK_READY_RETRIES; retry++) {
 		if (retry) {
 			spacemit_dp_aux_hw_reset(dp);
@@ -531,12 +535,11 @@ static int spacemit_dp_hw_read_sink_caps(struct spacemit_dp_dev *dp)
 	if (ret < 0) {
 		dev_err(dp->dev, "failed to read DPCD after %d retries: %zd\n",
 			SPACEMIT_DP_SINK_READY_RETRIES, ret);
-		dp->link.revision = 0x14;
-		dp->link.max_rate = SPACEMIT_DP_LINK_RATE_5_40;
-		dp->link.max_num_lanes = SPACEMIT_DP_LANE_2;
-		dp->link.enhanced_framing = 1;
 		return ret;
 	}
+
+	memset(&dp->desc, 0, sizeof(dp->desc));
+	drm_dp_read_desc(&dp->aux, &dp->desc, drm_dp_is_branch(dp->dpcd));
 
 	dp->link.revision = dp->dpcd[DP_DPCD_REV];
 
@@ -555,12 +558,8 @@ static int spacemit_dp_hw_read_sink_caps(struct spacemit_dp_dev *dp)
 		dp->link.max_rate = SPACEMIT_DP_LINK_RATE_8_10;
 		break;
 	default:
-		dev_warn(dp->dev, "unknown DPCD max link rate 0x%x, defaulting to 5.40 Gbps\n",
+		dev_warn(dp->dev, "unknown DPCD max link rate 0x%x\n",
 			 max_bw);
-		dp->link.revision = 0x14;
-		dp->link.max_rate = SPACEMIT_DP_LINK_RATE_5_40;
-		dp->link.max_num_lanes = SPACEMIT_DP_LANE_2;
-		dp->link.enhanced_framing = 1;
 		return -EINVAL;
 	}
 
@@ -1245,6 +1244,7 @@ spacemit_dp_bridge_detect(struct drm_bridge *bridge, struct drm_connector *conne
 						  struct spacemit_dp_dev,
 						  bridge);
 	enum drm_connector_status status;
+	int ret;
 
 	/*
 	 * The eDP panel is fixed, and DP_HPD_IN_STATUS does not read
@@ -1271,8 +1271,21 @@ spacemit_dp_bridge_detect(struct drm_bridge *bridge, struct drm_connector *conne
 	 * is filtered out.
 	 */
 	if (status == connector_status_connected &&
-	    dp->connector_status != connector_status_connected)
-		spacemit_dp_hw_read_sink_caps(dp);
+	    (dp->connector_status != connector_status_connected ||
+	     !dp->link.max_rate)) {
+		ret = spacemit_dp_hw_read_sink_caps(dp);
+		if (ret)
+			status = connector_status_disconnected;
+	}
+
+	/* A DP-to-HDMI adapter can keep HPD high without a downstream sink. */
+	if (status == connector_status_connected &&
+	    drm_dp_read_sink_count_cap(connector, dp->dpcd, &dp->desc) &&
+	    drm_dp_read_sink_count(&dp->aux) <= 0)
+		status = connector_status_disconnected;
+
+	if (status == connector_status_disconnected)
+		memset(&dp->link, 0, sizeof(dp->link));
 
 	dp->connector_status = status;
 
