@@ -38,6 +38,7 @@
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_atomic.h>
+#include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic_state_helper.h>
 #include <drm/display/drm_dp_aux_bus.h>
 #include <drm/display/drm_dp.h>
@@ -2149,6 +2150,8 @@ err_encoder:
 	drm_encoder_cleanup(&dp->encoder);
 err_aux:
 	drm_dp_aux_unregister(&dp->aux);
+	dp->drm = NULL;
+	dp->connector = NULL;
 	return ret;
 }
 
@@ -2373,10 +2376,16 @@ static void inno_dp_shutdown(struct platform_device *pdev)
 {
 	struct spacemit_dp_dev *dp = platform_get_drvdata(pdev);
 
-	/* A deferred or failed bind leaves drvdata NULL. */
-	if (!dp)
+	if (!dp || !dp->drm)
 		return;
 
+	/* Stop connector activity before removing the AUX and pixel clocks. */
+	disable_work_sync(&dp->modeset_retry_work);
+	disable_irq(dp->irq);
+	drm_kms_helper_poll_disable(dp->drm);
+	drm_atomic_helper_shutdown(dp->drm);
+
+	guard(mutex)(&dp->mode_lock);
 	spacemit_dp_hw_disable(dp);
 }
 
