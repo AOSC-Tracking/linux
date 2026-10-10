@@ -348,11 +348,6 @@ static int k3_pcie_init(struct dw_pcie_rp *pp)
 
 	k1_pcie_toggle_soft_reset(k1);
 
-	/* K3: Set IGNORE_PERSTN and drive PERSTN_OE high (assert reset) */
-	regmap_update_bits(k1->pmu, k1->pmu_off + PCIE_CONTROL_LOGIC,
-			   K3_PCIE_IGNORE_PERSTN | PCIE_PERSTN_OE | PCIE_PERSTN_OUT,
-			   K3_PCIE_IGNORE_PERSTN | PCIE_PERSTN_OE);
-
 	ret = k1_pcie_enable_resources(k1);
 	if (ret)
 		goto failed_resources;
@@ -367,6 +362,11 @@ static int k3_pcie_init(struct dw_pcie_rp *pp)
 	ret = phy_bulk_power_on(k1->phy_count, k1->phys);
 	if (ret)
 		goto failed_phy_power_on;
+
+	/* K3: Set IGNORE_PERSTN and drive PERSTN_OE high (assert reset) */
+	regmap_update_bits(k1->pmu, k1->pmu_off + PCIE_CONTROL_LOGIC,
+			   K3_PCIE_IGNORE_PERSTN | PCIE_PERSTN_OE | PCIE_PERSTN_OUT,
+			   K3_PCIE_IGNORE_PERSTN | PCIE_PERSTN_OE);
 
 	msleep(PCIE_T_PVPERL_MS);
 
