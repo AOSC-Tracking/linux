@@ -36,6 +36,7 @@ extern void ia64_load_extra (struct task_struct *task);
   extern void ia64_pmu_switch_task(struct task_struct *task, int sched_in);
 # define IA64_PMU_COUNTS_USER()	(__this_cpu_read(ia64_pmu_pp_users) != 0)
 #else
+  static inline void ia64_pmu_switch_task(struct task_struct *task, int sched_in) { }
 # define IA64_PMU_COUNTS_USER()	(0)
 #endif
 
