@@ -75,6 +75,22 @@ int spacemit_drm_mode_config_init(struct drm_device *drm)
 	return 0;
 }
 
+static struct drm_gem_object *spacemit_create_object(struct drm_device *dev, size_t size)
+{
+	struct drm_gem_shmem_object *obj;
+
+	if (size == 0)
+		return ERR_PTR(-EINVAL);
+
+	obj = kzalloc_obj(*obj);
+	if (!obj)
+		return ERR_PTR(-ENOMEM);
+
+	obj->map_wc = true;
+
+	return &obj->base;
+}
+
 DEFINE_DRM_GEM_FOPS(spacemit_drm_fops);
 
 struct drm_driver spacemit_drm_drv = {
@@ -83,6 +99,8 @@ struct drm_driver spacemit_drm_drv = {
 
 	DRM_GEM_SHMEM_DRIVER_OPS,
 	DRM_FBDEV_SHMEM_DRIVER_OPS,
+
+	.gem_create_object = spacemit_create_object,
 
 	.name		= DRIVER_NAME,
 	.desc		= DRIVER_DESC,
