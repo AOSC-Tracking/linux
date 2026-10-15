@@ -356,6 +356,33 @@ static int ufs_spacemit_pwr_change_notify(struct ufs_hba *hba,
 
 	switch (status) {
 	case PRE_CHANGE:
+		/*
+		 * Some UFS devices complete a direct transition to HS FAST
+		 * mode but then stop responding to UTP transfers, which makes
+		 * the link unusable right after the gear-up.
+		 *
+		 * The vendor code gears such links up in two steps: settle in
+		 * FASTAUTO mode first, then request FAST mode.  Do the same
+		 * here before the core performs the requested FAST transition.
+		 */
+		if (dev_req_params->pwr_rx == FAST_MODE &&
+		    dev_req_params->pwr_tx == FAST_MODE &&
+		    (hba->pwr_info.pwr_rx != FAST_MODE ||
+		     hba->pwr_info.pwr_tx != FAST_MODE)) {
+			struct ufs_pa_layer_attr auto_params = *dev_req_params;
+
+			auto_params.pwr_rx = FASTAUTO_MODE;
+			auto_params.pwr_tx = FASTAUTO_MODE;
+
+			ret = ufshcd_change_power_mode(hba, &auto_params,
+						       UFSHCD_PMC_POLICY_DONT_FORCE);
+			if (ret)
+				dev_warn(hba->dev,
+					 "failed to settle the link in FASTAUTO mode: %d\n",
+					 ret);
+			else
+				fsleep(1000);
+		}
 		break;
 	case POST_CHANGE:
 		ret = ufs_spacemit_wait_mphy_pll_lock(hba);
