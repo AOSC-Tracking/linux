@@ -402,6 +402,15 @@
 	status = "okay";
 };
 
+&usb3a_u2phy {
+	status = "okay";
+};
+
+&usb3a {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
 &usb3d_u2phy {
 	status = "okay";
 };
