@@ -99,23 +99,6 @@ static void vs_cursor_plane_commit(struct vs_dc *dc, unsigned int output)
 			VSDC_CURSOR_CONFIG_IMG_UPDATE);
 }
 
-static void vs_cursor_plane_atomic_enable(struct drm_plane *plane,
-					   struct drm_atomic_commit *atomic_state)
-{
-	struct drm_plane_state *state = drm_atomic_get_new_plane_state(atomic_state,
-								       plane);
-	struct drm_crtc *crtc = state->crtc;
-	struct vs_crtc *vcrtc = drm_crtc_to_vs_crtc(crtc);
-	unsigned int output = vcrtc->id;
-	struct vs_dc *dc = vcrtc->dc;
-
-	regmap_update_bits(dc->regs, VSDC_CURSOR_CONFIG(output),
-			   VSDC_CURSOR_CONFIG_FMT_MASK,
-			   VSDC_CURSOR_CONFIG_FMT_ARGB8888);
-
-	vs_cursor_plane_commit(dc, output);
-}
-
 static void vs_cursor_plane_atomic_disable(struct drm_plane *plane,
 					    struct drm_atomic_commit *atomic_state)
 {
@@ -153,6 +136,10 @@ static void vs_cursor_plane_atomic_update(struct drm_plane *plane,
 	vcrtc = drm_crtc_to_vs_crtc(crtc);
 	output = vcrtc->id;
 	dc = vcrtc->dc;
+
+	regmap_update_bits(dc->regs, VSDC_CURSOR_CONFIG(output),
+			   VSDC_CURSOR_CONFIG_FMT_MASK,
+			   VSDC_CURSOR_CONFIG_FMT_ARGB8888);
 
 	/* Other sizes should be rejected by atomic_check */
 	switch (state->crtc_w) {
@@ -227,7 +214,6 @@ static void vs_cursor_plane_atomic_update(struct drm_plane *plane,
 static const struct drm_plane_helper_funcs vs_cursor_plane_helper_funcs = {
 	.atomic_check	= vs_cursor_plane_atomic_check,
 	.atomic_update	= vs_cursor_plane_atomic_update,
-	.atomic_enable	= vs_cursor_plane_atomic_enable,
 	.atomic_disable	= vs_cursor_plane_atomic_disable,
 };
 
