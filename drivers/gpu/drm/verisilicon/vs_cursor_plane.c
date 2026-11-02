@@ -105,9 +105,16 @@ static void vs_cursor_plane_atomic_disable(struct drm_plane *plane,
 	struct drm_plane_state *state = drm_atomic_get_old_plane_state(atomic_state,
 								       plane);
 	struct drm_crtc *crtc = state->crtc;
-	struct vs_crtc *vcrtc = drm_crtc_to_vs_crtc(crtc);
-	unsigned int output = vcrtc->id;
-	struct vs_dc *dc = vcrtc->dc;
+	struct vs_crtc *vcrtc;
+	unsigned int output;
+	struct vs_dc *dc;
+
+	if (!crtc)
+		return;
+
+	vcrtc = drm_crtc_to_vs_crtc(crtc);
+	output = vcrtc->id;
+	dc = vcrtc->dc;
 
 	regmap_update_bits(dc->regs, VSDC_CURSOR_CONFIG(output),
 			   VSDC_CURSOR_CONFIG_FMT_MASK,
