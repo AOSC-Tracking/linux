@@ -40,6 +40,7 @@ properties:
       - items:
           - enum:
               - spacemit,k3-com260-ifx
+              - spacemit,k3-com260-ifx-tq
           - const: spacemit,k3-com260
           - const: spacemit,k3
 
