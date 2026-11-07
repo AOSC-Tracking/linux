@@ -26,6 +26,7 @@
 	IP_PNP	IP DHCP, BOOTP, or RARP is enabled.
 	IPV6	IPv6 support is enabled.
 	ISAPNP	ISA PnP code is enabled.
+	ISDN	Appropriate ISDN support is enabled.
 	ISOL	CPU Isolation is enabled.
 	JOY	Appropriate joystick support is enabled.
 	KGDB	Kernel debugger support is enabled.
@@ -37,6 +38,7 @@
 	M68k	M68k architecture is enabled.
 			These options have more detailed description inside of
 			Documentation/arch/m68k/kernel-options.rst.
+	MDA	MDA console support is enabled.
 	MIPS	MIPS architecture is enabled.
 	MOUSE	Appropriate mouse support is enabled.
 	MSI	Message Signaled Interrupts (PCI).
@@ -1656,6 +1658,10 @@ Kernel parameters
 			very early in the boot process. For early debugging
 			via a serial port see kgdboc_earlycon instead.
 
+	elanfreq=	[X86-32]
+			See comment before function elanfreq_setup() in
+			arch/x86/kernel/cpu/cpufreq/elanfreq.c.
+
 	elfcorehdr=[size[KMG]@]offset[KMG] [PPC,SH,X86,S390,EARLY]
 			Specifies physical address of start of kernel core
 			image elf header and optionally the size. Generally
@@ -2237,6 +2243,9 @@ Kernel parameters
 			When true, allows loading 32-bit programs and executing 32-bit
 			syscalls, essentially overriding IA32_EMULATION_DEFAULT_DISABLED at
 			boot time. When false, unconditionally disables IA32 emulation.
+
+	icn=		[HW,ISDN]
+			Format: <io>[,<membase>[,<icn_id>[,<icn_id2>]]]
 
 
 	idle=		[X86,EARLY]
@@ -3853,6 +3862,10 @@ Kernel parameters
 	md=		[HW] RAID subsystems devices and level
 			See Documentation/admin-guide/md.rst.
 
+	mdacon=		[MDA]
+			Format: <first>,<last>
+			Specifies range of consoles to be captured by the MDA.
+
 	mds=		[X86,INTEL,EARLY]
 			Control mitigation for the Micro-architectural Data
 			Sampling (MDS) vulnerability.
@@ -4304,8 +4317,12 @@ Kernel parameters
 
 	n2=		[NET] SDL Inc. RISCom/N2 synchronous serial card
 
-	netdev=		[NET] NE2000 ISA network devices parameters
+	netdev=		[NET] Network devices parameters
 			Format: <irq>,<io>,<mem_start>,<mem_end>,<name>
+			Note that mem_start is often overloaded to mean
+			something different and driver-specific.
+			This usage is only documented in each driver source
+			file if at all.
 
 	netpoll.carrier_timeout=
 			[NET] Specifies amount of time (in seconds) that
@@ -4463,6 +4480,10 @@ Kernel parameters
 
 			These settings can be accessed at runtime via
 			the nmi_watchdog and hardlockup_panic sysctls.
+
+	no387		[BUGS=X86-32] Tells the kernel to use the 387 maths
+			emulation library even if a 387 maths coprocessor
+			is present.
 
 	no4lvl		[RISCV,EARLY] Disable 4-level and 5-level paging modes.
 			Forces kernel to use 3-level paging instead.
@@ -5044,6 +5065,8 @@ Kernel parameters
 			Halt all CPUs after the first oops has been printed for
 			the specified number of seconds.  This is to be used if
 			your oopses keep scrolling off the screen.
+
+	pcbit=		[HW,ISDN]
 
 	pci=option[,option...]	[PCI,EARLY] various PCI subsystem options.
 
@@ -6804,6 +6827,8 @@ Kernel parameters
 			restrictions other than those given by hardware at the
 			cost of significant additional memory use for tables.
 
+	sa1100ir	[NET]
+			See drivers/net/irda/sa1100_ir.c.
 
 	sched_proxy_exec= [KNL]
 			Enables or disables "proxy execution" style
