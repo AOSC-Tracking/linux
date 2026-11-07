@@ -1310,6 +1310,19 @@ config GEODE_WDT
 	  You can compile this driver directly into the kernel, or use
 	  it as a module.  The module will be called geodewdt.
 
+config SC520_WDT
+	tristate "AMD Elan SC520 processor Watchdog"
+	depends on MELAN || COMPILE_TEST
+	help
+	  This is the driver for the hardware watchdog built in to the
+	  AMD "Elan" SC520 microcomputer commonly used in embedded systems.
+	  This watchdog simply watches your kernel to make sure it doesn't
+	  freeze, and if it does, it reboots your computer after a certain
+	  amount of time.
+
+	  You can compile this driver directly into the kernel, or use
+	  it as a module.  The module will be called sc520_wdt.
+
 config SBC_FITPC2_WATCHDOG
 	tristate "Compulab SBC-FITPC2 watchdog"
 	depends on (X86 || COMPILE_TEST) && HAS_IOPORT
@@ -1738,6 +1751,19 @@ config W83977F_WDT
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called w83977f_wdt.
+
+config MACHZ_WDT
+	tristate "ZF MachZ Watchdog"
+	depends on (X86 || COMPILE_TEST) && HAS_IOPORT
+	help
+	  If you are using a ZF Micro MachZ processor, say Y here, otherwise
+	  N.  This is the driver for the watchdog timer built-in on that
+	  processor using ZF-Logic interface.  This watchdog simply watches
+	  your kernel to make sure it doesn't freeze, and if it does, it
+	  reboots your computer after a certain amount of time.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called machzwd.
 
 config SBC_EPX_C3_WATCHDOG
 	tristate "Winsystems SBC EPX-C3 watchdog"
