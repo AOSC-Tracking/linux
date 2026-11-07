@@ -244,7 +244,23 @@ drive (with "root=").
 3) General Device Options (Amiga and Atari)
 ===========================================
 
-3.1) hd=
+3.1) ether=
+-----------
+
+:Syntax: ether=[<irq>[,<base_addr>[,<mem_start>[,<mem_end>]]]],<dev-name>
+
+<dev-name> is the name of a net driver, as specified in
+drivers/net/Space.c in the Linux source. Most prominent are eth0, ...
+eth3, sl0, ... sl3, ppp0, ..., ppp3, dummy, and lo.
+
+The non-ethernet drivers (sl, ppp, dummy, lo) obviously ignore the
+settings by this options. Also, the existing ethernet drivers for
+Linux/m68k (ariadne, a2065, hydra) don't use them because Zorro boards
+are really Plug-'n-Play, so the "ether=" option is useless altogether
+for Linux/m68k.
+
+
+3.2) hd=
 --------
 
 :Syntax: hd=<cylinders>,<heads>,<sectors>
@@ -257,7 +273,7 @@ itself. It exists just for the case that this fails for one of your
 disks.
 
 
-3.2) max_scsi_luns=
+3.3) max_scsi_luns=
 -------------------
 
 :Syntax: max_scsi_luns=<n>
@@ -268,7 +284,7 @@ be scanned. Valid values for <n> are between 1 and 8. Default is 8 if
 configuration, else 1.
 
 
-3.3) st=
+3.4) st=
 --------
 
 :Syntax: st=<buffer_size>,[<write_thres>,[<max_buffers>]]
@@ -281,7 +297,7 @@ total number of buffers. <max_buffer> limits the total number of
 buffers allocated for all tape devices.
 
 
-3.4) dmasound=
+3.5) dmasound=
 --------------
 
 :Syntax: dmasound=[<buffers>,<buffer-size>[,<catch-radius>]]
