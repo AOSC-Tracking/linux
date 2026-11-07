@@ -6,6 +6,7 @@
 #
 # Networking Core Drivers
 #
+obj-$(CONFIG_NET) += Space.o
 obj-$(CONFIG_BONDING) += bonding/
 obj-$(CONFIG_IPVLAN) += ipvlan/
 obj-$(CONFIG_IPVTAP) += ipvlan/
