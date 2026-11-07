@@ -14,7 +14,7 @@
 #include <asm/io.h>
 
 
-#ifdef CONFIG_VGA_CONSOLE
+#if defined(CONFIG_VGA_CONSOLE) || defined(CONFIG_MDA_CONSOLE)
 
 #define VT_BUF_HAVE_RW
 /*
@@ -40,7 +40,7 @@ static inline void scr_memsetw(u16 *s, u16 v, unsigned int n)
 	memset16(s, cpu_to_le16(v), n / 2);
 }
 
-#endif /* !CONFIG_VGA_CONSOLE */
+#endif /* !CONFIG_VGA_CONSOLE && !CONFIG_MDA_CONSOLE */
 
 #ifdef __powerpc64__
 #define VGA_MAP_MEM(x,s) ((unsigned long) ioremap((x), s))
