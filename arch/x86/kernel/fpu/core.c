@@ -678,7 +678,16 @@ int fpu_clone(struct task_struct *dst, u64 clone_flags, bool minimal,
 	fpstate_reset(dst_fpu);
 
 	if (!cpu_feature_enabled(X86_FEATURE_FPU))
+	{
+		/*
+		 * Patch for SHORK 486:
+		 * Previously, cwd is left zeroed (all exceptions unmasked) instead
+		 * of the masked default. This caused spurious SIGFPE in new threads
+		 * under math emulation.
+		*/
+		fpstate_init_soft(&dst_fpu->fpstate->regs.soft);
 		return 0;
+	}
 
 	/*
 	 * Enforce reload for user space tasks and prevent kernel threads
