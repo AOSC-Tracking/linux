@@ -2954,6 +2954,18 @@ static u32 macb_dbw(struct macb *bp)
 	}
 }
 
+/* Longest frame that fits in a single RX buffer */
+static u32 gem_jumbo_max_len(struct macb *bp)
+{
+	u32 len = bp->rx_buffer_size;
+
+	/* Frame data starts NET_IP_ALIGN bytes into the buffer without RSC */
+	if (!(bp->caps & MACB_CAPS_RSC))
+		len -= NET_IP_ALIGN;
+
+	return min(len, bp->jumbo_max_len);
+}
+
 /* Configure the receive DMA engine
  * - use the correct receive buffer size
  * - set best burst length for DMA operations
@@ -3000,6 +3012,13 @@ static void macb_configure_dma(struct macb *bp)
 		netdev_dbg(bp->netdev, "Cadence configure DMA with 0x%08x\n",
 			   dmacfg);
 		gem_writel(bp, DMACFG, dmacfg);
+
+		/* Jumbo frames are always enabled, so limit their length to
+		 * what fits in one RX buffer. Longer frames would otherwise be
+		 * split across several descriptors and dropped by gem_rx().
+		 */
+		if ((bp->caps & MACB_CAPS_JUMBO) && bp->jumbo_max_len)
+			gem_writel(bp, JML, gem_jumbo_max_len(bp));
 	}
 }
 
@@ -3029,8 +3048,6 @@ static void macb_init_hw(struct macb *bp)
 		config |= MACB_BIT(NBC);	/* No BroadCast */
 	config |= macb_dbw(bp);
 	macb_writel(bp, NCFGR, config);
-	if ((bp->caps & MACB_CAPS_JUMBO) && bp->jumbo_max_len)
-		gem_writel(bp, JML, bp->jumbo_max_len);
 	bp->rx_frm_len_mask = MACB_RX_FRMLEN_MASK;
 	if (bp->caps & MACB_CAPS_JUMBO)
 		bp->rx_frm_len_mask = MACB_RX_JFRMLEN_MASK;
