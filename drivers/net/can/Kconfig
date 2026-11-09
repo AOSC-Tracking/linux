@@ -186,6 +186,17 @@ config CAN_KVASER_PCIEFD
 	    Kvaser M.2 PCIe 4xCAN
 	    Kvaser PCIe 8xCAN
 
+config CAN_LOONGSON_CANFD
+	tristate "Loongson CAN-FD controller"
+	depends on HAS_IOMEM
+	select REGMAP_MMIO
+	help
+	  This is a canfd driver switch for the Loongson platform,
+	  integrated with the Loongson-2K series SoCs.
+
+	  To compile as a module, choose M here: the module will be
+	  called loongson_canfd.
+
 config CAN_SLCAN
 	tristate "Serial / USB serial CAN Adaptors (slcan)"
 	depends on TTY
