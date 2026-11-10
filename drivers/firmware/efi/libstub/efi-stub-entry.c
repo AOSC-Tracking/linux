@@ -20,6 +20,7 @@ struct sysfb_display_info *alloc_primary_display(void)
 		return __alloc_primary_display();
 
 	if (IS_ENABLED(CONFIG_X86) ||
+	    IS_ENABLED(CONFIG_LOONGARCH) ||
 	    IS_ENABLED(CONFIG_EFI_EARLYCON) ||
 	    IS_ENABLED(CONFIG_SYSFB))
 		return kernel_image_addr(&sysfb_primary_display);
