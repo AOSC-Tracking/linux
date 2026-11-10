@@ -62,6 +62,11 @@ static void riscv_fill_cpu_mfr_info(struct cpu_manufacturer_info_t *cpu_mfr_info
 		cpu_mfr_info->patch_func = thead_errata_patch_func;
 		break;
 #endif
+#ifdef CONFIG_ERRATA_SPACEMIT
+	case SPACEMIT_VENDOR_ID:
+		cpu_mfr_info->patch_func = spacemit_errata_patch_func;
+		break;
+#endif
 	default:
 		cpu_mfr_info->patch_func = NULL;
 	}
