@@ -9,6 +9,7 @@
 #include <linux/slab.h>
 #include <linux/pci-acpi.h>
 #include <linux/pci-ecam.h>
+#include <linux/screen_info.h>
 
 #include <asm/pci.h>
 #include <asm/numa.h>
@@ -255,6 +256,9 @@ struct pci_bus *pci_acpi_scan_root(struct acpi_pci_root *root)
 		 * this will reassign everything.
 		 */
 		pci_assign_unassigned_root_bus_resources(bus);
+
+		if (IS_ENABLED(CONFIG_SCREEN_INFO))
+			screen_info_apply_fixups();
 
 		list_for_each_entry(child, &bus->children, node)
 			pcie_bus_configure_settings(child);
