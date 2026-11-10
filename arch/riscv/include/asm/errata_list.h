@@ -98,6 +98,11 @@ asm volatile(ALTERNATIVE(						\
 #define ALT_THEAD_PMA(_val)
 #endif
 
+/* SpacemiT K3 A100 cores may not wake up from WRS.NTO, use WRS.STO */
+#define ALT_WRS_NTO							\
+	ALTERNATIVE(ZAWRS_WRS_NTO, ZAWRS_WRS_STO, SPACEMIT_VENDOR_ID,	\
+		    ERRATA_SPACEMIT_WRS_NTO, CONFIG_ERRATA_SPACEMIT_WRS_NTO)
+
 #define ALT_CMO_OP(_op, _start, _size, _cachesize)			\
 asm volatile(ALTERNATIVE(						\
 	__nops(5),							\
