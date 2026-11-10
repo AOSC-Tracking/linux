@@ -186,4 +186,26 @@ config ERRATA_THEAD_WRITE_ONCE
 	  This will apply the WRITE_ONCE errata to handle the non-standard beh-
 	  avior via appending a fence w.o instruction for WRITE_ONCE().
 
+config ERRATA_SPACEMIT
+	bool "SpacemiT errata"
+	depends on 64BIT
+	help
+	  All SpacemiT errata Kconfig depend on this Kconfig. Disabling
+	  this Kconfig will disable all SpacemiT errata. Please say "Y"
+	  here if your platform uses SpacemiT CPU cores.
+
+	  Otherwise, please say "N" here to avoid unnecessary overhead.
+
+config ERRATA_SPACEMIT_WRS_NTO
+	bool "Use WRS.STO instead of WRS.NTO on SpacemiT K3"
+	depends on ERRATA_SPACEMIT && RISCV_ISA_ZAWRS
+	default y
+	help
+	  The A100 cores of the SpacemiT K3 SoC sometimes fail to wake up
+	  from WRS.NTO. Use WRS.STO, which also returns after a short
+	  timeout, instead. As the kernel text is shared by all cores, this
+	  also applies to the X100 cores of K3.
+
+	  If you don't know what to do here, say "Y".
+
 endmenu # "CPU errata selection"
