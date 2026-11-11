@@ -407,7 +407,7 @@ static int xe_tt_map_sg(struct xe_device *xe, struct ttm_tt *tt)
 
 	xe_tt->sg = &xe_tt->sgt;
 	ret = dma_map_sgtable(xe->drm.dev, xe_tt->sg, DMA_BIDIRECTIONAL,
-			      DMA_ATTR_SKIP_CPU_SYNC);
+			      xe->ttm.dma_coherent ? DMA_ATTR_SKIP_CPU_SYNC : 0);
 	if (ret) {
 		sg_free_table(xe_tt->sg);
 		xe_tt->sg = NULL;
