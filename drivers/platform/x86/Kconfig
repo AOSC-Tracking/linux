@@ -91,16 +91,12 @@ config XIAOMI_WMI
 	  be called xiaomi-wmi.
 
 config REDMI_WMI
-	tristate "Redmibook WMI key driver"
+	tristate "Redmibook WMI key driver (DEPRECATED)"
 	depends on ACPI_WMI
+	depends on HWMON
 	depends on INPUT
-	select INPUT_SPARSEKMAP
-	help
-	  Say Y here if you want support for WMI-based hotkey events on
-	  Xiaomi Redmibook devices.
-
-	  To compile this driver as a module, choose M here: the module will
-	  be called redmi-wmi.
+	depends on LEDS_CLASS
+	depends on POWER_SUPPLY
 
 config GIGABYTE_WMI
 	tristate "Gigabyte WMI temperature driver"
@@ -120,6 +116,7 @@ config BITLAND_MIFS_WMI
 	depends on INPUT
 	depends on LEDS_CLASS
 	depends on POWER_SUPPLY
+	default REDMI_WMI if REDMI_WMI
 	select ACPI_PLATFORM_PROFILE
 	select INPUT_SPARSEKMAP
 	help
