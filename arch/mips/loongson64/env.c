@@ -27,6 +27,7 @@
 #include <boot_param.h>
 #include <builtin_dtbs.h>
 #include <workarounds.h>
+#include <linux/seq_buf.h>
 
 #define HOST_BRIDGE_CONFIG_ADDR	((void __iomem *)TO_UNCAC(0x1a000000))
 
@@ -173,12 +174,12 @@ err_fixup:
 
 void __init prom_lefi_init_env(void)
 {
-	char freq[12];
 	struct boot_params *boot_p;
 	struct loongson_params *loongson_p;
 	struct system_loongson *esys;
 	struct efi_cpuinfo_loongson *ecpu;
 	struct irq_source_routing_table *eirq_source;
+	struct seq_buf cpu_full_name_buf;
 	u32 id;
 	u16 vendor;
 
@@ -268,10 +269,12 @@ void __init prom_lefi_init_env(void)
 	loongson_sysconf.nr_nodes = (loongson_sysconf.nr_cpus +
 		loongson_sysconf.cores_per_node - 1) /
 		loongson_sysconf.cores_per_node;
+
+	seq_buf_init(&cpu_full_name_buf, cpu_full_name, sizeof(cpu_full_name));
 	if (!strncmp(ecpu->cpuname, "Loongson", 8))
-		strncpy(cpu_full_name, ecpu->cpuname, sizeof(cpu_full_name));
-	if (cpu_full_name[0] == 0)
-		strncpy(cpu_full_name, __cpu_full_name[0], sizeof(cpu_full_name));
+		seq_buf_puts(&cpu_full_name_buf, ecpu->cpuname);
+	else
+		seq_buf_puts(&cpu_full_name_buf, __cpu_full_name[0]);
 
 	loongson_sysconf.dma_mask_bits = eirq_source->dma_mask_bits;
 	if (loongson_sysconf.dma_mask_bits < 32 ||
@@ -299,9 +302,8 @@ void __init prom_lefi_init_env(void)
 	pr_info("CpuClock = %u\n", cpu_clock_freq);
 
 	/* Append default cpu frequency with round-off */
-	sprintf(freq, " @ %uMHz", (cpu_clock_freq + 500000) / 1000000);
-	strncat(cpu_full_name, freq, sizeof(cpu_full_name));
-	__cpu_full_name[0] = cpu_full_name;
+	seq_buf_printf(&cpu_full_name_buf, " @ %uMHz", (cpu_clock_freq + 500000) / 1000000);
+	__cpu_full_name[0] = seq_buf_str(&cpu_full_name_buf);
 
 	/* Read the ID of PCI host bridge to detect bridge type */
 	id = readl(HOST_BRIDGE_CONFIG_ADDR);
