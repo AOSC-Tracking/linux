@@ -226,7 +226,7 @@ static void set_prefetch_parameters(void)
 static void build_clear_store(u32 **buf, int off)
 {
 #ifdef CONFIG_CPU_LOONGSON64
-	uasm_i_gssq(buf, ZERO, ZERO, off, A0);
+	uasm_i_gssq(buf, GPR_ZERO, GPR_ZERO, off, GPR_A0);
 #else
 	if (cpu_has_64bit_gp_regs || cpu_has_64bit_zero_reg) {
 		uasm_i_sd(buf, GPR_ZERO, off, GPR_A0);
