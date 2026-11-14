@@ -27,11 +27,8 @@ allOf:
   - $ref: /schemas/pci/snps,dw-pcie-common.yaml#
   - if:
       not:
-        anyOf:
-          - required:
-              - msi-map
-          - required:
-              - msi-parent
+        required:
+          - msi-map
     then:
       properties:
         interrupt-names:
