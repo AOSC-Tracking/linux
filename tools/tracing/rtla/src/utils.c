@@ -267,14 +267,28 @@ long parse_ns_duration(char *val)
 #  define __NR_sched_setattr	351
 # elif __arm__
 #  define __NR_sched_setattr	380
-# elif __aarch64__ || __riscv
+# elif __aarch64__ || __arc__ || __csky__ || __loongarch__ || __or1k__ ||  __riscv
 #  define __NR_sched_setattr	274
 # elif __powerpc__
 #  define __NR_sched_setattr	355
 # elif __s390x__
 #  define __NR_sched_setattr	345
-# elif __loongarch__
-#  define __NR_sched_setattr	274
+# elif __alpha__
+#  define __NR_sched_setattr	508
+# elif __hppa__
+#  define __NR_sched_setattr	334
+# elif __m68k__
+#  define __NR_sched_setattr	349
+# elif __microblaze__
+#  define __NR_sched_setattr	381
+# elif __mips64
+#  define __NR_sched_setattr	5309
+# elif __mips__
+#  define __NR_sched_setattr	4349
+# elif __sh__
+#  define __NR_sched_setattr	370
+# elif __sparc__ || __sparc64__
+#  define __NR_sched_setattr	343
 # endif
 #endif
 
