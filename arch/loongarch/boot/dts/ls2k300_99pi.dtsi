@@ -111,15 +111,15 @@
 
 &gmac0 {
 	status = "okay";
-	phy-handle = <&yt8511h0>;
+	phy-handle = <&eth_phy0>;
 	mdio {
 		compatible = "snps,dwmac-mdio";
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		yt8511h0: ethernet-phy@0 {
+		eth_phy0: ethernet-phy@1 {
 			compatible = "ethernet-phy-ieee802.3-c22";
-			reg = <0>;
+			reg = <1>;
 			motorcomm,led0_cfg = <0x40>; //千兆常亮
 			motorcomm,led1_cfg = <0x30>; //百兆 十兆常亮
 			motorcomm,led2_cfg = <0x2600>; //有数据时闪烁
