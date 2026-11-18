@@ -74,7 +74,9 @@
 #define TAS2770_TDM_CFG_REG4_TX_KEEPER BIT(5)
 #define TAS2770_TDM_CFG_REG4_TX_FILL BIT(4)
 #define TAS2770_TDM_CFG_REG4_TX_OFFSET_MASK GENMASK(3, 1)
-#define TAS2770_TDM_CFG_REG4_TX_EDGE_FALLING BIT(0)
+#define TAS2770_TDM_CFG_REG4_TX_EDGE	BIT(0)
+#define TAS2770_TDM_CFG_REG4_TX_RISING	0x0
+#define TAS2770_TDM_CFG_REG4_TX_FALING	0x1
     /* TDM Configuration Reg5 */
 #define TAS2770_TDM_CFG_REG5  TAS2770_REG(0X0, 0x0F)
 #define TAS2770_TDM_CFG_REG5_VSNS_MASK  BIT(6)
@@ -150,6 +152,7 @@ struct tas2770_priv {
 	struct snd_soc_component *component;
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *sdz_gpio;
+	struct regulator *sdz_reg;
 	struct regmap *regmap;
 	struct device *dev;
 	int v_sense_slot;

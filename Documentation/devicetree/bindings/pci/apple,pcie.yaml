@@ -41,6 +41,14 @@ properties:
               - apple,t8112-pcie
               - apple,t6000-pcie
           - const: apple,pcie
+      - items:
+          - enum:
+              - apple,t6030-pcie
+              - apple,t6031-pcie
+              - apple,t6041-pcie
+              - apple,t8122-pcie
+              - apple,t8132-pcie
+          - const: apple,t6020-pcie
       - const: apple,t6020-pcie
 
   reg:
@@ -49,17 +57,7 @@ properties:
 
   reg-names:
     minItems: 3
-    items:
-      - const: config
-      - const: rc
-      - const: port0
-      - const: port1
-      - const: port2
-      - const: port3
-      - const: phy0
-      - const: phy1
-      - const: phy2
-      - const: phy3
+    maxItems: 10
 
   ranges:
     minItems: 2
@@ -81,6 +79,27 @@ properties:
 
   power-domains:
     maxItems: 1
+
+patternProperties:
+  "^pci@":
+    $ref: /schemas/pci/pci-bus.yaml#
+    type: object
+    description: A single PCI root port
+
+    properties:
+      reg:
+        maxItems: 1
+
+      pwren-gpios:
+        description: Optional GPIO to power on the device
+        maxItems: 1
+
+    required:
+      - reset-gpios
+      - interrupt-controller
+      - "#interrupt-cells"
+      - interrupt-map-mask
+      - interrupt-map
 
 required:
   - compatible
@@ -106,17 +125,82 @@ allOf:
       properties:
         reg:
           maxItems: 5
+        reg-names:
+          items:
+            - const: config
+            - const: rc
+            - const: port0
+            - const: port1
+            - const: port2
         interrupts:
           maxItems: 3
   - if:
       properties:
         compatible:
           contains:
-            const: apple,t6020-pcie
+            enum:
+              - apple,t8112-pcie
+              - apple,t6000-pcie
     then:
       properties:
+        reg:
+          maxItems: 6
         reg-names:
+          items:
+            - const: config
+            - const: rc
+            - const: port0
+            - const: port1
+            - const: port2
+            - const: port3
+  - if:
+      properties:
+        compatible:
+          oneOf:
+            - const: apple,t6020-pcie
+            - contains:
+                enum:
+                  - apple,t6030-pcie
+                  - apple,t6031-pcie
+                  - apple,t6041-pcie
+    then:
+      properties:
+        reg:
           minItems: 10
+        reg-names:
+          items:
+            - const: config
+            - const: rc
+            - const: port0
+            - const: port1
+            - const: port2
+            - const: port3
+            - const: phy0
+            - const: phy1
+            - const: phy2
+            - const: phy3
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: apple,t8132-pcie
+    then:
+      properties:
+        regs:
+          minItems: 8
+          maxItems: 8
+        reg-names:
+          items:
+            - const: config
+            - const: rc
+            - const: port0
+            - const: port1
+            - const: port2
+            - const: phy0
+            - const: phy1
+            - const: phy2
+        interrupts:
+          maxItems: 3
 
 examples:
   - |
@@ -161,7 +245,7 @@ examples:
         pinctrl-0 = <&pcie_pins>;
         pinctrl-names = "default";
 
-        pci@0,0 {
+        port00: pci@0,0 {
           device_type = "pci";
           reg = <0x0 0x0 0x0 0x0 0x0>;
           reset-gpios = <&pinctrl_ap 152 0>;
@@ -169,9 +253,17 @@ examples:
           #address-cells = <3>;
           #size-cells = <2>;
           ranges;
+
+          interrupt-controller;
+          #interrupt-cells = <1>;
+          interrupt-map-mask = <0 0 0 7>;
+          interrupt-map = <0 0 0 1 &port00 0 0 0 0>,
+                          <0 0 0 2 &port00 0 0 0 1>,
+                          <0 0 0 3 &port00 0 0 0 2>,
+                          <0 0 0 4 &port00 0 0 0 3>;
         };
 
-        pci@1,0 {
+        port01: pci@1,0 {
           device_type = "pci";
           reg = <0x800 0x0 0x0 0x0 0x0>;
           reset-gpios = <&pinctrl_ap 153 0>;
@@ -179,9 +271,17 @@ examples:
           #address-cells = <3>;
           #size-cells = <2>;
           ranges;
+
+          interrupt-controller;
+          #interrupt-cells = <1>;
+          interrupt-map-mask = <0 0 0 7>;
+          interrupt-map = <0 0 0 1 &port01 0 0 0 0>,
+                          <0 0 0 2 &port01 0 0 0 1>,
+                          <0 0 0 3 &port01 0 0 0 2>,
+                          <0 0 0 4 &port01 0 0 0 3>;
         };
 
-        pci@2,0 {
+        port02: pci@2,0 {
           device_type = "pci";
           reg = <0x1000 0x0 0x0 0x0 0x0>;
           reset-gpios = <&pinctrl_ap 33 0>;
@@ -189,6 +289,14 @@ examples:
           #address-cells = <3>;
           #size-cells = <2>;
           ranges;
+
+          interrupt-controller;
+          #interrupt-cells = <1>;
+          interrupt-map-mask = <0 0 0 7>;
+          interrupt-map = <0 0 0 1 &port02 0 0 0 0>,
+                          <0 0 0 2 &port02 0 0 0 1>,
+                          <0 0 0 3 &port02 0 0 0 2>,
+                          <0 0 0 4 &port02 0 0 0 3>;
         };
       };
     };

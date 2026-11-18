@@ -361,7 +361,7 @@ static void apple_rtkit_memcpy(struct apple_rtkit *rtk, void *dst,
 static void apple_rtkit_crashlog_rx(struct apple_rtkit *rtk, u64 msg)
 {
 	u8 type = FIELD_GET(APPLE_RTKIT_SYSLOG_TYPE, msg);
-	u8 *bfr;
+	u8 *bfr __free(kfree) = NULL;
 
 	if (type != APPLE_RTKIT_CRASHLOG_CRASH) {
 		dev_warn(rtk->dev, "RTKit: Unknown crashlog message: %llx\n",
@@ -394,9 +394,7 @@ static void apple_rtkit_crashlog_rx(struct apple_rtkit *rtk, u64 msg)
 
 	rtk->crashed = true;
 	if (rtk->ops->crashed)
-		rtk->ops->crashed(rtk->cookie, bfr, rtk->crashlog_buffer.size);
-
-	kfree(bfr);
+		rtk->ops->crashed(rtk->cookie, bfr, bfr ? rtk->crashlog_buffer.size : 0);
 }
 
 static void apple_rtkit_ioreport_rx(struct apple_rtkit *rtk, u64 msg)
@@ -638,6 +636,12 @@ int apple_rtkit_poll(struct apple_rtkit *rtk)
 	return apple_mbox_poll(rtk->mbox);
 }
 EXPORT_SYMBOL_GPL(apple_rtkit_poll);
+
+bool apple_rtkit_has_endpoint(struct apple_rtkit *rtk, u8 ep)
+{
+	return test_bit(ep, rtk->endpoints);
+}
+EXPORT_SYMBOL_GPL(apple_rtkit_has_endpoint);
 
 int apple_rtkit_start_ep(struct apple_rtkit *rtk, u8 endpoint)
 {
@@ -973,6 +977,12 @@ struct apple_rtkit *devm_apple_rtkit_init(struct device *dev, void *cookie,
 	return rtk;
 }
 EXPORT_SYMBOL_GPL(devm_apple_rtkit_init);
+
+void devm_apple_rtkit_free(struct device *dev, struct apple_rtkit *rtk)
+{
+	devm_release_action(dev, apple_rtkit_free_wrapper, rtk);
+}
+EXPORT_SYMBOL_GPL(devm_apple_rtkit_free);
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("Sven Peter <sven@svenpeter.dev>");
